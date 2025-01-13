@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { useEffect, useCallback, useState, useMemo, useRef } from "react";
 import sdk from "@farcaster/frame-sdk";
+import { Network, Alchemy } from "alchemy-sdk";
 
 
 interface FarcasterUser {
@@ -266,14 +267,14 @@ export interface NFT {
   image?: string;
   animationUrl?: string;
   audio?: string;
-  hasValidAudio?: boolean;
-  isVideo?: boolean;
-  isAnimation?: boolean;
-  collection?: {
+  hasValidAudio: boolean;
+  isVideo: boolean;
+  isAnimation: boolean;
+  collection: {
     name: string;
     image?: string;
   };
-  metadata?: any;
+  metadata: any;
 }
 
 interface _AlchemyNFT {
@@ -908,68 +909,16 @@ export default function Demo({ title }: { title?: string }) {
     try {
       console.log('Fetching NFTs for user:', user);
       const neynarKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
-      if (!neynarKey) {
-        throw new Error('Neynar API key not configured');
+      const alchemyEthKey = process.env.NEXT_PUBLIC_ALCHEMY_ETH_API_KEY;
+      const alchemyBaseKey = process.env.NEXT_PUBLIC_ALCHEMY_BASE_API_KEY;
+      
+      if (!neynarKey || !alchemyEthKey || !alchemyBaseKey) {
+        throw new Error('API keys not configured');
       }
 
-      // Get user's verified addresses first
-      const profileResponse = await fetch(
-        `https://api.neynar.com/v2/farcaster/user/bulk?fids=${user.fid}`,
-        {
-          method: 'GET',
-          headers: {
-            'accept': 'application/json',
-            'api_key': neynarKey
-          }
-        }
-      );
-
-      if (!profileResponse.ok) {
-        throw new Error(`Failed to fetch user profile: ${profileResponse.status}`);
-      }
-
-      const profileData = await profileResponse.json();
-      console.log('Profile Data:', profileData);
-
-      let allAddresses: string[] = [];
-
-      // Add verified addresses from profile
-      if (profileData.users?.[0]?.verifications) {
-        allAddresses = [...profileData.users[0].verifications];
-        console.log('Found verified addresses:', allAddresses);
-      }
-
-      // Try to get custody address
-      try {
-        const custodyResponse = await fetch(
-          `https://api.neynar.com/v2/farcaster/custody/address?fid=${user.fid}`,
-          {
-            method: 'GET',
-            headers: {
-              'accept': 'application/json',
-              'api_key': neynarKey
-            }
-          }
-        );
-
-        if (custodyResponse.ok) {
-          const custodyData = await custodyResponse.json();
-          if (custodyData.result?.custody_address) {
-            allAddresses.push(custodyData.result.custody_address);
-            console.log('Added custody address:', custodyData.result.custody_address);
-          }
-        }
-      } catch (custodyError) {
-        console.warn('Failed to fetch custody address:', custodyError);
-      }
-
-      // Remove duplicates and filter out invalid addresses
-      allAddresses = [...new Set(allAddresses)].filter(addr => 
-        addr && addr.startsWith('0x') && addr.length === 42
-      );
-
-      console.log('All addresses to check:', allAddresses);
-
+      // Get user's addresses
+      const allAddresses = await getUserAddresses(user, neynarKey);
+      
       if (allAddresses.length === 0) {
         throw new Error('No valid addresses found for this user');
       }
@@ -979,86 +928,56 @@ export default function Demo({ title }: { title?: string }) {
         verifiedAddresses: allAddresses
       });
 
+      // Initialize Alchemy SDK for both networks with separate API keys
+      const ethAlchemy = new Alchemy({
+        apiKey: alchemyEthKey,
+        network: Network.ETH_MAINNET
+      });
+
+      const baseAlchemy = new Alchemy({
+        apiKey: alchemyBaseKey,
+        network: Network.BASE_MAINNET
+      });
+
       // Fetch NFTs for each address
       const allNFTs: NFT[] = [];
-      const alchemyKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
-      
-      if (!alchemyKey) {
-        throw new Error('Alchemy API key not configured');
-      }
 
-      // Process addresses in smaller batches to avoid request header size issues
-      const batchSize = 3;
-      for (let i = 0; i < allAddresses.length; i += batchSize) {
-        const addressBatch = allAddresses.slice(i, i + batchSize);
-        
-        await Promise.all(addressBatch.map(async (address) => {
-          try {
-            // Fetch from Ethereum Mainnet with pagination
-            let pageKey = '';
-            let hasMore = true;
-            
-            while (hasMore) {
-              const url = new URL('https://eth-mainnet.g.alchemy.com/v2/' + alchemyKey + '/getNFTs');
-              url.searchParams.append('owner', address);
-              url.searchParams.append('withMetadata', 'true');
-              if (pageKey) url.searchParams.append('pageKey', pageKey);
-              
-              const response = await fetch(url, {
-                method: 'GET',
-                headers: {
-                  'accept': 'application/json'
-                }
-              });
-              
-              if (!response.ok) {
-                console.error(`Failed to fetch NFTs for ${address}: ${response.status}`);
-                break;
-              }
-              
-              const data = await response.json();
-              
-              if (data.ownedNfts) {
-                const processedNFTs = data.ownedNfts
-                  .map((nft: any) => processNFTMetadata(nft))
-                  .filter((nft: NFT) => nft.hasValidAudio);
-                
-                allNFTs.push(...processedNFTs);
-              }
-              
-              pageKey = data.pageKey;
-              hasMore = !!pageKey;
-            }
+      await Promise.all(allAddresses.map(async (address) => {
+        try {
+          // Fetch from Ethereum Mainnet
+          const ethNfts = await ethAlchemy.nft.getNftsForOwner(address);
+          const processedEthNfts = await Promise.all(
+            ethNfts.ownedNfts.map(async (nft) => {
+              const metadata = await ethAlchemy.nft.getNftMetadata(
+                nft.contract.address,
+                nft.tokenId
+              );
+              return processNFTMetadata({ ...nft, metadata });
+            })
+          );
+          allNFTs.push(...processedEthNfts.filter(nft => nft.hasValidAudio));
 
-            // Fetch from Base
-            const baseResponse = await fetch(
-              `https://base-mainnet.g.alchemy.com/v2/${alchemyKey}/getNFTs?owner=${address}&withMetadata=true`,
-              {
-                method: 'GET',
-                headers: {
-                  'accept': 'application/json'
-                }
-              }
-            );
-            
-            if (baseResponse.ok) {
-              const baseData = await baseResponse.json();
-              if (baseData.ownedNfts) {
-                const processedNFTs = baseData.ownedNfts
-                  .map((nft: any) => processNFTMetadata(nft))
-                  .filter((nft: NFT) => nft.hasValidAudio);
-                
-                allNFTs.push(...processedNFTs);
-              }
-            }
-          } catch (err) {
-            console.error(`Error fetching NFTs for address ${address}:`, err);
-          }
-        }));
-      }
+          // Fetch from Base
+          const baseNfts = await baseAlchemy.nft.getNftsForOwner(address);
+          const processedBaseNfts = await Promise.all(
+            baseNfts.ownedNfts.map(async (nft) => {
+              const metadata = await baseAlchemy.nft.getNftMetadata(
+                nft.contract.address,
+                nft.tokenId
+              );
+              return processNFTMetadata({ ...nft, metadata });
+            })
+          );
+          allNFTs.push(...processedBaseNfts.filter(nft => nft.hasValidAudio));
+
+        } catch (err) {
+          console.error(`Error fetching NFTs for address ${address}:`, err);
+        }
+      }));
 
       console.log('Found NFTs with audio:', allNFTs.length);
       setNfts(allNFTs);
+
     } catch (err) {
       console.error('Error:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch user details');
@@ -1067,7 +986,61 @@ export default function Demo({ title }: { title?: string }) {
     }
   };
 
-  const processNFTMetadata = (nft: any) => {
+  // Helper function to get user addresses
+  const getUserAddresses = async (user: FarcasterUser, neynarKey: string): Promise<string[]> => {
+    // Get user's verified addresses first
+    const profileResponse = await fetch(
+      `https://api.neynar.com/v2/farcaster/user/bulk?fids=${user.fid}`,
+      {
+        method: 'GET',
+        headers: {
+          'accept': 'application/json',
+          'api_key': neynarKey
+        }
+      }
+    );
+
+    if (!profileResponse.ok) {
+      throw new Error(`Failed to fetch user profile: ${profileResponse.status}`);
+    }
+
+    const profileData = await profileResponse.json();
+    let allAddresses: string[] = [];
+
+    // Add verified addresses from profile
+    if (profileData.users?.[0]?.verifications) {
+      allAddresses = [...profileData.users[0].verifications];
+    }
+
+    // Try to get custody address
+    try {
+      const custodyResponse = await fetch(
+        `https://api.neynar.com/v2/farcaster/custody/address?fid=${user.fid}`,
+        {
+          headers: {
+            'accept': 'application/json',
+            'api_key': neynarKey
+          }
+        }
+      );
+
+      if (custodyResponse.ok) {
+        const custodyData = await custodyResponse.json();
+        if (custodyData.result?.custody_address) {
+          allAddresses.push(custodyData.result.custody_address);
+        }
+      }
+    } catch (custodyError) {
+      console.warn('Failed to fetch custody address:', custodyError);
+    }
+
+    // Remove duplicates and filter out invalid addresses
+    return [...new Set(allAddresses)].filter(addr => 
+      addr && addr.startsWith('0x') && addr.length === 42
+    );
+  };
+
+  const processNFTMetadata = (nft: any): NFT => {
     console.log('Processing NFT:', {
       name: nft.title || nft.metadata?.name,
       metadata: nft.metadata
@@ -1114,7 +1087,7 @@ export default function Demo({ title }: { title?: string }) {
     }
 
     // Get audio URL from various possible metadata locations
-    let audioUrl = null;
+    let audioUrl: string | undefined = undefined;
 
     // Check for audio in metadata
     const possibleAudioSources = [
