@@ -1,29 +1,47 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "Nuke";
+export const runtime = 'edge';
+
+export const alt = "POD Playr";
 export const size = {
-  width: 600,
-  height: 400,
+  width: 1200,
+  height: 630,
 };
 
 export const contentType = "image/png";
 
 export default async function Image() {
-  const baseUrl = process.env.NEXT_PUBLIC_URL || 'https://your-default-url.vercel.app';
-  
   return new ImageResponse(
     (
-      <div tw="h-full w-full flex flex-col justify-center items-center relative">
-        <img
-          src={`${baseUrl}/image.png`}
-          alt="Nuke"
-          tw="w-full h-full object-cover"
-        />
+      <div
+        style={{
+          height: '100%',
+          width: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: '#000000',
+          position: 'relative',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 60,
+            fontWeight: 'bold',
+            color: '#FFFFFF',
+          }}
+        >
+          POD Playr
+        </div>
       </div>
     ),
     {
-      width: 600,
-      height: 400,
+      ...size,
     }
   );
 }

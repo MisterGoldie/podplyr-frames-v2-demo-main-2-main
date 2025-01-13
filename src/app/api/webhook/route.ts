@@ -11,6 +11,9 @@ import {
 import { sendFrameNotification } from "~/lib/notifs";
 
 export async function POST(request: NextRequest) {
+  // Check if Redis is configured
+  const isRedisConfigured = process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN;
+
   const requestJson = await request.json();
 
   let data;
@@ -22,19 +25,16 @@ export async function POST(request: NextRequest) {
     switch (error.name) {
       case "VerifyJsonFarcasterSignature.InvalidDataError":
       case "VerifyJsonFarcasterSignature.InvalidEventDataError":
-        // The request data is invalid
         return Response.json(
           { success: false, error: error.message },
           { status: 400 }
         );
       case "VerifyJsonFarcasterSignature.InvalidAppKeyError":
-        // The app key is invalid
         return Response.json(
           { success: false, error: error.message },
           { status: 401 }
         );
       case "VerifyJsonFarcasterSignature.VerifyAppKeyError":
-        // Internal error verifying the app key (caller may want to try again)
         return Response.json(
           { success: false, error: error.message },
           { status: 500 }
@@ -45,38 +45,54 @@ export async function POST(request: NextRequest) {
   const fid = data.fid;
   const event = data.event;
 
-  switch (event.event) {
-    case "frame_added":
-      if (event.notificationDetails) {
+  // If Redis isn't configured, just acknowledge the webhook
+  if (!isRedisConfigured) {
+    console.log('Redis not configured - skipping notification operations');
+    return Response.json({ 
+      success: true, 
+      message: 'Webhook received, notifications disabled (Redis not configured)' 
+    });
+  }
+
+  try {
+    switch (event.event) {
+      case "frame_added":
+        if (event.notificationDetails) {
+          await setUserNotificationDetails(fid, event.notificationDetails);
+          await sendFrameNotification({
+            fid,
+            title: "Welcome to Frames v2",
+            body: "Frame is now added to your client",
+          });
+        } else {
+          await deleteUserNotificationDetails(fid);
+        }
+        break;
+
+      case "frame_removed":
+        await deleteUserNotificationDetails(fid);
+        break;
+
+      case "notifications_enabled":
         await setUserNotificationDetails(fid, event.notificationDetails);
         await sendFrameNotification({
           fid,
-          title: "Welcome to Frames v2",
-          body: "Frame is now added to your client",
+          title: "Ding ding ding",
+          body: "Notifications are now enabled",
         });
-      } else {
+        break;
+
+      case "notifications_disabled":
         await deleteUserNotificationDetails(fid);
-      }
+        break;
+    }
 
-      break;
-    case "frame_removed":
-      await deleteUserNotificationDetails(fid);
-
-      break;
-    case "notifications_enabled":
-      await setUserNotificationDetails(fid, event.notificationDetails);
-      await sendFrameNotification({
-        fid,
-        title: "Ding ding ding",
-        body: "Notifications are now enabled",
-      });
-
-      break;
-    case "notifications_disabled":
-      await deleteUserNotificationDetails(fid);
-
-      break;
+    return Response.json({ success: true });
+  } catch (error) {
+    console.error('Error handling webhook:', error);
+    return Response.json({ 
+      success: false, 
+      error: 'Internal server error processing notification' 
+    }, { status: 500 });
   }
-
-  return Response.json({ success: true });
 }
