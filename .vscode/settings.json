@@ -1,0 +1,4 @@
+{
+  "css.validate": true,
+  "css.customData": [".vscode/css-data.json"]
+} 
