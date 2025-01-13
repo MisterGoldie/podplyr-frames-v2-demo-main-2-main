@@ -5,7 +5,7 @@ import { ChainNotConfiguredError, createConnector } from "wagmi";
 frameConnector.type = "frameConnector" as const;
 
 export function frameConnector() {
-  let connected = true;
+  let connected = false;
 
   return createConnector<typeof sdk.wallet.ethProvider>((config) => ({
     id: "farcaster",
@@ -13,27 +13,34 @@ export function frameConnector() {
     type: frameConnector.type,
 
     async setup() {
-      this.connect({ chainId: config.chains[0].id });
-    },
-    async connect({ chainId } = {}) {
-      const provider = await this.getProvider();
-      const accounts = await provider.request({
-        method: "eth_requestAccounts",
-      });
-
-      let currentChainId = await this.getChainId();
-      if (chainId && currentChainId !== chainId) {
-        const chain = await this.switchChain!({ chainId });
-        currentChainId = chain.id;
+      try {
+        // Ensure SDK is loaded before attempting connection
+        if (!sdk.wallet?.ethProvider) {
+          throw new Error('Frame SDK provider not ready');
+        }
+        await this.connect({ chainId: config.chains[0].id });
+      } catch (err) {
+        console.warn('Connector setup error:', err);
       }
-
-      connected = true;
-
-      return {
-        accounts: accounts.map((x) => getAddress(x)),
-        chainId: currentChainId,
-      };
     },
+
+    async connect({ chainId } = {}) {
+      try {
+        const provider = await this.getProvider();
+        if (!provider) throw new Error('No provider available');
+
+        const accounts = await provider.request({
+          method: "eth_requestAccounts",
+        });
+
+        connected = true;
+        return { accounts: accounts.map(x => getAddress(x)), chainId: chainId || await this.getChainId() };
+      } catch (err) {
+        connected = false;
+        throw err;
+      }
+    },
+
     async disconnect() {
       connected = false;
     },
