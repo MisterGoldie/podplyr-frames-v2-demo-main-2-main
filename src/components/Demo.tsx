@@ -829,23 +829,8 @@ export default function Demo({ title }: { title?: string }) {
         return;
       }
 
-      // Special handling for known NFTs
-      const knownNFTs: Record<string, string> = {
-        'Different Time': 'https://arweave.net/QQG1CRQbUMRfk9Nnrk1yhKsfmn2H9L26_Scai2GNOFQ',
-        'Base House': 'https://arweave.net/bafybeicod3m7as3y7luyvfgc1ltnps235hhevt64xqmo3nyho',
-        'Relic in Spring': 'https://arweave.net/QmNeKKqtGBN9y9Wy191CBiTeGSCBZywX5PrATJQxPFU3sR',
-        'form': 'https://arweave.net/QmWMegM1aWKgoLMGv4bGkzKopfr7vhrroz1oxbbk17bw',
-        'Huge Happiness': 'https://arweave.net/QmSoY8ABbhRSp6B1xkbp17bpj7cqfadd9'
-      };
-
-      const audioUrl = knownNFTs[nft.name] || nft.audio;
-      if (!audioUrl) {
-        console.warn('No audio URL found for NFT:', nft.name);
-        return;
-      }
-
       try {
-        audioElement.src = audioUrl;
+        audioElement.src = nft.audio || '';
         audioRef.current = audioElement;
         audioElement.volume = 1;
         audioElement.currentTime = 0;
@@ -1046,46 +1031,6 @@ export default function Demo({ title }: { title?: string }) {
       metadata: nft.metadata
     });
 
-    // Special handling for known NFTs
-    const knownNFTs: Record<string, { audio: string }> = {
-      'Different Time': {
-        audio: 'https://arweave.net/QQG1CRQbUMRfk9Nnrk1yhKsfmn2H9L26_Scai2GNOFQ'
-      },
-      'Base House': {
-        audio: 'https://arweave.net/bafybeicod3m7as3y7luyvfgc1ltnps235hhevt64xqmo3nyho'
-      },
-      'Relic in Spring': {
-        audio: 'https://arweave.net/QmNeKKqtGBN9y9Wy191CBiTeGSCBZywX5PrATJQxPFU3sR'
-      },
-      'form': {
-        audio: 'https://arweave.net/QmWMegM1aWKgoLMGv4bGkzKopfr7vhrroz1oxbbk17bw'
-      },
-      'Huge Happiness': {
-        audio: 'https://arweave.net/QmSoY8ABbhRSp6B1xkbp17bpj7cqfadd9'
-      }
-    };
-
-    const nftName = nft.metadata?.name || nft.title;
-    if (nftName && knownNFTs[nftName]) {
-      return {
-        contract: nft.contract.address,
-        tokenId: nft.tokenId,
-        name: nftName,
-        description: nft.description || nft.metadata?.description,
-        image: processMediaUrl(nft.metadata?.image),
-        animationUrl: processMediaUrl(nft.metadata?.animation_url),
-        audio: knownNFTs[nftName].audio,
-        hasValidAudio: true,
-        isVideo: false,
-        isAnimation: false,
-        collection: {
-          name: nft.contract.name || 'Unknown Collection',
-          image: nft.contract.openSea?.imageUrl
-        },
-        metadata: nft.metadata
-      };
-    }
-
     // Get audio URL from various possible metadata locations
     let audioUrl: string | undefined = undefined;
 
@@ -1154,7 +1099,7 @@ export default function Demo({ title }: { title?: string }) {
 
     if (hasValidAudio) {
       console.log('Found NFT with audio:', {
-        name: nftName,
+        name: nft.metadata?.name || nft.title,
         audioUrl,
         isKnownAudioNFT,
         metadata: nft.metadata
@@ -1164,7 +1109,7 @@ export default function Demo({ title }: { title?: string }) {
     return {
       contract: nft.contract.address,
       tokenId: nft.tokenId,
-      name: nftName || `#${nft.tokenId}`,
+      name: nft.metadata?.name || nft.title || `#${nft.tokenId}`,
       description: nft.description || nft.metadata?.description,
       image: imageUrl,
       animationUrl,
