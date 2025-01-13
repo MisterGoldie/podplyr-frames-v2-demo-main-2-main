@@ -864,9 +864,7 @@ export default function Demo({ title }: { title?: string }) {
     setIsSearching(true);
     setError(null);
     setSearchResults([]);
-    setSelectedUser(null);
-    setNfts([]);
-
+    
     try {
       const neynarKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
       if (!neynarKey) {
@@ -874,8 +872,9 @@ export default function Demo({ title }: { title?: string }) {
       }
 
       const response = await fetch(
-        `https://api.neynar.com/v2/farcaster/user/search?q=${encodeURIComponent(username)}`,
+        `https://api.neynar.com/v2/farcaster/user/search?q=${encodeURIComponent(username)}&viewer_fid=3&limit=10`,
         {
+          method: 'GET',
           headers: {
             'accept': 'application/json',
             'api_key': neynarKey
@@ -884,20 +883,18 @@ export default function Demo({ title }: { title?: string }) {
       );
 
       if (!response.ok) {
-        throw new Error(`Search failed: ${response.status}`);
+        throw new Error(`Failed to fetch search results: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('Search Response:', data);
-
-      if (!data.result?.users?.length) {
-        throw new Error('No users found');
+      if (data.users && Array.isArray(data.users)) {
+        setSearchResults(data.users);
+      } else {
+        setSearchResults([]);
       }
-
-      setSearchResults(data.result.users);
     } catch (err) {
       console.error('Search error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to search for users');
+      setError(err instanceof Error ? err.message : 'Failed to search users');
     } finally {
       setIsSearching(false);
     }
