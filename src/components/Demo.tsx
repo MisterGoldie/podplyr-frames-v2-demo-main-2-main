@@ -1,7 +1,7 @@
 "use client";
 
 import Image from 'next/image';
-import { useEffect, useCallback, useState, useMemo, useRef } from "react";
+import { useEffect, useCallback, useState, useMemo, useRef, ReactEventHandler } from "react";
 import sdk from "@farcaster/frame-sdk";
 
 
@@ -522,6 +522,26 @@ interface MediaRendererProps {
   className: string;
 }
 
+// Add type declaration for model-viewer
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      'model-viewer': React.DetailedHTMLProps<
+        React.HTMLAttributes<HTMLElement> & {
+          src: string;
+          'auto-rotate'?: boolean;
+          'camera-controls'?: boolean;
+          ar?: boolean;
+          className?: string;
+          onError?: ReactEventHandler<HTMLElement>;
+          onLoad?: () => void;
+        },
+        HTMLElement
+      >;
+    }
+  }
+}
+
 const MediaRenderer = ({ url, alt, className }: MediaRendererProps) => {
   const [currentGatewayIndex, setCurrentGatewayIndex] = useState(0);
   const [error, setError] = useState(false);
@@ -537,8 +557,40 @@ const MediaRenderer = ({ url, alt, className }: MediaRendererProps) => {
     return url;
   }, [url, currentGatewayIndex]);
 
-  const handleError = () => {
-    console.log('Media load error:', mediaUrl);
+  const handleModelError: ReactEventHandler<HTMLElement> = (e) => {
+    console.log('Model load error:', {
+      url: mediaUrl,
+      error: e,
+      currentGateway: IPFS_GATEWAYS[currentGatewayIndex]
+    });
+
+    if (currentGatewayIndex < IPFS_GATEWAYS.length - 1) {
+      console.log('Trying next gateway...');
+      setCurrentGatewayIndex(prev => prev + 1);
+    } else {
+      setError(true);
+    }
+  };
+
+  const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
+    const videoElement = e.currentTarget;
+    console.log('Video load error:', {
+      url: mediaUrl,
+      error: videoElement.error,
+      networkState: videoElement.networkState,
+      readyState: videoElement.readyState,
+      currentGateway: IPFS_GATEWAYS[currentGatewayIndex]
+    });
+
+    if (currentGatewayIndex < IPFS_GATEWAYS.length - 1) {
+      setCurrentGatewayIndex(prev => prev + 1);
+    } else {
+      setError(true);
+    }
+  };
+
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    console.log('Image load error:', mediaUrl);
     if (currentGatewayIndex < IPFS_GATEWAYS.length - 1) {
       setCurrentGatewayIndex(prev => prev + 1);
       return;
@@ -549,12 +601,12 @@ const MediaRenderer = ({ url, alt, className }: MediaRendererProps) => {
   // Check if the URL is a video based on metadata or extension
   const isVideo = useMemo(() => {
     if (!mediaUrl) return false;
-    // Check for common video extensions
-    const videoExtensions = /\.(mp4|webm|mov|m4v|ogv)$/i;
-    // Check for video MIME types in IPFS metadata
-    const videoMimeTypes = /(video\/|application\/vnd\.apple\.mpegurl)/i;
+    // Check for common video and 3D model extensions
+    const mediaExtensions = /\.(mp4|webm|mov|m4v|ogv|glb|gltf)$/i;
+    // Check for video/model MIME types
+    const mediaMimeTypes = /(video\/|model\/|application\/octet-stream|application\/vnd\.apple\.mpegurl)/i;
     
-    return videoExtensions.test(mediaUrl) || videoMimeTypes.test(mediaUrl);
+    return mediaExtensions.test(mediaUrl) || mediaMimeTypes.test(mediaUrl);
   }, [mediaUrl]);
 
   if (!mediaUrl || error) {
@@ -568,18 +620,30 @@ const MediaRenderer = ({ url, alt, className }: MediaRendererProps) => {
   if (isVideo) {
     return (
       <div className="relative w-full h-full">
-        <video 
-          ref={videoRef}
-          src={mediaUrl}
-          className={`${className} ${loaded ? 'opacity-100' : 'opacity-0'}`}
-          autoPlay
-          loop
-          muted
-          playsInline
-          controls={false}
-          onError={handleError}
-          onLoadedData={() => setLoaded(true)}
-        />
+        {mediaUrl.match(/\.(glb|gltf)$/i) ? (
+          <model-viewer
+            src={mediaUrl}
+            auto-rotate
+            camera-controls
+            ar
+            className={`${className} ${loaded ? 'opacity-100' : 'opacity-0'}`}
+            onError={handleModelError}
+            onLoad={() => setLoaded(true)}
+          />
+        ) : (
+          <video 
+            ref={videoRef}
+            src={mediaUrl}
+            className={`${className} ${loaded ? 'opacity-100' : 'opacity-0'}`}
+            autoPlay
+            loop
+            muted
+            playsInline
+            controls={false}
+            onError={handleVideoError}
+            onLoadedData={() => setLoaded(true)}
+          />
+        )}
         {!loaded && !error && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-400"></div>
@@ -595,7 +659,7 @@ const MediaRenderer = ({ url, alt, className }: MediaRendererProps) => {
         src={mediaUrl} 
         alt={alt}
         className={`${className} ${loaded ? 'opacity-100' : 'opacity-0'}`}
-        onError={handleError}
+        onError={handleImageError}
         onLoad={() => setLoaded(true)}
       />
       {!loaded && !error && (
@@ -726,43 +790,67 @@ export default function Demo({ title }: { title?: string }) {
   }, [currentPlayingNFT]);
 
   // Update the handlePlayAudio function
-  const handlePlayAudio = async (nft: NFT) => {
+  const handlePlayAudio = async (nft: NFT | null) => {
+    if (!nft) return;
+    
     try {
+      const audioId = `audio-${nft.contract}-${nft.tokenId}`;
+      const audioElement = document.getElementById(audioId) as HTMLAudioElement;
+      
+      if (!audioElement) {
+        console.warn('Audio element not found:', audioId);
+        return;
+      }
+
       const nftId = `${nft.contract}-${nft.tokenId}`;
       
+      // If this is the currently playing NFT, handle pause
       if (currentlyPlaying === nftId) {
-        if (audioRef.current) {
-          audioRef.current.pause();
+        await audioElement.pause();
+        setCurrentlyPlaying(null);
+        setCurrentPlayingNFT(null);
+        return;
+      }
+
+      // Stop any currently playing audio before starting new one
+      if (currentlyPlaying) {
+        const currentAudio = document.getElementById(`audio-${currentlyPlaying}`) as HTMLAudioElement;
+        if (currentAudio) {
+          await currentAudio.pause();
         }
         setCurrentlyPlaying(null);
-        return;
+        setCurrentPlayingNFT(null);
       }
 
-      // Stop any currently playing audio
-      if (audioRef.current) {
-        audioRef.current.pause();
+      // Set the source only if it hasn't been set yet
+      if (!audioElement.src) {
+        const audioUrl = processMediaUrl(nft.audio || nft.metadata?.animation_url);
+        if (!audioUrl) {
+          console.warn('No valid audio URL found for NFT:', nft);
+          return;
+        }
+        audioElement.src = audioUrl;
       }
 
-      // Get the audio element using ID instead of data attribute
-      const audioElement = document.getElementById(`audio-${nftId}`) as HTMLAudioElement;
-      if (!audioElement) {
-        console.error('Audio element not found for NFT:', nft.name);
-        return;
-      }
-
-      audioRef.current = audioElement;
-      audioElement.volume = 1;
-      
       try {
+        await audioElement.load();
         await audioElement.play();
         setCurrentlyPlaying(nftId);
         setCurrentPlayingNFT(nft);
-        console.log('Playing audio for NFT:', nft.name);
-      } catch (error) {
-        console.error('Failed to play audio:', error);
+      } catch (playError) {
+        if (playError instanceof DOMException && playError.name === 'AbortError') {
+          // Small delay before retry
+          await new Promise(resolve => setTimeout(resolve, 100));
+          await audioElement.load();
+          await audioElement.play();
+          setCurrentlyPlaying(nftId);
+          setCurrentPlayingNFT(nft);
+        } else {
+          console.warn('Playback error:', playError);
+        }
       }
     } catch (error) {
-      console.error('Error in handlePlayAudio:', error);
+      console.warn('Error in handlePlayAudio:', error);
     }
   };
 
@@ -1018,7 +1106,6 @@ export default function Demo({ title }: { title?: string }) {
   };
 
   const processNFTMetadata = (nft: any): NFT => {
-    console.log('Processing NFT:', nft);
     const audioUrl = processMediaUrl(
       nft.metadata?.animation_url ||
       nft.metadata?.audio ||
@@ -1028,11 +1115,6 @@ export default function Demo({ title }: { title?: string }) {
       nft.metadata?.properties?.audio_file ||
       nft.metadata?.properties?.soundContent?.url
     );
-
-    const isKnownAudioNFT = 
-      nft.metadata?.properties?.category === 'audio' ||
-      nft.metadata?.properties?.sound ||
-      (nft.metadata?.animation_url && nft.metadata?.animation_url.toLowerCase().match(/\.(mp3|wav|m4a|ogg|aac)$/));
 
     const imageUrl = processMediaUrl(
       nft.metadata?.image ||
@@ -1047,9 +1129,23 @@ export default function Demo({ title }: { title?: string }) {
       nft.metadata?.properties?.video
     );
 
-    const hasValidAudio = !!(audioUrl || isKnownAudioNFT);
-    const isAnimation = !!nft.metadata?.animation_url;
-    const isVideo = animationUrl?.toLowerCase().match(/\.(mp4|mov|webm)$/i) !== null;
+    // Check if it's a video/animation based on MIME type or file extension
+    const mimeType = nft.metadata?.mimeType || 
+                    nft.metadata?.mime_type || 
+                    nft.metadata?.properties?.mimeType ||
+                    nft.metadata?.content?.mime;
+
+    const isVideo = animationUrl && (
+      mimeType?.startsWith('video/') ||
+      /\.(mp4|webm|mov|m4v)$/i.test(animationUrl)
+    );
+
+    const isAnimation = animationUrl && (
+      mimeType?.startsWith('model/') ||
+      /\.(glb|gltf)$/i.test(animationUrl) ||
+      nft.metadata?.animation_details?.format === 'gltf' ||
+      nft.metadata?.animation_details?.format === 'glb'
+    );
 
     return {
       contract: nft.contract.address,
@@ -1059,7 +1155,7 @@ export default function Demo({ title }: { title?: string }) {
       image: imageUrl || '',
       animationUrl: animationUrl || '',
       audio: audioUrl || '',
-      hasValidAudio,
+      hasValidAudio: !!audioUrl,
       isVideo,
       isAnimation,
       collection: {
@@ -1255,7 +1351,7 @@ export default function Demo({ title }: { title?: string }) {
                   <div className="p-4">
                     <div className="retro-display p-2">
                       <h3 className="text-lg truncate text-green-400">{nft.name}</h3>
-                      <p className="text-sm opacity-75 text-gray-400">{nft.collection?.name}</p>
+                      <p className="text-sm opacity-75 truncate">{nft.collection?.name}</p>
                     </div>
                   </div>
                   <audio
