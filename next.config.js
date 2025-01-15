@@ -9,6 +9,10 @@ const nextConfig = {
       },
     ],
   },
+  experimental: {
+    optimizeCss: true,
+    scrollRestoration: true,
+  },
   typescript: {
     ignoreBuildErrors: true,
   },
