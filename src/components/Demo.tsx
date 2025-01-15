@@ -728,18 +728,19 @@ export default function Demo({ title }: { title?: string }) {
   const [currentPlayingNFT, setCurrentPlayingNFT] = useState<NFT | null>(null);
   const [isPlayerMinimized, setIsPlayerMinimized] = useState(true);
   const [audioProgress, setAudioProgress] = useState(0);
-  const [audioDuration, setAudioDuration] = useState(0);
+  const [audioDuration, setAudioDuration] = useState<number>(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
   const [loadedAudioElements, setLoadedAudioElements] = useState<Set<string>>(new Set());
   const [isPlayerVisible, setIsPlayerVisible] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isSearchPage, setIsSearchPage] = useState(true);
 
 
   // Only show NFTs with audio
   const filteredNfts = nfts.filter(nft => nft.hasValidAudio);
 
-  const _handleStopPlaying = () => {
+  const handleStopPlaying = () => {
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
@@ -967,6 +968,7 @@ export default function Demo({ title }: { title?: string }) {
 
   // Update handleUserSelect with better error handling
   const handleUserSelect = async (user: FarcasterUser) => {
+    setIsSearchPage(false);
     console.log('=== START NFT FETCH ===');
     setIsLoadingNFTs(true);
     setError(null);
@@ -1175,6 +1177,50 @@ export default function Demo({ title }: { title?: string }) {
     }
   }, [currentlyPlaying]);
 
+  const handleBackToSearch = () => {
+    setIsSearchPage(true);
+    handleStopPlaying(); // Stop any playing audio
+    setIsPlayerVisible(false); // Hide the player
+    setIsPlayerMinimized(true); // Reset minimizer state
+    setAudioProgress(0); // Reset progress
+    setAudioDuration(0); // Reset duration
+    setIsPlaying(false); // Ensure playing state is reset
+  };
+
+  useEffect(() => {
+    if (!currentPlayingNFT) return;
+    
+    const audioElement = document.getElementById(`audio-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`) as HTMLAudioElement;
+    
+    if (!audioElement) return;
+
+    // Set initial duration when metadata is loaded
+    const handleLoadedMetadata = () => {
+      setAudioDuration(audioElement.duration);
+    };
+
+    // Update progress as audio plays
+    const handleTimeUpdate = () => {
+      setAudioProgress(audioElement.currentTime);
+    };
+
+    audioElement.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audioElement.addEventListener('timeupdate', handleTimeUpdate);
+
+    // Set initial values if already loaded
+    if (audioElement.duration) {
+      setAudioDuration(audioElement.duration);
+    }
+    if (audioElement.currentTime) {
+      setAudioProgress(audioElement.currentTime);
+    }
+
+    return () => {
+      audioElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audioElement.removeEventListener('timeupdate', handleTimeUpdate);
+    };
+  }, [currentPlayingNFT]);
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black">
       <RetroStyles />
@@ -1243,6 +1289,7 @@ export default function Demo({ title }: { title?: string }) {
                   setSelectedUser(null);
                   setNfts([]);
                   setSearchResults([]);
+                  handleBackToSearch();
                 }}
                 className="retro-button p-2 text-green-400"
               >
@@ -1367,8 +1414,10 @@ export default function Demo({ title }: { title?: string }) {
                       data-nft={`${nft.contract}-${nft.tokenId}`}
                       preload="auto"
                       crossOrigin="anonymous"
-                      onLoadedMetadata={() => {
-                        console.log('Audio loaded:', nft.name);
+                      onLoadedMetadata={(e) => {
+                        const audio = e.target as HTMLAudioElement;
+                        console.log('Audio loaded:', nft.name, 'Duration:', audio.duration);
+                        setAudioDuration(audio.duration);
                         setLoadedAudioElements(prev => new Set(prev).add(`${nft.contract}-${nft.tokenId}`));
                       }}
                       onError={(e) => {
@@ -1416,7 +1465,7 @@ export default function Demo({ title }: { title?: string }) {
         <div 
           className={`fixed bottom-0 left-0 right-0 retro-container transition-all duration-300 z-50 bg-gray-900/95 backdrop-blur-sm ${
             isPlayerMinimized ? 'h-16' : 'h-32'
-          } ${isPlayerVisible ? 'translate-y-0' : 'translate-y-full'}`}
+          } ${isPlayerVisible && currentPlayingNFT && !isSearchPage ? 'translate-y-0' : 'translate-y-full'}`}
         >
           <div className="container mx-auto px-2 h-full">
             <div className="flex flex-col h-full">
@@ -1484,6 +1533,9 @@ export default function Demo({ title }: { title?: string }) {
                       value={audioProgress}
                       onChange={(e) => handleSeek(Number(e.target.value))}
                       className="retro-progress w-full"
+                      style={{
+                        background: `linear-gradient(to right, #4ade80 ${(audioProgress / (audioDuration || 1)) * 100}%, #1f2937 ${(audioProgress / (audioDuration || 1)) * 100}%)`
+                      }}
                     />
                     <div className="absolute -top-1 left-1">
                       <div className="w-5 h-5">
@@ -1502,7 +1554,11 @@ export default function Demo({ title }: { title?: string }) {
                   </div>
 
                   <span className="font-mono text-green-400 text-base min-w-[40px]">
-                    {Math.floor(audioDuration / 60)}:{String(Math.floor(audioDuration % 60)).padStart(2, '0')}
+                    {audioDuration ? (
+                      `${Math.floor(audioDuration / 60)}:${String(Math.floor(audioDuration % 60)).padStart(2, '0')}`
+                    ) : (
+                      '0:00'
+                    )}
                   </span>
                 </div>
               )}
