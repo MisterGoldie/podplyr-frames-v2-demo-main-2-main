@@ -113,10 +113,10 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioElement }) => {
   return (
     <canvas
       ref={canvasRef}
-      className="w-full h-24 rounded"
+      className="w-full h-full rounded-full"
       style={{ 
-        width: '100%',
-        height: '100px',
+        width: '24px',
+        height: '24px',
         background: 'transparent'
       }}
     />

@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { useEffect, useCallback, useState, useMemo, useRef, ReactEventHandler } from "react";
 import sdk from "@farcaster/frame-sdk";
+import AudioVisualizer from './AudioVisualizer';
 
 
 interface FarcasterUser {
@@ -1414,81 +1415,93 @@ export default function Demo({ title }: { title?: string }) {
         {/* Update the media player to look like a Walkman/cassette player */}
         <div 
           className={`fixed bottom-0 left-0 right-0 retro-container transition-all duration-300 z-50 bg-gray-900/95 backdrop-blur-sm ${
-            isPlayerMinimized ? 'h-20' : 'h-40'
+            isPlayerMinimized ? 'h-16' : 'h-32'
           } ${isPlayerVisible ? 'translate-y-0' : 'translate-y-full'}`}
         >
-          <div className="container mx-auto px-4 h-full">
+          <div className="container mx-auto px-2 h-full">
             <div className="flex flex-col h-full">
-              <div className="flex items-center justify-between py-2">
-                <div className="flex items-center gap-4">
-                  <div className="cassette-wheel"></div>
-                  <div className="retro-display p-2 min-w-[200px]">
-                    {currentPlayingNFT ? (
-                      <>
-                        <h4 className="font-mono text-green-400 truncate">{currentPlayingNFT.name}</h4>
-                      </>
-                    ) : (
-                      <p className="font-mono">NO MEDIA PLAYING</p>
-                    )}
-                  </div>
-                  <div className="cassette-wheel"></div>
-                </div>
-
-                {/* Control buttons */}
-                <div className="flex items-center gap-4">
-                  {currentPlayingNFT && (
-                    <button
-                      onClick={() => handlePlayAudio(currentPlayingNFT)}
-                      className="retro-button p-3 text-green-400"
-                      disabled={!loadedAudioElements.has(`${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`)}
-                    >
-                      {!loadedAudioElements.has(`${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`) ? (
-                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-400"></div>
-                      ) : isPlaying ? (
-                        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 10h6v4H9z" />
-                        </svg>
-                      ) : (
-                        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      )}
-                    </button>
-                  )}
+              {/* Main player row with 3 columns */}
+              <div className="flex items-center justify-between gap-2 h-16">
+                {/* Left play button */}
+                {currentPlayingNFT && (
                   <button
-                    onClick={() => setIsPlayerMinimized(!isPlayerMinimized)}
+                    onClick={() => handlePlayAudio(currentPlayingNFT)}
                     className="retro-button p-2 text-green-400"
+                    disabled={!loadedAudioElements.has(`${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`)}
                   >
-                    {isPlayerMinimized ? (
+                    {!loadedAudioElements.has(`${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`) ? (
+                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-green-400"></div>
+                    ) : isPlaying ? (
                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 10h6v4H9z" />
                       </svg>
                     ) : (
                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     )}
                   </button>
+                )}
+
+                {/* Center content */}
+                <div className="flex-1 flex justify-center">
+                  <div className="retro-display p-1 min-w-[160px] max-w-[200px] text-center">
+                    {currentPlayingNFT ? (
+                      <h4 className="font-mono text-green-400 truncate text-lg">{currentPlayingNFT.name}</h4>
+                    ) : (
+                      <p className="font-mono text-lg">NO MEDIA PLAYING</p>
+                    )}
+                  </div>
                 </div>
+
+                {/* Right minimize button */}
+                <button
+                  onClick={() => setIsPlayerMinimized(!isPlayerMinimized)}
+                  className="retro-button p-1 text-green-400"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                      d={isPlayerMinimized ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} 
+                    />
+                  </svg>
+                </button>
               </div>
 
-              {/* Progress bar */}
+              {/* Progress bar section - only shown when not minimized */}
               {!isPlayerMinimized && currentPlayingNFT && (
-                <div className="flex items-center gap-4 py-4">
-                  <span className="font-mono text-green-400 text-sm min-w-[45px]">
+                <div className="flex items-center gap-2 py-2">
+                  <span className="font-mono text-green-400 text-base min-w-[40px]">
                     {Math.floor(audioProgress / 60)}:{String(Math.floor(audioProgress % 60)).padStart(2, '0')}
                   </span>
-                  <input
-                    type="range"
-                    min={0}
-                    max={audioDuration || 100}
-                    value={audioProgress}
-                    onChange={(e) => handleSeek(Number(e.target.value))}
-                    className="retro-progress flex-1"
-                  />
-                  <span className="font-mono text-green-400 text-sm min-w-[45px]">
+                  
+                  <div className="flex-1 relative">
+                    <input
+                      type="range"
+                      min={0}
+                      max={audioDuration || 100}
+                      value={audioProgress}
+                      onChange={(e) => handleSeek(Number(e.target.value))}
+                      className="retro-progress w-full"
+                    />
+                    <div className="absolute -top-1 left-1">
+                      <div className="w-5 h-5">
+                        <AudioVisualizer 
+                          audioElement={document.getElementById(`audio-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`) as HTMLAudioElement} 
+                        />
+                      </div>
+                    </div>
+                    <div className="absolute -top-1 right-1">
+                      <div className="w-5 h-5">
+                        <AudioVisualizer 
+                          audioElement={document.getElementById(`audio-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`) as HTMLAudioElement} 
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <span className="font-mono text-green-400 text-base min-w-[40px]">
                     {Math.floor(audioDuration / 60)}:{String(Math.floor(audioDuration % 60)).padStart(2, '0')}
                   </span>
                 </div>
