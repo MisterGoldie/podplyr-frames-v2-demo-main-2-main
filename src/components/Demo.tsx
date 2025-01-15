@@ -1341,7 +1341,16 @@ export default function Demo({ title }: { title?: string }) {
                       onClick={() => handlePlayAudio(nft)}
                       className="absolute bottom-4 right-4 retro-button p-3 text-white z-10"
                     >
-                      {/* Play button content */}
+                      {currentlyPlaying === `${nft.contract}-${nft.tokenId}` ? (
+                        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                          <rect x="6" y="4" width="4" height="16" />
+                          <rect x="14" y="4" width="4" height="16" />
+                        </svg>
+                      ) : (
+                        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                      )}
                     </button>
                   </div>
                   <div className="p-4">
