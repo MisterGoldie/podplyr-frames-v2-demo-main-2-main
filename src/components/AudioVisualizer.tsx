@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 interface AudioVisualizerProps {
   audioElement: HTMLAudioElement | null;
@@ -10,35 +10,43 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioElement }) => {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
     if (!audioElement || !canvasRef.current) return;
 
-    // Initialize audio context and analyzer
+    const observer = new IntersectionObserver(
+      (entries) => {
+        setIsVisible(entries[0].isIntersecting);
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(canvasRef.current);
+
     const initializeAudioContext = () => {
       try {
         const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
         const analyser = audioContext.createAnalyser();
-        
-        // Smaller FFT size for better mobile performance
-        analyser.fftSize = 128;
+        analyser.fftSize = 64;
         
         if (audioElement.src) {
           const source = audioContext.createMediaElementSource(audioElement);
           source.connect(analyser);
           analyser.connect(audioContext.destination);
+          sourceRef.current = source;
         }
 
         audioContextRef.current = audioContext;
         analyserRef.current = analyser;
       } catch (error) {
-        console.warn('Audio visualization disabled:', error);
+        console.warn('Audio visualization disabled');
       }
     };
 
-    // Draw the visualization
+    // Only animate when visible
     const draw = () => {
-      if (!canvasRef.current || !analyserRef.current) return;
+      if (!isVisible || !canvasRef.current || !analyserRef.current) return;
 
       const canvas = canvasRef.current;
       const ctx = canvas.getContext('2d');
@@ -92,11 +100,15 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioElement }) => {
 
     // Cleanup
     return () => {
+      observer.disconnect();
+      if (sourceRef.current) {
+        sourceRef.current.disconnect();
+      }
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [audioElement]);
+  }, [audioElement, isVisible]);
 
   return (
     <canvas
