@@ -339,6 +339,7 @@ const retroStyles = `
     box-shadow: 
       inset 0 0 20px rgba(0,0,0,0.5),
       0 2px 8px rgba(0,0,0,0.3);
+    transition: transform 0.3s ease-in-out;
   }
 
   .retro-button {
@@ -730,6 +731,8 @@ export default function Demo({ title }: { title?: string }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
   const [loadedAudioElements, setLoadedAudioElements] = useState<Set<string>>(new Set());
+  const [isPlayerVisible, setIsPlayerVisible] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
 
 
   // Only show NFTs with audio
@@ -791,93 +794,48 @@ export default function Demo({ title }: { title?: string }) {
   }, [currentPlayingNFT]);
 
   // Update the handlePlayAudio function
-  const handlePlayAudio = async (nft: NFT | null) => {
-    if (!nft) return;
-    
+  const handlePlayAudio = async (nft: NFT) => {
     const nftId = `${nft.contract}-${nft.tokenId}`;
-    
-    // Add to loaded elements if not already present
-    if (!loadedAudioElements.has(nftId)) {
-      setLoadedAudioElements(prev => new Set(prev).add(nftId));
-    }
+    const audioId = `audio-${nftId}`;
+    let audioElement = document.getElementById(audioId) as HTMLAudioElement;
 
     try {
-      const audioId = `audio-${nft.contract}-${nft.tokenId}`;
-      const audioElement = document.getElementById(audioId) as HTMLAudioElement;
-      
       if (!audioElement) {
-        // If audio element doesn't exist, fail silently
+        console.log('Audio element not found:', nft.name);
         return;
       }
 
-      // If this is the currently playing NFT, handle pause
+      // If this is the currently playing NFT, handle pause/resume
       if (currentlyPlaying === nftId) {
-        try {
-          await audioElement.pause();
-          setCurrentlyPlaying(null);
-          setCurrentPlayingNFT(null);
-        } catch (pauseError) {
-          console.warn('Error pausing audio:', { nft: nft.name });
+        if (!audioElement.paused) {
+          audioElement.pause();
+          setIsPlaying(false);
+        } else {
+          await audioElement.play();
+          setIsPlaying(true);
         }
         return;
       }
 
       // Stop any currently playing audio
       if (currentlyPlaying) {
-        try {
-          const currentAudio = document.getElementById(`audio-${currentlyPlaying}`) as HTMLAudioElement;
-          if (currentAudio) {
-            await currentAudio.pause();
-          }
-        } catch (stopError) {
-          console.warn('Error stopping current audio');
+        const currentAudio = document.getElementById(`audio-${currentlyPlaying}`) as HTMLAudioElement;
+        if (currentAudio) {
+          currentAudio.pause();
+          currentAudio.currentTime = 0;
         }
-        setCurrentlyPlaying(null);
-        setCurrentPlayingNFT(null);
+        setIsPlaying(false);
       }
 
-      // Handle audio source
-      if (!audioElement.src) {
-        const audioUrl = processMediaUrl(nft.audio || nft.metadata?.animation_url);
-        if (!audioUrl) {
-          console.warn('No valid audio URL for:', nft.name);
-          return;
-        }
-        audioElement.src = audioUrl;
-        
-        // Wait for audio to be loaded
-        try {
-          await new Promise((resolve, reject) => {
-            audioElement.onloadeddata = resolve;
-            audioElement.onerror = reject;
-            audioElement.load();
-          });
-        } catch (loadError) {
-          console.warn('Error loading audio:', { nft: nft.name });
-          return;
-        }
-      }
-
-      // Play audio
-      try {
-        await audioElement.play();
-        setCurrentlyPlaying(nftId);
-        setCurrentPlayingNFT(nft);
-      } catch (playError) {
-        console.warn('Error playing audio:', { nft: nft.name });
-        // Reset on play error
-        audioElement.src = '';
-        audioElement.load();
-      }
-      
+      // Play the new audio
+      await audioElement.play();
+      setCurrentlyPlaying(nftId);
+      setCurrentPlayingNFT(nft);
+      setIsPlayerVisible(true);
+      setIsPlaying(true);
     } catch (error) {
-      // On any error, reset the state and remove the audio element
-      const audioElement = document.getElementById(`audio-${nft.contract}-${nft.tokenId}`);
-      if (audioElement) {
-        audioElement.remove();
-      }
-      setCurrentlyPlaying(null);
-      setCurrentPlayingNFT(null);
+      console.error('Error playing audio:', error);
+      setIsPlaying(false);
     }
   };
 
@@ -1193,12 +1151,35 @@ export default function Demo({ title }: { title?: string }) {
     };
   };
 
+  // Add this effect to monitor play/pause state
+  useEffect(() => {
+    const currentAudio = currentlyPlaying ? 
+      document.getElementById(`audio-${currentlyPlaying}`) as HTMLAudioElement : 
+      null;
+
+    if (currentAudio) {
+      const handlePlay = () => setIsPlaying(true);
+      const handlePause = () => setIsPlaying(false);
+      const handleEnded = () => setIsPlaying(false);
+
+      currentAudio.addEventListener('play', handlePlay);
+      currentAudio.addEventListener('pause', handlePause);
+      currentAudio.addEventListener('ended', handleEnded);
+
+      return () => {
+        currentAudio.removeEventListener('play', handlePlay);
+        currentAudio.removeEventListener('pause', handlePause);
+        currentAudio.removeEventListener('ended', handleEnded);
+      };
+    }
+  }, [currentlyPlaying]);
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black">
       <RetroStyles />
       <div className="container mx-auto px-4 py-8">
         <h1 className="text-4xl font-bold mb-12 text-center text-green-400 font-mono tracking-wider retro-display p-4">
-          {title || "PODPLAYR"}
+          {selectedUser ? `${selectedUser.username}'s PODPLAYR` : (title || "PODPLAYR")}
         </h1>
 
         <div className="retro-container p-6 mb-8">
@@ -1313,7 +1294,7 @@ export default function Demo({ title }: { title?: string }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
               {filteredNfts.map((nft, index) => (
                 <div key={`${nft.contract}-${nft.tokenId}-${index}`} 
-                     className="retro-container bg-gray-800 overflow-hidden">
+                     className="retro-container bg-gray-800 overflow-hidden relative z-0">
                   <div className="aspect-square relative bg-gray-800">
                     {/* Always show the base image */}
                     <div className="w-full h-full absolute top-0 left-0">
@@ -1354,7 +1335,7 @@ export default function Demo({ title }: { title?: string }) {
 
                     <button 
                       onClick={() => handlePlayAudio(nft)}
-                      className="absolute bottom-4 right-4 retro-button p-3 text-white z-10"
+                      className="absolute bottom-4 right-4 retro-button p-3 text-white"
                     >
                       {currentlyPlaying === `${nft.contract}-${nft.tokenId}` ? (
                         <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
@@ -1379,17 +1360,25 @@ export default function Demo({ title }: { title?: string }) {
                       </div>
                     </div>
                   </div>
-                  {loadedAudioElements.has(`${nft.contract}-${nft.tokenId}`) && (
+                  {nft.hasValidAudio && (
                     <audio
                       id={`audio-${nft.contract}-${nft.tokenId}`}
                       data-nft={`${nft.contract}-${nft.tokenId}`}
-                      preload="none"
+                      preload="auto"
                       crossOrigin="anonymous"
+                      onLoadedMetadata={() => {
+                        console.log('Audio loaded:', nft.name);
+                        setLoadedAudioElements(prev => new Set(prev).add(`${nft.contract}-${nft.tokenId}`));
+                      }}
                       onError={(e) => {
                         const target = e.target as HTMLAudioElement;
-                        target.src = '';
+                        console.error('Audio error:', {
+                          error: e,
+                          src: target.src,
+                          currentTime: target.currentTime,
+                          readyState: target.readyState
+                        });
                         target.remove();
-                        // Remove from loaded elements
                         setLoadedAudioElements(prev => {
                           const next = new Set(prev);
                           next.delete(`${nft.contract}-${nft.tokenId}`);
@@ -1398,12 +1387,21 @@ export default function Demo({ title }: { title?: string }) {
                         if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
                           setCurrentlyPlaying(null);
                           setCurrentPlayingNFT(null);
+                          setIsPlaying(false);
                         }
                       }}
                     >
                       <source 
                         src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
                         type="audio/mpeg" 
+                      />
+                      <source 
+                        src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
+                        type="audio/mp4" 
+                      />
+                      <source 
+                        src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
+                        type="audio/wav" 
                       />
                     </audio>
                   )}
@@ -1414,9 +1412,11 @@ export default function Demo({ title }: { title?: string }) {
         )}
 
         {/* Update the media player to look like a Walkman/cassette player */}
-        <div className={`fixed bottom-0 left-0 right-0 retro-container transition-all duration-300 ${
-          isPlayerMinimized ? 'h-20' : 'h-40'
-        }`}>
+        <div 
+          className={`fixed bottom-0 left-0 right-0 retro-container transition-all duration-300 z-50 bg-gray-900/95 backdrop-blur-sm ${
+            isPlayerMinimized ? 'h-20' : 'h-40'
+          } ${isPlayerVisible ? 'translate-y-0' : 'translate-y-full'}`}
+        >
           <div className="container mx-auto px-4 h-full">
             <div className="flex flex-col h-full">
               <div className="flex items-center justify-between py-2">
@@ -1440,8 +1440,11 @@ export default function Demo({ title }: { title?: string }) {
                     <button
                       onClick={() => handlePlayAudio(currentPlayingNFT)}
                       className="retro-button p-3 text-green-400"
+                      disabled={!loadedAudioElements.has(`${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`)}
                     >
-                      {currentlyPlaying ? (
+                      {!loadedAudioElements.has(`${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`) ? (
+                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-400"></div>
+                      ) : isPlaying ? (
                         <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 10h6v4H9z" />
