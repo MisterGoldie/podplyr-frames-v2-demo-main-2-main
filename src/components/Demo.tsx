@@ -806,51 +806,70 @@ export default function Demo({ title }: { title?: string }) {
       
       // If this is the currently playing NFT, handle pause
       if (currentlyPlaying === nftId) {
-        await audioElement.pause();
-        setCurrentlyPlaying(null);
-        setCurrentPlayingNFT(null);
+        try {
+          await audioElement.pause();
+          setCurrentlyPlaying(null);
+          setCurrentPlayingNFT(null);
+        } catch (pauseError) {
+          console.warn('Error pausing audio:', { nft: nft.name });
+        }
         return;
       }
 
-      // Stop any currently playing audio before starting new one
+      // Stop any currently playing audio
       if (currentlyPlaying) {
-        const currentAudio = document.getElementById(`audio-${currentlyPlaying}`) as HTMLAudioElement;
-        if (currentAudio) {
-          await currentAudio.pause();
+        try {
+          const currentAudio = document.getElementById(`audio-${currentlyPlaying}`) as HTMLAudioElement;
+          if (currentAudio) {
+            await currentAudio.pause();
+          }
+        } catch (stopError) {
+          console.warn('Error stopping current audio');
         }
         setCurrentlyPlaying(null);
         setCurrentPlayingNFT(null);
       }
 
-      // Set the source only if it hasn't been set yet
+      // Handle audio source
       if (!audioElement.src) {
         const audioUrl = processMediaUrl(nft.audio || nft.metadata?.animation_url);
         if (!audioUrl) {
-          console.warn('No valid audio URL found for NFT:', nft);
+          console.warn('No valid audio URL for:', nft.name);
           return;
         }
         audioElement.src = audioUrl;
+        
+        // Wait for audio to be loaded
+        try {
+          await new Promise((resolve, reject) => {
+            audioElement.onloadeddata = resolve;
+            audioElement.onerror = reject;
+            audioElement.load();
+          });
+        } catch (loadError) {
+          console.warn('Error loading audio:', { nft: nft.name });
+          return;
+        }
       }
 
+      // Play audio
       try {
-        await audioElement.load();
         await audioElement.play();
         setCurrentlyPlaying(nftId);
         setCurrentPlayingNFT(nft);
       } catch (playError) {
-        if (playError instanceof DOMException && playError.name === 'AbortError') {
-          // Small delay before retry
-          await new Promise(resolve => setTimeout(resolve, 100));
-          await audioElement.load();
-          await audioElement.play();
-          setCurrentlyPlaying(nftId);
-          setCurrentPlayingNFT(nft);
-        } else {
-          console.warn('Playback error:', playError);
-        }
+        console.warn('Error playing audio:', { nft: nft.name });
+        // Reset on play error
+        audioElement.src = '';
+        audioElement.load();
       }
+      
     } catch (error) {
-      console.warn('Error in handlePlayAudio:', error);
+      // Log error without throwing
+      console.warn('Audio playback error:', { 
+        nft: nft.name,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   };
 
@@ -1298,22 +1317,11 @@ export default function Demo({ title }: { title?: string }) {
                     </div>
 
                     {/* Show video/animation content if available */}
-                    {(nft.isVideo || nft.isAnimation || nft.metadata?.animation_url || 
-                      nft.metadata?.properties?.animation_url || nft.metadata?.properties?.video) && (
+                    {nft.metadata?.animation_url && (
                       <div className="w-full h-full absolute top-0 left-0">
                         <video 
-                          key={processMediaUrl(
-                            nft.animationUrl || 
-                            nft.metadata?.animation_url || 
-                            nft.metadata?.properties?.animation_url ||
-                            nft.metadata?.properties?.video
-                          )}
-                          src={processMediaUrl(
-                            nft.animationUrl || 
-                            nft.metadata?.animation_url || 
-                            nft.metadata?.properties?.animation_url ||
-                            nft.metadata?.properties?.video
-                          )}
+                          key={processMediaUrl(nft.metadata.animation_url)}
+                          src={processMediaUrl(nft.metadata.animation_url)}
                           className="w-full h-full object-cover"
                           autoPlay
                           loop
@@ -1321,17 +1329,16 @@ export default function Demo({ title }: { title?: string }) {
                           playsInline
                           controls={false}
                           onError={(e) => {
-                            console.warn('Video load error:', {
-                              nft: nft.name,
-                              url: processMediaUrl(nft.animationUrl || nft.metadata?.animation_url),
-                              error: e
-                            });
+                            // Just hide the video on error
                             const target = e.target as HTMLVideoElement;
                             target.style.display = 'none';
                           }}
                           onLoadedData={(e) => {
                             const video = e.target as HTMLVideoElement;
-                            video.play().catch(err => console.warn('Autoplay failed:', err));
+                            video.play().catch(() => {
+                              video.muted = true;
+                              video.play().catch(() => {});
+                            });
                           }}
                         />
                       </div>
@@ -1369,8 +1376,20 @@ export default function Demo({ title }: { title?: string }) {
                     data-nft={`${nft.contract}-${nft.tokenId}`}
                     preload="metadata"
                     crossOrigin="anonymous"
+                    onError={(e) => {
+                      const target = e.target as HTMLAudioElement;
+                      console.error('Audio load error:', {
+                        nft: nft.name,
+                        error: e
+                      });
+                      target.src = '';
+                      target.load();
+                    }}
                   >
-                    <source src={processMediaUrl(nft.audio || nft.metadata?.animation_url)} type="audio/mpeg" />
+                    <source 
+                      src={processMediaUrl(nft.audio || nft.metadata?.animation_url)} 
+                      type="audio/mpeg" 
+                    />
                   </audio>
                 </div>
               ))}

@@ -16,17 +16,24 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioElement }) => {
 
     // Initialize audio context and analyzer
     const initializeAudioContext = () => {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const analyser = audioContext.createAnalyser();
-      const source = audioContext.createMediaElementSource(audioElement);
-      
-      analyser.fftSize = 256;
-      source.connect(analyser);
-      analyser.connect(audioContext.destination);
+      try {
+        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const analyser = audioContext.createAnalyser();
+        
+        // Smaller FFT size for better mobile performance
+        analyser.fftSize = 128;
+        
+        if (audioElement.src) {
+          const source = audioContext.createMediaElementSource(audioElement);
+          source.connect(analyser);
+          analyser.connect(audioContext.destination);
+        }
 
-      audioContextRef.current = audioContext;
-      analyserRef.current = analyser;
-      sourceRef.current = source;
+        audioContextRef.current = audioContext;
+        analyserRef.current = analyser;
+      } catch (error) {
+        console.warn('Audio visualization disabled:', error);
+      }
     };
 
     // Draw the visualization
