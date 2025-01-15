@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { useEffect, useCallback, useState, useMemo, useRef, ReactEventHandler } from "react";
 import sdk from "@farcaster/frame-sdk";
+import { Alchemy, Network } from 'alchemy-sdk';
 
 
 interface FarcasterUser {
@@ -42,6 +43,22 @@ type _SearchResults = {
     cursor?: string;
   };
 };
+
+// Initialize Alchemy instances for different networks
+const alchemyMainnet = new Alchemy({
+  apiKey: process.env.NEXT_PUBLIC_ALCHEMY_API_KEY,
+  network: Network.ETH_MAINNET
+});
+
+const alchemyBase = new Alchemy({
+  apiKey: process.env.NEXT_PUBLIC_ALCHEMY_API_KEY,
+  network: Network.BASE_MAINNET
+});
+
+const alchemyOptimism = new Alchemy({
+  apiKey: process.env.NEXT_PUBLIC_ALCHEMY_OP_API_KEY,
+  network: Network.OPT_MAINNET // This will cover Zora since it's an L2 on OP
+});
 
 function SearchBar({ onSearch, isSearching }: SearchBarProps) {
   const [username, setUsername] = useState('');
@@ -274,6 +291,7 @@ export interface NFT {
     image?: string;
   };
   metadata?: NFTMetadata;
+  network?: string;
 }
 
 interface _AlchemyNFT {
@@ -488,31 +506,43 @@ const IPFS_GATEWAYS = [
   'https://gateway.ipfs.io/ipfs/'
 ];
 
-const processMediaUrl = (url: string | undefined): string | undefined => {
-  if (!url) return undefined;
+// Add this helper function to handle Arweave URLs
+const processArweaveUrl = (url: string | undefined): string => {
+  if (!url) return '';
   
-  // Clean the URL first
-  const cleanUrl = url.trim();
-  
-  // Handle IPFS URLs
-  if (cleanUrl.startsWith('ipfs://')) {
-    const ipfsHash = cleanUrl.replace('ipfs://', '');
-    // Try the first gateway by default
-    return `${IPFS_GATEWAYS[0]}${ipfsHash}`;
+  // Check if it's an Arweave URL
+  if (url.includes('arweave.net')) {
+    // Try using a gateway for Arweave content
+    const arweaveHash = url.split('/').pop();
+    return arweaveHash ? `https://arweave.net/${arweaveHash}` : '';
   }
-  
-  // Handle HTTP URLs that contain IPFS hashes
-  if (cleanUrl.includes('/ipfs/')) {
-    const ipfsHash = cleanUrl.split('/ipfs/')[1];
-    return `${IPFS_GATEWAYS[0]}${ipfsHash}`;
+  return url;
+};
+
+// Update the processMediaUrl function with proper type handling
+const processMediaUrl = (url: string | undefined): string => {
+  if (!url) return '';
+
+  try {
+    const urlObj = new URL(url);
+    
+    // Handle Arweave URLs
+    if (urlObj.hostname.includes('arweave.net')) {
+      return processArweaveUrl(url);
+    }
+
+    // Handle IPFS URLs
+    if (url.startsWith('ipfs://')) {
+      const ipfsHash = url.replace('ipfs://', '');
+      return `https://ipfs.io/ipfs/${ipfsHash}`;
+    }
+
+    // Handle other URLs
+    return url;
+  } catch (error) {
+    console.warn('Error processing media URL:', error);
+    return url || '';
   }
-  
-  // Return original URL if it's already HTTP/HTTPS
-  if (cleanUrl.startsWith('http')) {
-    return cleanUrl;
-  }
-  
-  return undefined;
 };
 
 // Update the MediaRenderer component props interface and implementation
@@ -713,6 +743,92 @@ const NFTImage = ({ src, alt, className }: { src: string, alt: string, className
       unoptimized
     />
   );
+};
+
+// Update the fetchNFTs function to fetch from all networks
+const fetchNFTs = async (address: string) => {
+  try {
+    const [ethNFTs, baseNFTs, opNFTs] = await Promise.all([
+      alchemyMainnet.nft.getNftsForOwner(address),
+      alchemyBase.nft.getNftsForOwner(address),
+      alchemyOptimism.nft.getNftsForOwner(address)
+    ]);
+
+    // Combine NFTs from all networks and add network identifier
+    const allNFTs = [
+      ...ethNFTs.ownedNfts.map(nft => ({ ...nft, network: 'ethereum' })),
+      ...baseNFTs.ownedNfts.map(nft => ({ ...nft, network: 'base' })),
+      ...opNFTs.ownedNfts.map(nft => ({ ...nft, network: 'optimism' }))
+    ];
+
+    return { nfts: allNFTs };
+  } catch (error) {
+    console.error('Error fetching NFTs:', error);
+    return { nfts: [] };
+  }
+};
+
+// Update the processNFTMetadata function to include network info
+const processNFTMetadata = (nft: any): NFT => {
+  const audioUrl = processMediaUrl(
+    nft.metadata?.animation_url ||
+    nft.metadata?.audio ||
+    nft.metadata?.audio_url ||
+    nft.metadata?.properties?.audio ||
+    nft.metadata?.properties?.audio_url ||
+    nft.metadata?.properties?.audio_file ||
+    nft.metadata?.properties?.soundContent?.url
+  );
+
+  const imageUrl = processMediaUrl(
+    nft.metadata?.image ||
+    nft.metadata?.image_url ||
+    nft.metadata?.properties?.image ||
+    nft.metadata?.properties?.visual?.url
+  );
+
+  const animationUrl = processMediaUrl(
+    nft.metadata?.animation_url ||
+    nft.metadata?.properties?.animation_url ||
+    nft.metadata?.properties?.video
+  );
+
+  // Check if it's a video/animation based on MIME type or file extension
+  const mimeType = nft.metadata?.mimeType || 
+                  nft.metadata?.mime_type || 
+                  nft.metadata?.properties?.mimeType ||
+                  nft.metadata?.content?.mime;
+
+  const isVideo = animationUrl && (
+    mimeType?.startsWith('video/') ||
+    /\.(mp4|webm|mov|m4v)$/i.test(animationUrl)
+  );
+
+  const isAnimation = animationUrl && (
+    mimeType?.startsWith('model/') ||
+    /\.(glb|gltf)$/i.test(animationUrl) ||
+    nft.metadata?.animation_details?.format === 'gltf' ||
+    nft.metadata?.animation_details?.format === 'glb'
+  );
+
+  return {
+    contract: nft.contract?.address,
+    tokenId: nft.tokenId,
+    name: nft.metadata?.name || nft.title || `#${nft.tokenId}`,
+    description: nft.description || nft.metadata?.description,
+    image: imageUrl || '',
+    animationUrl: animationUrl || '',
+    audio: audioUrl || '',
+    hasValidAudio: !!audioUrl,
+    isVideo,
+    isAnimation,
+    collection: {
+      name: nft.contract?.name || 'Unknown Collection',
+      image: nft.contract?.openSea?.imageUrl
+    },
+    metadata: nft.metadata,
+    network: nft.network || 'ethereum'
+  };
 };
 
 export default function Demo({ title }: { title?: string }) {
@@ -927,76 +1043,66 @@ export default function Demo({ title }: { title?: string }) {
   const fetchNFTsForAddress = async (address: string, alchemyKey: string) => {
     try {
       const allNFTs: NFT[] = [];
-      
-      // Configure options for the fetch request
       const options = {
         method: 'GET',
-        headers: {
-          'accept': 'application/json'
-        }
+        headers: { 'accept': 'application/json' }
       };
 
-      // Construct mainnet URL with v2 endpoint
+      // Fetch from Ethereum Mainnet
       const mainnetUrl = `https://eth-mainnet.g.alchemy.com/v2/${alchemyKey}/getNFTsForOwner?owner=${address}&withMetadata=true&pageSize=100`;
-      
-      console.log('[NFT Fetch] Attempting mainnet fetch:', mainnetUrl.replace(alchemyKey, 'HIDDEN_KEY'));
-
-      const response = await fetch(mainnetUrl, options);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${await response.text()}`);
-      }
-
-      const data = await response.json();
-      
-      if (data.ownedNfts?.length) {
+      const mainnetResponse = await fetch(mainnetUrl, options);
+      if (mainnetResponse.ok) {
+        const data = await mainnetResponse.json();
         const processedNFTs = data.ownedNfts
           .map((nft: any) => {
             try {
-              return processNFTMetadata(nft);
+              return processNFTMetadata({ ...nft, network: 'ethereum' });
             } catch (error) {
-              console.warn('[NFT Fetch] Metadata processing error:', {
-                error: error instanceof Error ? error.message : 'Unknown error',
-                nftContract: nft?.contract?.address,
-                nftId: nft?.tokenId
-              });
+              console.warn('[NFT Fetch] Mainnet metadata error:', error);
               return null;
             }
           })
           .filter((nft: NFT | null) => nft && nft.hasValidAudio);
-
         allNFTs.push(...processedNFTs);
       }
 
-      // Try Base network with same format
-      try {
-        const baseUrl = `https://base-mainnet.g.alchemy.com/v2/${alchemyKey}/getNFTsForOwner?owner=${address}&withMetadata=true&pageSize=100`;
-        
-        const baseResponse = await fetch(baseUrl, options);
-        
-        if (baseResponse.ok) {
-          const baseData = await baseResponse.json();
-          if (baseData.ownedNfts?.length) {
-            const processedNFTs = baseData.ownedNfts
-              .map((nft: any) => {
-                try {
-                  return processNFTMetadata(nft);
-                } catch (error) {
-                  console.warn('[NFT Fetch] Base metadata error:', {
-                    error: error instanceof Error ? error.message : 'Unknown error',
-                    nftContract: nft?.contract?.address,
-                    nftId: nft?.tokenId
-                  });
-                  return null;
-                }
-              })
-              .filter((nft: NFT | null) => nft && nft.hasValidAudio);
+      // Fetch from Base
+      const baseUrl = `https://base-mainnet.g.alchemy.com/v2/${alchemyKey}/getNFTsForOwner?owner=${address}&withMetadata=true&pageSize=100`;
+      const baseResponse = await fetch(baseUrl, options);
+      if (baseResponse.ok) {
+        const baseData = await baseResponse.json();
+        const processedBaseNFTs = baseData.ownedNfts
+          .map((nft: any) => {
+            try {
+              return processNFTMetadata({ ...nft, network: 'base' });
+            } catch (error) {
+              console.warn('[NFT Fetch] Base metadata error:', error);
+              return null;
+            }
+          })
+          .filter((nft: NFT | null) => nft && nft.hasValidAudio);
+        allNFTs.push(...processedBaseNFTs);
+      }
 
-            allNFTs.push(...processedNFTs);
-          }
+      // Fetch from Optimism
+      const optimismKey = process.env.NEXT_PUBLIC_ALCHEMY_OP_API_KEY;
+      if (optimismKey) {
+        const optimismUrl = `https://opt-mainnet.g.alchemy.com/v2/${optimismKey}/getNFTsForOwner?owner=${address}&withMetadata=true&pageSize=100`;
+        const optimismResponse = await fetch(optimismUrl, options);
+        if (optimismResponse.ok) {
+          const optimismData = await optimismResponse.json();
+          const processedOptimismNFTs = optimismData.ownedNfts
+            .map((nft: any) => {
+              try {
+                return processNFTMetadata({ ...nft, network: 'optimism' });
+              } catch (error) {
+                console.warn('[NFT Fetch] Optimism metadata error:', error);
+                return null;
+              }
+            })
+            .filter((nft: NFT | null) => nft && nft.hasValidAudio);
+          allNFTs.push(...processedOptimismNFTs);
         }
-      } catch (error) {
-        console.warn('[NFT Fetch] Base network error:', error);
       }
 
       return allNFTs;
@@ -1130,67 +1236,6 @@ export default function Demo({ title }: { title?: string }) {
       setIsLoadingNFTs(false);
       console.log('=== END NFT FETCH ===');
     }
-  };
-
-  const processNFTMetadata = (nft: any): NFT => {
-    const audioUrl = processMediaUrl(
-      nft.metadata?.animation_url ||
-      nft.metadata?.audio ||
-      nft.metadata?.audio_url ||
-      nft.metadata?.properties?.audio ||
-      nft.metadata?.properties?.audio_url ||
-      nft.metadata?.properties?.audio_file ||
-      nft.metadata?.properties?.soundContent?.url
-    );
-
-    const imageUrl = processMediaUrl(
-      nft.metadata?.image ||
-      nft.metadata?.image_url ||
-      nft.metadata?.properties?.image ||
-      nft.metadata?.properties?.visual?.url
-    );
-
-    const animationUrl = processMediaUrl(
-      nft.metadata?.animation_url ||
-      nft.metadata?.properties?.animation_url ||
-      nft.metadata?.properties?.video
-    );
-
-    // Check if it's a video/animation based on MIME type or file extension
-    const mimeType = nft.metadata?.mimeType || 
-                    nft.metadata?.mime_type || 
-                    nft.metadata?.properties?.mimeType ||
-                    nft.metadata?.content?.mime;
-
-    const isVideo = animationUrl && (
-      mimeType?.startsWith('video/') ||
-      /\.(mp4|webm|mov|m4v)$/i.test(animationUrl)
-    );
-
-    const isAnimation = animationUrl && (
-      mimeType?.startsWith('model/') ||
-      /\.(glb|gltf)$/i.test(animationUrl) ||
-      nft.metadata?.animation_details?.format === 'gltf' ||
-      nft.metadata?.animation_details?.format === 'glb'
-    );
-
-    return {
-      contract: nft.contract.address,
-      tokenId: nft.tokenId,
-      name: nft.metadata?.name || nft.title || `#${nft.tokenId}`,
-      description: nft.description || nft.metadata?.description,
-      image: imageUrl || '',
-      animationUrl: animationUrl || '',
-      audio: audioUrl || '',
-      hasValidAudio: !!audioUrl,
-      isVideo,
-      isAnimation,
-      collection: {
-        name: nft.contract.name || 'Unknown Collection',
-        image: nft.contract.openSea?.imageUrl
-      },
-      metadata: nft.metadata
-    };
   };
 
   return (
@@ -1387,14 +1432,20 @@ export default function Demo({ title }: { title?: string }) {
                       crossOrigin="anonymous"
                       onError={(e) => {
                         const target = e.target as HTMLAudioElement;
+                        console.warn('Audio load error for:', nft.name);
+                        
+                        // Try alternative URL if it's an Arweave URL
+                        if (target.src.includes('arweave.net')) {
+                          const arweaveHash = target.src.split('/').pop();
+                          if (arweaveHash) {
+                            target.src = `https://ar-io.net/${arweaveHash}`;
+                            return;
+                          }
+                        }
+                        
+                        // If all else fails, cleanup
                         target.src = '';
                         target.remove();
-                        // Remove from loaded elements
-                        setLoadedAudioElements(prev => {
-                          const next = new Set(prev);
-                          next.delete(`${nft.contract}-${nft.tokenId}`);
-                          return next;
-                        });
                         if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
                           setCurrentlyPlaying(null);
                           setCurrentPlayingNFT(null);
