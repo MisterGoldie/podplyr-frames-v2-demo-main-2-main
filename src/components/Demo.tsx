@@ -1374,16 +1374,16 @@ export default function Demo({ title }: { title?: string }) {
                   <audio
                     id={`audio-${nft.contract}-${nft.tokenId}`}
                     data-nft={`${nft.contract}-${nft.tokenId}`}
-                    preload="metadata"
+                    preload="none"
                     crossOrigin="anonymous"
                     onError={(e) => {
                       const target = e.target as HTMLAudioElement;
-                      console.error('Audio load error:', {
-                        nft: nft.name,
-                        error: e
-                      });
-                      // Just clear the source on error
+                      // Silently handle error without console logging
                       target.src = '';
+                      // Remove the source element to prevent further load attempts
+                      while (target.firstChild) {
+                        target.removeChild(target.firstChild);
+                      }
                     }}
                   >
                     <source 
