@@ -798,7 +798,7 @@ export default function Demo({ title }: { title?: string }) {
       const audioElement = document.getElementById(audioId) as HTMLAudioElement;
       
       if (!audioElement) {
-        console.warn('Audio element not found:', audioId);
+        // If audio element doesn't exist, fail silently
         return;
       }
 
@@ -865,11 +865,13 @@ export default function Demo({ title }: { title?: string }) {
       }
       
     } catch (error) {
-      // Log error without throwing
-      console.warn('Audio playback error:', { 
-        nft: nft.name,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+      // On any error, reset the state and remove the audio element
+      const audioElement = document.getElementById(`audio-${nft.contract}-${nft.tokenId}`);
+      if (audioElement) {
+        audioElement.remove();
+      }
+      setCurrentlyPlaying(null);
+      setCurrentPlayingNFT(null);
     }
   };
 
@@ -1378,11 +1380,13 @@ export default function Demo({ title }: { title?: string }) {
                     crossOrigin="anonymous"
                     onError={(e) => {
                       const target = e.target as HTMLAudioElement;
-                      // Silently handle error without console logging
+                      // Clean up immediately on error
                       target.src = '';
-                      // Remove the source element to prevent further load attempts
-                      while (target.firstChild) {
-                        target.removeChild(target.firstChild);
+                      target.remove(); // Remove the entire element
+                      // Reset play state if this was the current audio
+                      if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
+                        setCurrentlyPlaying(null);
+                        setCurrentPlayingNFT(null);
                       }
                     }}
                   >
