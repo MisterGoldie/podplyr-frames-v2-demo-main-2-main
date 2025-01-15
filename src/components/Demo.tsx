@@ -1428,7 +1428,7 @@ export default function Demo({ title }: { title?: string }) {
                         <h4 className="font-mono text-green-400 truncate">{currentPlayingNFT.name}</h4>
                       </>
                     ) : (
-                      <p className="font-mono">NO TRACK LOADED</p>
+                      <p className="font-mono">NO MEDIA PLAYING</p>
                     )}
                   </div>
                   <div className="cassette-wheel"></div>
