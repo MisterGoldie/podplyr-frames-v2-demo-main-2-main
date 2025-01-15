@@ -729,6 +729,7 @@ export default function Demo({ title }: { title?: string }) {
   const [audioDuration, setAudioDuration] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
+  const [loadedAudioElements, setLoadedAudioElements] = useState<Set<string>>(new Set());
 
 
   // Only show NFTs with audio
@@ -793,6 +794,13 @@ export default function Demo({ title }: { title?: string }) {
   const handlePlayAudio = async (nft: NFT | null) => {
     if (!nft) return;
     
+    const nftId = `${nft.contract}-${nft.tokenId}`;
+    
+    // Add to loaded elements if not already present
+    if (!loadedAudioElements.has(nftId)) {
+      setLoadedAudioElements(prev => new Set(prev).add(nftId));
+    }
+
     try {
       const audioId = `audio-${nft.contract}-${nft.tokenId}`;
       const audioElement = document.getElementById(audioId) as HTMLAudioElement;
@@ -802,8 +810,6 @@ export default function Demo({ title }: { title?: string }) {
         return;
       }
 
-      const nftId = `${nft.contract}-${nft.tokenId}`;
-      
       // If this is the currently playing NFT, handle pause
       if (currentlyPlaying === nftId) {
         try {
@@ -1373,28 +1379,34 @@ export default function Demo({ title }: { title?: string }) {
                       </div>
                     </div>
                   </div>
-                  <audio
-                    id={`audio-${nft.contract}-${nft.tokenId}`}
-                    data-nft={`${nft.contract}-${nft.tokenId}`}
-                    preload="none"
-                    crossOrigin="anonymous"
-                    onError={(e) => {
-                      const target = e.target as HTMLAudioElement;
-                      // Clean up immediately on error
-                      target.src = '';
-                      target.remove(); // Remove the entire element
-                      // Reset play state if this was the current audio
-                      if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
-                        setCurrentlyPlaying(null);
-                        setCurrentPlayingNFT(null);
-                      }
-                    }}
-                  >
-                    <source 
-                      src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
-                      type="audio/mpeg" 
-                    />
-                  </audio>
+                  {loadedAudioElements.has(`${nft.contract}-${nft.tokenId}`) && (
+                    <audio
+                      id={`audio-${nft.contract}-${nft.tokenId}`}
+                      data-nft={`${nft.contract}-${nft.tokenId}`}
+                      preload="none"
+                      crossOrigin="anonymous"
+                      onError={(e) => {
+                        const target = e.target as HTMLAudioElement;
+                        target.src = '';
+                        target.remove();
+                        // Remove from loaded elements
+                        setLoadedAudioElements(prev => {
+                          const next = new Set(prev);
+                          next.delete(`${nft.contract}-${nft.tokenId}`);
+                          return next;
+                        });
+                        if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
+                          setCurrentlyPlaying(null);
+                          setCurrentPlayingNFT(null);
+                        }
+                      }}
+                    >
+                      <source 
+                        src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
+                        type="audio/mpeg" 
+                      />
+                    </audio>
+                  )}
                 </div>
               ))}
             </div>
