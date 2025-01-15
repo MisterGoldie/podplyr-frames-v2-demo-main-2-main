@@ -1355,8 +1355,13 @@ export default function Demo({ title }: { title?: string }) {
                   </div>
                   <div className="p-4">
                     <div className="retro-display p-2">
-                      <h3 className="text-lg truncate text-green-400">{nft.name}</h3>
-                      <p className="text-sm opacity-75 truncate">{nft.collection?.name}</p>
+                      <div className="text-container">
+                        <div className={`text-lg text-green-400 ${
+                          nft.name.length > 20 ? 'scrolling-text' : ''
+                        }`}>
+                          {nft.name}
+                        </div>
+                      </div>
                     </div>
                   </div>
                   <audio
@@ -1386,7 +1391,6 @@ export default function Demo({ title }: { title?: string }) {
                     {currentPlayingNFT ? (
                       <>
                         <h4 className="font-mono text-green-400 truncate">{currentPlayingNFT.name}</h4>
-                        <p className="text-sm opacity-75 truncate">{currentPlayingNFT.collection?.name}</p>
                       </>
                     ) : (
                       <p className="font-mono">NO TRACK LOADED</p>
