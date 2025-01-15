@@ -1382,12 +1382,12 @@ export default function Demo({ title }: { title?: string }) {
                         nft: nft.name,
                         error: e
                       });
+                      // Just clear the source on error
                       target.src = '';
-                      target.load();
                     }}
                   >
                     <source 
-                      src={processMediaUrl(nft.audio || nft.metadata?.animation_url)} 
+                      src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
                       type="audio/mpeg" 
                     />
                   </audio>
