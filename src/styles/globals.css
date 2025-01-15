@@ -1,58 +1,24 @@
-@keyframes ticker {
-  0% {
-    transform: translateX(0);
-  }
-  100% {
-    transform: translateX(-50%);
-  }
-}
-
-.ticker-text {
-  white-space: nowrap;
-  display: inline-block;
-  animation: ticker 20s linear infinite;
-}
-
-.ticker-text:hover {
-  animation-play-state: paused;
-}
-
-.marquee {
-  position: relative;
-  animation: scroll-left 15s linear infinite;
-}
-
-@keyframes scroll-left {
-  0% {
-    transform: translateX(100%);
-  }
-  100% {
-    transform: translateX(-100%);
-  }
-}
-
-.retro-display {
-  position: relative;
-  overflow: hidden;
-}
-
-.text-container {
+.marquee-container {
   width: 100%;
   overflow: hidden;
-  position: relative;
-}
-
-.scrolling-text {
   white-space: nowrap;
-  position: absolute;
-  animation: scroll-text 15s linear infinite;
 }
 
-@keyframes scroll-text {
-  0% {
+.marquee-content {
+  display: inline-block;
+  animation: marquee 15s linear infinite;
+}
+
+@keyframes marquee {
+  from {
     transform: translateX(100%);
   }
-  100% {
+  to {
     transform: translateX(-100%);
   }
+}
+
+/* Remove all previous animation classes to avoid conflicts */
+.ticker-text, .scrolling-text, .marquee-text {
+  animation: none;
 } 

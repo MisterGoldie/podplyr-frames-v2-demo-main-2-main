@@ -1281,7 +1281,7 @@ export default function Demo({ title }: { title?: string }) {
         {filteredNfts.length > 0 && (
           <div className="retro-container p-6 bg-gray-900">
             <h3 className="text-xl font-mono text-green-400 mb-4">
-              AUDIO NFTs [{filteredNfts.length}]
+              MEDIA NFTs [{filteredNfts.length}]
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
               {filteredNfts.map((nft, index) => (
@@ -1355,9 +1355,9 @@ export default function Demo({ title }: { title?: string }) {
                   </div>
                   <div className="p-4">
                     <div className="retro-display p-2">
-                      <div className="text-container">
+                      <div className="marquee-container">
                         <div className={`text-lg text-green-400 ${
-                          nft.name.length > 20 ? 'scrolling-text' : ''
+                          nft.name.length > 20 ? 'marquee-content' : ''
                         }`}>
                           {nft.name}
                         </div>
