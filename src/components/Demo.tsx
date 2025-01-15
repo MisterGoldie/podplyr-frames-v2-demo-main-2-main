@@ -795,89 +795,52 @@ export default function Demo({ title }: { title?: string }) {
     if (!nft) return;
     
     const nftId = `${nft.contract}-${nft.tokenId}`;
+    const audioId = `audio-${nftId}`;
     
-    // Add to loaded elements if not already present
-    if (!loadedAudioElements.has(nftId)) {
-      setLoadedAudioElements(prev => new Set(prev).add(nftId));
-    }
-
-    try {
-      const audioId = `audio-${nft.contract}-${nft.tokenId}`;
-      const audioElement = document.getElementById(audioId) as HTMLAudioElement;
-      
-      if (!audioElement) {
-        // If audio element doesn't exist, fail silently
-        return;
-      }
-
-      // If this is the currently playing NFT, handle pause
-      if (currentlyPlaying === nftId) {
-        try {
-          await audioElement.pause();
+    const safeRemoveAudio = (element: HTMLAudioElement | null) => {
+      try {
+        if (!element) return;
+        
+        // Clear source first
+        element.src = '';
+        element.load();
+        
+        // Remove from loaded elements
+        setLoadedAudioElements(prev => {
+          const next = new Set(prev);
+          next.delete(nftId);
+          return next;
+        });
+        
+        // Reset playing state
+        if (currentlyPlaying === nftId) {
           setCurrentlyPlaying(null);
           setCurrentPlayingNFT(null);
-        } catch (pauseError) {
-          console.warn('Error pausing audio:', { nft: nft.name });
         }
+        
+        // Safely remove element if it exists in DOM
+        if (element.parentNode && document.getElementById(audioId) === element) {
+          console.log('Removing audio element:', audioId);
+          element.parentNode.removeChild(element);
+        }
+      } catch (err) {
+        console.warn('Error in safeRemoveAudio:', err);
+      }
+    };
+
+    try {
+      const audioElement = document.getElementById(audioId) as HTMLAudioElement;
+      if (!audioElement) {
+        console.warn('Audio element not found:', audioId);
         return;
       }
 
-      // Stop any currently playing audio
-      if (currentlyPlaying) {
-        try {
-          const currentAudio = document.getElementById(`audio-${currentlyPlaying}`) as HTMLAudioElement;
-          if (currentAudio) {
-            await currentAudio.pause();
-          }
-        } catch (stopError) {
-          console.warn('Error stopping current audio');
-        }
-        setCurrentlyPlaying(null);
-        setCurrentPlayingNFT(null);
-      }
+      // Rest of your existing code...
 
-      // Handle audio source
-      if (!audioElement.src) {
-        const audioUrl = processMediaUrl(nft.audio || nft.metadata?.animation_url);
-        if (!audioUrl) {
-          console.warn('No valid audio URL for:', nft.name);
-          return;
-        }
-        audioElement.src = audioUrl;
-        
-        // Wait for audio to be loaded
-        try {
-          await new Promise((resolve, reject) => {
-            audioElement.onloadeddata = resolve;
-            audioElement.onerror = reject;
-            audioElement.load();
-          });
-        } catch (loadError) {
-          console.warn('Error loading audio:', { nft: nft.name });
-          return;
-        }
-      }
-
-      // Play audio
-      try {
-        await audioElement.play();
-        setCurrentlyPlaying(nftId);
-        setCurrentPlayingNFT(nft);
-      } catch (playError) {
-        console.warn('Error playing audio:', { nft: nft.name });
-        // Reset on play error
-        audioElement.src = '';
-        audioElement.load();
-      }
-      
     } catch (error) {
-      // On any error, reset the state and remove the audio element
-      const audioElement = document.getElementById(`audio-${nft.contract}-${nft.tokenId}`);
-      if (audioElement) {
-        audioElement.remove();
-      }
-      setCurrentlyPlaying(null);
-      setCurrentPlayingNFT(null);
+      console.warn('Error in handlePlayAudio:', error);
+      const audioElement = document.getElementById(audioId) as HTMLAudioElement;
+      safeRemoveAudio(audioElement);
     }
   };
 
@@ -1193,6 +1156,10 @@ export default function Demo({ title }: { title?: string }) {
     };
   };
 
+  function safeRemoveAudio(target: HTMLAudioElement) {
+    throw new Error('Function not implemented.');
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black">
       <RetroStyles />
@@ -1386,19 +1353,9 @@ export default function Demo({ title }: { title?: string }) {
                       preload="none"
                       crossOrigin="anonymous"
                       onError={(e) => {
+                        console.log('Audio error event triggered');
                         const target = e.target as HTMLAudioElement;
-                        target.src = '';
-                        target.remove();
-                        // Remove from loaded elements
-                        setLoadedAudioElements(prev => {
-                          const next = new Set(prev);
-                          next.delete(`${nft.contract}-${nft.tokenId}`);
-                          return next;
-                        });
-                        if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
-                          setCurrentlyPlaying(null);
-                          setCurrentPlayingNFT(null);
-                        }
+                        safeRemoveAudio(target);
                       }}
                     >
                       <source 
