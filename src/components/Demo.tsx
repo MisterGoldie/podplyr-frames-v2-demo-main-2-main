@@ -1289,43 +1289,44 @@ export default function Demo({ title }: { title?: string }) {
     
     if (!video || !audio) return;
 
-    // Sync video with audio play/pause
+    // Always keep video in sync with audio
+    const syncVideoWithAudio = () => {
+      video.currentTime = audio.currentTime;
+      if (!audio.paused && !isPlayerMinimized) {
+        video.play();
+      }
+    };
+
+    // Sync events
     const handleAudioPlay = () => {
+      video.currentTime = audio.currentTime;
       if (!isPlayerMinimized) {
-        video.currentTime = audio.currentTime;
         video.play();
       }
     };
     
     const handleAudioPause = () => video.pause();
-    
-    const handleAudioSeek = () => {
-      if (!isPlayerMinimized) {
+    const handleAudioTimeUpdate = () => {
+      if (Math.abs(video.currentTime - audio.currentTime) > 0.1) {
         video.currentTime = audio.currentTime;
       }
     };
 
-    // When expanding player, sync video to current audio position
-    if (!isPlayerMinimized && video && audio) {
-      video.currentTime = audio.currentTime;
-      if (!audio.paused) {
-        video.play();
-      }
-    }
-
-    // When minimizing, just pause the video without resetting
-    if (isPlayerMinimized && video) {
-      video.pause();
+    // When expanding player, ensure sync
+    if (!isPlayerMinimized) {
+      syncVideoWithAudio();
     }
 
     audio.addEventListener('play', handleAudioPlay);
     audio.addEventListener('pause', handleAudioPause);
-    audio.addEventListener('seeked', handleAudioSeek);
+    audio.addEventListener('timeupdate', handleAudioTimeUpdate);
+    audio.addEventListener('seeking', syncVideoWithAudio);
 
     return () => {
       audio.removeEventListener('play', handleAudioPlay);
       audio.removeEventListener('pause', handleAudioPause);
-      audio.removeEventListener('seeked', handleAudioSeek);
+      audio.removeEventListener('timeupdate', handleAudioTimeUpdate);
+      audio.removeEventListener('seeking', syncVideoWithAudio);
     };
   }, [currentPlayingNFT, isPlayerMinimized]);
 
@@ -1488,14 +1489,14 @@ export default function Demo({ title }: { title?: string }) {
                           ref={videoRef}
                           src={processMediaUrl(nft.metadata.animation_url)}
                           className="w-full h-full object-cover"
-                          autoPlay={isPlaying && !isPlayerMinimized}
-                          loop={false}
-                          muted={false}
                           playsInline
+                          muted={false}
                           controls={false}
-                          onEnded={() => {
-                            if (videoRef.current) {
-                              videoRef.current.currentTime = 0;
+                          onLoadedMetadata={(e) => {
+                            const video = e.target as HTMLVideoElement;
+                            const audio = document.getElementById(`audio-${nft.contract}-${nft.tokenId}`) as HTMLAudioElement;
+                            if (audio) {
+                              video.currentTime = audio.currentTime;
                             }
                           }}
                         />
@@ -1650,14 +1651,14 @@ export default function Demo({ title }: { title?: string }) {
                           ref={videoRef}
                           src={processMediaUrl(currentPlayingNFT.metadata.animation_url)}
                           className="w-full h-full object-cover"
-                          autoPlay={isPlaying && !isPlayerMinimized}
-                          loop={false}
-                          muted={false}
                           playsInline
+                          muted={false}
                           controls={false}
-                          onEnded={() => {
-                            if (videoRef.current) {
-                              videoRef.current.currentTime = 0;
+                          onLoadedMetadata={(e) => {
+                            const video = e.target as HTMLVideoElement;
+                            const audio = document.getElementById(`audio-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`) as HTMLAudioElement;
+                            if (audio) {
+                              video.currentTime = audio.currentTime;
                             }
                           }}
                         />
