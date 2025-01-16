@@ -1,7 +1,7 @@
 "use client";
 
 import Image from 'next/image';
-import { useEffect, useCallback, useState, useMemo, useRef, ReactEventHandler } from "react";
+import { useEffect, useCallback, useState, useMemo, useRef, ReactEventHandler, SyntheticEvent } from "react";
 import sdk from "@farcaster/frame-sdk";
 import AudioVisualizer from './AudioVisualizer';
 import { debounce } from 'lodash';
@@ -546,71 +546,19 @@ declare global {
 }
 
 const MediaRenderer = ({ url, alt, className }: MediaRendererProps) => {
-  const [currentGatewayIndex, setCurrentGatewayIndex] = useState(0);
-  const [error, setError] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const mediaUrl = useMemo(() => {
     if (!url) return null;
-    if (url.includes('/ipfs/')) {
-      const hash = url.split('/ipfs/')[1];
-      return `${IPFS_GATEWAYS[currentGatewayIndex]}${hash}`;
-    }
-    return url;
-  }, [url, currentGatewayIndex]);
-
-  const handleModelError: ReactEventHandler<HTMLElement> = (e) => {
-    console.log('Model load error:', {
-      url: mediaUrl,
-      error: e,
-      currentGateway: IPFS_GATEWAYS[currentGatewayIndex]
-    });
-
-    if (currentGatewayIndex < IPFS_GATEWAYS.length - 1) {
-      console.log('Trying next gateway...');
-      setCurrentGatewayIndex(prev => prev + 1);
-    } else {
-      setError(true);
-    }
-  };
+    return processMediaUrl(url);
+  }, [url]);
 
   const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
-    const videoElement = e.currentTarget;
-    console.log('Video load error:', {
-      url: mediaUrl,
-      error: videoElement.error,
-      networkState: videoElement.networkState,
-      readyState: videoElement.readyState,
-      currentGateway: IPFS_GATEWAYS[currentGatewayIndex]
-    });
-
-    if (currentGatewayIndex < IPFS_GATEWAYS.length - 1) {
-      setCurrentGatewayIndex(prev => prev + 1);
-    } else {
-      setError(true);
-    }
-  };
-
-  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    console.log('Image load error:', mediaUrl);
-    if (currentGatewayIndex < IPFS_GATEWAYS.length - 1) {
-      setCurrentGatewayIndex(prev => prev + 1);
-      return;
-    }
+    console.warn('Video error:', e);
     setError(true);
   };
-
-  // Check if the URL is a video based on metadata or extension
-  const isVideo = useMemo(() => {
-    if (!mediaUrl) return false;
-    // Check for common video and 3D model extensions
-    const mediaExtensions = /\.(mp4|webm|mov|m4v|ogv|glb|gltf)$/i;
-    // Check for video/model MIME types
-    const mediaMimeTypes = /(video\/|model\/|application\/octet-stream|application\/vnd\.apple\.mpegurl)/i;
-    
-    return mediaExtensions.test(mediaUrl) || mediaMimeTypes.test(mediaUrl);
-  }, [mediaUrl]);
 
   if (!mediaUrl || error) {
     return (
@@ -620,57 +568,33 @@ const MediaRenderer = ({ url, alt, className }: MediaRendererProps) => {
     );
   }
 
+  const isVideo = /\.(mp4|webm|mov)$/i.test(mediaUrl);
+
   if (isVideo) {
     return (
-      <div className="relative w-full h-full">
-        {mediaUrl.match(/\.(glb|gltf)$/i) ? (
-          <model-viewer
-            src={mediaUrl}
-            auto-rotate
-            camera-controls
-            ar
-            className={`${className} ${loaded ? 'opacity-100' : 'opacity-0'}`}
-            onError={handleModelError}
-            onLoad={() => setLoaded(true)}
-          />
-        ) : (
-          <video 
-            ref={videoRef}
-            src={mediaUrl}
-            className={`${className} ${loaded ? 'opacity-100' : 'opacity-0'}`}
-            autoPlay
-            loop
-            muted
-            playsInline
-            controls={false}
-            onError={handleVideoError}
-            onLoadedData={() => setLoaded(true)}
-          />
-        )}
-        {!loaded && !error && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-400"></div>
-          </div>
-        )}
-      </div>
+      <video 
+        ref={videoRef}
+        src={mediaUrl}
+        className={`${className} ${loaded ? 'opacity-100' : 'opacity-0'}`}
+        playsInline
+        loop={false}
+        muted
+        controls={false}
+        preload="none"
+        poster={url ? processMediaUrl(url.replace(/\.(mp4|webm|mov)/, '.jpg')) : undefined}
+        onError={handleVideoError}
+        onLoadedData={() => setLoaded(true)}
+      />
     );
   }
 
   return (
-    <div className="relative w-full h-full">
-      <img 
-        src={mediaUrl} 
-        alt={alt}
-        className={`${className} ${loaded ? 'opacity-100' : 'opacity-0'}`}
-        onError={handleImageError}
-        onLoad={() => setLoaded(true)}
-      />
-      {!loaded && !error && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-400"></div>
-        </div>
-      )}
-    </div>
+    <img 
+      src={mediaUrl} 
+      alt={alt} 
+      className={className}
+      onError={() => setError(true)}
+    />
   );
 };
 
@@ -1484,6 +1408,14 @@ export default function Demo({ title }: { title?: string }) {
     }
   };
 
+  function handleVideoError(event: SyntheticEvent<HTMLVideoElement, Event>): void {
+    throw new Error('Function not implemented.');
+  }
+
+  function setLoaded(arg0: boolean): void {
+    throw new Error('Function not implemented.');
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black">
       <RetroStyles />
@@ -1630,30 +1562,20 @@ export default function Demo({ title }: { title?: string }) {
                           src={processMediaUrl(nft.metadata.animation_url)}
                           className="w-full h-full object-cover"
                           playsInline
-                          muted={false}
+                          loop={false}
+                          muted
                           controls={false}
-                          preload="metadata"
-                          onLoadedMetadata={(e) => {
-                            const video = e.target as HTMLVideoElement;
-                            // Basic mobile optimizations
-                            if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-                              video.playsInline = true;
-                              video.setAttribute('playsinline', '');
-                              video.setAttribute('webkit-playsinline', '');
-                            }
-                            const audio = document.getElementById(`audio-${nft.contract}-${nft.tokenId}`) as HTMLAudioElement;
-                            if (audio) {
-                              video.currentTime = audio.currentTime;
-                            }
-                          }}
-                          onTimeUpdate={(e) => {
-                            const video = e.target as HTMLVideoElement;
-                            const audio = document.getElementById(`audio-${nft.contract}-${nft.tokenId}`) as HTMLAudioElement;
-                            if (audio && Math.abs(video.currentTime - audio.currentTime) > 0.1) {
-                              video.currentTime = audio.currentTime;
-                            }
-                          }}
+                          preload="none"
+                          onError={handleVideoError}
+                          onLoadedData={() => setLoaded(true)}
                         />
+                        {!isPlaying && (
+                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                            <svg className="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M8 5v14l11-7z" />
+                            </svg>
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -1809,34 +1731,24 @@ export default function Demo({ title }: { title?: string }) {
                             src={processMediaUrl(currentPlayingNFT.metadata.animation_url)}
                             className="w-full h-full object-cover"
                             playsInline
-                            muted={false}
+                            loop={false}
+                            muted
                             controls={false}
-                            preload="metadata"
-                            onLoadedMetadata={(e) => {
-                              const video = e.target as HTMLVideoElement;
-                              // Basic mobile optimizations
-                              if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-                                video.playsInline = true;
-                                video.setAttribute('playsinline', '');
-                                video.setAttribute('webkit-playsinline', '');
-                              }
-                              const audio = document.getElementById(`audio-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`) as HTMLAudioElement;
-                              if (audio) {
-                                video.currentTime = audio.currentTime;
-                              }
-                            }}
-                            onTimeUpdate={(e) => {
-                              const video = e.target as HTMLVideoElement;
-                              const audio = document.getElementById(`audio-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`) as HTMLAudioElement;
-                              if (audio && Math.abs(video.currentTime - audio.currentTime) > 0.1) {
-                                video.currentTime = audio.currentTime;
-                              }
-                            }}
+                            preload="none"
+                            onError={handleVideoError}
+                            onLoadedData={() => setLoaded(true)}
                           />
+                          {!isPlaying && (
+                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                              <svg className="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M8 5v14l11-7z" />
+                              </svg>
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <Image
-                          src={processMediaUrl(currentPlayingNFT.image || '') || ''}
+                          src={processMediaUrl(currentPlayingNFT.image || '') || '/placeholder.jpg'}
                           alt={currentPlayingNFT.name}
                           className="w-full h-full object-cover"
                           width={192}
