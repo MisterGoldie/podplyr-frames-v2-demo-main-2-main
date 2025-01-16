@@ -57,31 +57,26 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioElement }) => {
       const dataArray = new Uint8Array(bufferLength);
 
       const animate = () => {
-        animationRef.current = requestAnimationFrame(animate);
-        analyser.getByteFrequencyData(dataArray);
+        // Reduce animation frame rate on mobile
+        if (window.innerWidth < 768) {
+          setTimeout(() => {
+            animationRef.current = requestAnimationFrame(animate);
+          }, 50); // Update every 50ms instead of every frame
+        } else {
+          animationRef.current = requestAnimationFrame(animate);
+        }
 
-        // Clear canvas
+        analyser.getByteFrequencyData(dataArray);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Set dimensions based on container
-        const barWidth = (canvas.width / bufferLength) * 2.5;
-        let barHeight;
-        let x = 0;
-
-        // Draw bars
-        for (let i = 0; i < bufferLength; i++) {
-          barHeight = (dataArray[i] / 255) * canvas.height;
-
-          // Create gradient
-          const gradient = ctx.createLinearGradient(0, canvas.height, 0, 0);
-          gradient.addColorStop(0, '#ff0080');   // Pink
-          gradient.addColorStop(0.5, '#00bfff');  // Blue
-          gradient.addColorStop(1, '#00ff00');    // Green
-
-          ctx.fillStyle = gradient;
-          ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
-
-          x += barWidth + 1;
+        // Reduce number of bars on mobile
+        const mobileBufferLength = window.innerWidth < 768 ? Math.floor(bufferLength / 2) : bufferLength;
+        const barWidth = (canvas.width / mobileBufferLength) * 2.5;
+        
+        for (let i = 0; i < mobileBufferLength; i++) {
+          const barHeight = (dataArray[i] / 255) * canvas.height;
+          ctx.fillStyle = '#4ade80'; // Single color instead of gradient for better performance
+          ctx.fillRect(i * (barWidth + 1), canvas.height - barHeight, barWidth, barHeight);
         }
       };
 

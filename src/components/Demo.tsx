@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { useEffect, useCallback, useState, useMemo, useRef, ReactEventHandler } from "react";
 import sdk from "@farcaster/frame-sdk";
 import AudioVisualizer from './AudioVisualizer';
+import { debounce } from 'lodash';
 
 
 interface FarcasterUser {
@@ -736,6 +737,27 @@ export default function Demo({ title }: { title?: string }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isSearchPage, setIsSearchPage] = useState(true);
 
+  // Add near the top of Demo component with other state declarations
+  const NFT_CACHE_KEY = 'nft-cache-';
+  const TWO_HOURS = 2 * 60 * 60 * 1000;
+
+  const getCachedNFTs = (userId: number) => {
+    const cached = localStorage.getItem(`${NFT_CACHE_KEY}${userId}`);
+    if (cached) {
+      const { data, timestamp } = JSON.parse(cached);
+      if (Date.now() - timestamp < TWO_HOURS) {
+        return data;
+      }
+    }
+    return null;
+  };
+
+  const cacheNFTs = (userId: number, nfts: NFT[]) => {
+    localStorage.setItem(
+      `${NFT_CACHE_KEY}${userId}`,
+      JSON.stringify({ data: nfts, timestamp: Date.now() })
+    );
+  };
 
   // Only show NFTs with audio
   const filteredNfts = nfts.filter(nft => nft.hasValidAudio);
@@ -849,13 +871,20 @@ export default function Demo({ title }: { title?: string }) {
     setNfts([]);
 
     try {
+      // Sanitize the username input
+      const sanitizedUsername = encodeURIComponent(username.trim().toLowerCase());
+      
+      if (!sanitizedUsername) {
+        throw new Error('Please enter a valid username');
+      }
+
       const neynarKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
       if (!neynarKey) {
-        throw new Error('Neynar API key not configured');
+        throw new Error('API key not configured');
       }
 
       const response = await fetch(
-        `https://api.neynar.com/v2/farcaster/user/search?q=${encodeURIComponent(username)}`,
+        `https://api.neynar.com/v2/farcaster/user/search?q=${sanitizedUsername}`,
         {
           headers: {
             'accept': 'application/json',
@@ -865,24 +894,33 @@ export default function Demo({ title }: { title?: string }) {
       );
 
       if (!response.ok) {
-        throw new Error(`Search failed: ${response.status}`);
+        throw new Error('Failed to fetch search results');
       }
 
       const data = await response.json();
-      console.log('Search Response:', data);
-
-      if (!data.result?.users?.length) {
-        throw new Error('No users found');
+      
+      if (data.result?.users) {
+        setSearchResults(data.result.users);
+      } else {
+        setSearchResults([]);
+        setError('No users found');
       }
-
-      setSearchResults(data.result.users);
-    } catch (err) {
-      console.error('Search error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to search for users');
+    } catch (error) {
+      console.error('Search error:', error);
+      setError(error instanceof Error ? error.message : 'Failed to search');
+      setSearchResults([]);
     } finally {
       setIsSearching(false);
     }
   };
+
+  // Create the debounced version of handleSearch
+  const debouncedSearch = useCallback(
+    debounce((username: string) => {
+      handleSearch(username);
+    }, 300),
+    [] // Empty dependency array since handleSearch is defined in the component
+  );
 
   const fetchNFTsForAddress = async (address: string, alchemyKey: string) => {
     try {
@@ -1221,12 +1259,34 @@ export default function Demo({ title }: { title?: string }) {
     };
   }, [currentPlayingNFT]);
 
+  const fetchUserNFTs = async (user: FarcasterUser) => {
+    const cachedData = getCachedNFTs(user.fid);
+    if (cachedData) {
+      setNfts(cachedData);
+      return;
+    }
+
+    try {
+      setIsLoadingNFTs(true);
+      const nftsData = await fetchNFTs(user.fid); // Make sure fetchNFTs returns Promise<NFT[]>
+      if (nftsData && Array.isArray(nftsData)) {
+        cacheNFTs(user.fid, nftsData);
+        setNfts(nftsData);
+      }
+    } catch (error) {
+      console.error('Error fetching NFTs:', error);
+      setError('Failed to fetch NFTs');
+    } finally {
+      setIsLoadingNFTs(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black">
       <RetroStyles />
       <div className="container mx-auto px-4 py-8">
         <h1 className="text-4xl font-bold mb-12 text-center text-green-400 font-mono tracking-wider retro-display p-4">
-          {selectedUser ? `${selectedUser.username}'s PODPLAYR` : (title || "PODPLAYR")}
+          PODPLAYR
         </h1>
 
         <div className="retro-container p-6 mb-8">
@@ -1319,6 +1379,12 @@ export default function Demo({ title }: { title?: string }) {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {selectedUser && (
+          <div className="text-center mb-8">
+            <p className="font-mono text-gray-400">Browsing @{selectedUser.username}'s collection</p>
           </div>
         )}
 
@@ -1568,4 +1634,10 @@ export default function Demo({ title }: { title?: string }) {
       </div>
     </div>
   );
+}
+
+async function fetchNFTs(fid: number): Promise<NFT[]> {
+  // Your NFT fetching logic here
+  // Make sure to return an array of NFTs
+  return [];  // Replace with actual NFT fetching logic
 }
