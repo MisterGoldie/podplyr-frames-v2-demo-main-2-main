@@ -15,6 +15,10 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioElement }) => {
   useEffect(() => {
     if (!audioElement || !canvasRef.current) return;
 
+    // Reduce analyzer FFT size on mobile
+    const isMobile = window.innerWidth < 768;
+    const fftSize = isMobile ? 32 : 64;
+
     const observer = new IntersectionObserver(
       (entries) => {
         setIsVisible(entries[0].isIntersecting);
@@ -28,7 +32,7 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioElement }) => {
       try {
         const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
         const analyser = audioContext.createAnalyser();
-        analyser.fftSize = 64;
+        analyser.fftSize = fftSize;
         
         if (audioElement.src) {
           const source = audioContext.createMediaElementSource(audioElement);
@@ -44,7 +48,7 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioElement }) => {
       }
     };
 
-    // Only animate when visible
+    // Optimize draw function for mobile
     const draw = () => {
       if (!isVisible || !canvasRef.current || !analyserRef.current) return;
 
@@ -57,11 +61,10 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioElement }) => {
       const dataArray = new Uint8Array(bufferLength);
 
       const animate = () => {
-        // Reduce animation frame rate on mobile
-        if (window.innerWidth < 768) {
+        if (isMobile) {
           setTimeout(() => {
             animationRef.current = requestAnimationFrame(animate);
-          }, 50); // Update every 50ms instead of every frame
+          }, 100); // Increase delay for mobile
         } else {
           animationRef.current = requestAnimationFrame(animate);
         }
@@ -69,13 +72,11 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioElement }) => {
         analyser.getByteFrequencyData(dataArray);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Reduce number of bars on mobile
-        const mobileBufferLength = window.innerWidth < 768 ? Math.floor(bufferLength / 2) : bufferLength;
-        const barWidth = (canvas.width / mobileBufferLength) * 2.5;
+        const barWidth = (canvas.width / bufferLength) * 2.5;
         
-        for (let i = 0; i < mobileBufferLength; i++) {
+        for (let i = 0; i < bufferLength; i += isMobile ? 2 : 1) {
           const barHeight = (dataArray[i] / 255) * canvas.height;
-          ctx.fillStyle = '#4ade80'; // Single color instead of gradient for better performance
+          ctx.fillStyle = '#4ade80';
           ctx.fillRect(i * (barWidth + 1), canvas.height - barHeight, barWidth, barHeight);
         }
       };
@@ -108,12 +109,9 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioElement }) => {
   return (
     <canvas
       ref={canvasRef}
-      className="w-full h-full rounded-full"
-      style={{ 
-        width: '24px',
-        height: '24px',
-        background: 'transparent'
-      }}
+      width={20}
+      height={20}
+      className="w-full h-full"
     />
   );
 };

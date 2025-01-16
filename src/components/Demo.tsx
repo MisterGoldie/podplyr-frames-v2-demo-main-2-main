@@ -737,6 +737,7 @@ export default function Demo({ title }: { title?: string }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isSearchPage, setIsSearchPage] = useState(true);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [isMobile] = useState(() => window.innerWidth < 768);
 
   // Add near the top of Demo component with other state declarations
   const NFT_CACHE_KEY = 'nft-cache-';
@@ -1282,53 +1283,55 @@ export default function Demo({ title }: { title?: string }) {
     }
   };
 
-  // Update the video sync effect
+  // Modify the video sync effect
   useEffect(() => {
     const video = videoRef.current;
     const audio = document.getElementById(`audio-${currentPlayingNFT?.contract}-${currentPlayingNFT?.tokenId}`) as HTMLAudioElement;
     
     if (!video || !audio) return;
 
-    // Always keep video in sync with audio
-    const syncVideoWithAudio = () => {
-      video.currentTime = audio.currentTime;
-      if (!audio.paused && !isPlayerMinimized) {
-        video.play();
-      }
-    };
-
-    // Sync events
-    const handleAudioPlay = () => {
-      video.currentTime = audio.currentTime;
-      if (!isPlayerMinimized) {
-        video.play();
-      }
-    };
-    
-    const handleAudioPause = () => video.pause();
-    const handleAudioTimeUpdate = () => {
-      if (Math.abs(video.currentTime - audio.currentTime) > 0.1) {
-        video.currentTime = audio.currentTime;
-      }
-    };
-
-    // When expanding player, ensure sync
-    if (!isPlayerMinimized) {
-      syncVideoWithAudio();
+    // Don't sync video on mobile when minimized
+    if (isMobile && isPlayerMinimized) {
+      video.pause();
+      return;
     }
 
-    audio.addEventListener('play', handleAudioPlay);
-    audio.addEventListener('pause', handleAudioPause);
+    const syncVideoWithAudio = async () => {
+      try {
+        video.currentTime = audio.currentTime;
+        if (!audio.paused && !isPlayerMinimized) {
+          const playPromise = video.play();
+          if (playPromise !== undefined) {
+            await playPromise;
+          }
+        }
+      } catch (error: unknown) {
+        if (error instanceof Error && error.name !== 'AbortError') {
+          console.error('Video sync error:', error);
+        }
+      }
+    };
+
+    // Reduce event listener frequency on mobile
+    const handleAudioTimeUpdate = debounce(() => {
+      if (!isPlayerMinimized) {
+        syncVideoWithAudio();
+      }
+    }, isMobile ? 250 : 0);
+
+    audio.addEventListener('play', syncVideoWithAudio);
+    audio.addEventListener('pause', () => video.pause());
     audio.addEventListener('timeupdate', handleAudioTimeUpdate);
     audio.addEventListener('seeking', syncVideoWithAudio);
 
     return () => {
-      audio.removeEventListener('play', handleAudioPlay);
-      audio.removeEventListener('pause', handleAudioPause);
+      audio.removeEventListener('play', syncVideoWithAudio);
+      audio.removeEventListener('pause', () => video.pause());
       audio.removeEventListener('timeupdate', handleAudioTimeUpdate);
       audio.removeEventListener('seeking', syncVideoWithAudio);
+      handleAudioTimeUpdate.cancel();
     };
-  }, [currentPlayingNFT, isPlayerMinimized]);
+  }, [currentPlayingNFT, isPlayerMinimized, isMobile]);
 
   // Add this function near your other handlers
   const handleSeekOffset = (offsetSeconds: number) => {
