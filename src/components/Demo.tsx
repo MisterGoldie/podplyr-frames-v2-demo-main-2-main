@@ -1569,7 +1569,7 @@ export default function Demo({ title }: { title?: string }) {
                     </div>
 
                     {/* Show video/animation content if available */}
-                    {nft.metadata?.animation_url ? (
+                    {nft.metadata?.animation_url && (
                       <div className="w-full h-full relative">
                         <video 
                           ref={videoRef}
@@ -1585,22 +1585,7 @@ export default function Demo({ title }: { title?: string }) {
                           onError={handleVideoError}
                           onLoadedData={() => setLoaded(true)}
                         />
-                        {!isPlaying && !isPlayerMinimized && (
-                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                            <svg className="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 24 24">
-                              <path d="M8 5v14l11-7z" />
-                            </svg>
-                          </div>
-                        )}
                       </div>
-                    ) : (
-                      <Image
-                        src={processMediaUrl(nft.image || '') || '/placeholder.jpg'}
-                        alt={nft.name}
-                        className="w-full h-full object-cover"
-                        width={192}
-                        height={192}
-                      />
                     )}
 
                     <button 
@@ -1764,13 +1749,6 @@ export default function Demo({ title }: { title?: string }) {
                             onError={handleVideoError}
                             onLoadedData={() => setLoaded(true)}
                           />
-                          {!isPlaying && !isPlayerMinimized && (
-                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                              <svg className="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M8 5v14l11-7z" />
-                              </svg>
-                            </div>
-                          )}
                         </div>
                       ) : (
                         <Image
