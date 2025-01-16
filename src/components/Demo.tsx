@@ -824,59 +824,127 @@ export default function Demo({ title }: { title?: string }) {
 
   const handlePlayAudio = async (nft: NFT) => {
     const nftId = `${nft.contract}-${nft.tokenId}`;
-    
-    // Ensure media is preloaded before playing
-    if (!preloadedMedia.has(nftId)) {
-      await preloadNFTMedia(nft);
-    }
-
     const audioId = `audio-${nftId}`;
     let audioElement = document.getElementById(audioId) as HTMLAudioElement;
+    const video = videoRef.current;
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
     try {
-      if (!audioElement) {
-        console.log('Audio element not found:', nft.name);
-        return;
-      }
+      if (!audioElement || !nft.hasValidAudio) return;
 
-      // If this is the currently playing NFT, handle pause/resume
+      // If this is the currently playing NFT
       if (currentlyPlaying === nftId) {
         if (!audioElement.paused) {
           audioElement.pause();
+          if (video) video.pause();
           setIsPlaying(false);
         } else {
-          setIsPlayerMinimized(false); // Expand player
-          await audioElement.play();
-          setIsPlaying(true);
+          setIsPlayerMinimized(false);
+          await playMedia(audioElement, video, nft);
         }
         return;
       }
 
-      // Stop any currently playing audio
+      // Stop current playback
       if (currentlyPlaying) {
         const currentAudio = document.getElementById(`audio-${currentlyPlaying}`) as HTMLAudioElement;
         if (currentAudio) {
           currentAudio.pause();
           currentAudio.currentTime = 0;
         }
-        setIsPlaying(false);
+        if (video) {
+          video.pause();
+          video.currentTime = 0;
+        }
       }
 
-      // Expand player and show it
-      setIsPlayerMinimized(false);
+      // Update UI states
       setIsPlayerVisible(true);
-
-      // Small delay to allow transition
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      // Play the new audio
-      await audioElement.play();
+      setIsPlayerMinimized(false);
       setCurrentlyPlaying(nftId);
       setCurrentPlayingNFT(nft);
-      setIsPlaying(true);
+
+      await playMedia(audioElement, video, nft);
+
     } catch (error) {
-      console.error('Error playing audio:', error);
-      setIsPlaying(false);
+      console.warn('Playback error:', error);
+      resetPlaybackStates();
+    }
+  };
+
+  const playMedia = async (audio: HTMLAudioElement, video: HTMLVideoElement | null, nft: NFT) => {
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    
+    try {
+      setIsMediaLoading(true);
+      
+      // Start audio playback
+      await audio.play();
+      setIsPlaying(true);
+
+      // Handle video if present
+      if (video && nft.metadata?.animation_url) {
+        // Mobile optimizations
+        if (isMobile) {
+          video.playsInline = true;
+          video.preload = 'metadata';
+          video.autoplay = false;
+          
+          // Reduce video quality for mobile
+          if (video.videoHeight > 720) {
+            video.style.maxHeight = '720px';
+          }
+          
+          // Get the processed URL
+          const videoUrl = processMediaUrl(nft.metadata.animation_url);
+          if (!videoUrl) {
+            console.warn('Invalid video URL');
+            return;
+          }
+          
+          // Load video in chunks for mobile
+          const mediaSource = new MediaSource();
+          video.src = URL.createObjectURL(mediaSource);
+          
+          mediaSource.addEventListener('sourceopen', async () => {
+            try {
+              const sourceBuffer = mediaSource.addSourceBuffer('video/mp4; codecs="avc1.42E01E,mp4a.40.2"');
+              
+              // Fetch video in chunks
+              const response = await fetch(videoUrl);
+              if (!response.ok) throw new Error('Video fetch failed');
+              
+              const reader = response.body?.getReader();
+              if (!reader) throw new Error('Unable to read video stream');
+              
+              while(true) {
+                const {done, value} = await reader.read();
+                if (done) break;
+                
+                // Wait for previous chunk to be processed
+                if (!sourceBuffer.updating) {
+                  sourceBuffer.appendBuffer(value);
+                  await new Promise(resolve => {
+                    sourceBuffer.addEventListener('updateend', resolve, { once: true });
+                  });
+                }
+              }
+              mediaSource.endOfStream();
+            } catch (error) {
+              console.warn('Video loading failed:', error);
+            }
+          });
+        }
+        
+        video.currentTime = audio.currentTime;
+        await video.play().catch(console.warn);
+      }
+      
+      setIsMediaLoading(false);
+    } catch (error) {
+      console.warn('Media playback failed:', error);
+      setIsMediaLoading(false);
+      throw error;
     }
   };
 
@@ -1836,4 +1904,8 @@ async function fetchNFTs(fid: number): Promise<NFT[]> {
   // Your NFT fetching logic here
   // Make sure to return an array of NFTs
   return [];  // Replace with actual NFT fetching logic
+}
+
+function resetPlaybackStates() {
+  throw new Error('Function not implemented.');
 }
