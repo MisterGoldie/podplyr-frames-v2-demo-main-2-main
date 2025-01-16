@@ -546,18 +546,35 @@ declare global {
 }
 
 const MediaRenderer = ({ url, alt, className }: MediaRendererProps) => {
-  const [loaded, setLoaded] = useState(false);
+  const [currentGatewayIndex, setCurrentGatewayIndex] = useState(0);
   const [error, setError] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const mediaUrl = useMemo(() => {
     if (!url) return null;
-    return processMediaUrl(url);
-  }, [url]);
+    if (url.includes('/ipfs/')) {
+      const hash = url.split('/ipfs/')[1];
+      return `${IPFS_GATEWAYS[currentGatewayIndex]}${hash}`;
+    }
+    return url;
+  }, [url, currentGatewayIndex]);
 
   const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
-    console.warn('Video error:', e);
-    setError(true);
+    const videoElement = e.currentTarget;
+    console.log('Video load error:', {
+      url: mediaUrl,
+      error: videoElement.error,
+      networkState: videoElement.networkState,
+      readyState: videoElement.readyState,
+      currentGateway: IPFS_GATEWAYS[currentGatewayIndex]
+    });
+
+    if (currentGatewayIndex < IPFS_GATEWAYS.length - 1) {
+      setCurrentGatewayIndex(prev => prev + 1);
+    } else {
+      setError(true);
+    }
   };
 
   if (!mediaUrl || error) {
@@ -665,6 +682,7 @@ export default function Demo({ title }: { title?: string }) {
   const [isMediaLoading, setIsMediaLoading] = useState(false);
   const [mediaLoadProgress, setMediaLoadProgress] = useState(0);
   const [preloadedMedia, setPreloadedMedia] = useState<Set<string>>(new Set());
+  const [isLoaded, setLoaded] = useState(false);
 
   // Add near the top of Demo component with other state declarations
   const NFT_CACHE_KEY = 'nft-cache-';
@@ -1412,10 +1430,6 @@ export default function Demo({ title }: { title?: string }) {
     throw new Error('Function not implemented.');
   }
 
-  function setLoaded(arg0: boolean): void {
-    throw new Error('Function not implemented.');
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black">
       <RetroStyles />
@@ -1555,21 +1569,23 @@ export default function Demo({ title }: { title?: string }) {
                     </div>
 
                     {/* Show video/animation content if available */}
-                    {nft.metadata?.animation_url && (
+                    {nft.metadata?.animation_url ? (
                       <div className="w-full h-full relative">
                         <video 
                           ref={videoRef}
                           src={processMediaUrl(nft.metadata.animation_url)}
                           className="w-full h-full object-cover"
-                          playsInline
                           loop={false}
                           muted
                           controls={false}
                           preload="none"
+                          playsInline
+                          webkit-playsinline="true"
+                          disablePictureInPicture
                           onError={handleVideoError}
                           onLoadedData={() => setLoaded(true)}
                         />
-                        {!isPlaying && (
+                        {!isPlaying && !isPlayerMinimized && (
                           <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                             <svg className="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 24 24">
                               <path d="M8 5v14l11-7z" />
@@ -1577,6 +1593,14 @@ export default function Demo({ title }: { title?: string }) {
                           </div>
                         )}
                       </div>
+                    ) : (
+                      <Image
+                        src={processMediaUrl(nft.image || '') || '/placeholder.jpg'}
+                        alt={nft.name}
+                        className="w-full h-full object-cover"
+                        width={192}
+                        height={192}
+                      />
                     )}
 
                     <button 
@@ -1730,15 +1754,17 @@ export default function Demo({ title }: { title?: string }) {
                             ref={videoRef}
                             src={processMediaUrl(currentPlayingNFT.metadata.animation_url)}
                             className="w-full h-full object-cover"
-                            playsInline
                             loop={false}
                             muted
                             controls={false}
                             preload="none"
+                            playsInline
+                            webkit-playsinline="true"
+                            disablePictureInPicture
                             onError={handleVideoError}
                             onLoadedData={() => setLoaded(true)}
                           />
-                          {!isPlaying && (
+                          {!isPlaying && !isPlayerMinimized && (
                             <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                               <svg className="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 24 24">
                                 <path d="M8 5v14l11-7z" />
