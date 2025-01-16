@@ -1832,7 +1832,7 @@ export default function Demo({ title }: { title?: string }) {
 
 async function fetchNFTs(fid: number): Promise<NFT[]> {
   // Your NFT fetching logic here
-  // Make sure to return an array of NFTs
+  // Make sure to return an array of NFT's
   return [];  // Replace with actual NFT fetching logic
 }
 
