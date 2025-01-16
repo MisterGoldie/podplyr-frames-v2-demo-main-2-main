@@ -736,6 +736,7 @@ export default function Demo({ title }: { title?: string }) {
   const [isPlayerVisible, setIsPlayerVisible] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isSearchPage, setIsSearchPage] = useState(true);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   // Add near the top of Demo component with other state declarations
   const NFT_CACHE_KEY = 'nft-cache-';
@@ -1281,6 +1282,29 @@ export default function Demo({ title }: { title?: string }) {
     }
   };
 
+  // Add this effect to handle video/audio sync
+  useEffect(() => {
+    const video = videoRef.current;
+    const audio = document.getElementById(`audio-${currentPlayingNFT?.contract}-${currentPlayingNFT?.tokenId}`) as HTMLAudioElement;
+    
+    if (!video || !audio) return;
+
+    // Sync video with audio play/pause
+    const handleAudioPlay = () => video.play();
+    const handleAudioPause = () => video.pause();
+    const handleAudioSeek = () => video.currentTime = audio.currentTime;
+
+    audio.addEventListener('play', handleAudioPlay);
+    audio.addEventListener('pause', handleAudioPause);
+    audio.addEventListener('seeked', handleAudioSeek);
+
+    return () => {
+      audio.removeEventListener('play', handleAudioPlay);
+      audio.removeEventListener('pause', handleAudioPause);
+      audio.removeEventListener('seeked', handleAudioSeek);
+    };
+  }, [currentPlayingNFT]);
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black">
       <RetroStyles />
@@ -1423,25 +1447,18 @@ export default function Demo({ title }: { title?: string }) {
                     {nft.metadata?.animation_url && (
                       <div className="w-full h-full absolute top-0 left-0">
                         <video 
-                          key={processMediaUrl(nft.metadata.animation_url)}
+                          ref={videoRef}
                           src={processMediaUrl(nft.metadata.animation_url)}
                           className="w-full h-full object-cover"
-                          autoPlay
-                          loop
-                          muted
+                          autoPlay={isPlaying}
+                          loop={false}
+                          muted={false}
                           playsInline
                           controls={false}
-                          onError={(e) => {
-                            // Just hide the video on error
-                            const target = e.target as HTMLVideoElement;
-                            target.style.display = 'none';
-                          }}
-                          onLoadedData={(e) => {
-                            const video = e.target as HTMLVideoElement;
-                            video.play().catch(() => {
-                              video.muted = true;
-                              video.play().catch(() => {});
-                            });
+                          onEnded={() => {
+                            if (videoRef.current) {
+                              videoRef.current.currentTime = 0;
+                            }
                           }}
                         />
                       </div>
@@ -1530,8 +1547,8 @@ export default function Demo({ title }: { title?: string }) {
         {/* Update the media player to look like a Walkman/cassette player */}
         <div 
           className={`fixed bottom-0 left-0 right-0 retro-container transition-all duration-300 z-50 bg-gray-900/95 backdrop-blur-sm ${
-            isPlayerMinimized ? 'h-16' : 'h-32'
-          } ${isPlayerVisible && currentPlayingNFT && !isSearchPage ? 'translate-y-0' : 'translate-y-full'}`}
+            isPlayerMinimized ? 'h-16' : 'h-96'
+          } ${isPlayerVisible ? 'translate-y-0' : 'translate-y-full'}`}
         >
           <div className="container mx-auto px-2 h-full">
             <div className="flex flex-col h-full">
@@ -1586,46 +1603,68 @@ export default function Demo({ title }: { title?: string }) {
 
               {/* Progress bar section - only shown when not minimized */}
               {!isPlayerMinimized && currentPlayingNFT && (
-                <div className="flex items-center gap-2 py-2">
-                  <span className="font-mono text-green-400 text-base min-w-[40px]">
-                    {Math.floor(audioProgress / 60)}:{String(Math.floor(audioProgress % 60)).padStart(2, '0')}
-                  </span>
-                  
-                  <div className="flex-1 relative">
-                    <input
-                      type="range"
-                      min={0}
-                      max={audioDuration || 100}
-                      value={audioProgress}
-                      onChange={(e) => handleSeek(Number(e.target.value))}
-                      className="retro-progress w-full"
-                      style={{
-                        background: `linear-gradient(to right, #4ade80 ${(audioProgress / (audioDuration || 1)) * 100}%, #1f2937 ${(audioProgress / (audioDuration || 1)) * 100}%)`
-                      }}
-                    />
-                    <div className="absolute -top-1 left-1">
-                      <div className="w-5 h-5">
-                        <AudioVisualizer 
-                          audioElement={document.getElementById(`audio-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`) as HTMLAudioElement} 
+                <div className="flex flex-col gap-4 py-2">
+                  {/* NFT Media Display */}
+                  <div className="flex justify-center">
+                    <div className="w-48 h-48 relative rounded-lg overflow-hidden">
+                      {currentPlayingNFT.metadata?.animation_url ? (
+                        <video 
+                          ref={videoRef}
+                          src={processMediaUrl(currentPlayingNFT.metadata.animation_url)}
+                          className="w-full h-full object-cover"
+                          autoPlay={isPlaying}
+                          loop={false}
+                          muted={false}
+                          playsInline
+                          controls={false}
+                          onEnded={() => {
+                            if (videoRef.current) {
+                              videoRef.current.currentTime = 0;
+                            }
+                          }}
                         />
-                      </div>
-                    </div>
-                    <div className="absolute -top-1 right-1">
-                      <div className="w-5 h-5">
-                        <AudioVisualizer 
-                          audioElement={document.getElementById(`audio-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`) as HTMLAudioElement} 
+                      ) : (
+                        <Image
+                          src={processMediaUrl(currentPlayingNFT.image || '') || ''}
+                          alt={currentPlayingNFT.name}
+                          className="w-full h-full object-cover"
+                          width={192}
+                          height={192}
                         />
-                      </div>
+                      )}
                     </div>
                   </div>
 
-                  <span className="font-mono text-green-400 text-base min-w-[40px]">
-                    {audioDuration ? (
-                      `${Math.floor(audioDuration / 60)}:${String(Math.floor(audioDuration % 60)).padStart(2, '0')}`
-                    ) : (
-                      '0:00'
-                    )}
-                  </span>
+                  {/* Audio Controls */}
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-green-400 text-base min-w-[40px]">
+                      {Math.floor(audioProgress / 60)}:{String(Math.floor(audioProgress % 60)).padStart(2, '0')}
+                    </span>
+                    
+                    <div className="flex-1 relative">
+                      <input
+                        type="range"
+                        min={0}
+                        max={audioDuration || 100}
+                        value={audioProgress}
+                        onChange={(e) => handleSeek(Number(e.target.value))}
+                        className="retro-progress w-full"
+                        style={{
+                          background: `linear-gradient(to right, #4ade80 ${(audioProgress / (audioDuration || 1)) * 100}%, #1f2937 ${(audioProgress / (audioDuration || 1)) * 100}%)`
+                        }}
+                      />
+                      <div className="absolute -top-1 left-1">
+                        <div className="w-5 h-5">
+                          <AudioVisualizer 
+                            audioElement={document.getElementById(`audio-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`) as HTMLAudioElement} 
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <span className="font-mono text-green-400 text-base min-w-[40px]">
+                      {Math.floor(audioDuration / 60)}:{String(Math.floor(audioDuration % 60)).padStart(2, '0')}
+                    </span>
+                  </div>
                 </div>
               )}
             </div>
