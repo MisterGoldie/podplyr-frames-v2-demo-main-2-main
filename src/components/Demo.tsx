@@ -738,6 +738,8 @@ export default function Demo({ title }: { title?: string }) {
   const [isSearchPage, setIsSearchPage] = useState(true);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [isMobile] = useState(() => window.innerWidth < 768);
+  const [loadedVideoElements, setLoadedVideoElements] = useState<Set<string>>(new Set());
+  const [preloadedMedia, setPreloadedMedia] = useState<Set<string>>(new Set());
 
   // Add near the top of Demo component with other state declarations
   const NFT_CACHE_KEY = 'nft-cache-';
@@ -1347,6 +1349,79 @@ export default function Demo({ title }: { title?: string }) {
     }
   };
 
+  const preloadVideo = (nft: NFT) => {
+    if (!nft.metadata?.animation_url) return;
+    
+    const videoUrl = processMediaUrl(nft.metadata.animation_url);
+    if (!videoUrl) return;
+    
+    const video = document.createElement('video');
+    video.src = videoUrl; // Now we know this is a valid string
+    video.preload = 'metadata';
+    
+    video.onloadedmetadata = () => {
+      setLoadedVideoElements(prev => new Set(prev).add(`${nft.contract}-${nft.tokenId}`));
+    };
+
+    video.onerror = (e) => {
+      console.error('Video preload error:', {
+        error: e,
+        src: video.src,
+        nft: nft.name
+      });
+      video.remove();
+    };
+  };
+
+  // Add this function to handle media preloading
+  const preloadNFTMedia = async (nft: NFT) => {
+    const nftId = `${nft.contract}-${nft.tokenId}`;
+    
+    // Skip if already preloaded
+    if (preloadedMedia.has(nftId)) return;
+
+    // Preload audio
+    if (nft.audio || nft.metadata?.animation_url) {
+      const audioUrl = processMediaUrl(nft.audio || nft.metadata?.animation_url || '');
+      if (audioUrl) {
+        const audio = new Audio();
+        audio.preload = "metadata";
+        audio.src = audioUrl;
+        
+        await new Promise((resolve) => {
+          audio.addEventListener('loadedmetadata', resolve, { once: true });
+          audio.addEventListener('error', resolve, { once: true });
+        });
+      }
+    }
+
+    // Preload video if exists
+    if (nft.metadata?.animation_url) {
+      const videoUrl = processMediaUrl(nft.metadata.animation_url);
+      if (videoUrl) {
+        const video = document.createElement('video');
+        video.preload = "metadata";
+        video.src = videoUrl;
+        
+        await new Promise((resolve) => {
+          video.addEventListener('loadedmetadata', resolve, { once: true });
+          video.addEventListener('error', resolve, { once: true });
+        });
+      }
+    }
+
+    setPreloadedMedia(prev => new Set(prev).add(nftId));
+  };
+
+  // Modify the NFTs useEffect to include preloading
+  useEffect(() => {
+    if (nfts.length > 0) {
+      nfts.forEach(nft => {
+        preloadNFTMedia(nft);
+      });
+    }
+  }, [nfts]);
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black">
       <RetroStyles />
@@ -1544,11 +1619,10 @@ export default function Demo({ title }: { title?: string }) {
                     <audio
                       id={`audio-${nft.contract}-${nft.tokenId}`}
                       data-nft={`${nft.contract}-${nft.tokenId}`}
-                      preload="auto"
+                      preload="metadata"
                       crossOrigin="anonymous"
                       onLoadedMetadata={(e) => {
                         const audio = e.target as HTMLAudioElement;
-                        console.log('Audio loaded:', nft.name, 'Duration:', audio.duration);
                         setAudioDuration(audio.duration);
                         setLoadedAudioElements(prev => new Set(prev).add(`${nft.contract}-${nft.tokenId}`));
                       }}
@@ -1576,14 +1650,6 @@ export default function Demo({ title }: { title?: string }) {
                       <source 
                         src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
                         type="audio/mpeg" 
-                      />
-                      <source 
-                        src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
-                        type="audio/mp4" 
-                      />
-                      <source 
-                        src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
-                        type="audio/wav" 
                       />
                     </audio>
                   )}
