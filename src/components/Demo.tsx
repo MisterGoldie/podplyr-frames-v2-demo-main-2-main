@@ -1487,7 +1487,7 @@ export default function Demo({ title }: { title?: string }) {
 
                     {/* Show video/animation content if available */}
                     {nft.metadata?.animation_url && (
-                      <div className="w-full h-full absolute top-0 left-0">
+                      <div className="w-full h-full relative">
                         <video 
                           ref={videoRef}
                           src={processMediaUrl(nft.metadata.animation_url)}
@@ -1499,6 +1499,13 @@ export default function Demo({ title }: { title?: string }) {
                             const video = e.target as HTMLVideoElement;
                             const audio = document.getElementById(`audio-${nft.contract}-${nft.tokenId}`) as HTMLAudioElement;
                             if (audio) {
+                              video.currentTime = audio.currentTime;
+                            }
+                          }}
+                          onTimeUpdate={(e) => {
+                            const video = e.target as HTMLVideoElement;
+                            const audio = document.getElementById(`audio-${nft.contract}-${nft.tokenId}`) as HTMLAudioElement;
+                            if (audio && Math.abs(video.currentTime - audio.currentTime) > 0.1) {
                               video.currentTime = audio.currentTime;
                             }
                           }}
@@ -1650,21 +1657,37 @@ export default function Demo({ title }: { title?: string }) {
                   <div className="flex justify-center">
                     <div className="w-48 h-48 relative rounded-lg overflow-hidden">
                       {currentPlayingNFT.metadata?.animation_url ? (
-                        <video 
-                          ref={videoRef}
-                          src={processMediaUrl(currentPlayingNFT.metadata.animation_url)}
-                          className="w-full h-full object-cover"
-                          playsInline
-                          muted={false}
-                          controls={false}
-                          onLoadedMetadata={(e) => {
-                            const video = e.target as HTMLVideoElement;
-                            const audio = document.getElementById(`audio-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`) as HTMLAudioElement;
-                            if (audio) {
-                              video.currentTime = audio.currentTime;
-                            }
-                          }}
-                        />
+                        <div className="w-full h-full relative">
+                          <video 
+                            ref={videoRef}
+                            src={processMediaUrl(currentPlayingNFT.metadata.animation_url)}
+                            className="w-full h-full object-cover"
+                            playsInline
+                            muted={false}
+                            controls={false}
+                            onLoadedMetadata={(e) => {
+                              const video = e.target as HTMLVideoElement;
+                              const audio = document.getElementById(`audio-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`) as HTMLAudioElement;
+                              if (audio) {
+                                video.currentTime = audio.currentTime;
+                              }
+                            }}
+                            onTimeUpdate={(e) => {
+                              const video = e.target as HTMLVideoElement;
+                              const audio = document.getElementById(`audio-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`) as HTMLAudioElement;
+                              if (audio && Math.abs(video.currentTime - audio.currentTime) > 0.1) {
+                                video.currentTime = audio.currentTime;
+                              }
+                            }}
+                          />
+                          {!isPlaying && (
+                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                              <svg className="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M8 5v14l11-7z" />
+                              </svg>
+                            </div>
+                          )}
+                        </div>
                       ) : (
                         <Image
                           src={processMediaUrl(currentPlayingNFT.image || '') || ''}

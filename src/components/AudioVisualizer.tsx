@@ -15,10 +15,9 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioElement }) => {
   useEffect(() => {
     if (!audioElement || !canvasRef.current) return;
 
-    // Reduce analyzer FFT size on mobile
-    const isMobile = window.innerWidth < 768;
-    const fftSize = isMobile ? 32 : 64;
-
+    // Smaller FFT size for mobile
+    const fftSize = 16; // Reduced from 32
+    
     const observer = new IntersectionObserver(
       (entries) => {
         setIsVisible(entries[0].isIntersecting);
@@ -48,12 +47,11 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioElement }) => {
       }
     };
 
-    // Optimize draw function for mobile
     const draw = () => {
       if (!isVisible || !canvasRef.current || !analyserRef.current) return;
 
       const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext('2d', { alpha: false }); // Optimize canvas
       if (!ctx) return;
 
       const analyser = analyserRef.current;
@@ -61,23 +59,21 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioElement }) => {
       const dataArray = new Uint8Array(bufferLength);
 
       const animate = () => {
-        if (isMobile) {
-          setTimeout(() => {
-            animationRef.current = requestAnimationFrame(animate);
-          }, 100); // Increase delay for mobile
-        } else {
+        // Reduce frame rate on mobile
+        setTimeout(() => {
           animationRef.current = requestAnimationFrame(animate);
-        }
+        }, 150); // Increased delay for better performance
 
         analyser.getByteFrequencyData(dataArray);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        const barWidth = (canvas.width / bufferLength) * 2.5;
+        const barWidth = (canvas.width / bufferLength) * 3; // Wider bars
         
-        for (let i = 0; i < bufferLength; i += isMobile ? 2 : 1) {
+        // Draw fewer bars
+        for (let i = 0; i < bufferLength; i += 2) {
           const barHeight = (dataArray[i] / 255) * canvas.height;
           ctx.fillStyle = '#4ade80';
-          ctx.fillRect(i * (barWidth + 1), canvas.height - barHeight, barWidth, barHeight);
+          ctx.fillRect(i * (barWidth + 2), canvas.height - barHeight, barWidth, barHeight);
         }
       };
 
