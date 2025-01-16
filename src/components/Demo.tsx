@@ -1282,7 +1282,7 @@ export default function Demo({ title }: { title?: string }) {
     }
   };
 
-  // Add this effect to handle video/audio sync
+  // Update the video sync effect
   useEffect(() => {
     const video = videoRef.current;
     const audio = document.getElementById(`audio-${currentPlayingNFT?.contract}-${currentPlayingNFT?.tokenId}`) as HTMLAudioElement;
@@ -1290,9 +1290,33 @@ export default function Demo({ title }: { title?: string }) {
     if (!video || !audio) return;
 
     // Sync video with audio play/pause
-    const handleAudioPlay = () => video.play();
+    const handleAudioPlay = () => {
+      if (!isPlayerMinimized) {
+        video.currentTime = audio.currentTime;
+        video.play();
+      }
+    };
+    
     const handleAudioPause = () => video.pause();
-    const handleAudioSeek = () => video.currentTime = audio.currentTime;
+    
+    const handleAudioSeek = () => {
+      if (!isPlayerMinimized) {
+        video.currentTime = audio.currentTime;
+      }
+    };
+
+    // When expanding player, sync video to current audio position
+    if (!isPlayerMinimized && video && audio) {
+      video.currentTime = audio.currentTime;
+      if (!audio.paused) {
+        video.play();
+      }
+    }
+
+    // When minimizing, just pause the video without resetting
+    if (isPlayerMinimized && video) {
+      video.pause();
+    }
 
     audio.addEventListener('play', handleAudioPlay);
     audio.addEventListener('pause', handleAudioPause);
@@ -1303,7 +1327,21 @@ export default function Demo({ title }: { title?: string }) {
       audio.removeEventListener('pause', handleAudioPause);
       audio.removeEventListener('seeked', handleAudioSeek);
     };
-  }, [currentPlayingNFT]);
+  }, [currentPlayingNFT, isPlayerMinimized]);
+
+  // Add this function near your other handlers
+  const handleSeekOffset = (offsetSeconds: number) => {
+    const audio = document.getElementById(`audio-${currentPlayingNFT?.contract}-${currentPlayingNFT?.tokenId}`) as HTMLAudioElement;
+    const video = videoRef.current;
+    
+    if (audio) {
+      const newTime = Math.min(Math.max(0, audio.currentTime + offsetSeconds), audio.duration);
+      audio.currentTime = newTime;
+      if (video) {
+        video.currentTime = newTime;
+      }
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black">
@@ -1450,7 +1488,7 @@ export default function Demo({ title }: { title?: string }) {
                           ref={videoRef}
                           src={processMediaUrl(nft.metadata.animation_url)}
                           className="w-full h-full object-cover"
-                          autoPlay={isPlaying}
+                          autoPlay={isPlaying && !isPlayerMinimized}
                           loop={false}
                           muted={false}
                           playsInline
@@ -1468,7 +1506,7 @@ export default function Demo({ title }: { title?: string }) {
                       onClick={() => handlePlayAudio(nft)}
                       className="absolute bottom-4 right-4 retro-button p-3 text-white"
                     >
-                      {currentlyPlaying === `${nft.contract}-${nft.tokenId}` ? (
+                      {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
                         <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
                           <rect x="6" y="4" width="4" height="16" />
                           <rect x="14" y="4" width="4" height="16" />
@@ -1612,7 +1650,7 @@ export default function Demo({ title }: { title?: string }) {
                           ref={videoRef}
                           src={processMediaUrl(currentPlayingNFT.metadata.animation_url)}
                           className="w-full h-full object-cover"
-                          autoPlay={isPlaying}
+                          autoPlay={isPlaying && !isPlayerMinimized}
                           loop={false}
                           muted={false}
                           playsInline
@@ -1641,6 +1679,16 @@ export default function Demo({ title }: { title?: string }) {
                       {Math.floor(audioProgress / 60)}:{String(Math.floor(audioProgress % 60)).padStart(2, '0')}
                     </span>
                     
+                    {/* Add Rewind Button */}
+                    <button
+                      onClick={() => handleSeekOffset(-10)}
+                      className="retro-button p-1 text-green-400"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.333 4zM4.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0011 16V8a1 1 0 00-1.6-.8l-5.334 4z" />
+                      </svg>
+                    </button>
+                    
                     <div className="flex-1 relative">
                       <input
                         type="range"
@@ -1661,6 +1709,17 @@ export default function Demo({ title }: { title?: string }) {
                         </div>
                       </div>
                     </div>
+                    
+                    {/* Add Fast Forward Button */}
+                    <button
+                      onClick={() => handleSeekOffset(10)}
+                      className="retro-button p-1 text-green-400"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11.933 12.8a1 1 0 000-1.6L6.6 7.2A1 1 0 005 8v8a1 1 0 001.6.8l5.333-4zM19.933 12.8a1 1 0 000-1.6l-5.333-4A1 1 0 0013 8v8a1 1 0 001.6.8l5.333-4z" />
+                      </svg>
+                    </button>
+                    
                     <span className="font-mono text-green-400 text-base min-w-[40px]">
                       {Math.floor(audioDuration / 60)}:{String(Math.floor(audioDuration % 60)).padStart(2, '0')}
                     </span>
