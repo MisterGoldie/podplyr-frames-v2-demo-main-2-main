@@ -101,7 +101,7 @@ function SearchBar({ onSearch, isSearching }: SearchBarProps) {
   };
 
   const handleSuggestionClick = (selectedUsername: string) => {
-    setUsername(selectedUsername);
+    setUsername(''); // Clear the input field
     onSearch(selectedUsername);
     setSuggestions([]); // Clear suggestions after selection
   };
