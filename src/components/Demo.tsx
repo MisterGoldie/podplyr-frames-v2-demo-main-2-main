@@ -829,54 +829,24 @@ export default function Demo({ title }: { title?: string }) {
         // Mobile optimizations
         if (isMobile) {
           video.playsInline = true;
-          video.preload = 'metadata';
-          video.autoplay = false;
-          
-          // Reduce video quality for mobile
-          if (video.videoHeight > 720) {
-            video.style.maxHeight = '720px';
-          }
-          
-          // Get the processed URL
-          const videoUrl = processMediaUrl(nft.metadata.animation_url);
-          if (!videoUrl) {
-            console.warn('Invalid video URL');
-            return;
-          }
-          
-          // Load video in chunks for mobile
-          const mediaSource = new MediaSource();
-          video.src = URL.createObjectURL(mediaSource);
-          
-          mediaSource.addEventListener('sourceopen', async () => {
-            try {
-              const sourceBuffer = mediaSource.addSourceBuffer('video/mp4; codecs="avc1.42E01E,mp4a.40.2"');
-              
-              // Fetch video in chunks
-              const response = await fetch(videoUrl);
-              if (!response.ok) throw new Error('Video fetch failed');
-              
-              const reader = response.body?.getReader();
-              if (!reader) throw new Error('Unable to read video stream');
-              
-              while(true) {
-                const {done, value} = await reader.read();
-                if (done) break;
-                
-                // Wait for previous chunk to be processed
-                if (!sourceBuffer.updating) {
-                  sourceBuffer.appendBuffer(value);
-                  await new Promise(resolve => {
-                    sourceBuffer.addEventListener('updateend', resolve, { once: true });
-                  });
-                }
-              }
-              mediaSource.endOfStream();
-            } catch (error) {
-              console.warn('Video loading failed:', error);
-            }
-          });
+          video.preload = "auto";
+          video.muted = false;
         }
+        
+        // Direct video loading for all devices
+        const videoUrl = processMediaUrl(nft.metadata.animation_url);
+        if (!videoUrl) {
+          console.warn('Invalid video URL');
+          return;
+        }
+        
+        video.src = videoUrl;
+        video.load();
+        
+        // Wait for video to be ready
+        await new Promise((resolve) => {
+          video.oncanplay = resolve;
+        });
         
         video.currentTime = audio.currentTime;
         await video.play().catch(console.warn);
@@ -1740,22 +1710,50 @@ export default function Demo({ title }: { title?: string }) {
                             src={processMediaUrl(currentPlayingNFT.metadata.animation_url)}
                             className="w-full h-full object-cover"
                             loop={false}
-                            muted
+                            muted={false}
                             controls={false}
-                            preload="none"
+                            preload="auto"
                             playsInline
                             webkit-playsinline="true"
+                            x-webkit-airplay="allow"
                             disablePictureInPicture
                             onError={handleVideoError}
                             onLoadedData={() => setLoaded(true)}
+                            onTimeUpdate={(e) => {
+                              const video = e.target as HTMLVideoElement;
+                              setAudioProgress(video.currentTime);
+                            }}
                           />
-                          {!isPlaying && !isPlayerMinimized && (
-                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                              <svg className="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M8 5v14l11-7z" />
-                              </svg>
-                            </div>
-                          )}
+                          {/* Add expand button */}
+                          <button
+                            onClick={() => {
+                              const videoElement = videoRef.current;
+                              if (videoElement) {
+                                if ((videoElement as any).webkitEnterFullscreen) {
+                                  (videoElement as any).webkitEnterFullscreen();
+                                } else if ((videoElement as any).webkitRequestFullscreen) {
+                                  (videoElement as any).webkitRequestFullscreen();
+                                } else if (videoElement.requestFullscreen) {
+                                  videoElement.requestFullscreen();
+                                } else {
+                                  videoElement.setAttribute('playsinline', 'false');
+                                  videoElement.setAttribute('controls', 'true');
+                                  videoElement.play().catch(console.error);
+                                }
+                              }
+                            }}
+                            className="absolute top-2 right-2 retro-button p-1 text-green-400 z-10"
+                            aria-label="Toggle fullscreen"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round" 
+                                strokeWidth="2" 
+                                d="M4 8V4m0 0h4M4 4l5 5m11-5V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5"
+                              />
+                            </svg>
+                          </button>
                         </div>
                       ) : (
                         <Image
