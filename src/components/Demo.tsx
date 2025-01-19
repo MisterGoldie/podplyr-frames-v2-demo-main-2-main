@@ -334,13 +334,31 @@ const retroStyles = `
   }
 
   .retro-container {
-    background: linear-gradient(45deg, #2a2a2a, #1a1a1a);
     border: 2px solid #444;
-    border-radius: 10px;
     box-shadow: 
       inset 0 0 20px rgba(0,0,0,0.5),
       0 2px 8px rgba(0,0,0,0.3);
-    transition: transform 0.3s ease-in-out;
+    transition: all 0.3s ease-in-out;
+  }
+
+  /* Remove default border radius when used as player */
+  .retro-container:not([class*='rounded-t-']) {
+    border-radius: 10px;
+  }
+
+  /* Special styling for player container */
+  .retro-container[class*='rounded-t-'] {
+    border-bottom: none;
+    border-left: none;
+    border-right: none;
+    border-top: 1px solid #444;
+  }
+
+  .retro-container.playing {
+    border-color: #22c55e40;
+    box-shadow: 
+      inset 0 0 20px rgba(34,197,94,0.1),
+      0 2px 8px rgba(34,197,94,0.1);
   }
 
   .retro-button {
@@ -1800,12 +1818,15 @@ export default function Demo({ title }: { title?: string }) {
         )}
 
         {/* Update the media player to look like a Walkman/cassette player */}
-        <div 
-          className={`fixed bottom-0 left-0 right-0 retro-container transition-all duration-300 z-50 bg-gray-900/95 backdrop-blur-sm ${
-            isPlayerMinimized ? 'h-16' : 'h-96'
-          } ${isSearchPage ? 'translate-y-full' : 'translate-y-0'}`}
+        <div
+          className={`fixed bottom-0 left-0 right-0 retro-container transition-all duration-300 z-50 
+            ${isPlayerMinimized 
+              ? 'bg-gray-900/40 backdrop-blur-sm rounded-t-[2rem] h-20 ' + (isPlaying ? 'bg-green-900/10' : '') 
+              : 'bg-gray-900/60 backdrop-blur-md rounded-t-[2rem] h-96'
+            } 
+            ${isPlayerVisible ? 'translate-y-0' : 'translate-y-full'}`}
         >
-          <div className="container mx-auto px-2 h-full">
+          <div className="container mx-auto px-4 h-full">
             <div className="flex flex-col h-full">
               {/* Main player row with 3 columns */}
               <div className="flex items-center justify-between gap-2 h-16">
