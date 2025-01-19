@@ -708,6 +708,7 @@ export default function Demo({ title }: { title?: string }) {
   const [lastKnownPosition, setLastKnownPosition] = useState(0);
   const [realPlaybackPosition, setRealPlaybackPosition] = useState(0);
   const [isMinimizing, setIsMinimizing] = useState(false);
+  const [isExpandButtonVisible, setIsExpandButtonVisible] = useState(false);
 
   // Add near other state declarations (around line 661)
   const NFT_CACHE_KEY = 'nft-cache-';
@@ -1592,6 +1593,14 @@ export default function Demo({ title }: { title?: string }) {
     }
   };
 
+  const handleNFTDisplayClick = () => {
+    setIsExpandButtonVisible(true);
+    // Auto-hide after 2 seconds
+    setTimeout(() => {
+      setIsExpandButtonVisible(false);
+    }, 2000);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black">
       <RetroStyles />
@@ -1909,7 +1918,10 @@ export default function Demo({ title }: { title?: string }) {
                 <div className="flex flex-col gap-4 py-2">
                   {/* NFT Media Display */}
                   <div className="flex justify-center">
-                    <div className="w-48 h-48 relative rounded-lg overflow-hidden">
+                    <div 
+                      className="w-48 h-48 relative rounded-lg overflow-hidden cursor-pointer"
+                      onClick={handleNFTDisplayClick}
+                    >
                       {currentPlayingNFT.metadata?.animation_url ? (
                         <div className="w-full h-full relative">
                           <video 
@@ -1938,10 +1950,15 @@ export default function Demo({ title }: { title?: string }) {
                               }
                             }}
                           />
-                          {/* Add expand button */}
+                          {/* Animated expand button */}
                           <button
-                            onClick={togglePictureInPicture}
-                            className="absolute top-2 right-2 retro-button p-1 text-green-400 bg-black bg-opacity-50 hover:bg-opacity-75 z-10"
+                            onClick={(e) => {
+                              e.stopPropagation(); // Prevent triggering parent click
+                              togglePictureInPicture();
+                            }}
+                            className={`absolute top-2 right-2 retro-button p-1 text-green-400 bg-black bg-opacity-50 
+                              hover:bg-opacity-75 z-10 transition-opacity duration-300
+                              ${isExpandButtonVisible ? 'opacity-100' : 'opacity-0'}`}
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
