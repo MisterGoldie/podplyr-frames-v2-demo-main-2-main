@@ -1394,16 +1394,14 @@ export default function Demo({ title }: { title?: string }) {
     
     if (!video || !audio || !currentPlayingNFT) return;
 
-    // Sync video with audio when minimizer changes
-    if (isPlayerVisible) {
+    if (!isPlayerMinimized) {
+      // When maximizing, sync video with current audio time
       video.currentTime = audio.currentTime;
       if (isPlaying) {
         video.play().catch(console.warn);
-      } else {
-        video.pause();
       }
     }
-  }, [isPlayerVisible, currentPlayingNFT, isPlaying]);
+  }, [isPlayerMinimized, currentPlayingNFT, isPlaying]);
 
   const preloadNFTMedia = async (nft: NFT) => {
     const nftId = `${nft.contract}-${nft.tokenId}`;
@@ -1475,28 +1473,30 @@ export default function Demo({ title }: { title?: string }) {
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) return;
+    const audio = document.getElementById(`audio-${currentPlayingNFT?.contract}-${currentPlayingNFT?.tokenId}`) as HTMLAudioElement;
+    if (!video || !audio) return;
 
     const handleEnterPiP = () => {
       setIsPictureInPicture(true);
       if (isPlaying) {
+        video.currentTime = audio.currentTime;
         video.play().catch(console.warn);
       }
     };
 
     const handleLeavePiP = () => {
-      const currentTime = video.currentTime; // Store the current time
+      const currentTime = video.currentTime;
       setIsPictureInPicture(false);
       
-      // Ensure the minimizer video maintains the same time
-      setTimeout(() => {
+      // Ensure minimizer video maintains the same time
+      requestAnimationFrame(() => {
         if (video) {
           video.currentTime = currentTime;
           if (isPlaying) {
             video.play().catch(console.warn);
           }
         }
-      }, 0);
+      });
     };
 
     video.addEventListener('enterpictureinpicture', handleEnterPiP);
@@ -1506,7 +1506,7 @@ export default function Demo({ title }: { title?: string }) {
       video.removeEventListener('enterpictureinpicture', handleEnterPiP);
       video.removeEventListener('leavepictureinpicture', handleLeavePiP);
     };
-  }, [isPlaying]);
+  }, [isPlaying, currentPlayingNFT]);
 
   const togglePictureInPicture = async () => {
     const video = videoRef.current;
