@@ -683,6 +683,9 @@ export default function Demo({ title }: { title?: string }) {
   const [preloadedMedia, setPreloadedMedia] = useState<Set<string>>(new Set());
   const [isLoaded, setLoaded] = useState(false);
   const [isPictureInPicture, setIsPictureInPicture] = useState(false);
+  const [lastKnownPosition, setLastKnownPosition] = useState(0);
+  const [realPlaybackPosition, setRealPlaybackPosition] = useState(0);
+  const [isMinimizing, setIsMinimizing] = useState(false);
 
   // Add near other state declarations (around line 661)
   const NFT_CACHE_KEY = 'nft-cache-';
@@ -866,22 +869,22 @@ export default function Demo({ title }: { title?: string }) {
   const playMedia = async (audio: HTMLAudioElement, video: HTMLVideoElement | null, nft: NFT) => {
     try {
       const nftId = `${nft.contract}-${nft.tokenId}`;
-      if (currentlyPlaying !== nftId) {
-        // Only reset and set new source for new NFT
-        if (video && nft.metadata?.animation_url) {
-          video.src = processMediaUrl(nft.metadata.animation_url) || '';
-          video.load();
-          
-          await new Promise((resolve) => {
-            video.oncanplay = resolve;
-          });
-        }
+      
+      // Only load video if it's not already loaded with the correct source
+      if (video && nft.metadata?.animation_url && 
+          (!video.src || !video.src.includes(nft.metadata.animation_url))) {
+        video.src = processMediaUrl(nft.metadata.animation_url) || '';
+        video.load();
+        
+        await new Promise((resolve) => {
+          video.oncanplay = resolve;
+        });
       }
 
-      // Sync video with audio time regardless of whether it's a new NFT
+      // Sync video with audio time
       if (video) {
         video.currentTime = audio.currentTime;
-        if (!video.paused) {
+        if (!video.paused && isPlaying) {
           await video.play();
         }
       }
@@ -892,7 +895,6 @@ export default function Demo({ title }: { title?: string }) {
       }
       setIsPlaying(true);
       setIsMediaLoading(false);
-      
     } catch (error) {
       console.warn('Media playback failed:', error);
       setIsMediaLoading(false);
@@ -1342,7 +1344,10 @@ export default function Demo({ title }: { title?: string }) {
 
     // Update progress as audio plays
     const handleTimeUpdate = () => {
-      setAudioProgress(audioElement.currentTime);
+      const video = videoRef.current;
+      if (video) {
+        setLastKnownPosition(video.currentTime);
+      }
     };
 
     audioElement.addEventListener('loadedmetadata', handleLoadedMetadata);
@@ -1374,7 +1379,7 @@ export default function Demo({ title }: { title?: string }) {
 
     try {
       setIsLoadingNFTs(true);
-      const nftsData = await fetchNFTs(user.fid); // Make sure fetchNFTs returns Promise<NFT[]>
+      const nftsData = await fetchNFTsForAddress(user.fid.toString(), process.env.NEXT_PUBLIC_ALCHEMY_API_KEY || '');
       if (nftsData && Array.isArray(nftsData)) {
         cacheNFTs(user.fid, nftsData);
         setNfts(nftsData);
@@ -1476,6 +1481,8 @@ export default function Demo({ title }: { title?: string }) {
     const audio = document.getElementById(`audio-${currentPlayingNFT?.contract}-${currentPlayingNFT?.tokenId}`) as HTMLAudioElement;
     if (!video || !audio) return;
 
+    let lastKnownTime = 0;
+
     const handleEnterPiP = () => {
       setIsPictureInPicture(true);
       if (isPlaying) {
@@ -1485,13 +1492,14 @@ export default function Demo({ title }: { title?: string }) {
     };
 
     const handleLeavePiP = () => {
-      const currentTime = video.currentTime;
+      lastKnownTime = video.currentTime;
       setIsPictureInPicture(false);
       
       // Ensure minimizer video maintains the same time
       requestAnimationFrame(() => {
         if (video) {
-          video.currentTime = currentTime;
+          video.currentTime = lastKnownTime;
+          setAudioProgress(lastKnownTime);
           if (isPlaying) {
             video.play().catch(console.warn);
           }
@@ -1506,7 +1514,7 @@ export default function Demo({ title }: { title?: string }) {
       video.removeEventListener('enterpictureinpicture', handleEnterPiP);
       video.removeEventListener('leavepictureinpicture', handleLeavePiP);
     };
-  }, [isPlaying, currentPlayingNFT]);
+  }, [isPlaying, currentPlayingNFT, isPlayerVisible]);
 
   const togglePictureInPicture = async () => {
     const video = videoRef.current;
@@ -1520,6 +1528,45 @@ export default function Demo({ title }: { title?: string }) {
       }
     } catch (error) {
       console.error('PiP error:', error);
+    }
+  };
+
+  useEffect(() => {
+    const audio = document.getElementById(`audio-${currentPlayingNFT?.contract}-${currentPlayingNFT?.tokenId}`) as HTMLAudioElement;
+    const video = videoRef.current;
+    
+    if (!audio || !video || !currentPlayingNFT) return;
+
+    // When minimizer visibility changes
+    const handleVisibilityChange = () => {
+      if (isPlaying) {
+        // Keep playing regardless of minimizer state
+        audio.play().catch(console.warn);
+        if (video) {
+          video.currentTime = audio.currentTime;
+          video.play().catch(console.warn);
+        }
+      }
+    };
+
+    // Call immediately and add listener
+    handleVisibilityChange();
+    
+    // Listen for minimizer state changes
+    const observer = new MutationObserver(handleVisibilityChange);
+    observer.observe(video.parentElement as Node, { attributes: true });
+
+    return () => observer.disconnect();
+  }, [isPlaying, currentPlayingNFT, isPlayerVisible]);
+
+  const handleMinimize = () => {
+    setIsMinimizing(true);
+    setIsPlayerVisible(!isPlayerVisible);
+    
+    // Keep audio playing when minimizing
+    const audio = document.getElementById(`audio-${currentPlayingNFT?.contract}-${currentPlayingNFT?.tokenId}`) as HTMLAudioElement;
+    if (audio && isPlaying) {
+      audio.play().catch(console.warn);
     }
   };
 
@@ -1677,16 +1724,17 @@ export default function Demo({ title }: { title?: string }) {
                           poster={nft.image ? processMediaUrl(nft.image) : undefined}
                           onLoadedData={() => {
                             const video = videoRef.current;
-                            if (video) {
-                              const currentTime = isPictureInPicture ? video.currentTime : audioProgress;
-                              video.currentTime = currentTime;
-                              if (isPlaying) {
+                            const audio = document.getElementById(`audio-${nft.contract}-${nft.tokenId}`) as HTMLAudioElement;
+                            
+                            if (video && audio) {
+                              // Only sync time, don't manipulate playback
+                              video.currentTime = audio.currentTime;
+                              
+                              // If already playing, maintain playback
+                              if (isPlaying && !isPlayerMinimized) {
                                 video.play().catch(console.warn);
                               }
                             }
-                          }}
-                          onError={(e) => {
-                            console.error('Video error:', e);
                           }}
                         />
                       </div>
@@ -1755,7 +1803,7 @@ export default function Demo({ title }: { title?: string }) {
         <div 
           className={`fixed bottom-0 left-0 right-0 retro-container transition-all duration-300 z-50 bg-gray-900/95 backdrop-blur-sm ${
             isPlayerMinimized ? 'h-16' : 'h-96'
-          } ${isPlayerVisible ? 'translate-y-0' : 'translate-y-full'}`}
+          } ${isSearchPage ? 'translate-y-full' : 'translate-y-0'}`}
         >
           <div className="container mx-auto px-2 h-full">
             <div className="flex flex-col h-full">
@@ -1815,11 +1863,19 @@ export default function Demo({ title }: { title?: string }) {
                 {/* Right minimize button */}
                 <button
                   onClick={() => setIsPlayerMinimized(!isPlayerMinimized)}
-                  className="retro-button p-1 text-green-400"
+                  className="retro-button p-2"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
-                      d={isPlayerMinimized ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} 
+                  <svg
+                    className={`w-6 h-6 transform transition-transform ${isPlayerMinimized ? 'rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
                     />
                   </svg>
                 </button>
@@ -1846,10 +1902,14 @@ export default function Demo({ title }: { title?: string }) {
                             poster={currentPlayingNFT.image ? processMediaUrl(currentPlayingNFT.image) : undefined}
                             onLoadedData={() => {
                               const video = videoRef.current;
-                              if (video) {
-                                const currentTime = isPictureInPicture ? video.currentTime : audioProgress;
-                                video.currentTime = currentTime;
-                                if (isPlaying) {
+                              const audio = document.getElementById(`audio-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`) as HTMLAudioElement;
+                              
+                              if (video && audio) {
+                                // Only sync time, don't manipulate playback
+                                video.currentTime = audio.currentTime;
+                                
+                                // If already playing, maintain playback
+                                if (isPlaying && !isPlayerMinimized) {
                                   video.play().catch(console.warn);
                                 }
                               }
@@ -1924,7 +1984,7 @@ export default function Demo({ title }: { title?: string }) {
                       className="retro-button p-1 text-green-400"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11.933 12.8a1 1 0 000-1.6L6.6 7.2A1 1 0 005 8v8a1 1 0 001.6.8l5.333-4zM19.933 12.8a1 1 0 000-1.6l-5.333-4A1 1 0 0013 8v8a1 1 0 001.6.8l5.333-4z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11.933 12.8a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.333 4zM4.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0011 16V8a1 1 0 00-1.6-.8l-5.334 4z" />
                       </svg>
                     </button>
 
