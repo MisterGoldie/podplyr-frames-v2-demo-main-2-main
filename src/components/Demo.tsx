@@ -1758,10 +1758,7 @@ export default function Demo({ title }: { title?: string }) {
                             const audio = document.getElementById(`audio-${nft.contract}-${nft.tokenId}`) as HTMLAudioElement;
                             
                             if (video && audio) {
-                              // Only sync time, don't manipulate playback
                               video.currentTime = audio.currentTime;
-                              
-                              // If already playing, maintain playback regardless of minimized state
                               if (isPlaying) {
                                 video.play().catch(console.warn);
                               }
@@ -1919,61 +1916,52 @@ export default function Demo({ title }: { title?: string }) {
                   {/* NFT Media Display */}
                   <div className="flex justify-center">
                     <div 
-                      className="w-48 h-48 relative rounded-lg overflow-hidden cursor-pointer"
+                      className="relative rounded-lg overflow-hidden cursor-pointer"
                       onClick={handleNFTDisplayClick}
                     >
                       {currentPlayingNFT.metadata?.animation_url ? (
-                        <div className="w-full h-full relative">
+                        <div className="relative w-full h-full">
                           <video 
                             ref={videoRef}
                             src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || '')}
-                            className="w-full h-full object-cover"
+                            className="w-48 h-48 object-cover"
                             playsInline
                             loop={false}
                             muted={true}
                             controls={false}
                             preload="auto"
-                            disablePictureInPicture={false}
-                            poster={currentPlayingNFT.image ? processMediaUrl(currentPlayingNFT.image) : undefined}
                             onLoadedData={() => {
                               const video = videoRef.current;
-                              const audio = document.getElementById(`audio-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`) as HTMLAudioElement;
-                              
-                              if (video && audio) {
-                                // Only sync time, don't manipulate playback
-                                video.currentTime = audio.currentTime;
-                                
-                                // If already playing, maintain playback regardless of minimized state
-                                if (isPlaying) {
-                                  video.play().catch(console.warn);
+                              if (video) {
+                                const isLandscape = video.videoWidth > video.videoHeight;
+                                if (isLandscape) {
+                                  video.className = "w-[320px] h-[192px] object-cover";
+                                } else {
+                                  video.className = "w-48 h-48 object-cover";
                                 }
                               }
                             }}
                           />
-                          {/* Animated expand button */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation(); // Prevent triggering parent click
-                              togglePictureInPicture();
-                            }}
-                            className={`absolute top-2 right-2 retro-button p-1 text-green-400 bg-black bg-opacity-50 
-                              hover:bg-opacity-75 z-10 transition-opacity duration-300
-                              ${isExpandButtonVisible ? 'opacity-100' : 'opacity-0'}`}
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                                d={isPictureInPicture 
-                                  ? "M9 21H3m0 0v-6m0 6l7-7M15 3h6m0 0v6m0-6L14 10" 
-                                  : "M15 3h6m0 0v6m0-6L14 10M9 21H3m0 0v-6m0 6l7-7"} 
-                              />
-                            </svg>
-                          </button>
+                          {/* PiP Button */}
+                          {isExpandButtonVisible && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                togglePictureInPicture();
+                              }}
+                              className="absolute bottom-2 right-2 bg-black/50 p-2 rounded-full hover:bg-black/70 transition-opacity duration-300"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                                <path d="M560-240h280v-280H560v280ZM120-120v-720h720v720H120Zm80-80h560v-560H200v560Zm0 0v-560 560Z"/>
+                              </svg>
+                            </button>
+                          )}
                         </div>
                       ) : (
                         <Image
                           src={processMediaUrl(currentPlayingNFT.image || '') || '/placeholder.jpg'}
                           alt={currentPlayingNFT.name}
-                          className="w-full h-full object-cover"
+                          className="w-48 h-48 object-cover"
                           width={192}
                           height={192}
                         />
@@ -1990,9 +1978,9 @@ export default function Demo({ title }: { title?: string }) {
                     {/* Rewind Button */}
                     <button
                       onClick={() => handleSeekOffset(-10)}
-                      className="retro-button p-1 text-green-400"
+                      className="retro-button p-1 text-green-400 hover:text-green-300"
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#75FB4C">
                         <path d="M860-240 500-480l360-240v480Zm-400 0L100-480l360-240v480Zm-80-240Zm400 0Zm-400 90v-180l-136 90 136 90Zm400 0v-180l-136 90 136 90Z"/>
                       </svg>
                     </button>
@@ -2021,9 +2009,9 @@ export default function Demo({ title }: { title?: string }) {
                     {/* Fast Forward Button */}
                     <button
                       onClick={() => handleSeekOffset(10)}
-                      className="retro-button p-1 text-green-400"
+                      className="retro-button p-1 text-green-400 hover:text-green-300"
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#75FB4C">
                         <path d="M100-240v-480l360 240-360 240Zm400 0v-480l360 240-360 240ZM180-480Zm400 0Zm-400 90 136-90-136-90v180Zm400 0 136-90-136-90v180Z"/>
                       </svg>
                     </button>
