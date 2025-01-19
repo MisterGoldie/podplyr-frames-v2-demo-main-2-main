@@ -481,6 +481,10 @@ const retroStyles = `
     border: 2px solid #444;
     border-radius: 50%;
   }
+
+  .retro-button svg {
+    transition: opacity 0.2s ease;
+  }
 `;
 
 const RetroStyles = () => (
@@ -1763,13 +1767,12 @@ export default function Demo({ title }: { title?: string }) {
                       className="absolute bottom-4 right-4 retro-button p-3 text-white"
                     >
                       {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
-                        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                          <rect x="6" y="4" width="4" height="16" />
-                          <rect x="14" y="4" width="4" height="16" />
+                        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                          <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
                         </svg>
                       ) : (
-                        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M8 5v14l11-7z" />
+                        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                          <path d="M320-200v-560l440 280-440 280Z"/>
                         </svg>
                       )}
                     </button>
@@ -1858,13 +1861,12 @@ export default function Demo({ title }: { title?: string }) {
                         )}
                       </div>
                     ) : isPlaying ? (
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                        <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
                       </svg>
                     ) : (
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                        <path d="M320-200v-560l440 280-440 280Z"/>
                       </svg>
                     )}
                   </button>
@@ -1973,8 +1975,8 @@ export default function Demo({ title }: { title?: string }) {
                       onClick={() => handleSeekOffset(-10)}
                       className="retro-button p-1 text-green-400"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.333 4zM4.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0011 16V8a1 1 0 00-1.6-.8l-5.334 4z" />
+                      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                        <path d="M860-240 500-480l360-240v480Zm-400 0L100-480l360-240v480Zm-80-240Zm400 0Zm-400 90v-180l-136 90 136 90Zm400 0v-180l-136 90 136 90Z"/>
                       </svg>
                     </button>
                     
@@ -2004,8 +2006,8 @@ export default function Demo({ title }: { title?: string }) {
                       onClick={() => handleSeekOffset(10)}
                       className="retro-button p-1 text-green-400"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11.933 12.8a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.333 4zM4.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0011 16V8a1 1 0 00-1.6-.8l-5.334 4z" />
+                      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                        <path d="M100-240v-480l360 240-360 240Zm400 0v-480l360 240-360 240ZM180-480Zm400 0Zm-400 90 136-90-136-90v180Zm400 0 136-90-136-90v180Z"/>
                       </svg>
                     </button>
 
