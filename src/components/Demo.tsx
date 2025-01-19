@@ -2032,6 +2032,13 @@ export default function Demo({ title }: { title?: string }) {
                       {Math.floor(audioDurations[`${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`] / 60)}:{String(Math.floor(audioDurations[`${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`] % 60)).padStart(2, '0')}
                     </span>
                   </div>
+
+                  {/* Glowing POD Playr text */}
+                  <div className="mt-1 text-center">
+                    <span className="font-mono text-white text-lg tracking-wider filter drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]">
+                      POD PLAYR
+                    </span>
+                  </div>
                 </div>
               )}
             </div>
