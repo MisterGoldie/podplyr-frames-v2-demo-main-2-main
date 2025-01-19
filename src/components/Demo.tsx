@@ -732,6 +732,25 @@ export default function Demo({ title }: { title?: string }) {
     }
   };
 
+  const handleSeekOffset = (offset: number) => {
+    const audio = document.getElementById(`audio-${currentPlayingNFT?.contract}-${currentPlayingNFT?.tokenId}`) as HTMLAudioElement;
+    const video = videoRef.current;
+    
+    if (!audio && !video) return;
+    
+    const currentTime = audio?.currentTime || video?.currentTime || 0;
+    const duration = audio?.duration || video?.duration || 0;
+    const newTime = Math.max(0, Math.min(duration, currentTime + offset));
+    
+    if (audio) {
+      audio.currentTime = newTime;
+    }
+    if (video) {
+      video.currentTime = newTime;
+    }
+    setAudioProgress(newTime);
+  };
+
   useEffect(() => {
     const load = async () => {
       setIsSDKLoaded(true);
@@ -846,28 +865,31 @@ export default function Demo({ title }: { title?: string }) {
 
   const playMedia = async (audio: HTMLAudioElement, video: HTMLVideoElement | null, nft: NFT) => {
     try {
-      // Reset any existing playback
-      audio.currentTime = 0;
-      if (video) video.currentTime = 0;
-
-      // Start with audio
-      const audioPlay = audio.play();
-
-      // Handle video if present
-      if (video && nft.metadata?.animation_url) {
-        video.src = processMediaUrl(nft.metadata.animation_url) || '';
-        video.load();
-        
-        // Wait for video to be ready
-        await new Promise((resolve) => {
-          video.oncanplay = resolve;
-        });
-
-        video.currentTime = audio.currentTime;
-        await video.play();
+      const nftId = `${nft.contract}-${nft.tokenId}`;
+      if (currentlyPlaying !== nftId) {
+        // Only reset and set new source for new NFT
+        if (video && nft.metadata?.animation_url) {
+          video.src = processMediaUrl(nft.metadata.animation_url) || '';
+          video.load();
+          
+          await new Promise((resolve) => {
+            video.oncanplay = resolve;
+          });
+        }
       }
 
-      await audioPlay;
+      // Sync video with audio time regardless of whether it's a new NFT
+      if (video) {
+        video.currentTime = audio.currentTime;
+        if (!video.paused) {
+          await video.play();
+        }
+      }
+
+      // Handle audio playback
+      if (audio.paused) {
+        await audio.play();
+      }
       setIsPlaying(true);
       setIsMediaLoading(false);
       
@@ -890,9 +912,8 @@ export default function Demo({ title }: { title?: string }) {
       // If this is the currently playing NFT, just toggle play/pause
       if (currentlyPlaying === nftId) {
         if (!isPlaying) {
-          // Resume playback
+          // Resume playback from current position
           if (video) {
-            video.currentTime = audioElement.currentTime;
             await video.play().catch(console.warn);
           }
           await audioElement.play();
@@ -906,7 +927,7 @@ export default function Demo({ title }: { title?: string }) {
         return;
       }
 
-      // If it's a different NFT, stop current playback
+      // Only for new NFT selection
       if (currentlyPlaying) {
         const currentAudio = document.getElementById(`audio-${currentlyPlaying}`) as HTMLAudioElement;
         if (currentAudio) {
@@ -925,15 +946,17 @@ export default function Demo({ title }: { title?: string }) {
       setIsPlayerVisible(true);
       setIsPlayerMinimized(false);
 
-      // Start new playback
-      audioElement.currentTime = 0;
-      if (video) {
-        video.src = processMediaUrl(nft.metadata?.animation_url || '') || '';
-        video.currentTime = 0;
-        await video.play().catch(console.warn);
+      // Start new playback only if it's a different NFT
+      if (currentlyPlaying !== nftId) {
+        await playMedia(audioElement, video, nft);
+      } else {
+        // Just resume playback from current position
+        if (video) {
+          await video.play().catch(console.warn);
+        }
+        await audioElement.play();
+        setIsPlaying(true);
       }
-      await audioElement.play();
-      setIsPlaying(true);
 
     } catch (error) {
       console.error('Playback error:', error);
@@ -1371,56 +1394,16 @@ export default function Demo({ title }: { title?: string }) {
     
     if (!video || !audio || !currentPlayingNFT) return;
 
-    const syncVideoWithAudio = () => {
-      if (Math.abs(video.currentTime - audio.currentTime) > 0.1) {
-        video.currentTime = audio.currentTime;
+    // Sync video with audio when minimizer changes
+    if (isPlayerVisible) {
+      video.currentTime = audio.currentTime;
+      if (isPlaying) {
+        video.play().catch(console.warn);
+      } else {
+        video.pause();
       }
-    };
-
-    const handlePlay = async () => {
-      try {
-        video.currentTime = audio.currentTime;
-        if (!video.paused) return;
-        await video.play();
-      } catch (err) {
-        console.warn('Video play error:', err);
-      }
-    };
-
-    const handlePause = () => {
-      video.pause();
-    };
-
-    audio.addEventListener('play', handlePlay);
-    audio.addEventListener('timeupdate', syncVideoWithAudio);
-    audio.addEventListener('seeking', syncVideoWithAudio);
-    audio.addEventListener('pause', handlePause);
-
-    return () => {
-      audio.removeEventListener('play', handlePlay);
-      audio.removeEventListener('timeupdate', syncVideoWithAudio);
-      audio.removeEventListener('seeking', syncVideoWithAudio);
-      audio.removeEventListener('pause', handlePause);
-    };
-  }, [currentPlayingNFT]);
-
-  // Add this function near your other handlers
-  const handleSeekOffset = (offset: number) => {
-    const audio = document.getElementById(`audio-${currentPlayingNFT?.contract}-${currentPlayingNFT?.tokenId}`) as HTMLAudioElement;
-    const video = videoRef.current;
-    
-    if (audio) {
-      const newTime = Math.max(0, Math.min(audio.duration, audio.currentTime + offset));
-      audio.currentTime = newTime;
-      setAudioProgress(newTime);
     }
-    
-    if (video) {
-      const newTime = Math.max(0, Math.min(video.duration, video.currentTime + offset));
-      video.currentTime = newTime;
-      setAudioProgress(newTime);
-    }
-  };
+  }, [isPlayerVisible, currentPlayingNFT, isPlaying]);
 
   const preloadNFTMedia = async (nft: NFT) => {
     const nftId = `${nft.contract}-${nft.tokenId}`;
@@ -1496,12 +1479,18 @@ export default function Demo({ title }: { title?: string }) {
 
     const handleEnterPiP = () => {
       setIsPictureInPicture(true);
-      console.log('Entered PiP mode');
+      // Ensure video keeps playing in both PiP and minimizer
+      if (isPlaying) {
+        video.play().catch(console.warn);
+      }
     };
 
     const handleLeavePiP = () => {
       setIsPictureInPicture(false);
-      console.log('Left PiP mode');
+      // Keep video playing in minimizer if it was playing
+      if (isPlaying) {
+        video.play().catch(console.warn);
+      }
     };
 
     video.addEventListener('enterpictureinpicture', handleEnterPiP);
@@ -1511,7 +1500,7 @@ export default function Demo({ title }: { title?: string }) {
       video.removeEventListener('enterpictureinpicture', handleEnterPiP);
       video.removeEventListener('leavepictureinpicture', handleLeavePiP);
     };
-  }, []);
+  }, [isPlaying]);
 
   const togglePictureInPicture = async () => {
     const video = videoRef.current;
@@ -1677,9 +1666,14 @@ export default function Demo({ title }: { title?: string }) {
                           loop={false}
                           muted={true}
                           controls={false}
-                          preload="none"
+                          preload="auto"
                           disablePictureInPicture={false}
                           poster={nft.image ? processMediaUrl(nft.image) : undefined}
+                          onLoadedData={() => {
+                            if (isPlaying) {
+                              videoRef.current?.play().catch(console.warn);
+                            }
+                          }}
                           onError={(e) => {
                             console.error('Video error:', e);
                           }}
@@ -1836,11 +1830,17 @@ export default function Demo({ title }: { title?: string }) {
                             loop={false}
                             muted={true}
                             controls={false}
-                            preload="none"
+                            preload="auto"
                             disablePictureInPicture={false}
                             poster={currentPlayingNFT.image ? processMediaUrl(currentPlayingNFT.image) : undefined}
-                            onError={(e) => {
-                              console.error('Video error:', e);
+                            onLoadedData={() => {
+                              const video = videoRef.current;
+                              if (video) {
+                                video.currentTime = audioProgress;
+                                if (isPlaying) {
+                                  video.play().catch(console.warn);
+                                }
+                              }
                             }}
                           />
                           {/* Add expand button */}
