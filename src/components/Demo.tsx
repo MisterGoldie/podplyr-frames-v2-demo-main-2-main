@@ -1479,18 +1479,24 @@ export default function Demo({ title }: { title?: string }) {
 
     const handleEnterPiP = () => {
       setIsPictureInPicture(true);
-      // Ensure video keeps playing in both PiP and minimizer
       if (isPlaying) {
         video.play().catch(console.warn);
       }
     };
 
     const handleLeavePiP = () => {
+      const currentTime = video.currentTime; // Store the current time
       setIsPictureInPicture(false);
-      // Keep video playing in minimizer if it was playing
-      if (isPlaying) {
-        video.play().catch(console.warn);
-      }
+      
+      // Ensure the minimizer video maintains the same time
+      setTimeout(() => {
+        if (video) {
+          video.currentTime = currentTime;
+          if (isPlaying) {
+            video.play().catch(console.warn);
+          }
+        }
+      }, 0);
     };
 
     video.addEventListener('enterpictureinpicture', handleEnterPiP);
@@ -1670,8 +1676,13 @@ export default function Demo({ title }: { title?: string }) {
                           disablePictureInPicture={false}
                           poster={nft.image ? processMediaUrl(nft.image) : undefined}
                           onLoadedData={() => {
-                            if (isPlaying) {
-                              videoRef.current?.play().catch(console.warn);
+                            const video = videoRef.current;
+                            if (video) {
+                              const currentTime = isPictureInPicture ? video.currentTime : audioProgress;
+                              video.currentTime = currentTime;
+                              if (isPlaying) {
+                                video.play().catch(console.warn);
+                              }
                             }
                           }}
                           onError={(e) => {
@@ -1836,7 +1847,8 @@ export default function Demo({ title }: { title?: string }) {
                             onLoadedData={() => {
                               const video = videoRef.current;
                               if (video) {
-                                video.currentTime = audioProgress;
+                                const currentTime = isPictureInPicture ? video.currentTime : audioProgress;
+                                video.currentTime = currentTime;
                                 if (isPlaying) {
                                   video.play().catch(console.warn);
                                 }
