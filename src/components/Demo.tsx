@@ -2,7 +2,6 @@
 
 import Image from 'next/image';
 import { useEffect, useCallback, useState, useMemo, useRef, ReactEventHandler, SyntheticEvent } from "react";
-import sdk from "@farcaster/frame-sdk";
 import AudioVisualizer from './AudioVisualizer';
 import { debounce } from 'lodash';
 
@@ -595,7 +594,7 @@ const MediaRenderer = ({ url, alt, className }: MediaRendererProps) => {
         className={`${className} ${loaded ? 'opacity-100' : 'opacity-0'}`}
         playsInline
         loop={false}
-        muted
+        muted={true}
         controls={false}
         preload="none"
         poster={url ? processMediaUrl(url.replace(/\.(mp4|webm|mov)/, '.jpg')) : undefined}
@@ -670,7 +669,7 @@ export default function Demo({ title }: { title?: string }) {
   const [currentPlayingNFT, setCurrentPlayingNFT] = useState<NFT | null>(null);
   const [isPlayerMinimized, setIsPlayerMinimized] = useState(true);
   const [audioProgress, setAudioProgress] = useState(0);
-  const [audioDuration, setAudioDuration] = useState<number>(0);
+  const [audioDurations, setAudioDurations] = useState<Record<string, number>>({});
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
   const [loadedAudioElements, setLoadedAudioElements] = useState<Set<string>>(new Set());
@@ -683,8 +682,9 @@ export default function Demo({ title }: { title?: string }) {
   const [mediaLoadProgress, setMediaLoadProgress] = useState(0);
   const [preloadedMedia, setPreloadedMedia] = useState<Set<string>>(new Set());
   const [isLoaded, setLoaded] = useState(false);
+  const [isPictureInPicture, setIsPictureInPicture] = useState(false);
 
-  // Add near the top of Demo component with other state declarations
+  // Add near other state declarations (around line 661)
   const NFT_CACHE_KEY = 'nft-cache-';
   const TWO_HOURS = 2 * 60 * 60 * 1000;
 
@@ -719,75 +719,194 @@ export default function Demo({ title }: { title?: string }) {
   };
 
   const handleSeek = (time: number) => {
-    if (audioRef.current) {
-      audioRef.current.currentTime = time;
+    const audio = document.getElementById(`audio-${currentPlayingNFT?.contract}-${currentPlayingNFT?.tokenId}`) as HTMLAudioElement;
+    const video = videoRef.current;
+    
+    if (audio) {
+      audio.currentTime = time;
+      setAudioProgress(time);
+    }
+    if (video) {
+      video.currentTime = time;
       setAudioProgress(time);
     }
   };
 
   useEffect(() => {
     const load = async () => {
-      sdk.actions.ready();
-    };
-    if (sdk && !isSDKLoaded) {
       setIsSDKLoaded(true);
+    };
+    
+    if (!isSDKLoaded) {
       load();
     }
   }, [isSDKLoaded]);
 
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
+    const audio = document.getElementById(`audio-${currentPlayingNFT?.contract}-${currentPlayingNFT?.tokenId}`) as HTMLAudioElement;
+    const video = videoRef.current;
+    if (!audio && !video) return;
 
     const updateProgress = () => {
-      setAudioProgress(audio.currentTime);
+      if (audio) {
+        setAudioProgress(audio.currentTime);
+      } else if (video) {
+        setAudioProgress(video.currentTime);
+      }
     };
 
     const updateDuration = () => {
-      setAudioDuration(audio.duration);
+      if (audio) {
+        setAudioDurations(prev => ({
+          ...prev,
+          [`${currentPlayingNFT?.contract}-${currentPlayingNFT?.tokenId}`]: audio.duration
+        }));
+      } else if (video) {
+        setAudioDurations(prev => ({
+          ...prev,
+          [`${currentPlayingNFT?.contract}-${currentPlayingNFT?.tokenId}`]: video.duration
+        }));
+      }
     };
 
     const handleEnded = () => {
       setCurrentlyPlaying(null);
       setAudioProgress(0);
-      setAudioDuration(0);
+      setIsPlaying(false);
     };
 
-    audio.addEventListener('timeupdate', updateProgress);
-    audio.addEventListener('loadedmetadata', updateDuration);
-    audio.addEventListener('ended', handleEnded);
+    // Add handlers for video play/pause in PiP
+    const handleVideoPlay = async () => {
+      if (!isPlaying) {
+        setIsPlaying(true);
+        if (audio) {
+          audio.currentTime = video?.currentTime || 0;
+          await audio.play();
+        }
+      }
+    };
+
+    const handleVideoPause = () => {
+      if (isPlaying) {
+        setIsPlaying(false);
+        if (audio) {
+          audio.pause();
+        }
+      }
+    };
+
+    // Add seeking event handlers for PiP
+    const handleVideoSeeking = () => {
+      if (video && audio) {
+        audio.currentTime = video.currentTime;
+        setAudioProgress(video.currentTime);
+      }
+    };
+
+    const handleVideoSeeked = () => {
+      if (video && audio) {
+        audio.currentTime = video.currentTime;
+        setAudioProgress(video.currentTime);
+      }
+    };
+
+    if (audio) {
+      audio.addEventListener('timeupdate', updateProgress);
+      audio.addEventListener('loadedmetadata', updateDuration);
+      audio.addEventListener('ended', handleEnded);
+    }
+
+    if (video) {
+      video.addEventListener('timeupdate', updateProgress);
+      video.addEventListener('loadedmetadata', updateDuration);
+      video.addEventListener('ended', handleEnded);
+      video.addEventListener('play', handleVideoPlay);
+      video.addEventListener('pause', handleVideoPause);
+      video.addEventListener('seeking', handleVideoSeeking);
+      video.addEventListener('seeked', handleVideoSeeked);
+    }
 
     return () => {
-      audio.removeEventListener('timeupdate', updateProgress);
-      audio.removeEventListener('loadedmetadata', updateDuration);
-      audio.removeEventListener('ended', handleEnded);
+      if (audio) {
+        audio.removeEventListener('timeupdate', updateProgress);
+        audio.removeEventListener('loadedmetadata', updateDuration);
+        audio.removeEventListener('ended', handleEnded);
+      }
+      if (video) {
+        video.removeEventListener('timeupdate', updateProgress);
+        video.removeEventListener('loadedmetadata', updateDuration);
+        video.removeEventListener('ended', handleEnded);
+        video.removeEventListener('play', handleVideoPlay);
+        video.removeEventListener('pause', handleVideoPause);
+        video.removeEventListener('seeking', handleVideoSeeking);
+        video.removeEventListener('seeked', handleVideoSeeked);
+      }
     };
-  }, [currentPlayingNFT]);
+  }, [currentPlayingNFT, isPlaying]);
+
+  const playMedia = async (audio: HTMLAudioElement, video: HTMLVideoElement | null, nft: NFT) => {
+    try {
+      // Reset any existing playback
+      audio.currentTime = 0;
+      if (video) video.currentTime = 0;
+
+      // Start with audio
+      const audioPlay = audio.play();
+
+      // Handle video if present
+      if (video && nft.metadata?.animation_url) {
+        video.src = processMediaUrl(nft.metadata.animation_url) || '';
+        video.load();
+        
+        // Wait for video to be ready
+        await new Promise((resolve) => {
+          video.oncanplay = resolve;
+        });
+
+        video.currentTime = audio.currentTime;
+        await video.play();
+      }
+
+      await audioPlay;
+      setIsPlaying(true);
+      setIsMediaLoading(false);
+      
+    } catch (error) {
+      console.warn('Media playback failed:', error);
+      setIsMediaLoading(false);
+      throw error;
+    }
+  };
 
   const handlePlayAudio = async (nft: NFT) => {
     const nftId = `${nft.contract}-${nft.tokenId}`;
     const audioId = `audio-${nftId}`;
-    let audioElement = document.getElementById(audioId) as HTMLAudioElement;
+    const audioElement = document.getElementById(audioId) as HTMLAudioElement;
     const video = videoRef.current;
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
     try {
       if (!audioElement || !nft.hasValidAudio) return;
 
-      // If this is the currently playing NFT
+      // If this is the currently playing NFT, just toggle play/pause
       if (currentlyPlaying === nftId) {
-        if (!audioElement.paused) {
+        if (!isPlaying) {
+          // Resume playback
+          if (video) {
+            video.currentTime = audioElement.currentTime;
+            await video.play().catch(console.warn);
+          }
+          await audioElement.play();
+          setIsPlaying(true);
+        } else {
+          // Pause playback
           audioElement.pause();
           if (video) video.pause();
           setIsPlaying(false);
-        } else {
-          setIsPlayerMinimized(false);
-          await playMedia(audioElement, video, nft);
         }
         return;
       }
 
-      // Stop current playback
+      // If it's a different NFT, stop current playback
       if (currentlyPlaying) {
         const currentAudio = document.getElementById(`audio-${currentlyPlaying}`) as HTMLAudioElement;
         if (currentAudio) {
@@ -800,63 +919,25 @@ export default function Demo({ title }: { title?: string }) {
         }
       }
 
-      // Update UI states
-      setIsPlayerVisible(true);
-      setIsPlayerMinimized(false);
+      // Set new NFT as current
       setCurrentlyPlaying(nftId);
       setCurrentPlayingNFT(nft);
+      setIsPlayerVisible(true);
+      setIsPlayerMinimized(false);
 
-      await playMedia(audioElement, video, nft);
-
-    } catch (error) {
-      console.warn('Playback error:', error);
-      resetPlaybackStates();
-    }
-  };
-
-  const playMedia = async (audio: HTMLAudioElement, video: HTMLVideoElement | null, nft: NFT) => {
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    
-    try {
-      setIsMediaLoading(true);
-      
-      // Start audio playback
-      await audio.play();
-      setIsPlaying(true);
-
-      // Handle video if present
-      if (video && nft.metadata?.animation_url) {
-        // Mobile optimizations
-        if (isMobile) {
-          video.playsInline = true;
-          video.preload = "auto";
-          video.muted = false;
-        }
-        
-        // Direct video loading for all devices
-        const videoUrl = processMediaUrl(nft.metadata.animation_url);
-        if (!videoUrl) {
-          console.warn('Invalid video URL');
-          return;
-        }
-        
-        video.src = videoUrl;
-        video.load();
-        
-        // Wait for video to be ready
-        await new Promise((resolve) => {
-          video.oncanplay = resolve;
-        });
-        
-        video.currentTime = audio.currentTime;
+      // Start new playback
+      audioElement.currentTime = 0;
+      if (video) {
+        video.src = processMediaUrl(nft.metadata?.animation_url || '') || '';
+        video.currentTime = 0;
         await video.play().catch(console.warn);
       }
-      
-      setIsMediaLoading(false);
+      await audioElement.play();
+      setIsPlaying(true);
+
     } catch (error) {
-      console.warn('Media playback failed:', error);
-      setIsMediaLoading(false);
-      throw error;
+      console.error('Playback error:', error);
+      setIsPlaying(false);
     }
   };
 
@@ -1218,7 +1299,6 @@ export default function Demo({ title }: { title?: string }) {
     setIsPlayerVisible(false); // Hide the player
     setIsPlayerMinimized(true); // Reset minimizer state
     setAudioProgress(0); // Reset progress
-    setAudioDuration(0); // Reset duration
     setIsPlaying(false); // Ensure playing state is reset
   };
 
@@ -1231,7 +1311,10 @@ export default function Demo({ title }: { title?: string }) {
 
     // Set initial duration when metadata is loaded
     const handleLoadedMetadata = () => {
-      setAudioDuration(audioElement.duration);
+      setAudioDurations(prev => ({
+        ...prev,
+        [`${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`]: audioElement.duration
+      }));
     };
 
     // Update progress as audio plays
@@ -1244,7 +1327,10 @@ export default function Demo({ title }: { title?: string }) {
 
     // Set initial values if already loaded
     if (audioElement.duration) {
-      setAudioDuration(audioElement.duration);
+      setAudioDurations(prev => ({
+        ...prev,
+        [`${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`]: audioElement.duration
+      }));
     }
     if (audioElement.currentTime) {
       setAudioProgress(audioElement.currentTime);
@@ -1283,62 +1369,56 @@ export default function Demo({ title }: { title?: string }) {
     const video = videoRef.current;
     const audio = document.getElementById(`audio-${currentPlayingNFT?.contract}-${currentPlayingNFT?.tokenId}`) as HTMLAudioElement;
     
-    if (!video || !audio) return;
+    if (!video || !audio || !currentPlayingNFT) return;
 
-    // Don't sync video on mobile when minimized
-    if (isMobile && isPlayerMinimized) {
-      video.pause();
-      return;
-    }
+    const syncVideoWithAudio = () => {
+      if (Math.abs(video.currentTime - audio.currentTime) > 0.1) {
+        video.currentTime = audio.currentTime;
+      }
+    };
 
-    const syncVideoWithAudio = async () => {
+    const handlePlay = async () => {
       try {
         video.currentTime = audio.currentTime;
-        if (!audio.paused && !isPlayerMinimized) {
-          const playPromise = video.play();
-          if (playPromise !== undefined) {
-            await playPromise;
-          }
-        }
-      } catch (error: unknown) {
-        if (error instanceof Error && error.name !== 'AbortError') {
-          console.error('Video sync error:', error);
-        }
+        if (!video.paused) return;
+        await video.play();
+      } catch (err) {
+        console.warn('Video play error:', err);
       }
     };
 
-    // Reduce event listener frequency on mobile
-    const handleAudioTimeUpdate = debounce(() => {
-      if (!isPlayerMinimized) {
-        syncVideoWithAudio();
-      }
-    }, isMobile ? 250 : 0);
+    const handlePause = () => {
+      video.pause();
+    };
 
-    audio.addEventListener('play', syncVideoWithAudio);
-    audio.addEventListener('pause', () => video.pause());
-    audio.addEventListener('timeupdate', handleAudioTimeUpdate);
+    audio.addEventListener('play', handlePlay);
+    audio.addEventListener('timeupdate', syncVideoWithAudio);
     audio.addEventListener('seeking', syncVideoWithAudio);
+    audio.addEventListener('pause', handlePause);
 
     return () => {
-      audio.removeEventListener('play', syncVideoWithAudio);
-      audio.removeEventListener('pause', () => video.pause());
-      audio.removeEventListener('timeupdate', handleAudioTimeUpdate);
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('timeupdate', syncVideoWithAudio);
       audio.removeEventListener('seeking', syncVideoWithAudio);
-      handleAudioTimeUpdate.cancel();
+      audio.removeEventListener('pause', handlePause);
     };
-  }, [currentPlayingNFT, isPlayerMinimized, isMobile]);
+  }, [currentPlayingNFT]);
 
   // Add this function near your other handlers
-  const handleSeekOffset = (offsetSeconds: number) => {
+  const handleSeekOffset = (offset: number) => {
     const audio = document.getElementById(`audio-${currentPlayingNFT?.contract}-${currentPlayingNFT?.tokenId}`) as HTMLAudioElement;
     const video = videoRef.current;
     
     if (audio) {
-      const newTime = Math.min(Math.max(0, audio.currentTime + offsetSeconds), audio.duration);
+      const newTime = Math.max(0, Math.min(audio.duration, audio.currentTime + offset));
       audio.currentTime = newTime;
-      if (video) {
-        video.currentTime = newTime;
-      }
+      setAudioProgress(newTime);
+    }
+    
+    if (video) {
+      const newTime = Math.max(0, Math.min(video.duration, video.currentTime + offset));
+      video.currentTime = newTime;
+      setAudioProgress(newTime);
     }
   };
 
@@ -1399,6 +1479,54 @@ export default function Demo({ title }: { title?: string }) {
   function handleVideoError(event: SyntheticEvent<HTMLVideoElement, Event>): void {
     throw new Error('Function not implemented.');
   }
+
+  useEffect(() => {
+    if (currentPlayingNFT?.metadata?.animation_url) {
+      setIsMediaLoading(true);
+      const video = videoRef.current;
+      if (video) {
+        video.load();  // Force load the video
+      }
+    }
+  }, [currentPlayingNFT]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const handleEnterPiP = () => {
+      setIsPictureInPicture(true);
+      console.log('Entered PiP mode');
+    };
+
+    const handleLeavePiP = () => {
+      setIsPictureInPicture(false);
+      console.log('Left PiP mode');
+    };
+
+    video.addEventListener('enterpictureinpicture', handleEnterPiP);
+    video.addEventListener('leavepictureinpicture', handleLeavePiP);
+
+    return () => {
+      video.removeEventListener('enterpictureinpicture', handleEnterPiP);
+      video.removeEventListener('leavepictureinpicture', handleLeavePiP);
+    };
+  }, []);
+
+  const togglePictureInPicture = async () => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    try {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+      } else {
+        await video.requestPictureInPicture();
+      }
+    } catch (error) {
+      console.error('PiP error:', error);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black">
@@ -1545,15 +1673,16 @@ export default function Demo({ title }: { title?: string }) {
                           ref={videoRef}
                           src={processMediaUrl(nft.metadata.animation_url)}
                           className="w-full h-full object-cover"
+                          playsInline
                           loop={false}
-                          muted
+                          muted={true}
                           controls={false}
                           preload="none"
-                          playsInline
-                          webkit-playsinline="true"
-                          disablePictureInPicture
-                          onError={handleVideoError}
-                          onLoadedData={() => setLoaded(true)}
+                          disablePictureInPicture={false}
+                          poster={nft.image ? processMediaUrl(nft.image) : undefined}
+                          onError={(e) => {
+                            console.error('Video error:', e);
+                          }}
                         />
                       </div>
                     )}
@@ -1587,25 +1716,19 @@ export default function Demo({ title }: { title?: string }) {
                   </div>
                   {nft.hasValidAudio && (
                     <audio
+                      key={`${nft.contract}-${nft.tokenId}`}
                       id={`audio-${nft.contract}-${nft.tokenId}`}
-                      data-nft={`${nft.contract}-${nft.tokenId}`}
-                      preload="auto"
-                      crossOrigin="anonymous"
+                      src={processMediaUrl(nft.audio || '')}
+                      preload="metadata"
                       onLoadedMetadata={(e) => {
                         const audio = e.target as HTMLAudioElement;
-                        console.log('Audio loaded:', nft.name, 'Duration:', audio.duration);
-                        setAudioDuration(audio.duration);
+                        setAudioDurations(prev => ({
+                          ...prev,
+                          [`${nft.contract}-${nft.tokenId}`]: audio.duration
+                        }));
                         setLoadedAudioElements(prev => new Set(prev).add(`${nft.contract}-${nft.tokenId}`));
                       }}
-                      onError={(e) => {
-                        const target = e.target as HTMLAudioElement;
-                        console.error('Audio error:', {
-                          error: e,
-                          src: target.src,
-                          currentTime: target.currentTime,
-                          readyState: target.readyState
-                        });
-                        target.remove();
+                      onError={() => {
                         setLoadedAudioElements(prev => {
                           const next = new Set(prev);
                           next.delete(`${nft.contract}-${nft.tokenId}`);
@@ -1613,24 +1736,9 @@ export default function Demo({ title }: { title?: string }) {
                         });
                         if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
                           setCurrentlyPlaying(null);
-                          setCurrentPlayingNFT(null);
-                          setIsPlaying(false);
                         }
                       }}
-                    >
-                      <source 
-                        src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
-                        type="audio/mpeg" 
-                      />
-                      <source 
-                        src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
-                        type="audio/mp4" 
-                      />
-                      <source 
-                        src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
-                        type="audio/wav" 
-                      />
-                    </audio>
+                    />
                   )}
                 </div>
               ))}
@@ -1651,7 +1759,18 @@ export default function Demo({ title }: { title?: string }) {
                 {/* Left play button */}
                 {currentPlayingNFT && (
                   <button
-                    onClick={() => handlePlayAudio(currentPlayingNFT)}
+                    onClick={async () => {
+                      const audio = document.getElementById(`audio-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`) as HTMLAudioElement;
+                      const video = videoRef.current;
+                      
+                      if (!isPlaying) {
+                        await playMedia(audio, video, currentPlayingNFT);
+                      } else {
+                        if (video) video.pause();
+                        audio.pause();
+                        setIsPlaying(false);
+                      }
+                    }}
                     className="retro-button p-2 text-green-400"
                     disabled={!loadedAudioElements.has(`${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`)}
                   >
@@ -1664,10 +1783,14 @@ export default function Demo({ title }: { title?: string }) {
                           </div>
                         )}
                       </div>
+                    ) : isPlaying ? (
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
                     ) : (
                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 10h6v4H9z" />
                       </svg>
                     )}
                   </button>
@@ -1707,50 +1830,29 @@ export default function Demo({ title }: { title?: string }) {
                         <div className="w-full h-full relative">
                           <video 
                             ref={videoRef}
-                            src={processMediaUrl(currentPlayingNFT.metadata.animation_url)}
+                            src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || '')}
                             className="w-full h-full object-cover"
-                            loop={false}
-                            muted={false}
-                            controls={false}
-                            preload="auto"
                             playsInline
-                            webkit-playsinline="true"
-                            x-webkit-airplay="allow"
-                            disablePictureInPicture
-                            onError={handleVideoError}
-                            onLoadedData={() => setLoaded(true)}
-                            onTimeUpdate={(e) => {
-                              const video = e.target as HTMLVideoElement;
-                              setAudioProgress(video.currentTime);
+                            loop={false}
+                            muted={true}
+                            controls={false}
+                            preload="none"
+                            disablePictureInPicture={false}
+                            poster={currentPlayingNFT.image ? processMediaUrl(currentPlayingNFT.image) : undefined}
+                            onError={(e) => {
+                              console.error('Video error:', e);
                             }}
                           />
                           {/* Add expand button */}
                           <button
-                            onClick={() => {
-                              const videoElement = videoRef.current;
-                              if (videoElement) {
-                                if ((videoElement as any).webkitEnterFullscreen) {
-                                  (videoElement as any).webkitEnterFullscreen();
-                                } else if ((videoElement as any).webkitRequestFullscreen) {
-                                  (videoElement as any).webkitRequestFullscreen();
-                                } else if (videoElement.requestFullscreen) {
-                                  videoElement.requestFullscreen();
-                                } else {
-                                  videoElement.setAttribute('playsinline', 'false');
-                                  videoElement.setAttribute('controls', 'true');
-                                  videoElement.play().catch(console.error);
-                                }
-                              }
-                            }}
-                            className="absolute top-2 right-2 retro-button p-1 text-green-400 z-10"
-                            aria-label="Toggle fullscreen"
+                            onClick={togglePictureInPicture}
+                            className="absolute top-2 right-2 retro-button p-1 text-green-400 bg-black bg-opacity-50 hover:bg-opacity-75 z-10"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path 
-                                strokeLinecap="round" 
-                                strokeLinejoin="round" 
-                                strokeWidth="2" 
-                                d="M4 8V4m0 0h4M4 4l5 5m11-5V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5"
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                                d={isPictureInPicture 
+                                  ? "M9 21H3m0 0v-6m0 6l7-7M15 3h6m0 0v6m0-6L14 10" 
+                                  : "M15 3h6m0 0v6m0-6L14 10M9 21H3m0 0v-6m0 6l7-7"} 
                               />
                             </svg>
                           </button>
@@ -1773,7 +1875,7 @@ export default function Demo({ title }: { title?: string }) {
                       {Math.floor(audioProgress / 60)}:{String(Math.floor(audioProgress % 60)).padStart(2, '0')}
                     </span>
                     
-                    {/* Add Rewind Button */}
+                    {/* Rewind Button */}
                     <button
                       onClick={() => handleSeekOffset(-10)}
                       className="retro-button p-1 text-green-400"
@@ -1787,12 +1889,12 @@ export default function Demo({ title }: { title?: string }) {
                       <input
                         type="range"
                         min={0}
-                        max={audioDuration || 100}
+                        max={audioDurations[`${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`] || 100}
                         value={audioProgress}
                         onChange={(e) => handleSeek(Number(e.target.value))}
                         className="retro-progress w-full"
                         style={{
-                          background: `linear-gradient(to right, #4ade80 ${(audioProgress / (audioDuration || 1)) * 100}%, #1f2937 ${(audioProgress / (audioDuration || 1)) * 100}%)`
+                          background: `linear-gradient(to right, #4ade80 ${(audioProgress / (audioDurations[`${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`] || 1)) * 100}%, #1f2937 ${(audioProgress / (audioDurations[`${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`] || 1)) * 100}%)`
                         }}
                       />
                       <div className="absolute -top-1 left-1">
@@ -1804,7 +1906,7 @@ export default function Demo({ title }: { title?: string }) {
                       </div>
                     </div>
                     
-                    {/* Add Fast Forward Button */}
+                    {/* Fast Forward Button */}
                     <button
                       onClick={() => handleSeekOffset(10)}
                       className="retro-button p-1 text-green-400"
@@ -1813,9 +1915,9 @@ export default function Demo({ title }: { title?: string }) {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11.933 12.8a1 1 0 000-1.6L6.6 7.2A1 1 0 005 8v8a1 1 0 001.6.8l5.333-4zM19.933 12.8a1 1 0 000-1.6l-5.333-4A1 1 0 0013 8v8a1 1 0 001.6.8l5.333-4z" />
                       </svg>
                     </button>
-                    
+
                     <span className="font-mono text-green-400 text-base min-w-[40px]">
-                      {Math.floor(audioDuration / 60)}:{String(Math.floor(audioDuration % 60)).padStart(2, '0')}
+                      {Math.floor(audioDurations[`${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`] / 60)}:{String(Math.floor(audioDurations[`${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`] % 60)).padStart(2, '0')}
                     </span>
                   </div>
                 </div>

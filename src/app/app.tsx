@@ -2,11 +2,7 @@
 
 import dynamic from "next/dynamic";
 
-interface AppProps {
-  title?: string;
-}
-
-const Demo = dynamic(() => import("~/components/Demo"), {
+const Demo = dynamic(() => import("../components/Demo"), {
   ssr: false,
   loading: () => (
     <div className="flex items-center justify-center min-h-screen">
@@ -14,6 +10,10 @@ const Demo = dynamic(() => import("~/components/Demo"), {
     </div>
   ),
 });
+
+interface AppProps {
+  title?: string;
+}
 
 export default function App({ title }: AppProps) {
   return (
