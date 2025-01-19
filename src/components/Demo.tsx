@@ -1730,8 +1730,8 @@ export default function Demo({ title }: { title?: string }) {
                               // Only sync time, don't manipulate playback
                               video.currentTime = audio.currentTime;
                               
-                              // If already playing, maintain playback
-                              if (isPlaying && !isPlayerMinimized) {
+                              // If already playing, maintain playback regardless of minimized state
+                              if (isPlaying) {
                                 video.play().catch(console.warn);
                               }
                             }
@@ -1908,8 +1908,8 @@ export default function Demo({ title }: { title?: string }) {
                                 // Only sync time, don't manipulate playback
                                 video.currentTime = audio.currentTime;
                                 
-                                // If already playing, maintain playback
-                                if (isPlaying && !isPlayerMinimized) {
+                                // If already playing, maintain playback regardless of minimized state
+                                if (isPlaying) {
                                   video.play().catch(console.warn);
                                 }
                               }
