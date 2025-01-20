@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { useEffect, useCallback, useState, useMemo, useRef, ReactEventHandler, SyntheticEvent } from "react";
 import AudioVisualizer from './AudioVisualizer';
 import { debounce } from 'lodash';
+import { trackUserSearch, getRecentSearches, SearchedUser } from '../lib/firebase';
 
 
 interface FarcasterUser {
@@ -708,6 +709,8 @@ export default function Demo({ title }: { title?: string }) {
   const [realPlaybackPosition, setRealPlaybackPosition] = useState(0);
   const [isMinimizing, setIsMinimizing] = useState(false);
   const [isExpandButtonVisible, setIsExpandButtonVisible] = useState(false);
+  // Add this state for recent searches
+  const [recentSearches, setRecentSearches] = useState<SearchedUser[]>([]);
 
   // Add near other state declarations (around line 661)
   const NFT_CACHE_KEY = 'nft-cache-';
@@ -1146,13 +1149,14 @@ export default function Demo({ title }: { title?: string }) {
 
   // Update handleUserSelect with better error handling
   const handleUserSelect = async (user: FarcasterUser) => {
-    setIsSearchPage(false);
-    console.log('=== START NFT FETCH ===');
-    setIsLoadingNFTs(true);
-    setError(null);
-    setNfts([]);
-
     try {
+      await trackUserSearch(user);
+      setIsSearchPage(false);
+      console.log('=== START NFT FETCH ===');
+      setIsLoadingNFTs(true);
+      setError(null);
+      setNfts([]);
+
       // Check API Keys
       const neynarKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
       const alchemyKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
@@ -1675,6 +1679,21 @@ export default function Demo({ title }: { title?: string }) {
   const memoizedAudioDurations = useMemo(() => {
     return audioDurations[`${currentPlayingNFT?.contract}-${currentPlayingNFT?.tokenId}`] || 0;
   }, [audioDurations, currentPlayingNFT]);
+
+  // Add this effect to load recent searches
+  useEffect(() => {
+    const loadRecentSearches = async () => {
+      try {
+        const searches = await getRecentSearches();
+        setRecentSearches(searches);
+      } catch (error) {
+        console.error('Error loading recent searches:', error);
+        setRecentSearches([]); // Set empty array as fallback
+      }
+    };
+
+    loadRecentSearches();
+  }, []); // Empty dependency array means this runs once on mount
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black">
