@@ -50,6 +50,7 @@ function SearchBar({ onSearch, isSearching }: SearchBarProps) {
   const [suggestions, setSuggestions] = useState<FarcasterUser[]>([]);
   const [_isLoadingSuggestions] = useState(false);
 
+  // Keep the existing suggestions functionality
   useEffect(() => {
     const fetchSuggestions = async () => {
       if (username.length < 2) {
@@ -80,7 +81,7 @@ function SearchBar({ onSearch, isSearching }: SearchBarProps) {
             pfp_url: user.pfp_url || 'https://avatar.vercel.sh/' + user.username,
             follower_count: user.follower_count || 0,
             following_count: user.following_count || 0
-          })).slice(0, 3); // Limit to 3 suggestions
+          })).slice(0, 3);
           setSuggestions(mappedSuggestions);
         }
       } catch (err) {
@@ -105,39 +106,55 @@ function SearchBar({ onSearch, isSearching }: SearchBarProps) {
     onSearch(selectedUsername);
     setSuggestions([]); // Clear suggestions after selection
   };
-  
 
   return (
-    <div className="relative w-full max-w-md mx-auto">
-      <form onSubmit={handleSubmit} className="w-full">
-        <div className="flex flex-col gap-2">
-          <input
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="Enter Farcaster username..."
-            className="w-full px-4 py-3 rounded-lg text-black placeholder-gray-500 bg-white"
-            disabled={isSearching}
-          />
-          <button
-            type="submit"
-            disabled={isSearching}
-            className="w-32 mx-auto px-6 py-2 bg-purple-600 text-white rounded-lg disabled:opacity-50 hover:bg-purple-700 transition-colors"
-          >
-            {isSearching ? 'Searching...' : 'Search'}
-          </button>
+    <div className="w-full max-w-[90vw] mx-auto text-center">
+      {/* Animated Logo */}
+      <div className="relative p-4 rounded-xl bg-gray-900/40 backdrop-blur-sm border border-green-400/20">
+        <h1 className="text-4xl sm:text-6xl font-mono text-green-400 tracking-widest">
+          PODPLAYR
+        </h1>
+        {/* Audio Wave Animation */}
+        <div className="mt-2 flex justify-center items-end space-x-1 h-3">
+          {[1,2,3,4].map((i) => (
+            <div 
+              key={i}
+              className="w-[2px] bg-green-400 rounded-full transition-all duration-150"
+              style={{
+                height: `${2 + (i * 3)}px`,
+                animation: `audioWavePulse 1.5s ease-in-out infinite`,
+                animationDelay: `${(4-i) * 0.2}s`,
+                transformOrigin: 'bottom'
+              }}
+            />
+          ))}
         </div>
-      </form>
+      </div>
 
+      <div className="relative mt-4">
+        <input
+          type="text"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          placeholder="Enter Farcaster username.."
+          className="w-full px-4 py-3 bg-transparent border-2 border-green-400/30 
+                   rounded-full text-green-400 placeholder-green-400/50 
+                   focus:outline-none focus:border-green-400 
+                   transition-all duration-300 font-mono text-base"
+          disabled={isSearching}
+        />
+      </div>
+
+      {/* Keep existing suggestions dropdown with adjusted positioning */}
       {suggestions.length > 0 && (
-        <div className="absolute w-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-80 overflow-y-auto z-10">
+        <div className="absolute left-0 right-0 mt-1 mx-4 bg-gray-900/90 backdrop-blur-sm rounded-lg border border-green-400/30 max-h-60 overflow-y-auto z-10">
           {suggestions.map((suggestion) => (
             <button
               key={suggestion.fid}
               onClick={() => handleSuggestionClick(suggestion.username)}
-              className="w-full px-4 py-2 flex items-center gap-3 hover:bg-gray-100 text-left"
+              className="w-full px-4 py-2 flex items-center gap-3 hover:bg-green-400/10 text-left transition-colors"
             >
-              <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
+              <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 border border-green-400/30">
                 <Image
                   src={suggestion.pfp_url || `https://avatar.vercel.sh/${suggestion.username}`}
                   alt={suggestion.display_name || suggestion.username || 'User avatar'}
@@ -151,8 +168,8 @@ function SearchBar({ onSearch, isSearching }: SearchBarProps) {
                 />
               </div>
               <div>
-                <div className="font-medium text-gray-900">{suggestion.display_name || suggestion.username}</div>
-                <div className="text-sm text-gray-600">@{suggestion.username}</div>
+                <div className="font-medium text-green-400">{suggestion.display_name || suggestion.username}</div>
+                <div className="text-sm text-gray-400">@{suggestion.username}</div>
               </div>
             </button>
           ))}

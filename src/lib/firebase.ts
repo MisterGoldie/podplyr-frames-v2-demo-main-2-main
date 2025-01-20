@@ -16,7 +16,7 @@ if (!firebaseConfig.projectId) {
 }
 
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+export const db = getFirestore(app);
 export interface SearchedUser {
   fid: number;
   username: string;
@@ -32,22 +32,33 @@ export interface SearchedUser {
   verifiedAddresses?: string[];
   lastSearched: Date;
   searchCount: number;
+  cachedWallet?: {
+    address: string;
+    lastUpdated: Date;
+  };
 }
 
 export async function trackUserSearch(user: any) {
   try {
     const searchesRef = collection(db, 'searchedusers');
     const docRef = doc(searchesRef, user.fid.toString());
+    
+    // Get existing data first
+    const docSnap = await getDoc(docRef);
+    const existingData = docSnap.exists() ? docSnap.data() : {};
+    
     // Clean and validate the data before sending to Firestore
     const userData = {
+      ...existingData,
       fid: user.fid,
       username: user.username,
       display_name: user.display_name || null,
       pfp_url: user.pfp_url || null,
       follower_count: user.follower_count,
       following_count: user.following_count,
-      verifiedAddresses: user.verifiedAddresses || [], // Ensure it's an empty array if undefined
-      lastSearched: serverTimestamp()
+      verifiedAddresses: user.verifiedAddresses || [], // Ensure it's an array
+      lastSearched: serverTimestamp(),
+      searchCount: (existingData.searchCount || 0) + 1
     };
 
     await setDoc(docRef, userData);
@@ -69,5 +80,46 @@ export async function getRecentSearches(): Promise<SearchedUser[]> {
   } catch (error) {
     console.error('Error fetching recent searches:', error);
     return [];
+  }
+}
+
+export async function cacheUserWallet(fid: number, address: string) {
+  try {
+    const searchesRef = collection(db, 'searchedusers');
+    const docRef = doc(searchesRef, fid.toString());
+    
+    await setDoc(docRef, {
+      cachedWallet: {
+        address,
+        lastUpdated: serverTimestamp()
+      }
+    }, { merge: true });
+  } catch (error) {
+    console.error('Error caching wallet:', error);
+  }
+}
+
+export async function getCachedWallet(fid: number): Promise<string | null> {
+  try {
+    const searchesRef = collection(db, 'searchedusers');
+    const docRef = doc(searchesRef, fid.toString());
+    const docSnap = await getDoc(docRef);
+    
+    if (docSnap.exists()) {
+      const userData = docSnap.data();
+      if (userData.cachedWallet?.address) {
+        // Check if cache is less than 24 hours old
+        const lastUpdated = userData.cachedWallet.lastUpdated.toDate();
+        const isValid = (Date.now() - lastUpdated.getTime()) < 24 * 60 * 60 * 1000;
+        
+        if (isValid) {
+          return userData.cachedWallet.address;
+        }
+      }
+    }
+    return null;
+  } catch (error) {
+    console.error('Error getting cached wallet:', error);
+    return null;
   }
 } 
