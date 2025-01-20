@@ -777,6 +777,13 @@ export default function Demo({ title }: { title?: string }) {
     setAudioProgress(newTime);
   };
 
+  const debouncedHandleSeek = useCallback(
+    debounce((value: number) => {
+      handleSeek(value);
+    }, 100),
+    []
+  );
+
   useEffect(() => {
     const load = async () => {
       setIsSDKLoaded(true);
@@ -1439,59 +1446,17 @@ export default function Demo({ title }: { title?: string }) {
     }
   }, [isPlayerMinimized, currentPlayingNFT, isPlaying]);
 
-  const preloadNFTMedia = async (nft: NFT) => {
-    const nftId = `${nft.contract}-${nft.tokenId}`;
-    
-    if (preloadedMedia.has(nftId)) return;
-
-    setIsMediaLoading(true);
-    setMediaLoadProgress(0);
-
-    try {
-      // Preload audio
-      if (nft.audio || nft.metadata?.animation_url) {
-        const audioUrl = processMediaUrl(nft.audio || nft.metadata?.animation_url || '');
-        if (audioUrl) {
-          const audio = new Audio();
-          audio.preload = "auto"; // Force preload
-          audio.src = audioUrl;
-          
-          await new Promise((resolve, reject) => {
-            audio.addEventListener('loadeddata', resolve, { once: true });
-            audio.addEventListener('error', reject, { once: true });
-            audio.addEventListener('progress', (e) => {
-              if (audio.duration) {
-                const progress = (audio.buffered.end(0) / audio.duration) * 100;
-                setMediaLoadProgress(progress);
-              }
-            });
-          });
-        }
+  const preloadNFTs = useCallback((currentIndex: number) => {
+    const nextNFTs = nfts.slice(currentIndex + 1, currentIndex + 3);
+    nextNFTs.forEach(nft => {
+      if (!preloadedMedia.has(`${nft.contract}-${nft.tokenId}`)) {
+        const audio = new Audio();
+        audio.preload = 'metadata';
+        audio.src = processMediaUrl(nft.audio || '') || '';
+        setPreloadedMedia(prev => new Set([...prev, `${nft.contract}-${nft.tokenId}`]));
       }
-
-      // Preload video if exists
-      if (nft.metadata?.animation_url) {
-        const videoUrl = processMediaUrl(nft.metadata.animation_url);
-        if (videoUrl) {
-          const video = document.createElement('video');
-          video.preload = "auto"; // Force preload
-          video.src = videoUrl;
-          
-          await new Promise((resolve, reject) => {
-            video.addEventListener('loadeddata', resolve, { once: true });
-            video.addEventListener('error', reject, { once: true });
-          });
-        }
-      }
-
-      setPreloadedMedia(prev => new Set(prev).add(nftId));
-    } catch (error) {
-      console.error('Error preloading media:', error);
-    } finally {
-      setIsMediaLoading(false);
-      setMediaLoadProgress(0);
-    }
-  };
+    });
+  }, [nfts, preloadedMedia]);
 
   function handleVideoError(event: SyntheticEvent<HTMLVideoElement, Event>): void {
     throw new Error('Function not implemented.');
@@ -1608,6 +1573,26 @@ export default function Demo({ title }: { title?: string }) {
       setIsExpandButtonVisible(false);
     }, 2000);
   };
+
+  const togglePlayback = useCallback(async () => {
+    if (!currentPlayingNFT) return;
+    
+    const audio = document.getElementById(`audio-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`) as HTMLAudioElement;
+    const video = videoRef.current;
+    
+    if (!isPlaying) {
+      await playMedia(audio, video, currentPlayingNFT);
+    } else {
+      if (video) video.pause();
+      audio.pause();
+      setIsPlaying(false);
+    }
+  }, [currentPlayingNFT, isPlaying, playMedia]);
+
+  // Add memoized values for expensive computations
+  const memoizedAudioDurations = useMemo(() => {
+    return audioDurations[`${currentPlayingNFT?.contract}-${currentPlayingNFT?.tokenId}`] || 0;
+  }, [audioDurations, currentPlayingNFT]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black">
@@ -1850,18 +1835,7 @@ export default function Demo({ title }: { title?: string }) {
                 {/* Left play button */}
                 {currentPlayingNFT && (
                   <button
-                    onClick={async () => {
-                      const audio = document.getElementById(`audio-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`) as HTMLAudioElement;
-                      const video = videoRef.current;
-                      
-                      if (!isPlaying) {
-                        await playMedia(audio, video, currentPlayingNFT);
-                      } else {
-                        if (video) video.pause();
-                        audio.pause();
-                        setIsPlaying(false);
-                      }
-                    }}
+                    onClick={togglePlayback}
                     className="retro-button p-2 text-green-400"
                     disabled={!loadedAudioElements.has(`${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`)}
                   >
@@ -1997,12 +1971,12 @@ export default function Demo({ title }: { title?: string }) {
                       <input
                         type="range"
                         min={0}
-                        max={audioDurations[`${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`] || 100}
+                        max={memoizedAudioDurations}
                         value={audioProgress}
                         onChange={(e) => handleSeek(Number(e.target.value))}
                         className="retro-progress w-full"
                         style={{
-                          background: `linear-gradient(to right, #4ade80 ${(audioProgress / (audioDurations[`${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`] || 1)) * 100}%, #1f2937 ${(audioProgress / (audioDurations[`${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`] || 1)) * 100}%)`
+                          background: `linear-gradient(to right, #4ade80 ${(audioProgress / memoizedAudioDurations) * 100}%)`
                         }}
                       />
                       <div className="absolute -top-1 left-1">
@@ -2025,7 +1999,7 @@ export default function Demo({ title }: { title?: string }) {
                     </button>
 
                     <span className="font-mono text-green-400 text-base min-w-[40px]">
-                      {Math.floor(audioDurations[`${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`] / 60)}:{String(Math.floor(audioDurations[`${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`] % 60)).padStart(2, '0')}
+                      {Math.floor(memoizedAudioDurations / 60)}:{String(Math.floor(memoizedAudioDurations % 60)).padStart(2, '0')}
                     </span>
                   </div>
 
