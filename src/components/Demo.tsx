@@ -708,9 +708,38 @@ export default function Demo({ title }: { title?: string }) {
   const [isMinimizing, setIsMinimizing] = useState(false);
   const [isExpandButtonVisible, setIsExpandButtonVisible] = useState(false);
 
-  // Add near other state declarations (around line 661)
+  // Add after state declarations (around line 661)
   const NFT_CACHE_KEY = 'nft-cache-';
   const TWO_HOURS = 2 * 60 * 60 * 1000;
+
+  const fetchWithRetry = async (url: string, options: RequestInit, maxRetries = 5, initialDelay = 2000) => {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const response = await fetch(url, options);
+        
+        if (response.ok) {
+          return response;
+        }
+        
+        if (response.status === 429) {
+          // Get retry-after header or use exponential backoff
+          const retryAfter = response.headers.get('retry-after');
+          const delayMs = retryAfter ? parseInt(retryAfter) * 1000 : initialDelay * Math.pow(2, attempt);
+          console.log(`Rate limited. Retrying in ${delayMs/1000} seconds...`);
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+          continue;
+        }
+        
+        // If not 429, return the response anyway
+        return response;
+        
+      } catch (error) {
+        if (attempt === maxRetries - 1) throw error;
+        await new Promise(resolve => setTimeout(resolve, initialDelay * Math.pow(2, attempt)));
+      }
+    }
+    throw new Error('Max retries exceeded');
+  };
 
   const getCachedNFTs = (userId: number) => {
     const cached = localStorage.getItem(`${NFT_CACHE_KEY}${userId}`);
@@ -1078,7 +1107,7 @@ export default function Demo({ title }: { title?: string }) {
       
       console.log('[NFT Fetch] Attempting mainnet fetch:', mainnetUrl.replace(alchemyKey, 'HIDDEN_KEY'));
 
-      const response = await fetch(mainnetUrl, options);
+      const response = await fetchWithRetry(mainnetUrl, options);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${await response.text()}`);
@@ -1109,7 +1138,7 @@ export default function Demo({ title }: { title?: string }) {
       try {
         const baseUrl = `https://base-mainnet.g.alchemy.com/v2/${alchemyKey}/getNFTsForOwner?owner=${address}&withMetadata=true&pageSize=100`;
         
-        const baseResponse = await fetch(baseUrl, options);
+        const baseResponse = await fetchWithRetry(baseUrl, options);
         
         if (baseResponse.ok) {
           const baseData = await baseResponse.json();
