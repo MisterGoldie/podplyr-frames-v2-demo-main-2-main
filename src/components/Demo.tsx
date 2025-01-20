@@ -275,6 +275,7 @@ export interface NFT {
     image?: string;
   };
   metadata?: NFTMetadata;
+  network?: 'ethereum' | 'base';
 }
 
 interface _AlchemyNFT {
@@ -708,38 +709,9 @@ export default function Demo({ title }: { title?: string }) {
   const [isMinimizing, setIsMinimizing] = useState(false);
   const [isExpandButtonVisible, setIsExpandButtonVisible] = useState(false);
 
-  // Add after state declarations (around line 661)
+  // Add near other state declarations (around line 661)
   const NFT_CACHE_KEY = 'nft-cache-';
   const TWO_HOURS = 2 * 60 * 60 * 1000;
-
-  const fetchWithRetry = async (url: string, options: RequestInit, maxRetries = 5, initialDelay = 2000) => {
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      try {
-        const response = await fetch(url, options);
-        
-        if (response.ok) {
-          return response;
-        }
-        
-        if (response.status === 429) {
-          // Get retry-after header or use exponential backoff
-          const retryAfter = response.headers.get('retry-after');
-          const delayMs = retryAfter ? parseInt(retryAfter) * 1000 : initialDelay * Math.pow(2, attempt);
-          console.log(`Rate limited. Retrying in ${delayMs/1000} seconds...`);
-          await new Promise(resolve => setTimeout(resolve, delayMs));
-          continue;
-        }
-        
-        // If not 429, return the response anyway
-        return response;
-        
-      } catch (error) {
-        if (attempt === maxRetries - 1) throw error;
-        await new Promise(resolve => setTimeout(resolve, initialDelay * Math.pow(2, attempt)));
-      }
-    }
-    throw new Error('Max retries exceeded');
-  };
 
   const getCachedNFTs = (userId: number) => {
     const cached = localStorage.getItem(`${NFT_CACHE_KEY}${userId}`);
@@ -1107,7 +1079,7 @@ export default function Demo({ title }: { title?: string }) {
       
       console.log('[NFT Fetch] Attempting mainnet fetch:', mainnetUrl.replace(alchemyKey, 'HIDDEN_KEY'));
 
-      const response = await fetchWithRetry(mainnetUrl, options);
+      const response = await fetch(mainnetUrl, options);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${await response.text()}`);
@@ -1138,7 +1110,7 @@ export default function Demo({ title }: { title?: string }) {
       try {
         const baseUrl = `https://base-mainnet.g.alchemy.com/v2/${alchemyKey}/getNFTsForOwner?owner=${address}&withMetadata=true&pageSize=100`;
         
-        const baseResponse = await fetchWithRetry(baseUrl, options);
+        const baseResponse = await fetch(baseUrl, options);
         
         if (baseResponse.ok) {
           const baseData = await baseResponse.json();
@@ -1444,14 +1416,19 @@ export default function Demo({ title }: { title?: string }) {
 
     try {
       setIsLoadingNFTs(true);
+      setError(''); // Clear any existing errors
+      
       const nftsData = await fetchNFTsForAddress(user.fid.toString(), process.env.NEXT_PUBLIC_ALCHEMY_API_KEY || '');
       if (nftsData && Array.isArray(nftsData)) {
         cacheNFTs(user.fid, nftsData);
         setNfts(nftsData);
       }
     } catch (error) {
-      console.error('Error fetching NFTs:', error);
-      setError('Failed to fetch NFTs');
+      console.warn('Error fetching NFTs:', error);
+      // Only set error for network/API failures, not for empty results
+      if (error instanceof Error && !error.message.includes('No NFTs found')) {
+        setError('Unable to connect. Please try again.');
+      }
     } finally {
       setIsLoadingNFTs(false);
     }
@@ -1601,20 +1578,98 @@ export default function Demo({ title }: { title?: string }) {
     }, 2000);
   };
 
-  const togglePlayback = useCallback(async () => {
-    if (!currentPlayingNFT) return;
-    
-    const audio = document.getElementById(`audio-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`) as HTMLAudioElement;
+  const handlePlayPause = async () => {
+    const audio = document.getElementById(`audio-${currentPlayingNFT?.contract}-${currentPlayingNFT?.tokenId}`) as HTMLAudioElement;
     const video = videoRef.current;
-    
-    if (!isPlaying) {
-      await playMedia(audio, video, currentPlayingNFT);
-    } else {
-      if (video) video.pause();
-      audio.pause();
-      setIsPlaying(false);
+    const pipVideo = document.pictureInPictureElement as HTMLVideoElement;
+
+    try {
+      if (isPlaying) {
+        // Pause everything
+        if (audio) audio.pause();
+        if (video) video.pause();
+        if (pipVideo) pipVideo.pause();
+        setLastKnownPosition(audio?.currentTime || video?.currentTime || 0);
+        setIsPlaying(false);
+      } else {
+        // Resume everything from the same position
+        const currentTime = lastKnownPosition;
+        
+        if (video) {
+          video.currentTime = currentTime;
+          await video.play().catch(console.warn);
+        }
+        if (pipVideo && pipVideo !== video) {
+          pipVideo.currentTime = currentTime;
+          await pipVideo.play().catch(console.warn);
+        }
+        if (audio) {
+          audio.currentTime = currentTime;
+          await audio.play().catch(console.warn);
+        }
+        setIsPlaying(true);
+      }
+    } catch (error) {
+      console.error('Error toggling play/pause:', error);
     }
-  }, [currentPlayingNFT, isPlaying, playMedia]);
+  };
+
+  // Update the PiP event handlers
+  useEffect(() => {
+    const video = videoRef.current;
+    const audio = document.getElementById(`audio-${currentPlayingNFT?.contract}-${currentPlayingNFT?.tokenId}`) as HTMLAudioElement;
+    
+    if (!video || !audio) return;
+
+    const handleVideoPlay = async () => {
+      if (!isPlaying) {
+        setIsPlaying(true);
+        if (audio.paused) {
+          audio.currentTime = video.currentTime;
+          await audio.play().catch(console.warn);
+        }
+      }
+    };
+
+    const handleVideoPause = () => {
+      if (isPlaying) {
+        setIsPlaying(false);
+        audio.pause();
+        setLastKnownPosition(video.currentTime);
+      }
+    };
+
+    const handlePipChange = async () => {
+      const pipVideo = document.pictureInPictureElement as HTMLVideoElement | null;
+      if (pipVideo) {
+        // Entered PiP
+        pipVideo.addEventListener('play', handleVideoPlay);
+        pipVideo.addEventListener('pause', handleVideoPause);
+        if (isPlaying) {
+          await pipVideo.play().catch(console.warn);
+        } else {
+          pipVideo.pause();
+        }
+      }
+    };
+
+    video.addEventListener('play', handleVideoPlay);
+    video.addEventListener('pause', handleVideoPause);
+    video.addEventListener('enterpictureinpicture', handlePipChange);
+
+    return () => {
+      video.removeEventListener('play', handleVideoPlay);
+      video.removeEventListener('pause', handleVideoPause);
+      video.removeEventListener('enterpictureinpicture', handlePipChange);
+      
+      // Clean up PiP video listeners if needed
+      const pipVideo = document.pictureInPictureElement as HTMLVideoElement | null;
+      if (pipVideo) {
+        pipVideo.removeEventListener('play', handleVideoPlay);
+        pipVideo.removeEventListener('pause', handleVideoPause);
+      }
+    };
+  }, [currentPlayingNFT, isPlaying]);
 
   // Add memoized values for expensive computations
   const memoizedAudioDurations = useMemo(() => {
@@ -1633,7 +1688,7 @@ export default function Demo({ title }: { title?: string }) {
           <SearchBar onSearch={handleSearch} isSearching={isSearching} />
         </div>
 
-        {error && (
+        {error && error !== 'Failed to play media' && (
           <div className="retro-container p-4 mb-6 border-red-500">
             <div className="flex items-center gap-2 text-red-500">
               <div className="led-light"></div>
@@ -1862,25 +1917,15 @@ export default function Demo({ title }: { title?: string }) {
                 {/* Left play button */}
                 {currentPlayingNFT && (
                   <button
-                    onClick={togglePlayback}
-                    className="retro-button p-2 text-green-400"
-                    disabled={!loadedAudioElements.has(`${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`)}
+                    onClick={handlePlayPause}
+                    className="retro-button p-2 text-green-400 hover:text-green-300"
                   >
-                    {!loadedAudioElements.has(`${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`) ? (
-                      <div className="relative">
-                        <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-green-400"></div>
-                        {isMediaLoading && (
-                          <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 text-xs text-green-400">
-                            {Math.round(mediaLoadProgress)}%
-                          </div>
-                        )}
-                      </div>
-                    ) : isPlaying ? (
-                      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                        <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
+                    {isPlaying ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#75FB4C">
+                        <path d="M560-200v-560h160v560H560Zm-320 0v-560h160v560H240Z"/>
                       </svg>
                     ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#75FB4C">
                         <path d="M320-200v-560l440 280-440 280Z"/>
                       </svg>
                     )}
@@ -1941,7 +1986,9 @@ export default function Demo({ title }: { title?: string }) {
                             preload="auto"
                             onLoadedData={() => {
                               const video = videoRef.current;
-                              if (video) {
+                              const audio = document.getElementById(`audio-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`) as HTMLAudioElement;
+                              
+                              if (video && audio) {
                                 const isLandscape = video.videoWidth > video.videoHeight;
                                 if (isLandscape) {
                                   video.className = "w-[320px] h-[192px] object-cover";
