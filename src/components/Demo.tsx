@@ -1716,9 +1716,10 @@ export default function Demo({ title }: { title?: string }) {
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black">
       <RetroStyles />
       <div className="container mx-auto px-4 py-8">
-        <h1 className="text-4xl font-bold mb-12 text-center text-green-400 font-mono tracking-wider retro-display p-4">
+        {/* Remove this h1 element */}
+        {/* <h1 className="text-4xl font-bold mb-12 text-center text-green-400 font-mono tracking-wider retro-display p-4">
           PODPLAYR
-        </h1>
+        </h1> */}
 
         <div className="retro-container p-6 mb-8">
           <SearchBar onSearch={handleSearch} isSearching={isSearching} />
