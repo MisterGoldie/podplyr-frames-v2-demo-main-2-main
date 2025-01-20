@@ -926,42 +926,45 @@ export default function Demo({ title }: { title?: string }) {
   };
 
   const handlePlayAudio = async (nft: NFT) => {
-    const nftId = `${nft.contract}-${nft.tokenId}`;
-    const audioId = `audio-${nftId}`;
-    const audioElement = document.getElementById(audioId) as HTMLAudioElement;
-    const video = videoRef.current;
-
     try {
-      if (!audioElement || !nft.hasValidAudio) return;
-
-      // If this is the currently playing NFT, just toggle play/pause
+      const nftId = `${nft.contract}-${nft.tokenId}`;
+      
+      // If we're already playing this NFT, handle play/pause toggle
       if (currentlyPlaying === nftId) {
-        if (!isPlaying) {
-          // Resume playback from current position
-          if (video) {
-            await video.play().catch(console.warn);
-          }
-          await audioElement.play();
-          setIsPlaying(true);
-        } else {
-          // Pause playback
-          audioElement.pause();
+        const audio = document.getElementById(`audio-${nftId}`) as HTMLAudioElement;
+        const video = videoRef.current;
+        
+        if (isPlaying) {
+          // Pause both audio and video
+          if (audio) audio.pause();
           if (video) video.pause();
           setIsPlaying(false);
+        } else {
+          // Resume both from current position
+          if (video) {
+            video.currentTime = audio?.currentTime || 0;
+            await video.play().catch(console.warn);
+          }
+          if (audio) await audio.play();
+          setIsPlaying(true);
         }
         return;
       }
 
-      // Only for new NFT selection
+      // Stop current playback before starting new one
       if (currentlyPlaying) {
         const currentAudio = document.getElementById(`audio-${currentlyPlaying}`) as HTMLAudioElement;
+        const currentVideo = videoRef.current;
+        
         if (currentAudio) {
           currentAudio.pause();
           currentAudio.currentTime = 0;
         }
-        if (video) {
-          video.pause();
-          video.currentTime = 0;
+        if (currentVideo) {
+          currentVideo.pause();
+          currentVideo.currentTime = 0;
+          currentVideo.removeAttribute('src');
+          currentVideo.load();
         }
       }
 
@@ -970,22 +973,27 @@ export default function Demo({ title }: { title?: string }) {
       setCurrentPlayingNFT(nft);
       setIsPlayerVisible(true);
       setIsPlayerMinimized(false);
+      
+      // Start new playback
+      const audio = document.getElementById(`audio-${nftId}`) as HTMLAudioElement;
+      const video = videoRef.current;
 
-      // Start new playback only if it's a different NFT
-      if (currentlyPlaying !== nftId) {
-        await playMedia(audioElement, video, nft);
-      } else {
-        // Just resume playback from current position
-        if (video) {
-          await video.play().catch(console.warn);
+      if (audio && nft.hasValidAudio) {
+        await playMedia(audio, video, nft);
+      } else if (video && (nft.metadata?.animation_url || nft.animationUrl)) {
+        const videoUrl = processMediaUrl(nft.metadata?.animation_url || nft.animationUrl || '');
+        if (videoUrl) {
+          video.src = videoUrl;
+          video.load();
+          await video.play();
+          setIsPlaying(true);
         }
-        await audioElement.play();
-        setIsPlaying(true);
       }
 
     } catch (error) {
       console.error('Playback error:', error);
       setIsPlaying(false);
+      setError('Failed to play media');
     }
   };
 
