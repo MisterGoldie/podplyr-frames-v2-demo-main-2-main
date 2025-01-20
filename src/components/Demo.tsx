@@ -1931,7 +1931,7 @@ export default function Demo({ title }: { title?: string }) {
                                 e.stopPropagation();
                                 togglePictureInPicture();
                               }}
-                              className="absolute bottom-2 right-2 bg-black/50 p-2 rounded-full hover:bg-black/70 transition-opacity duration-300"
+                              className="absolute top-2 right-2 bg-black/50 p-2 rounded-full hover:bg-black/70 transition-opacity duration-300"
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
                                 <path d="M560-240h280v-280H560v280ZM120-120v-720h720v720H120Zm80-80h560v-560H200v560Zm0 0v-560 560Z"/>
