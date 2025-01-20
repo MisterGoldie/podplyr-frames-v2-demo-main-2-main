@@ -1984,21 +1984,15 @@ export default function Demo({ title }: { title?: string }) {
                             muted={true}
                             controls={false}
                             preload="auto"
-                            onLoadedData={() => {
-                              const video = videoRef.current;
-                              const audio = document.getElementById(`audio-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`) as HTMLAudioElement;
-                              
-                              if (video && audio) {
-                                const isLandscape = video.videoWidth > video.videoHeight;
-                                if (isLandscape) {
-                                  video.className = "w-[320px] h-[192px] object-cover";
-                                } else {
-                                  video.className = "w-48 h-48 object-cover";
-                                }
-                              }
+                            onLoadedData={(e) => {
+                              const video = e.target as HTMLVideoElement;
+                              // Check video dimensions and set appropriate aspect ratio
+                              const isLandscape = video.videoWidth > video.videoHeight;
+                              video.className = isLandscape 
+                                ? "w-[320px] h-[192px] object-cover" // 16:9 ratio
+                                : "w-48 h-48 object-cover";          // 1:1 ratio
                             }}
                           />
-                          {/* PiP Button */}
                           {isExpandButtonVisible && (
                             <button
                               onClick={(e) => {
