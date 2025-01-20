@@ -315,12 +315,10 @@ function SearchResults({ user, onSelect }: SearchResultProps) {
           />
         </div>
         <div>
-          <h3 className="font-bold text-gray-900">{user.display_name || user.username}</h3>
-          <p className="text-gray-600">@{user.username}</p>
-          <div className="flex gap-4 mt-1 text-sm text-gray-500">
-            <span>{user.follower_count.toLocaleString()} followers</span>
-            <span>{user.following_count.toLocaleString()} following</span>
-          </div>
+          <h3 className="font-mono text-green-400 truncate max-w-[200px]">
+            {user.display_name || user.username}
+          </h3>
+          <p className="font-mono text-gray-400 truncate max-w-[200px]">@{user.username}</p>
         </div>
       </div>
     </div>
@@ -1641,10 +1639,10 @@ export default function Demo({ title }: { title?: string }) {
                       </div>
                     )}
                     <div>
-                      <h3 className="font-mono text-green-400">
+                      <h3 className="font-mono text-green-400 truncate max-w-[200px]">
                         {user.display_name || user.username}
                       </h3>
-                      <p className="font-mono text-gray-400">@{user.username}</p>
+                      <p className="font-mono text-gray-400 truncate max-w-[200px]">@{user.username}</p>
                     </div>
                   </div>
                 </button>
@@ -1670,25 +1668,25 @@ export default function Demo({ title }: { title?: string }) {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
               </button>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 max-w-[calc(100%-4rem)] overflow-hidden">
                 {selectedUser.pfp_url ? (
                   <Image
                     src={selectedUser.pfp_url}
                     alt={selectedUser.display_name || selectedUser.username || 'User avatar'}
-                    className="w-16 h-16 rounded-full border-2 border-gray-600"
+                    className="w-16 h-16 rounded-full border-2 border-gray-600 flex-shrink-0"
                     width={64}
                     height={64}
                   />
                 ) : (
-                  <div className="w-16 h-16 rounded-full bg-gray-800 border-2 border-gray-600 flex items-center justify-center text-green-400 font-mono text-xl">
+                  <div className="w-16 h-16 rounded-full bg-gray-800 border-2 border-gray-600 flex items-center justify-center text-green-400 font-mono text-xl flex-shrink-0">
                     {(selectedUser.display_name || selectedUser.username).charAt(0).toUpperCase()}
                   </div>
                 )}
-                <div>
-                  <h2 className="text-2xl font-mono text-green-400">
+                <div className="min-w-0">
+                  <h2 className="text-2xl font-mono text-green-400 truncate">
                     {selectedUser.display_name || selectedUser.username}
                   </h2>
-                  <p className="font-mono text-gray-400">@{selectedUser.username}</p>
+                  <p className="font-mono text-gray-400 truncate">@{selectedUser.username}</p>
                 </div>
               </div>
             </div>
@@ -1779,7 +1777,7 @@ export default function Demo({ title }: { title?: string }) {
                   <div className="p-4">
                     <div className="retro-display p-2">
                       <div className="marquee-container">
-                        <div className={`text-lg text-green-400 ${
+                        <div className={`text-lg text-green-400 truncate max-w-[200px] ${
                           nft.name.length > 20 ? 'marquee-content' : ''
                         }`}>
                           {nft.name}
