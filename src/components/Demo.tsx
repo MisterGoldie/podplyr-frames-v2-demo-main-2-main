@@ -766,20 +766,25 @@ export default function Demo({ title }: { title?: string }) {
   const handleSeek = (time: number) => {
     const audio = document.getElementById(`audio-${currentPlayingNFT?.contract}-${currentPlayingNFT?.tokenId}`) as HTMLAudioElement;
     const video = videoRef.current;
+    const pipVideo = document.pictureInPictureElement as HTMLVideoElement;
     
     if (audio) {
       audio.currentTime = time;
-      setAudioProgress(time);
     }
     if (video) {
       video.currentTime = time;
-      setAudioProgress(time);
     }
+    if (pipVideo && pipVideo !== video) {
+      pipVideo.currentTime = time;
+    }
+    
+    setAudioProgress(time);
   };
 
   const handleSeekOffset = (offset: number) => {
     const audio = document.getElementById(`audio-${currentPlayingNFT?.contract}-${currentPlayingNFT?.tokenId}`) as HTMLAudioElement;
     const video = videoRef.current;
+    const pipVideo = document.pictureInPictureElement as HTMLVideoElement;
     
     if (!audio && !video) return;
     
@@ -787,13 +792,8 @@ export default function Demo({ title }: { title?: string }) {
     const duration = audio?.duration || video?.duration || 0;
     const newTime = Math.max(0, Math.min(duration, currentTime + offset));
     
-    if (audio) {
-      audio.currentTime = newTime;
-    }
-    if (video) {
-      video.currentTime = newTime;
-    }
-    setAudioProgress(newTime);
+    // Use handleSeek to ensure consistent behavior
+    handleSeek(newTime);
   };
 
   const debouncedHandleSeek = useCallback(
@@ -1463,13 +1463,10 @@ export default function Demo({ title }: { title?: string }) {
     if (!video || !audio || !currentPlayingNFT) return;
 
     if (!isPlayerMinimized) {
-      // When maximizing, sync video with current audio time
+      // When maximizing, only sync the video position without affecting playback
       video.currentTime = audio.currentTime;
-      if (isPlaying) {
-        video.play().catch(console.warn);
-      }
     }
-  }, [isPlayerMinimized, currentPlayingNFT, isPlaying]);
+  }, [isPlayerMinimized, currentPlayingNFT]);
 
   const preloadNFTs = useCallback((currentIndex: number) => {
     const nextNFTs = nfts.slice(currentIndex + 1, currentIndex + 3);
