@@ -731,6 +731,7 @@ export default function Demo({ title }: { title?: string }) {
   const [isExpandButtonVisible, setIsExpandButtonVisible] = useState(false);
   // Add this state for recent searches
   const [recentSearches, setRecentSearches] = useState<SearchedUser[]>([]);
+  const [loadedAudioElements, setLoadedAudioElements] = useState<{[key: string]: boolean}>({});
 
   // Add near other state declarations (around line 661)
   const NFT_CACHE_KEY = 'nft-cache-';
@@ -1872,9 +1873,12 @@ export default function Demo({ title }: { title?: string }) {
     setSearchResults([]);
   };
 
-  function setLoadedAudioElements(arg0: (prev: any) => Set<unknown>) {
-    throw new Error('Function not implemented.');
-  }
+  const handleAudioLoaded = (nftId: string) => {
+    setLoadedAudioElements(prev => ({
+      ...prev,
+      [nftId]: true
+    }));
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black">
@@ -2151,26 +2155,17 @@ export default function Demo({ title }: { title?: string }) {
                     <audio
                       key={`${nft.contract}-${nft.tokenId}`}
                       id={`audio-${nft.contract}-${nft.tokenId}`}
-                      src={processMediaUrl(nft.audio || '')}
-                      preload="metadata"
+                      src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
                       onLoadedMetadata={(e) => {
                         const audio = e.target as HTMLAudioElement;
+                        const nftId = `${nft.contract}-${nft.tokenId}`;
+                        handleAudioLoaded(nftId);
                         setAudioDurations(prev => ({
                           ...prev,
-                          [`${nft.contract}-${nft.tokenId}`]: audio.duration
+                          [nftId]: audio.duration
                         }));
-                        setLoadedAudioElements(prev => new Set(prev).add(`${nft.contract}-${nft.tokenId}`));
                       }}
-                      onError={() => {
-                        setLoadedAudioElements(prev => {
-                          const next = new Set(prev);
-                          next.delete(`${nft.contract}-${nft.tokenId}`);
-                          return next;
-                        });
-                        if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
-                          setCurrentlyPlaying(null);
-                        }
-                      }}
+                      preload="metadata"
                     />
                   )}
                 </div>
