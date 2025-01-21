@@ -1462,11 +1462,11 @@ export default function Demo({ title }: { title?: string }) {
     
     if (!video || !audio || !currentPlayingNFT) return;
 
-    if (!isPlayerMinimized) {
-      // When maximizing, only sync the video position without affecting playback
+    // Only sync video position with audio when needed
+    if (!isPlayerMinimized && isPlaying) {
       video.currentTime = audio.currentTime;
     }
-  }, [isPlayerMinimized, currentPlayingNFT]);
+  }, [isPlayerMinimized, currentPlayingNFT, isPlaying]);
 
   const preloadNFTs = useCallback((currentIndex: number) => {
     const nextNFTs = nfts.slice(currentIndex + 1, currentIndex + 3);
@@ -1980,10 +1980,13 @@ export default function Demo({ title }: { title?: string }) {
                 {/* Right minimize button */}
                 <button
                   onClick={() => setIsPlayerMinimized(!isPlayerMinimized)}
-                  className="retro-button p-2"
+                  className="retro-button p-2 text-green-400 hover:text-green-300 transition-colors relative group"
+                  aria-label={isPlayerMinimized ? "Expand player" : "Minimize player"}
                 >
                   <svg
-                    className={`w-6 h-6 transform transition-transform ${isPlayerMinimized ? 'rotate-180' : ''}`}
+                    className={`w-6 h-6 transform transition-transform duration-300 ${
+                      isPlayerMinimized ? 'rotate-180' : ''
+                    }`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -1995,6 +1998,9 @@ export default function Demo({ title }: { title?: string }) {
                       d="M19 9l-7 7-7-7"
                     />
                   </svg>
+                  <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-900 text-green-400 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    {isPlayerMinimized ? 'Expand' : 'Minimize'}
+                  </span>
                 </button>
               </div>
 
