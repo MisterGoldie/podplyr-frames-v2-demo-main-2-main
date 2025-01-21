@@ -5,8 +5,7 @@ import { useEffect, useCallback, useState, useMemo, useRef, ReactEventHandler, S
 import AudioVisualizer from './AudioVisualizer';
 import { debounce } from 'lodash';
 import { trackUserSearch, getRecentSearches, SearchedUser } from '../lib/firebase';
-import sdk from "@farcaster/frame-sdk";
-import { FrameContext } from "@farcaster/frame-sdk";
+import sdk, { type FrameContext } from "@farcaster/frame-sdk";
 
 
 interface FarcasterUser {
@@ -700,20 +699,22 @@ const NFTImage = ({ src, alt, className }: { src: string, alt: string, className
 };
 
 export default function Demo({ title }: { title?: string }) {
-  const [isSearching, setIsSearching] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [searchResults, setSearchResults] = useState<FarcasterUser[]>([]);
-  const [selectedUser, setSelectedUser] = useState<FarcasterUser | null>(null);
-  const [nfts, setNfts] = useState<NFT[]>([]);
+  const [isSDKLoaded, setIsSDKLoaded] = useState(false);
+  const [userContext, setUserContext] = useState<FrameContext>();
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isProfileView, setIsProfileView] = useState(false);
   const [isLoadingNFTs, setIsLoadingNFTs] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [nfts, setNfts] = useState<NFT[]>([]);
+  const [selectedUser, setSelectedUser] = useState<FarcasterUser | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<FarcasterUser[]>([]);
   const [currentlyPlaying, setCurrentlyPlaying] = useState<string | null>(null);
   const [currentPlayingNFT, setCurrentPlayingNFT] = useState<NFT | null>(null);
   const [isPlayerMinimized, setIsPlayerMinimized] = useState(true);
   const [audioProgress, setAudioProgress] = useState(0);
   const [audioDurations, setAudioDurations] = useState<Record<string, number>>({});
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [isSDKLoaded, setIsSDKLoaded] = useState(false);
-  const [loadedAudioElements, setLoadedAudioElements] = useState<Set<string>>(new Set());
   const [isPlayerVisible, setIsPlayerVisible] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isSearchPage, setIsSearchPage] = useState(true);
@@ -730,8 +731,6 @@ export default function Demo({ title }: { title?: string }) {
   const [isExpandButtonVisible, setIsExpandButtonVisible] = useState(false);
   // Add this state for recent searches
   const [recentSearches, setRecentSearches] = useState<SearchedUser[]>([]);
-  // Add this near the other state declarations
-  const [userContext, setUserContext] = useState<FrameContext>();
 
   // Add near other state declarations (around line 661)
   const NFT_CACHE_KEY = 'nft-cache-';
@@ -807,14 +806,22 @@ export default function Demo({ title }: { title?: string }) {
     []
   );
 
+  // Add SDK initialization
   useEffect(() => {
     const load = async () => {
-      const context = await sdk.context;
-      setUserContext(context);
-      sdk.actions.ready();
+      try {
+        console.log('Loading SDK context...');
+        const context = await sdk.context;
+        console.log('SDK Context loaded:', context);
+        setUserContext(context);
+        setIsSDKLoaded(true);
+        sdk.actions.ready();
+      } catch (error) {
+        console.error('SDK Context error:', error);
+      }
     };
-    if (sdk && !isSDKLoaded) {
-      setIsSDKLoaded(true);
+
+    if (!isSDKLoaded) {
       load();
     }
   }, [isSDKLoaded]);
@@ -1715,20 +1722,217 @@ export default function Demo({ title }: { title?: string }) {
     loadRecentSearches();
   }, []); // Empty dependency array means this runs once on mount
 
+  // Add this handler function
+  const handleProfileClick = useCallback(() => {
+    console.log('Profile clicked'); // Add this for debugging
+    setIsProfileMenuOpen(!isProfileMenuOpen);
+  }, [isProfileMenuOpen]);
+
+  // Add this effect near the other useEffect declarations
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.profile-menu') && isProfileMenuOpen) {
+        setIsProfileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isProfileMenuOpen]);
+
+  // Add function to handle profile view
+  const handleViewProfile = async () => {
+    console.log('=== handleViewProfile START ===');
+    console.log('Current userContext:', userContext);
+    
+    if (!userContext?.user) {
+      console.error('No user context available');
+      return;
+    }
+
+    try {
+      console.log('Setting view states...');
+      setIsProfileView(true);
+      setIsLoadingNFTs(true);
+      setError('');
+      setNfts([]);
+
+      console.log('Fetching wallet addresses from Airstack...');
+      const query = `
+        query GetFarcasterUserWalletAddresses {
+          Socials(
+            input: {
+              filter: {
+                dappName: {_eq: farcaster},
+                profileName: {_eq: "${userContext.user.username}"}
+              },
+              blockchain: ethereum,
+              limit: 50
+            }
+          ) {
+            Social {
+              dappName
+              profileName
+              connectedAddresses {
+                address
+              }
+            }
+          }
+        }
+      `;
+
+      console.log('Making Airstack API request...');
+      const response = await fetch('https://api.airstack.xyz/gql', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': process.env.NEXT_PUBLIC_AIRSTACK_API_KEY || ''
+        },
+        body: JSON.stringify({ query })
+      });
+
+      if (!response.ok) {
+        console.error('Airstack API request failed:', response.status, response.statusText);
+        throw new Error('Failed to fetch wallet addresses');
+      }
+
+      const data = await response.json();
+      console.log('Airstack API response:', data);
+
+      const addresses = data?.data?.Socials?.Social?.[0]?.connectedAddresses?.map(
+        (addr: { address: string }) => addr.address
+      ) || [];
+
+      console.log('Found addresses:', addresses);
+
+      if (addresses.length === 0) {
+        throw new Error('No wallet addresses found');
+      }
+
+      // Update UI with user info
+      setSelectedUser({
+        fid: userContext.user.fid,
+        username: userContext.user.username || '',
+        display_name: userContext.user.displayName,
+        pfp_url: userContext.user.pfpUrl,
+        follower_count: 0,
+        following_count: 0,
+        verifiedAddresses: addresses
+      });
+
+      // Fetch NFTs for each address
+      console.log('Fetching NFTs for addresses...');
+      const allNFTs: NFT[] = [];
+      for (const address of addresses) {
+        try {
+          console.log(`Fetching NFTs for address: ${address}`);
+          const nftsResponse = await fetch(
+            `https://eth-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}/getNFTs?owner=${address}&withMetadata=true`
+          );
+          
+          if (!nftsResponse.ok) {
+            console.error(`Failed to fetch NFTs for address ${address}:`, nftsResponse.status);
+            continue;
+          }
+          
+          const nftsData = await nftsResponse.json();
+          console.log(`Found ${nftsData.ownedNfts.length} NFTs for address ${address}`);
+          
+          const processedNFTs = nftsData.ownedNfts
+            .map((nft: any) => processNFTMetadata(nft))
+            .filter((nft: NFT | null) => nft && nft.hasValidAudio);
+          
+          console.log(`Found ${processedNFTs.length} audio NFTs for address ${address}`);
+          allNFTs.push(...processedNFTs);
+        } catch (error) {
+          console.error(`Error fetching NFTs for address ${address}:`, error);
+        }
+      }
+
+      console.log('Setting NFTs in state:', allNFTs.length);
+      setNfts(allNFTs);
+    } catch (error) {
+      console.error('Error in handleViewProfile:', error);
+      setError(error instanceof Error ? error.message : 'An error occurred');
+    } finally {
+      setIsLoadingNFTs(false);
+      setIsProfileMenuOpen(false);
+      console.log('=== handleViewProfile END ===');
+    }
+  };
+
+  // Add back button handler for profile view
+  const handleBackFromProfile = () => {
+    setIsProfileView(false);
+    setSelectedUser(null);
+    setNfts([]);
+    setSearchResults([]);
+  };
+
+  function setLoadedAudioElements(arg0: (prev: any) => Set<unknown>) {
+    throw new Error('Function not implemented.');
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black">
       <RetroStyles />
       <div className="container mx-auto px-4 pt-20 pb-8"> {/* Changed py-8 to pt-20 pb-8 */}
-        {/* Add profile picture container */}
-        {userContext?.user?.pfpUrl && (
-          <div className="absolute top-4 right-4">
-            <Image
-              src={userContext.user.pfpUrl || ''}
-              alt="Profile"
-              width={40}
-              height={40}
-              className="rounded-full border-2 border-green-400"
-            />
+        {/* Profile Menu */}
+        {userContext?.user && (
+          <div className="absolute top-4 right-4 z-50">
+            <button 
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Profile button clicked');
+                try {
+                  handleViewProfile();
+                } catch (error) {
+                  console.error('Error:', error);
+                }
+              }}
+              className="relative profile-menu"
+            >
+              <Image
+                src={userContext.user.pfpUrl || ''}
+                alt="Profile"
+                width={40}
+                height={40}
+                className="rounded-full border-2 border-green-400 hover:border-green-300 transition-colors"
+              />
+            </button>
+
+            {isProfileMenuOpen && (
+              <div className="absolute right-0 mt-2 w-48 bg-gray-900 border-2 border-green-400 rounded-lg">
+                <div className="py-2">
+                  <div className="px-4 py-2 border-b border-green-400/30">
+                    <p className="font-mono text-green-400 truncate">
+                      {userContext.user.displayName || userContext.user.username}
+                    </p>
+                    <p className="font-mono text-gray-400 text-sm truncate">
+                      @{userContext.user.username}
+                    </p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      console.log('My Profile clicked');
+                      try {
+                        await handleViewProfile();
+                        setIsProfileMenuOpen(false);
+                      } catch (error) {
+                        console.error('Error:', error);
+                      }
+                    }}
+                    className="w-full px-4 py-2 text-left font-mono text-green-400 hover:bg-green-400/10 transition-colors"
+                  >
+                    My Profile
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1789,10 +1993,14 @@ export default function Demo({ title }: { title?: string }) {
             <div className="flex items-center gap-6">
               <button
                 onClick={() => {
-                  setSelectedUser(null);
-                  setNfts([]);
-                  setSearchResults([]);
-                  handleBackToSearch();
+                  if (isProfileView) {
+                    handleBackFromProfile();
+                  } else {
+                    setSelectedUser(null);
+                    setNfts([]);
+                    setSearchResults([]);
+                    handleBackToSearch();
+                  }
                 }}
                 className="retro-button p-2 text-green-400"
               >
@@ -2056,7 +2264,7 @@ export default function Demo({ title }: { title?: string }) {
                               className="absolute top-2 right-2 bg-black/50 p-2 rounded-full hover:bg-black/70 transition-opacity duration-300"
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
-                                <path d="M560-240h280v-280H560v280ZM120-120v-720h720v720H120Zm80-80h560v-560H200v560Zm0 0v-560 560Z"/>
+                                <path d="M560-240h280v-280H560v280Zm-400 0L100-480l360-240v480Zm80-80h560v-560H200v560Zm0 0v-560 560Z"/>
                               </svg>
                             </button>
                           )}
@@ -2116,7 +2324,7 @@ export default function Demo({ title }: { title?: string }) {
                       className="retro-button p-1 text-green-400 hover:text-green-300"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#75FB4C">
-                        <path d="M100-240v-480l360 240-360 240Zm400 0v-480l360 240-360 240ZM180-480Zm400 0Zm-400 90 136-90-136-90v180Zm400 0 136-90-136-90v180Z"/>
+                        <path d="M100-240v-480l360 240-360 240Zm400 0v-480l360 240-360 240ZM180-480Zm400 0Zm-400 90l136-90-136-90v180Zm400 0l136-90-136-90v180Z"/>
                       </svg>
                     </button>
 
