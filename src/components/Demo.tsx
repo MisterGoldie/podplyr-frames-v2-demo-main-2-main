@@ -1882,17 +1882,19 @@ export default function Demo({ title }: { title?: string }) {
       <div className="container mx-auto px-4 pt-20 pb-8"> {/* Changed py-8 to pt-20 pb-8 */}
         {/* Profile Menu */}
         {userContext?.user && (
-          <div className="absolute top-4 right-4 z-50">
+          <div 
+            className="absolute top-4 right-4 z-50"
+            onClick={(e) => {
+              e.stopPropagation();
+              console.log('Container clicked');
+            }}
+          >
             <button 
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 console.log('Profile button clicked');
-                try {
-                  handleViewProfile();
-                } catch (error) {
-                  console.error('Error:', error);
-                }
+                setIsProfileMenuOpen(!isProfileMenuOpen);
               }}
               className="relative profile-menu"
             >
@@ -1906,7 +1908,13 @@ export default function Demo({ title }: { title?: string }) {
             </button>
 
             {isProfileMenuOpen && (
-              <div className="absolute right-0 mt-2 w-48 bg-gray-900 border-2 border-green-400 rounded-lg">
+              <div 
+                className="absolute right-0 mt-2 w-48 bg-gray-900 border-2 border-green-400 rounded-lg shadow-xl"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  console.log('Menu container clicked');
+                }}
+              >
                 <div className="py-2">
                   <div className="px-4 py-2 border-b border-green-400/30">
                     <p className="font-mono text-green-400 truncate">
@@ -1917,18 +1925,32 @@ export default function Demo({ title }: { title?: string }) {
                     </p>
                   </div>
                   <button
-                    onClick={async () => {
-                      console.log('My Profile clicked');
-                      try {
-                        await handleViewProfile();
-                        setIsProfileMenuOpen(false);
-                      } catch (error) {
-                        console.error('Error:', error);
+                    type="button"
+                    onMouseEnter={() => console.log('Button hover')}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      console.log('Button mousedown');
+                      // Immediately execute handleViewProfile on mousedown
+                      if (typeof handleViewProfile === 'function') {
+                        console.log('Executing handleViewProfile from mousedown');
+                        handleViewProfile()
+                          .then(() => {
+                            console.log('handleViewProfile succeeded');
+                            setIsProfileView(true);  // Make sure profile view is enabled
+                            setIsProfileMenuOpen(false);
+                          })
+                          .catch(err => {
+                            console.error('handleViewProfile failed:', err);
+                            setError('Failed to load profile');
+                          });
+                      } else {
+                        console.error('handleViewProfile is not available');
                       }
                     }}
-                    className="w-full px-4 py-2 text-left font-mono text-green-400 hover:bg-green-400/10 transition-colors"
+                    className="w-full px-4 py-2 text-left font-mono text-green-400 hover:bg-green-400/10 transition-colors cursor-pointer"
                   >
-                    My Profile
+                    My Media
                   </button>
                 </div>
               </div>
