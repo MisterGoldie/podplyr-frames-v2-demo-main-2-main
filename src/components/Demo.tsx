@@ -5,6 +5,8 @@ import { useEffect, useCallback, useState, useMemo, useRef, ReactEventHandler, S
 import AudioVisualizer from './AudioVisualizer';
 import { debounce } from 'lodash';
 import { trackUserSearch, getRecentSearches, SearchedUser } from '../lib/firebase';
+import sdk from "@farcaster/frame-sdk";
+import { FrameContext } from "@farcaster/frame-sdk";
 
 
 interface FarcasterUser {
@@ -728,6 +730,8 @@ export default function Demo({ title }: { title?: string }) {
   const [isExpandButtonVisible, setIsExpandButtonVisible] = useState(false);
   // Add this state for recent searches
   const [recentSearches, setRecentSearches] = useState<SearchedUser[]>([]);
+  // Add this near the other state declarations
+  const [userContext, setUserContext] = useState<FrameContext>();
 
   // Add near other state declarations (around line 661)
   const NFT_CACHE_KEY = 'nft-cache-';
@@ -805,10 +809,12 @@ export default function Demo({ title }: { title?: string }) {
 
   useEffect(() => {
     const load = async () => {
-      setIsSDKLoaded(true);
+      const context = await sdk.context;
+      setUserContext(context);
+      sdk.actions.ready();
     };
-    
-    if (!isSDKLoaded) {
+    if (sdk && !isSDKLoaded) {
+      setIsSDKLoaded(true);
       load();
     }
   }, [isSDKLoaded]);
@@ -1712,11 +1718,19 @@ export default function Demo({ title }: { title?: string }) {
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black">
       <RetroStyles />
-      <div className="container mx-auto px-4 py-8">
-        {/* Remove this h1 element */}
-        {/* <h1 className="text-4xl font-bold mb-12 text-center text-green-400 font-mono tracking-wider retro-display p-4">
-          PODPLAYR
-        </h1> */}
+      <div className="container mx-auto px-4 pt-20 pb-8"> {/* Changed py-8 to pt-20 pb-8 */}
+        {/* Add profile picture container */}
+        {userContext?.user?.pfpUrl && (
+          <div className="absolute top-4 right-4">
+            <Image
+              src={userContext.user.pfpUrl || ''}
+              alt="Profile"
+              width={40}
+              height={40}
+              className="rounded-full border-2 border-green-400"
+            />
+          </div>
+        )}
 
         <div className="retro-container p-6 mb-8">
           <SearchBar onSearch={handleSearch} isSearching={isSearching} />
