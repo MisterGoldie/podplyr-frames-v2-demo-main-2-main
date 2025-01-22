@@ -1931,7 +1931,6 @@ export default function Demo({ title }: { title?: string }) {
       setIsLiked(newLikeStatus);
     } catch (error) {
       console.error('Error toggling like:', error);
-      throw error;
     }
   };
 
@@ -2477,10 +2476,29 @@ export default function Demo({ title }: { title?: string }) {
                   </div>
 
                   {/* Glowing POD Playr text */}
-                  <div className="mt-1 text-center">
-                    <span className="font-mono text-white text-lg tracking-wider filter drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]">
+                  <div className="relative">
+                    <span className="absolute left-1/2 transform -translate-x-1/2 font-mono text-white text-lg tracking-wider filter drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]">
                       POD PLAYR
                     </span>
+                    <button
+                      onClick={handleLikeToggle}
+                      className={`absolute right-4 retro-button p-1 ${isLiked ? 'text-red-500' : 'text-gray-400'} hover:text-red-500 transition-colors`}
+                    >
+                      <svg 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        className="h-6 w-6" 
+                        fill={isLiked ? "currentColor" : "none"} 
+                        viewBox="0 0 24 24" 
+                        stroke="currentColor"
+                      >
+                        <path 
+                          strokeLinecap="round" 
+                          strokeLinejoin="round" 
+                          strokeWidth={2} 
+                          d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" 
+                        />
+                      </svg>
+                    </button>
                   </div>
                 </div>
               )}
