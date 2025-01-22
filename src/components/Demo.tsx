@@ -732,6 +732,8 @@ export default function Demo({ title }: { title?: string }) {
   // Add this state for recent searches
   const [recentSearches, setRecentSearches] = useState<SearchedUser[]>([]);
   const [loadedAudioElements, setLoadedAudioElements] = useState<{[key: string]: boolean}>({});
+  const [isExpandVisible, setIsExpandVisible] = useState(false);
+  const expandTimeoutRef = useRef<NodeJS.Timeout>();
 
   // Add near other state declarations (around line 661)
   const NFT_CACHE_KEY = 'nft-cache-';
@@ -1849,6 +1851,20 @@ export default function Demo({ title }: { title?: string }) {
     }));
   };
 
+  const showExpandButton = () => {
+    setIsExpandVisible(true);
+    
+    // Clear any existing timeout
+    if (expandTimeoutRef.current) {
+      clearTimeout(expandTimeoutRef.current);
+    }
+    
+    // Set new timeout to hide button after 2 seconds
+    expandTimeoutRef.current = setTimeout(() => {
+      setIsExpandVisible(false);
+    }, 2000);
+  };
+
   return (
     <div className={`min-h-screen flex flex-col bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 ${
       isProfileView ? 'pb-96' : ''
@@ -2224,7 +2240,7 @@ export default function Demo({ title }: { title?: string }) {
                       onClick={handleNFTDisplayClick}
                     >
                       {currentPlayingNFT.metadata?.animation_url ? (
-                        <div className="relative w-full h-full">
+                        <div className="relative w-full h-full group" onClick={showExpandButton}>
                           <video 
                             ref={videoRef}
                             src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || '')}
@@ -2236,26 +2252,31 @@ export default function Demo({ title }: { title?: string }) {
                             preload="auto"
                             onLoadedData={(e) => {
                               const video = e.target as HTMLVideoElement;
-                              // Check video dimensions and set appropriate aspect ratio
                               const isLandscape = video.videoWidth > video.videoHeight;
                               video.className = isLandscape 
-                                ? "w-[320px] h-[192px] object-cover" // 16:9 ratio
-                                : "w-48 h-48 object-cover";          // 1:1 ratio
+                                ? "w-[320px] h-[192px] object-cover" 
+                                : "w-48 h-48 object-cover";
                             }}
                           />
-                          {isExpandButtonVisible && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                togglePictureInPicture();
-                              }}
-                              className="absolute top-2 right-2 bg-black/50 p-2 rounded-full hover:bg-black/70 transition-opacity duration-300"
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              togglePictureInPicture();
+                            }}
+                            className={`absolute top-2 right-2 bg-black/50 p-1 rounded-full hover:bg-black/70 transition-opacity duration-300 ${
+                              isExpandVisible ? 'opacity-100' : 'opacity-0'
+                            }`}
+                          >
+                            <svg 
+                              xmlns="http://www.w3.org/2000/svg" 
+                              height="20" 
+                              viewBox="0 -960 960 960" 
+                              width="20" 
+                              fill="#75FB4C"
                             >
-                              <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
-                                <path d="M560-240h280v-280H560v280Zm-400 0L100-480l360-240v480Zm80-80h560v-560H200v560Zm0 0v-560 560Z"/>
-                              </svg>
-                            </button>
-                          )}
+                              <path d="M120-120v-720h720v720H120Zm120-120h480v-480H240v480Zm240-120v-240h240v240H480Z"/>
+                            </svg>
+                          </button>
                         </div>
                       ) : (
                         <Image
