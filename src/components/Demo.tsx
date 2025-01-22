@@ -1003,7 +1003,10 @@ export default function Demo({ title }: { title?: string }) {
       // Track the play after successfully starting playback
       if (audio && nft.hasValidAudio) {
         await playMedia(audio, videoRef.current, nft);
-        await trackNFTPlay(nft);  // Add this line
+        // Get FID from user context
+        if (userContext?.user?.fid) {
+          await trackNFTPlay(nft, userContext.user.fid);
+        }
       }
 
     } catch (error) {
