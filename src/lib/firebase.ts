@@ -296,33 +296,38 @@ export interface NFT {
 }
 
 export async function toggleLikeNFT(nft: NFT, fid: number): Promise<boolean> {
-  if (!nft.contract || !nft.tokenId) {
-    console.error('Missing required NFT data:', { contract: nft.contract, tokenId: nft.tokenId });
-    throw new Error('Invalid NFT data');
+  // Extract tokenId using same logic as trackNFTPlay
+  let cleanTokenId = nft.tokenId;
+  
+  // First try animation_url match (this works in play tracking)
+  if (nft.metadata?.animation_url) {
+    const animationMatch = nft.metadata.animation_url.match(/\/(\d+)\./);
+    if (animationMatch) {
+      cleanTokenId = animationMatch[1];
+    }
   }
 
-  try {
-    const user = await ensureFirebaseAuth();
-    if (!user) {
-      throw new Error('Authentication failed');
-    }
+  // If still no tokenId, use the same hash generation as play tracking
+  if (!cleanTokenId) {
+    cleanTokenId = `0x${nft.contract.slice(0, 10)}`;
+  }
 
+  // Now proceed with the like operation using the extracted tokenId
+  try {
     const likesRef = collection(db, 'user_likes');
-    const likeId = `${fid}-${nft.contract}-${nft.tokenId}`;
+    const likeId = `${fid}-${nft.contract}-${cleanTokenId}`;
     const likeDoc = doc(likesRef, likeId);
     
     const docSnap = await getDoc(likeDoc);
     
     if (docSnap.exists()) {
-      // Unlike
       await deleteDoc(likeDoc);
       return false;
     } else {
-      // Like
       await setDoc(likeDoc, {
         fid,
         nftContract: nft.contract,
-        tokenId: nft.tokenId,
+        tokenId: cleanTokenId,  // Use the extracted tokenId
         name: nft.name,
         image: nft.image || nft.metadata?.image || '',
         audioUrl: nft.audio || nft.metadata?.animation_url || '',
@@ -332,7 +337,7 @@ export async function toggleLikeNFT(nft: NFT, fid: number): Promise<boolean> {
     }
   } catch (error: any) {
     console.error('Error toggling like:', error.code, error.message);
-    throw error; // Re-throw the error with more context
+    throw error;
   }
 }
 
