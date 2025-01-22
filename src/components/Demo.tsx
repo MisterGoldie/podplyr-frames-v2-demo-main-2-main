@@ -566,7 +566,7 @@ interface MediaRendererProps {
   className: string;
 }
 
-// Add type declaration for model-viewer
+// Add type declaration for model-viewers
 declare global {
   namespace JSX {
     interface IntrinsicElements {
