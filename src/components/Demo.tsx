@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { useEffect, useCallback, useState, useMemo, useRef, ReactEventHandler, SyntheticEvent } from "react";
 import AudioVisualizer from './AudioVisualizer';
 import { debounce } from 'lodash';
-import { trackUserSearch, getRecentSearches, SearchedUser } from '../lib/firebase';
+import { trackUserSearch, getRecentSearches, SearchedUser, getTopPlayedNFTs, fetchNFTDetails, trackNFTPlay } from '../lib/firebase';
 import sdk, { type FrameContext } from "@farcaster/frame-sdk";
 import { db } from '../lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -736,7 +736,9 @@ export default function Demo({ title }: { title?: string }) {
   const [loadedAudioElements, setLoadedAudioElements] = useState<{[key: string]: boolean}>({});
   const [isExpandVisible, setIsExpandVisible] = useState(false);
   const expandTimeoutRef = useRef<NodeJS.Timeout>();
-
+  // Add new state for top played NFTs
+  const [topPlayedNFTs, setTopPlayedNFTs] = useState<NFT[]>([]);
+  
   // Add near other state declarations (around line 661)
   const NFT_CACHE_KEY = 'nft-cache-';
   const TWO_HOURS = 2 * 60 * 60 * 1000;
@@ -998,9 +1000,10 @@ export default function Demo({ title }: { title?: string }) {
       setIsPlayerVisible(true);
       setIsPlayerMinimized(false);
       
-      // Start new playback
+      // Track the play after successfully starting playback
       if (audio && nft.hasValidAudio) {
         await playMedia(audio, videoRef.current, nft);
+        await trackNFTPlay(nft);  // Add this line
       }
 
     } catch (error) {
@@ -1876,8 +1879,9 @@ export default function Demo({ title }: { title?: string }) {
         tokenId: nft.tokenId,
         name: nft.name,
         network: nft.network || 'ethereum',
-        collection: nft.collection?.name,
-        audioUrl: nft.audio || nft.metadata?.animation_url
+        collection: nft.collection?.name || 'Unknown Collection',
+        audioUrl: nft.audio || nft.metadata?.animation_url,
+        image: nft.image || nft.metadata?.image
       });
     } catch (error) {
       console.warn('Failed to log NFT play:', error);
@@ -1896,6 +1900,29 @@ export default function Demo({ title }: { title?: string }) {
     setError('');
   };
 
+  // Add useEffect to fetch top played NFTs
+  useEffect(() => {
+    async function fetchTopPlayed() {
+      try {
+        const topNFTs = await getTopPlayedNFTs();
+        setTopPlayedNFTs(topNFTs.map(nft => ({
+          contract: nft.contract,
+          tokenId: nft.tokenId,
+          name: nft.name,
+          collection: nft.collection,
+          audio: nft.audio,
+          metadata: {
+            image: nft.image
+          }
+        })));
+      } catch (error) {
+        console.error('Error fetching top played NFTs:', error);
+      }
+    }
+    fetchTopPlayed();
+  }, []);
+
+  // Add the top played section to the main page
   return (
     <div className={`min-h-screen flex flex-col bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 ${
       isProfileView ? 'pb-96' : ''
@@ -2387,6 +2414,79 @@ export default function Demo({ title }: { title?: string }) {
           </div>
         </div>
       </div>
+      {!selectedUser && (
+        <>
+          {/* Top Played NFTs Section */}
+          {!selectedUser && topPlayedNFTs.length > 0 && (
+            <div className="retro-container p-6 mb-8">
+              <h2 className="text-xl font-mono text-green-400 mb-4">TOP PLAYED NFTs</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {topPlayedNFTs.map((nft, index) => (
+                  <div 
+                    key={`${nft.contract}-${nft.tokenId}`}
+                    className="retro-container p-4 bg-gray-800 relative"
+                  >
+                    <div className="aspect-square relative mb-2">
+                      <NFTImage
+                        src={nft.metadata?.image || ''}
+                        alt={nft.name}
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute top-2 left-2 bg-green-400 text-black font-mono px-2 py-1 text-sm">
+                        #{index + 1}
+                      </div>
+                      <button 
+                        onClick={() => handlePlayAudio(nft)}
+                        className="absolute bottom-4 right-4 retro-button p-3 text-white"
+                      >
+                        {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
+                          <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                            <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
+                          </svg>
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                            <path d="M320-200v-560l440 280-440 280Z"/>
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                    <h3 className="font-mono text-green-400 truncate">{nft.name}</h3>
+                    <p className="font-mono text-gray-400 text-sm truncate">
+                      {typeof nft.collection === 'string' ? nft.collection : 'Unknown Collection'}
+                    </p>
+                    {/* Hidden audio element */}
+                    <audio
+                      id={`audio-${nft.contract}-${nft.tokenId}`}
+                      src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
+                      preload="none"
+                      onTimeUpdate={(e) => {
+                        if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
+                          setAudioProgress((e.target as HTMLAudioElement).currentTime);
+                        }
+                      }}
+                      onEnded={() => {
+                        if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
+                          setIsPlaying(false);
+                        }
+                      }}
+                    />
+                    {/* Hidden video element */}
+                    {nft.metadata?.animation_url && (
+                      <video
+                        id={`video-${nft.contract}-${nft.tokenId}`}
+                        className="hidden"
+                        playsInline
+                        preload="none"
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {/* Rest of the existing content */}
+        </>
+      )}
     </div>
   );
 }

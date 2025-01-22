@@ -1,4 +1,8 @@
 interface NFT {
+  name: any;
+  collection: any;
+  image: string | undefined;
+  audio: string | undefined;
   network: 'ethereum' | 'base';
   contract: string;
   tokenId: string;

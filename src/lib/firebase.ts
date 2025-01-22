@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs, serverTimestamp, orderBy, limit, addDoc } from 'firebase/firestore';
+import { Alchemy, Network } from 'alchemy-sdk';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -37,6 +38,11 @@ export interface SearchedUser {
     lastUpdated: Date;
   };
 }
+
+const alchemy = new Alchemy({
+  apiKey: process.env.NEXT_PUBLIC_ALCHEMY_API_KEY,
+  network: Network.ETH_MAINNET
+});
 
 export async function trackUserSearch(user: any) {
   try {
@@ -122,4 +128,163 @@ export async function getCachedWallet(fid: number): Promise<string | null> {
     console.error('Error getting cached wallet:', error);
     return null;
   }
+}
+
+export async function fetchNFTDetails(contractAddress: string, tokenId: string) {
+  try {
+    const nft = await alchemy.nft.getNftMetadata(
+      contractAddress,
+      tokenId
+    );
+    return nft;
+  } catch (error) {
+    console.error('Error fetching NFT details:', error);
+    return null;
+  }
+}
+
+export async function getTopPlayedNFTs() {
+  try {
+    // First verify we can access the collection
+    const testDoc = await getDoc(doc(db, 'nft_plays', 'test'));
+    console.log('Firebase access test:', testDoc.exists() ? 'Success' : 'No test document');
+    
+    const nftPlaysRef = collection(db, 'nft_plays');
+    const q = query(
+      nftPlaysRef,
+      orderBy('timestamp', 'desc'),
+      limit(50)  // Reduced limit for better performance
+    );
+    
+    const querySnapshot = await getDocs(q);
+    console.log('Query results:', querySnapshot.size, 'documents found');
+    
+    const playCount: { [key: string]: any } = {};
+    
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      const nftKey = `${data.nftContract}-${data.tokenId}`;
+      
+      if (!playCount[nftKey]) {
+        playCount[nftKey] = {
+          count: 0,
+          contract: data.nftContract,
+          tokenId: data.tokenId,
+          name: data.name,
+          collection: data.collection,
+          image: data.image,
+          audio: data.audioUrl,
+          animationUrl: data.animationUrl
+        };
+      }
+      playCount[nftKey].count++;
+    });
+    
+    const topNFTs = Object.values(playCount)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 3)
+      .map(nft => ({
+        contract: nft.contract,
+        tokenId: nft.tokenId,
+        name: nft.name,
+        collection: nft.collection,
+        image: nft.image,
+        audio: nft.audio,
+        metadata: {
+          image: nft.image,
+          animation_url: nft.animationUrl
+        }
+      }));
+    
+    console.log('Processed top NFTs:', topNFTs.length);
+    return topNFTs;
+    
+  } catch (error) {
+    console.error('Error fetching top played NFTs:', error);
+    // Return empty array instead of throwing
+    return [];
+  }
+}
+
+export async function trackNFTPlay(nft: NFT) {
+  try {
+    // Extract tokenId from multiple possible locations
+    let cleanTokenId = nft.tokenId;
+    
+    if (!cleanTokenId && nft.metadata) {
+      // Try to extract from metadata.uri if it exists
+      if (nft.metadata.uri) {
+        const uriMatch = nft.metadata.uri.match(/\/(\d+)$/);
+        if (uriMatch) {
+          cleanTokenId = uriMatch[1];
+        }
+      }
+      
+      // Try to extract from metadata.animation_url
+      if (!cleanTokenId && nft.metadata.animation_url) {
+        const animationMatch = nft.metadata.animation_url.match(/\/(\d+)\./);
+        if (animationMatch) {
+          cleanTokenId = animationMatch[1];
+        }
+      }
+    }
+
+    // If still no tokenId, generate a hash from contract + name
+    if (!cleanTokenId) {
+      cleanTokenId = btoa(`${nft.contract}-${nft.name}`).slice(0, 12);
+    }
+
+    // Final validation
+    if (!nft.contract || !nft.name) {
+      console.warn('Missing required NFT data for tracking. Debug info:', {
+        contract: nft.contract,
+        name: nft.name,
+        generatedId: cleanTokenId
+      });
+      return;
+    }
+
+    const nftPlaysRef = collection(db, 'nft_plays');
+    await addDoc(nftPlaysRef, {
+      nftContract: nft.contract,
+      tokenId: cleanTokenId,
+      name: nft.name,
+      collection: nft.collection?.name || 'Unknown Collection',
+      image: nft.image || nft.metadata?.image || '',
+      audioUrl: nft.audio || nft.metadata?.animation_url || '',
+      animationUrl: nft.metadata?.animation_url || '',
+      timestamp: serverTimestamp()
+    });
+    
+    console.log('NFT play tracked successfully:', {
+      name: nft.name,
+      tokenId: cleanTokenId
+    });
+  } catch (error) {
+    console.error('Error tracking NFT play:', error);
+  }
+}
+
+export interface NFT {
+  contract: string;
+  tokenId: string;
+  name: string;
+  description?: string;
+  image?: string;
+  animationUrl?: string;
+  audio?: string;
+  hasValidAudio?: boolean;
+  isVideo?: boolean;
+  isAnimation?: boolean;
+  collection?: {
+    name: string;
+    image?: string;
+  };
+  metadata?: {
+    image?: string;
+    animation_url?: string;
+    tokenId?: string;
+    uri?: string;
+  };
+  network?: 'ethereum' | 'base';
 } 
