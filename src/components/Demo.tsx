@@ -157,17 +157,17 @@ function SearchBar({ onSearch, isSearching }: SearchBarProps) {
               onClick={() => handleSuggestionClick(suggestion.username)}
               className="w-full px-4 py-2 flex items-center gap-3 hover:bg-green-400/10 text-left transition-colors"
             >
-              <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 border border-green-400/30">
+              <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 relative">
                 <Image
                   src={suggestion.pfp_url || `https://avatar.vercel.sh/${suggestion.username}`}
                   alt={suggestion.display_name || suggestion.username || 'User avatar'}
-                  className="w-full h-full object-cover"
+                  className="object-cover"
+                  fill
+                  sizes="40px"
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
                     target.src = `https://avatar.vercel.sh/${suggestion.username}`;
                   }}
-                  width={40}
-                  height={40}
                 />
               </div>
               <div>
@@ -323,17 +323,17 @@ function SearchResults({ user, onSelect }: SearchResultProps) {
   return (
     <div className="bg-white p-6 rounded-lg shadow-lg cursor-pointer hover:bg-gray-50" onClick={() => onSelect(user)}>
       <div className="flex items-center gap-4">
-        <div className="w-16 h-16 rounded-full overflow-hidden">
+        <div className="w-16 h-16 rounded-full overflow-hidden flex-shrink-0 relative">
           <Image
             src={user.pfp_url || `https://avatar.vercel.sh/${user.username}`}
             alt={user.display_name || user.username}
-            className="w-full h-full object-cover"
+            className="object-cover"
+            fill
+            sizes="64px"
             onError={(e) => {
               const target = e.target as HTMLImageElement;
               target.src = `https://avatar.vercel.sh/${user.username}`;
             }}
-            width={64}
-            height={64}
           />
         </div>
         <div>
