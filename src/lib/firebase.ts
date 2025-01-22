@@ -147,12 +147,12 @@ export async function getTopPlayedNFTs(): Promise<NFT[]> {
   const nftPlaysRef = collection(db, 'nft_plays');
   const querySnapshot = await getDocs(nftPlaysRef);
   
-  // Create a map to count plays for each NFT
   const playCount: { [key: string]: { count: number, nft: NFT } } = {};
   
   querySnapshot.forEach((doc) => {
     const data = doc.data();
-    const nftKey = `${data.nftContract}-${data.tokenId}`;
+    // Use only the contract address as the key since it's unique per NFT
+    const nftKey = data.nftContract.toLowerCase();
     
     if (!playCount[nftKey]) {
       playCount[nftKey] = {
@@ -174,14 +174,16 @@ export async function getTopPlayedNFTs(): Promise<NFT[]> {
     }
   });
 
-  // Convert to array and sort by play count
+  // Debug log
+  console.log('Simplified play counts:', playCount);
+
   return Object.values(playCount)
-    .sort((a, b) => b.count - a.count) // Sort descending
-    .slice(0, 3) // Get top 3
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 3)
     .map(item => item.nft);
 }
 
-export async function trackNFTPlay(nft: NFT) {
+export async function trackNFTPlay(nft: NFT, fid?: number) {
   try {
     let cleanTokenId = nft.tokenId;
     
@@ -203,18 +205,16 @@ export async function trackNFTPlay(nft: NFT) {
       }
     }
 
-    // If still no tokenId, generate a hash from contract + name
+    // If still no tokenId, generate a safe hash
     if (!cleanTokenId) {
-      cleanTokenId = btoa(`${nft.contract}-${nft.name}`).slice(0, 12);
+      // Use encodeURIComponent to handle special characters
+      const safeStr = encodeURIComponent(`${nft.contract}-${nft.name}`);
+      cleanTokenId = safeStr.replace(/%/g, '').slice(0, 12);
     }
 
     // Final validation
     if (!nft.contract || !nft.name) {
-      console.warn('Missing required NFT data for tracking. Debug info:', {
-        contract: nft.contract,
-        name: nft.name,
-        generatedId: cleanTokenId
-      });
+      console.warn('Missing required NFT data for tracking.');
       return;
     }
 
@@ -226,12 +226,14 @@ export async function trackNFTPlay(nft: NFT) {
       image: nft.image || nft.metadata?.image || '',
       audioUrl: nft.audio || nft.metadata?.animation_url || '',
       animationUrl: nft.metadata?.animation_url || '',
-      timestamp: serverTimestamp()
+      timestamp: serverTimestamp(),
+      playedBy: fid || null, // Add Farcaster ID
     });
     
     console.log('NFT play tracked successfully:', {
       name: nft.name,
-      tokenId: cleanTokenId
+      tokenId: cleanTokenId,
+      fid: fid || 'anonymous'
     });
   } catch (error) {
     console.error('Error tracking NFT play:', error);
