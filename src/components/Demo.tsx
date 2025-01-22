@@ -2004,6 +2004,22 @@ export default function Demo({ title }: { title?: string }) {
                   >
                     My Media
                   </button>
+                  <button
+                    type="button"
+                    onMouseEnter={() => console.log('Button hover')}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      console.log('Button mousedown');
+                      // Reset states to return to search page
+                      handleBack();
+                      setIsProfileView(false);
+                      setIsProfileMenuOpen(false);
+                    }}
+                    className="w-full px-4 py-2 text-left font-mono text-green-400 hover:bg-green-400/10 transition-colors cursor-pointer"
+                  >
+                    Home
+                  </button>
                 </div>
               </div>
             )}
