@@ -1850,7 +1850,9 @@ export default function Demo({ title }: { title?: string }) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black">
+    <div className={`min-h-screen flex flex-col bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 ${
+      isProfileView ? 'pb-96' : ''
+    }`}>
       <RetroStyles />
       <div className="container mx-auto px-4 pt-20 pb-8"> {/* Changed py-8 to pt-20 pb-8 */}
         {/* Profile Menu */}
