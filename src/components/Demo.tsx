@@ -737,7 +737,7 @@ export default function Demo({ title }: { title?: string }) {
   const [isExpandVisible, setIsExpandVisible] = useState(false);
   const expandTimeoutRef = useRef<NodeJS.Timeout>();
   // Add new state for top played NFTs
-  const [topPlayedNFTs, setTopPlayedNFTs] = useState<NFT[]>([]);
+  const [topPlayedNFTs, setTopPlayedNFTs] = useState<{ nft: NFT; count: number }[]>([]);
   
   // Add near other state declarations (around line 661)
   const NFT_CACHE_KEY = 'nft-cache-';
@@ -1908,16 +1908,7 @@ export default function Demo({ title }: { title?: string }) {
     async function fetchTopPlayed() {
       try {
         const topNFTs = await getTopPlayedNFTs();
-        setTopPlayedNFTs(topNFTs.map(nft => ({
-          contract: nft.contract,
-          tokenId: nft.tokenId,
-          name: nft.name,
-          collection: nft.collection,
-          audio: nft.audio,
-          metadata: {
-            image: nft.image
-          }
-        })));
+        setTopPlayedNFTs(topNFTs);
       } catch (error) {
         console.error('Error fetching top played NFTs:', error);
       }
@@ -2440,7 +2431,7 @@ export default function Demo({ title }: { title?: string }) {
             <div className="retro-container p-6 mb-8">
               <h2 className="text-xl font-mono text-green-400 mb-4">TOP PLAYED NFTs</h2>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {topPlayedNFTs.map((nft, index) => (
+                {topPlayedNFTs.map(({nft, count}, index) => (
                   <div 
                     key={`${nft.contract}-${nft.tokenId}`}
                     className="retro-container p-4 bg-gray-800 relative"
@@ -2453,6 +2444,9 @@ export default function Demo({ title }: { title?: string }) {
                       />
                       <div className="absolute top-2 left-2 bg-green-400 text-black font-mono px-2 py-1 text-sm">
                         #{index + 1}
+                      </div>
+                      <div className="absolute top-2 right-2 bg-purple-500 text-white font-mono px-2 py-1 text-sm">
+                        {count} plays
                       </div>
                       <button 
                         onClick={() => handlePlayAudio(nft)}
@@ -2470,8 +2464,6 @@ export default function Demo({ title }: { title?: string }) {
                       </button>
                     </div>
                     <h3 className="font-mono text-green-400 truncate">{nft.name}</h3>
-                    {/* Remove collection reference line */}
-                    {/* Hidden audio element */}
                     <audio
                       id={`audio-${nft.contract}-${nft.tokenId}`}
                       src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}

@@ -143,7 +143,7 @@ export async function fetchNFTDetails(contractAddress: string, tokenId: string) 
   }
 }
 
-export async function getTopPlayedNFTs(): Promise<NFT[]> {
+export async function getTopPlayedNFTs(): Promise<{ nft: NFT; count: number }[]> {
   const nftPlaysRef = collection(db, 'nft_plays');
   const querySnapshot = await getDocs(nftPlaysRef);
   
@@ -151,7 +151,6 @@ export async function getTopPlayedNFTs(): Promise<NFT[]> {
   
   querySnapshot.forEach((doc) => {
     const data = doc.data();
-    // Use only the contract address as the key since it's unique per NFT
     const nftKey = data.nftContract.toLowerCase();
     
     if (!playCount[nftKey]) {
@@ -174,13 +173,9 @@ export async function getTopPlayedNFTs(): Promise<NFT[]> {
     }
   });
 
-  // Debug log
-  console.log('Simplified play counts:', playCount);
-
   return Object.values(playCount)
     .sort((a, b) => b.count - a.count)
-    .slice(0, 3)
-    .map(item => item.nft);
+    .slice(0, 3);
 }
 
 export async function trackNFTPlay(nft: NFT, fid?: number) {
