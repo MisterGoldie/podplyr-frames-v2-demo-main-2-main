@@ -143,72 +143,46 @@ export async function fetchNFTDetails(contractAddress: string, tokenId: string) 
   }
 }
 
-export async function getTopPlayedNFTs() {
-  try {
-    // First verify we can access the collection
-    const testDoc = await getDoc(doc(db, 'nft_plays', 'test'));
-    console.log('Firebase access test:', testDoc.exists() ? 'Success' : 'No test document');
+export async function getTopPlayedNFTs(): Promise<NFT[]> {
+  const nftPlaysRef = collection(db, 'nft_plays');
+  const querySnapshot = await getDocs(nftPlaysRef);
+  
+  // Create a map to count plays for each NFT
+  const playCount: { [key: string]: { count: number, nft: NFT } } = {};
+  
+  querySnapshot.forEach((doc) => {
+    const data = doc.data();
+    const nftKey = `${data.nftContract}-${data.tokenId}`;
     
-    const nftPlaysRef = collection(db, 'nft_plays');
-    const q = query(
-      nftPlaysRef,
-      orderBy('timestamp', 'desc'),
-      limit(50)  // Reduced limit for better performance
-    );
-    
-    const querySnapshot = await getDocs(q);
-    console.log('Query results:', querySnapshot.size, 'documents found');
-    
-    const playCount: { [key: string]: any } = {};
-    
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
-      const nftKey = `${data.nftContract}-${data.tokenId}`;
-      
-      if (!playCount[nftKey]) {
-        playCount[nftKey] = {
-          count: 0,
+    if (!playCount[nftKey]) {
+      playCount[nftKey] = {
+        count: 1,
+        nft: {
           contract: data.nftContract,
           tokenId: data.tokenId,
           name: data.name,
-          collection: data.collection,
           image: data.image,
           audio: data.audioUrl,
-          animationUrl: data.animationUrl
-        };
-      }
-      playCount[nftKey].count++;
-    });
-    
-    const topNFTs = Object.values(playCount)
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 3)
-      .map(nft => ({
-        contract: nft.contract,
-        tokenId: nft.tokenId,
-        name: nft.name,
-        collection: nft.collection,
-        image: nft.image,
-        audio: nft.audio,
-        metadata: {
-          image: nft.image,
-          animation_url: nft.animationUrl
+          metadata: {
+            image: data.image,
+            animation_url: data.animationUrl
+          }
         }
-      }));
-    
-    console.log('Processed top NFTs:', topNFTs.length);
-    return topNFTs;
-    
-  } catch (error) {
-    console.error('Error fetching top played NFTs:', error);
-    // Return empty array instead of throwing
-    return [];
-  }
+      };
+    } else {
+      playCount[nftKey].count++;
+    }
+  });
+
+  // Convert to array and sort by play count
+  return Object.values(playCount)
+    .sort((a, b) => b.count - a.count) // Sort descending
+    .slice(0, 3) // Get top 3
+    .map(item => item.nft);
 }
 
 export async function trackNFTPlay(nft: NFT) {
   try {
-    // Extract tokenId from multiple possible locations
     let cleanTokenId = nft.tokenId;
     
     if (!cleanTokenId && nft.metadata) {
@@ -249,7 +223,6 @@ export async function trackNFTPlay(nft: NFT) {
       nftContract: nft.contract,
       tokenId: cleanTokenId,
       name: nft.name,
-      collection: nft.collection?.name || 'Unknown Collection',
       image: nft.image || nft.metadata?.image || '',
       audioUrl: nft.audio || nft.metadata?.animation_url || '',
       animationUrl: nft.metadata?.animation_url || '',

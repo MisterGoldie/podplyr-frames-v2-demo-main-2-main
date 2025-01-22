@@ -2451,9 +2451,7 @@ export default function Demo({ title }: { title?: string }) {
                       </button>
                     </div>
                     <h3 className="font-mono text-green-400 truncate">{nft.name}</h3>
-                    <p className="font-mono text-gray-400 text-sm truncate">
-                      {typeof nft.collection === 'string' ? nft.collection : 'Unknown Collection'}
-                    </p>
+                    {/* Remove collection reference line */}
                     {/* Hidden audio element */}
                     <audio
                       id={`audio-${nft.contract}-${nft.tokenId}`}
@@ -2470,15 +2468,6 @@ export default function Demo({ title }: { title?: string }) {
                         }
                       }}
                     />
-                    {/* Hidden video element */}
-                    {nft.metadata?.animation_url && (
-                      <video
-                        id={`video-${nft.contract}-${nft.tokenId}`}
-                        className="hidden"
-                        playsInline
-                        preload="none"
-                      />
-                    )}
                   </div>
                 ))}
               </div>
