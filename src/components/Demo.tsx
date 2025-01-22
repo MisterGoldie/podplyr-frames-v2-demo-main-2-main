@@ -6,6 +6,8 @@ import AudioVisualizer from './AudioVisualizer';
 import { debounce } from 'lodash';
 import { trackUserSearch, getRecentSearches, SearchedUser } from '../lib/firebase';
 import sdk, { type FrameContext } from "@farcaster/frame-sdk";
+import { db } from '../lib/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 
 interface FarcasterUser {
@@ -1863,6 +1865,23 @@ export default function Demo({ title }: { title?: string }) {
     expandTimeoutRef.current = setTimeout(() => {
       setIsExpandVisible(false);
     }, 2000);
+  };
+
+  const logNFTPlay = async (nft: NFT, fid: number) => {
+    try {
+      await addDoc(collection(db, 'nft_plays'), {
+        timestamp: serverTimestamp(),
+        fid: fid,
+        nftContract: nft.contract,
+        tokenId: nft.tokenId,
+        name: nft.name,
+        network: nft.network || 'ethereum',
+        collection: nft.collection?.name,
+        audioUrl: nft.audio || nft.metadata?.animation_url
+      });
+    } catch (error) {
+      console.warn('Failed to log NFT play:', error);
+    }
   };
 
   return (

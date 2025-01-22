@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow read/write access to searchedusers collection
+    match /searchedusers/{userId} {
+      allow read, write: if true;
+    }
+    
+    // Allow write access to search_interactions collection
+    match /search_interactions/{interactionId} {
+      allow read, write: if true;
+    }
+    
+    // Allow write access to nft_plays collection
+    match /nft_plays/{playId} {
+      allow read, write: if true;
+    }
+  }
+} 
