@@ -969,43 +969,23 @@ export default function Demo({ title }: { title?: string }) {
     try {
       const nftId = `${nft.contract}-${nft.tokenId}`;
       
-      // If we're already playing this NFT, handle play/pause toggle
-      if (currentlyPlaying === nftId) {
-        const audio = document.getElementById(`audio-${nftId}`) as HTMLAudioElement;
-        const video = videoRef.current;
-        
-        if (isPlaying) {
-          // Pause both audio and video
-          if (audio) audio.pause();
-          if (video) video.pause();
-          setIsPlaying(false);
-        } else {
-          // Resume both from current position
-          if (video) {
-            video.currentTime = audio?.currentTime || 0;
-            await video.play().catch(console.warn);
-          }
-          if (audio) await audio.play();
-          setIsPlaying(true);
-        }
-        return;
-      }
-
-      // Stop current playback before starting new one
-      if (currentlyPlaying) {
-        const currentAudio = document.getElementById(`audio-${currentlyPlaying}`) as HTMLAudioElement;
-        const currentVideo = videoRef.current;
+      // Stop any currently playing audio first
+      if (currentPlayingNFT) {
+        const currentAudio = document.getElementById(
+          `audio-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`
+        ) as HTMLAudioElement;
         
         if (currentAudio) {
           currentAudio.pause();
           currentAudio.currentTime = 0;
         }
-        if (currentVideo) {
-          currentVideo.pause();
-          currentVideo.currentTime = 0;
-          currentVideo.removeAttribute('src');
-          currentVideo.load();
-        }
+      }
+
+      // Clear previous audio source and reload
+      const audio = document.getElementById(`audio-${nftId}`) as HTMLAudioElement;
+      if (audio) {
+        audio.src = processMediaUrl(nft.audio || nft.metadata?.animation_url || '') || '';
+        audio.load();
       }
 
       // Set new NFT as current
@@ -1015,19 +995,8 @@ export default function Demo({ title }: { title?: string }) {
       setIsPlayerMinimized(false);
       
       // Start new playback
-      const audio = document.getElementById(`audio-${nftId}`) as HTMLAudioElement;
-      const video = videoRef.current;
-
       if (audio && nft.hasValidAudio) {
-        await playMedia(audio, video, nft);
-      } else if (video && (nft.metadata?.animation_url || nft.animationUrl)) {
-        const videoUrl = processMediaUrl(nft.metadata?.animation_url || nft.animationUrl || '');
-        if (videoUrl) {
-          video.src = videoUrl;
-          video.load();
-          await video.play();
-          setIsPlaying(true);
-        }
+        await playMedia(audio, videoRef.current, nft);
       }
 
     } catch (error) {
