@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs, serverTimestamp, orderBy, limit, addDoc } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs, serverTimestamp, orderBy, limit, addDoc, deleteDoc } from 'firebase/firestore';
 import { Alchemy, Network } from 'alchemy-sdk';
+import { signInAnonymously, getAuth } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -11,11 +12,20 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
 };
 
-// Add error checking for the config
-if (!firebaseConfig.projectId) {
-  throw new Error('Firebase Project ID is undefined. Check your environment variables.');
+// Add validation for all required config values
+if (!firebaseConfig.apiKey) {
+  throw new Error('Firebase API Key is missing');
 }
 
+if (!firebaseConfig.authDomain) {
+  throw new Error('Firebase Auth Domain is missing');
+}
+
+if (!firebaseConfig.projectId) {
+  throw new Error('Firebase Project ID is missing');
+}
+
+// Initialize Firebase only if config is valid
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export interface SearchedUser {
@@ -43,6 +53,32 @@ const alchemy = new Alchemy({
   apiKey: process.env.NEXT_PUBLIC_ALCHEMY_API_KEY,
   network: Network.ETH_MAINNET
 });
+
+const auth = getAuth(app);
+
+export async function ensureFirebaseAuth() {
+  if (!auth) {
+    throw new Error('Firebase auth not initialized');
+  }
+
+  try {
+    if (!auth.currentUser) {
+      const result = await signInAnonymously(auth);
+      if (!result.user) {
+        throw new Error('Failed to create anonymous user');
+      }
+      console.log('Anonymous auth successful:', result.user.uid);
+    }
+    return auth.currentUser;
+  } catch (error: any) {
+    console.error('Firebase auth error:', {
+      code: error.code,
+      message: error.message,
+      name: error.name
+    });
+    throw error;
+  }
+}
 
 export async function trackUserSearch(user: any) {
   try {
@@ -257,4 +293,71 @@ export interface NFT {
     uri?: string;
   };
   network?: 'ethereum' | 'base';
+}
+
+export async function toggleLikeNFT(nft: NFT, fid: number): Promise<boolean> {
+  if (!nft.contract || !nft.tokenId) {
+    console.error('Missing required NFT data:', { contract: nft.contract, tokenId: nft.tokenId });
+    throw new Error('Invalid NFT data');
+  }
+
+  try {
+    const user = await ensureFirebaseAuth();
+    if (!user) {
+      throw new Error('Authentication failed');
+    }
+
+    const likesRef = collection(db, 'user_likes');
+    const likeId = `${fid}-${nft.contract}-${nft.tokenId}`;
+    const likeDoc = doc(likesRef, likeId);
+    
+    const docSnap = await getDoc(likeDoc);
+    
+    if (docSnap.exists()) {
+      // Unlike
+      await deleteDoc(likeDoc);
+      return false;
+    } else {
+      // Like
+      await setDoc(likeDoc, {
+        fid,
+        nftContract: nft.contract,
+        tokenId: nft.tokenId,
+        name: nft.name,
+        image: nft.image || nft.metadata?.image || '',
+        audioUrl: nft.audio || nft.metadata?.animation_url || '',
+        timestamp: serverTimestamp(),
+      });
+      return true;
+    }
+  } catch (error: any) {
+    console.error('Error toggling like:', error.code, error.message);
+    throw error; // Re-throw the error with more context
+  }
+}
+
+export async function getLikedNFTs(fid: number): Promise<NFT[]> {
+  try {
+    const likesRef = collection(db, 'user_likes');
+    const q = query(likesRef, where('fid', '==', fid), orderBy('timestamp', 'desc'));
+    const querySnapshot = await getDocs(q);
+    
+    return querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        contract: data.nftContract,
+        tokenId: data.tokenId,
+        name: data.name,
+        image: data.image,
+        audio: data.audioUrl,
+        metadata: {
+          image: data.image,
+          animation_url: data.audioUrl
+        }
+      };
+    });
+  } catch (error) {
+    console.error('Error getting liked NFTs:', error);
+    throw error;
+  }
 } 

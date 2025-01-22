@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { useEffect, useCallback, useState, useMemo, useRef, ReactEventHandler, SyntheticEvent } from "react";
 import AudioVisualizer from './AudioVisualizer';
 import { debounce } from 'lodash';
-import { trackUserSearch, getRecentSearches, SearchedUser, getTopPlayedNFTs, fetchNFTDetails, trackNFTPlay } from '../lib/firebase';
+import { trackUserSearch, getRecentSearches, SearchedUser, getTopPlayedNFTs, fetchNFTDetails, trackNFTPlay, toggleLikeNFT, getLikedNFTs } from '../lib/firebase';
 import sdk, { type FrameContext } from "@farcaster/frame-sdk";
 import { db } from '../lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -738,6 +738,10 @@ export default function Demo({ title }: { title?: string }) {
   const expandTimeoutRef = useRef<NodeJS.Timeout>();
   // Add new state for top played NFTs
   const [topPlayedNFTs, setTopPlayedNFTs] = useState<{ nft: NFT; count: number }[]>([]);
+  const [isLiked, setIsLiked] = useState(false);
+  const [likedNFTs, setLikedNFTs] = useState<NFT[]>([]);
+  // Add this state
+  const [showLikedNFTs, setShowLikedNFTs] = useState(false);
   
   // Add near other state declarations (around line 661)
   const NFT_CACHE_KEY = 'nft-cache-';
@@ -1916,6 +1920,48 @@ export default function Demo({ title }: { title?: string }) {
     fetchTopPlayed();
   }, []);
 
+  const handleLikeToggle = async () => {
+    try {
+      if (!currentPlayingNFT || !userContext?.user?.fid) {
+        console.warn('No NFT playing or user not logged in');
+        return;
+      }
+
+      const newLikeStatus = await toggleLikeNFT(currentPlayingNFT, userContext.user.fid);
+      setIsLiked(newLikeStatus);
+    } catch (error) {
+      console.error('Error toggling like:', error);
+      throw error;
+    }
+  };
+
+  // Add this useEffect to load liked NFTs when user changes
+  useEffect(() => {
+    async function loadLikedNFTs() {
+      try {
+        if (!userContext?.user?.fid) return;
+        
+        const liked = await getLikedNFTs(userContext.user.fid);
+        setLikedNFTs(liked);
+      } catch (error) {
+        console.error('Error loading liked NFTs:', error);
+      }
+    }
+    
+    loadLikedNFTs();
+  }, [userContext?.user?.fid]);
+
+  // Add this to check if current NFT is liked
+  useEffect(() => {
+    if (currentPlayingNFT && userContext?.user?.fid) {
+      const isNFTLiked = likedNFTs.some(
+        nft => nft.contract === currentPlayingNFT.contract && 
+               nft.tokenId === currentPlayingNFT.tokenId
+      );
+      setIsLiked(isNFTLiked);
+    }
+  }, [currentPlayingNFT, likedNFTs, userContext?.user?.fid]);
+
   // Add the top played section to the main page
   return (
     <div className={`min-h-screen flex flex-col bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 ${
@@ -1959,6 +2005,7 @@ export default function Demo({ title }: { title?: string }) {
                 }}
               >
                 <div className="py-2">
+                  {/* Existing profile info */}
                   <div className="px-4 py-2 border-b border-green-400/30">
                     <p className="font-mono text-green-400 truncate">
                       {userContext.user.displayName || userContext.user.username}
@@ -1967,6 +2014,23 @@ export default function Demo({ title }: { title?: string }) {
                       @{userContext.user.username}
                     </p>
                   </div>
+                  
+                  {/* Add My Likes button */}
+                  <button
+                    onClick={() => {
+                      // Add logic to show liked NFTs
+                      setShowLikedNFTs(true);
+                      setIsProfileMenuOpen(false);
+                    }}
+                    className="w-full px-4 py-2 text-left text-green-400 hover:bg-gray-800 flex items-center"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                    </svg>
+                    My Likes ({likedNFTs.length})
+                  </button>
+                  
+                  {/* Rest of your menu items */}
                   <button
                     type="button"
                     onMouseEnter={() => console.log('Button hover')}
@@ -2486,6 +2550,37 @@ export default function Demo({ title }: { title?: string }) {
           )}
           {/* Rest of the existing content */}
         </>
+      )}
+      {showLikedNFTs && (
+        <div className="mt-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-green-400">My Liked NFTs</h2>
+            <button
+              onClick={() => setShowLikedNFTs(false)}
+              className="text-gray-400 hover:text-green-400"
+            >
+              Back
+            </button>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {likedNFTs.map((nft) => (
+              <div
+                key={`${nft.contract}-${nft.tokenId}`}
+                className="border border-green-400/30 rounded-lg p-4 hover:border-green-400 transition-colors"
+                onClick={() => handlePlayAudio(nft)}
+              >
+                {/* NFT display similar to your search results */}
+                <img
+                  src={nft.image || nft.metadata?.image}
+                  alt={nft.name}
+                  className="w-full h-48 object-cover rounded-lg mb-2"
+                />
+                <h3 className="text-green-400 font-semibold truncate">{nft.name}</h3>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

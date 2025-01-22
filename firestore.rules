@@ -15,5 +15,15 @@ service cloud.firestore {
     match /nft_plays/{playId} {
       allow read, write: if true;
     }
+
+    // Add this new rule for user_likes collection
+    match /user_likes/{likeId} {
+      allow read, write: if true;
+    }
+
+    // Add a catch-all rule for any other collections
+    match /{document=**} {
+      allow read, write: if true;
+    }
   }
-} 
+}
