@@ -2358,89 +2358,85 @@ export default function Demo({ title }: { title?: string }) {
   );
 }
 
-async function fetchNFTs(fid: number): Promise<NFT[]> {
-  const DELAY = 2000;
-  const RETRY_DELAY = 5000; // 5 seconds when hitting rate limit
-  const MAX_RETRIES = 3;
-  const allNFTs: NFT[] = [];
+const fetchWithRetry = async (url: string, retries = 3): Promise<Response> => {
+  let lastError: Error | null = null;
   
-  const fetchWithRetry = async (url: string, retries = MAX_RETRIES) => {
+  for (let i = 0; i < retries; i++) {
     try {
       const response = await fetch(url);
-      if (response.status === 429 && retries > 0) {
-        console.warn(`[NFT Fetch] Rate limited, retrying in ${RETRY_DELAY}ms...`);
-        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
-        return fetchWithRetry(url, retries - 1);
-      }
       return response;
     } catch (error) {
-      if (retries > 0) {
-        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
-        return fetchWithRetry(url, retries - 1);
+      console.warn(`Fetch attempt ${i + 1} failed:`, error);
+      lastError = error as Error;
+      if (i < retries - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
       }
-      throw error;
     }
-  };
+  }
+  
+  throw lastError || new Error('Failed to fetch after retries');
+};
+
+const fetchNFTsWithPagination = async (baseUrl: string, startToken?: string) => {
+  const url = startToken 
+    ? `${baseUrl}&pageKey=${startToken}`
+    : baseUrl;
+  
+  try {
+    const response = await fetchWithRetry(url);
+    if (!response.ok) return null;
+    return response.json();
+  } catch (error) {
+    console.error('Failed to fetch NFTs:', error);
+    return null;
+  }
+};
+
+const fetchNFTs = async (fid: number): Promise<NFT[]> => {
+  const allNFTs: NFT[] = [];
+  const ITEMS_PER_PAGE = 50;
+  const MAX_ITEMS = 100;
 
   try {
     const address = await getUserAddress(fid);
     if (address === null) return [];
 
-    // Rest of your existing code, but replace fetch calls with fetchWithRetry
-    const mainnetUrl = `https://eth-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_KEY}/getNFTsForOwner?owner=${address}&withMetadata=true&pageSize=50`;
-    const response = await fetchWithRetry(mainnetUrl);
+    // Fetch from Mainnet with pagination
+    const mainnetBaseUrl = `https://eth-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_KEY}/getNFTsForOwner?owner=${address}&withMetadata=true&pageSize=${ITEMS_PER_PAGE}`;
     
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${await response.text()}`);
-    }
+    let pageKey = undefined;
+    let totalMainnetNFTs = 0;
 
-    const data = await response.json();
-    
-    if (data.ownedNfts?.length) {
-      const processedNFTs = data.ownedNfts
-        .map((nft: any) => {
-          try {
-            return processNFTMetadata(nft);
-          } catch (error) {
-            console.warn('[NFT Fetch] Mainnet processing error:', error);
-            return null;
-          }
-        })
-        .filter((nft: NFT | null) => nft && nft.hasValidAudio);
+    do {
+      const data = await fetchNFTsWithPagination(mainnetBaseUrl, pageKey);
+      if (!data) break;
 
-      allNFTs.push(...processedNFTs);
-    }
-
-    // Wait before trying Base network
-    await new Promise(resolve => setTimeout(resolve, DELAY));
-
-    // Try Base network
-    const baseUrl = `https://base-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_KEY}/getNFTsForOwner?owner=${address}&withMetadata=true&pageSize=50`;
-    const baseResponse = await fetchWithRetry(baseUrl);
-    
-    if (baseResponse.ok) {
-      const baseData = await baseResponse.json();
-      if (baseData.ownedNfts?.length) {
-        const processedNFTs = baseData.ownedNfts
+      if (data.ownedNfts?.length) {
+        const processedNFTs = data.ownedNfts
           .map((nft: any) => {
             try {
               return processNFTMetadata(nft);
             } catch (error) {
-              console.warn('[NFT Fetch] Base processing error:', error);
+              console.warn('[NFT Fetch] Mainnet processing error:', error);
               return null;
             }
           })
           .filter((nft: NFT | null) => nft && nft.hasValidAudio);
 
         allNFTs.push(...processedNFTs);
+        totalMainnetNFTs += processedNFTs.length;
       }
-    }
+
+      pageKey = data.pageKey;
+    } while (pageKey && totalMainnetNFTs < MAX_ITEMS);
+
+    // Rest of the function remains the same...
   } catch (error) {
     console.error('[NFT Fetch] Network error:', error);
   }
 
   return allNFTs;
-}
+};
 
 function resetPlaybackStates() {
   throw new Error('Function not implemented.');
