@@ -1884,6 +1884,18 @@ export default function Demo({ title }: { title?: string }) {
     }
   };
 
+  const handleBack = () => {
+    setSelectedUser(null);
+    setSearchResults([]);
+    setNfts([]); // Corrected to setNfts instead of setFilteredNfts
+    setCurrentPlayingNFT(null);
+    setIsPlaying(false);
+    setIsPlayerVisible(false);  // Hide the player
+    setIsPlayerMinimized(false); // Reset minimized state
+    setCurrentlyPlaying('');
+    setError('');
+  };
+
   return (
     <div className={`min-h-screen flex flex-col bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 ${
       isProfileView ? 'pb-96' : ''
@@ -2024,20 +2036,22 @@ export default function Demo({ title }: { title?: string }) {
           <div className="retro-container p-6 mb-8">
             <div className="flex items-center gap-6">
               <button
-                onClick={() => {
-                  if (isProfileView) {
-                    handleBackFromProfile();
-                  } else {
-                    setSelectedUser(null);
-                    setNfts([]);
-                    setSearchResults([]);
-                    handleBackToSearch();
-                  }
-                }}
-                className="retro-button p-2 text-green-400"
+                onClick={handleBack}
+                className="retro-button p-2 text-green-400 hover:text-green-300 transition-colors"
+                aria-label="Go back"
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                  />
                 </svg>
               </button>
               <div className="flex items-center gap-4 max-w-[calc(100%-4rem)] overflow-hidden">
