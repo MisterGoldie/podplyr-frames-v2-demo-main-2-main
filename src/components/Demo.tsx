@@ -2701,7 +2701,7 @@ export default function Demo({ title }: { title?: string }) {
                       {topPlayedNFTs.map(({nft, count}, index) => (
                         <div 
                           key={`${nft.contract}-${nft.tokenId}`}
-                          className="flex-none w-[200px] retro-container p-4 bg-gray-800 relative"  // Changed from w-[300px] to w-[200px]
+                          className="flex-none w-[200px] retro-container p-4 bg-white relative"  // Changed from bg-gray-800 to bg-white
                         >
                           <div className="aspect-square relative mb-2">
                             <NFTImage
@@ -2733,7 +2733,11 @@ export default function Demo({ title }: { title?: string }) {
                               )}
                             </button>
                           </div>
-                          <h3 className="font-mono text-green-400 truncate">{nft.name}</h3>
+                          <div className="mt-2">
+                            <h3 className="font-mono text-purple-500 truncate">  {/* Changed from text-green-400 to text-purple-500 */}
+                              {nft.name || `#${nft.tokenId}`}
+                            </h3>
+                          </div>
                           <audio
                             id={`audio-${nft.contract}-${nft.tokenId}`}
                             src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
@@ -2775,7 +2779,7 @@ export default function Demo({ title }: { title?: string }) {
                     likedNFTs.map((nft, index) => (
                       <div 
                         key={`${nft.contract}-${nft.tokenId}-${index}`}
-                        className="flex-none w-[200px] retro-container p-4 bg-gray-800 relative"
+                        className="flex-none w-[200px] retro-container p-4 bg-white relative"  // Changed from bg-gray-800 to bg-white
                       >
                         <NFTCard 
                           key={`${nft.contract}-${nft.tokenId}-${index}`}
