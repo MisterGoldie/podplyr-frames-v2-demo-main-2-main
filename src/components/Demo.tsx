@@ -931,34 +931,64 @@ export default function Demo({ title }: { title?: string }) {
     try {
       const nftId = `${nft.contract}-${nft.tokenId}`;
       
-      // Only load video if it's not already loaded with the correct source
+      // Set playing state first
+      setIsPlaying(true);
+      
+      // Get the media URL with a fallback
+      const mediaUrl = processMediaUrl(nft.audio || nft.metadata?.animation_url || '');
+      if (!mediaUrl) {
+        throw new Error('No valid media URL found');
+      }
+      
+      // Only load video if it's a video NFT and not already loaded
       if (video && nft.metadata?.animation_url && 
           (!video.src || !video.src.includes(nft.metadata.animation_url))) {
-        video.src = processMediaUrl(nft.metadata.animation_url) || '';
-        video.load();
-        
-        await new Promise((resolve) => {
-          video.oncanplay = resolve;
-        });
-      }
-
-      // Sync video with audio time
-      if (video) {
-        video.currentTime = audio.currentTime;
-        if (!video.paused && isPlaying) {
-          await video.play();
+        const videoUrl = processMediaUrl(nft.metadata.animation_url);
+        if (videoUrl) {
+          video.src = videoUrl;
+          video.load();
+          
+          // Wait for video to be ready
+          await new Promise((resolve) => {
+            video.oncanplay = resolve;
+          });
         }
       }
 
-      // Handle audio playback
-      if (audio.paused) {
-        await audio.play();
+      // Load and play audio
+      if (!audio.src || audio.src !== mediaUrl) {
+        audio.src = mediaUrl;
+        audio.load();
+        
+        // Wait for audio to be ready
+        await new Promise((resolve) => {
+          audio.oncanplay = resolve;
+        });
       }
-      setIsPlaying(true);
-      setIsMediaLoading(false);
+
+      // Start playback
+      const playPromises: Promise<void>[] = [];
+
+      // Play audio
+      playPromises.push(audio.play());
+
+      // Play video if exists
+      if (video && !video.paused) {
+        video.currentTime = audio.currentTime;
+        playPromises.push(video.play());
+      }
+
+      // Wait for both to start playing
+      await Promise.all(playPromises);
+
+      // Track play after successful playback start
+      if (userContext?.user?.fid) {
+        await trackNFTPlay(nft, userContext.user.fid);
+      }
+
     } catch (error) {
-      console.warn('Media playback failed:', error);
-      setIsMediaLoading(false);
+      console.error('Playback error:', error);
+      setIsPlaying(false);
       throw error;
     }
   };
@@ -979,23 +1009,30 @@ export default function Demo({ title }: { title?: string }) {
         }
       }
 
-      // Clear previous audio source and reload
-      const audio = document.getElementById(`audio-${nftId}`) as HTMLAudioElement;
-      if (audio) {
-        audio.src = processMediaUrl(nft.audio || nft.metadata?.animation_url || '') || '';
-        audio.load();
-      }
-
-      // Set new NFT as current
+      // Set new NFT as current first
       setCurrentlyPlaying(nftId);
       setCurrentPlayingNFT(nft);
       setIsPlayerVisible(true);
       setIsPlayerMinimized(false);
       
-      // Track the play after successfully starting playback
+      // Clear previous audio source and reload
+      const audio = document.getElementById(`audio-${nftId}`) as HTMLAudioElement;
+      if (audio) {
+        audio.src = processMediaUrl(nft.audio || nft.metadata?.animation_url || '') || '';
+        audio.load();
+        
+        // Wait for audio to be ready
+        await new Promise((resolve) => {
+          audio.oncanplay = resolve;
+        });
+      }
+
+      // Track the play and start playback
       if (audio && nft.hasValidAudio) {
+        setIsPlaying(true); // Set playing state before starting media
         await playMedia(audio, videoRef.current, nft);
-        // Get FID from user context
+        
+        // Track play after successful playback start
         if (userContext?.user?.fid) {
           await trackNFTPlay(nft, userContext.user.fid);
         }
