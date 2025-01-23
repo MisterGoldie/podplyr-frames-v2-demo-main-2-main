@@ -355,6 +355,10 @@ export async function getLikedNFTs(fid: number): Promise<NFT[]> {
         name: data.name,
         image: data.image,
         audio: data.audioUrl,
+        hasValidAudio: true, // Since it was liked, it must have had valid audio
+        collection: {
+          name: data.collectionName || 'Unknown Collection'
+        },
         metadata: {
           image: data.image,
           animation_url: data.audioUrl

@@ -656,53 +656,41 @@ const MediaRenderer = ({ url, alt, className }: MediaRendererProps) => {
   );
 };
 
-// Update the image component to handle IPFS gateway failures
-const NFTImage = ({ src, alt, className }: { src: string, alt: string, className?: string }) => {
-  const [currentGatewayIndex, setCurrentGatewayIndex] = useState(0);
-  const [error, setError] = useState(false);
+// Add near other interfaces at the top
+interface NFTImageProps {
+  src: string;  // This requires a string, but we're passing potentially undefined values
+  alt: string;
+  className?: string;
+  width?: number;
+  height?: number;
+}
 
-  const imageUrl = useMemo(() => {
-    if (!src) return null;
-    if (src.includes('/ipfs/')) {
-      const hash = src.split('/ipfs/')[1];
-      return `${IPFS_GATEWAYS[currentGatewayIndex]}${hash}`;
-    }
-    return src;
-  }, [src, currentGatewayIndex]);
-
-  const handleError = () => {
-    console.log('Image load error:', imageUrl);
-    if (currentGatewayIndex < IPFS_GATEWAYS.length - 1) {
-      setCurrentGatewayIndex(prev => prev + 1);
-    } else {
-      setError(true);
-    }
-  };
-
-  if (error || !imageUrl) {
-    return (
-      <div className={`${className} bg-gray-800 flex items-center justify-center`}>
-        <span className="text-xs text-gray-400">{alt}</span>
-      </div>
-    );
-  }
-
+const NFTImage = ({ src, alt, className, width, height }: NFTImageProps) => {
+  const fallbackSrc = '/placeholder.jpg';
   return (
     <Image
-      src={imageUrl}
+      src={src || fallbackSrc}
       alt={alt}
       className={className}
-      onError={handleError}
-      width={400}
-      height={400}
-      unoptimized
+      width={width || 500}
+      height={height || 500}
     />
   );
 };
 
+// Add near the top with other interfaces
+interface ExtendedFrameContext extends Omit<FrameContext, 'user'> {
+  user?: {
+    fid: number;
+    username?: string;
+    displayName?: string;
+    pfpUrl?: string;
+  };
+}
+
 export default function Demo({ title }: { title?: string }) {
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
-  const [userContext, setUserContext] = useState<FrameContext>();
+  const [userContext, setUserContext] = useState<ExtendedFrameContext>();
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isProfileView, setIsProfileView] = useState(false);
   const [isLoadingNFTs, setIsLoadingNFTs] = useState(false);
@@ -824,7 +812,7 @@ export default function Demo({ title }: { title?: string }) {
         console.log('Loading SDK context...');
         const context = await sdk.context;
         console.log('SDK Context loaded:', context);
-        setUserContext(context);
+        setUserContext(context as ExtendedFrameContext);
         setIsSDKLoaded(true);
         sdk.actions.ready();
       } catch (error) {
@@ -1800,7 +1788,7 @@ export default function Demo({ title }: { title?: string }) {
       setSelectedUser({
         fid: userContext.user.fid,
         username: userContext.user.username || '',
-        display_name: userContext.user.displayName,
+        display_name: userContext.user?.displayName || userContext.user?.username,
         pfp_url: userContext.user.pfpUrl,
         follower_count: 0,
         following_count: 0,
@@ -1921,34 +1909,45 @@ export default function Demo({ title }: { title?: string }) {
   }, []);
 
   const handleLikeToggle = async () => {
+    if (!currentPlayingNFT || !userContext?.user?.fid) return;
+    
     try {
-      if (!currentPlayingNFT || !userContext?.user?.fid) {
-        console.warn('No NFT playing or user not logged in');
-        return;
+      const isNowLiked = await toggleLikeNFT(currentPlayingNFT, userContext.user.fid);
+      
+      // Update local state based on the toggle result
+      if (isNowLiked) {
+        setLikedNFTs(prev => [...prev, currentPlayingNFT]);
+      } else {
+        setLikedNFTs(prev => 
+          prev.filter(nft => 
+            nft.contract !== currentPlayingNFT.contract || 
+            nft.tokenId !== currentPlayingNFT.tokenId
+          )
+        );
       }
-
-      const newLikeStatus = await toggleLikeNFT(currentPlayingNFT, userContext.user.fid);
-      setIsLiked(newLikeStatus);
     } catch (error) {
       console.error('Error toggling like:', error);
+      setError('Failed to update like status');
     }
   };
 
   // Add this useEffect to load liked NFTs when user changes
   useEffect(() => {
-    async function loadLikedNFTs() {
-      try {
-        if (!userContext?.user?.fid) return;
-        
-        const liked = await getLikedNFTs(userContext.user.fid);
-        setLikedNFTs(liked);
-      } catch (error) {
-        console.error('Error loading liked NFTs:', error);
+    const loadLikedNFTs = async () => {
+      if (userContext?.user?.fid && showLikedNFTs) {
+        try {
+          console.log('Loading liked NFTs...');
+          const liked = await getLikedNFTs(userContext.user.fid);
+          console.log('Loaded liked NFTs:', liked);
+          setLikedNFTs(liked);
+        } catch (error) {
+          console.error('Error loading liked NFTs:', error);
+        }
       }
-    }
-    
+    };
+
     loadLikedNFTs();
-  }, [userContext?.user?.fid]);
+  }, [showLikedNFTs, userContext?.user?.fid]);
 
   // Add this to check if current NFT is liked
   useEffect(() => {
@@ -2016,17 +2015,20 @@ export default function Demo({ title }: { title?: string }) {
                   
                   {/* Add My Likes button */}
                   <button
-                    onClick={() => {
-                      // Add logic to show liked NFTs
+                    type="button"
+                    onMouseEnter={() => {
+                      console.log('Button hover');
+                    }}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      console.log('Button mousedown');
                       setShowLikedNFTs(true);
                       setIsProfileMenuOpen(false);
                     }}
-                    className="w-full px-4 py-2 text-left text-green-400 hover:bg-gray-800 flex items-center"
+                    className="w-full px-4 py-2 text-left font-mono text-green-400 hover:bg-green-400/10 transition-colors cursor-pointer"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                    </svg>
-                    My Likes ({likedNFTs.length})
+                    My Likes
                   </button>
                   
                   {/* Rest of your menu items */}
@@ -2210,8 +2212,8 @@ export default function Demo({ title }: { title?: string }) {
                     {/* Always show the base image */}
                     <div className="w-full h-full absolute top-0 left-0">
                       <NFTImage 
-                        src={processMediaUrl(nft.image || nft.metadata?.image || nft.metadata?.image_url || '') || ''}
-                        alt={nft.name}
+                        src={processMediaUrl(nft.image || nft.metadata?.image || '') || '/placeholder.jpg'}
+                        alt={nft.name || 'NFT'}
                         className="w-full h-full object-cover"
                       />
                     </div>
@@ -2412,9 +2414,9 @@ export default function Demo({ title }: { title?: string }) {
                           </button>
                         </div>
                       ) : (
-                        <Image
+                        <NFTImage
                           src={processMediaUrl(currentPlayingNFT.image || '') || '/placeholder.jpg'}
-                          alt={currentPlayingNFT.name}
+                          alt={currentPlayingNFT.name || 'NFT'}
                           className="w-48 h-48 object-cover"
                           width={192}
                           height={192}
@@ -2509,96 +2511,121 @@ export default function Demo({ title }: { title?: string }) {
       {!selectedUser && (
         <>
           {/* Top Played NFTs Section */}
-          {!selectedUser && topPlayedNFTs.length > 0 && (
-            <div className="retro-container p-6 mb-8">
-              <h2 className="text-xl font-mono text-green-400 mb-4">TOP PLAYED NFTs</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {topPlayedNFTs.map(({nft, count}, index) => (
-                  <div 
-                    key={`${nft.contract}-${nft.tokenId}`}
-                    className="retro-container p-4 bg-gray-800 relative"
-                  >
-                    <div className="aspect-square relative mb-2">
-                      <NFTImage
-                        src={nft.metadata?.image || ''}
-                        alt={nft.name}
-                        className="w-full h-full object-cover"
-                      />
-                      <div className="absolute top-2 left-2 bg-green-400 text-black font-mono px-2 py-1 text-sm">
-                        #{index + 1}
-                      </div>
-                      <div className="absolute top-2 right-2 bg-purple-500 text-white font-mono px-2 py-1 text-sm">
-                        {count} plays
-                      </div>
-                      <button 
-                        onClick={() => handlePlayAudio(nft)}
-                        className="absolute bottom-4 right-4 retro-button p-3 text-white"
+          {!selectedUser && !showLikedNFTs && (
+            <>
+              {topPlayedNFTs.length > 0 && (
+                <div className="retro-container p-6 mb-8">
+                  <h2 className="text-xl font-mono text-green-400 mb-4">TOP PLAYED NFTs</h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {topPlayedNFTs.map(({nft, count}, index) => (
+                      <div 
+                        key={`${nft.contract}-${nft.tokenId}`}
+                        className="retro-container p-4 bg-gray-800 relative"
                       >
-                        {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
-                          <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                            <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
-                          </svg>
-                        ) : (
-                          <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                            <path d="M320-200v-560l440 280-440 280Z"/>
-                          </svg>
-                        )}
-                      </button>
-                    </div>
-                    <h3 className="font-mono text-green-400 truncate">{nft.name}</h3>
-                    <audio
-                      id={`audio-${nft.contract}-${nft.tokenId}`}
-                      src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
-                      preload="none"
-                      onTimeUpdate={(e) => {
-                        if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
-                          setAudioProgress((e.target as HTMLAudioElement).currentTime);
-                        }
-                      }}
-                      onEnded={() => {
-                        if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
-                          setIsPlaying(false);
-                        }
-                      }}
-                    />
+                        <div className="aspect-square relative mb-2">
+                          <NFTImage
+                            src={nft.metadata?.image || ''}
+                            alt={nft.name}
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute top-2 left-2 bg-green-400 text-black font-mono px-2 py-1 text-sm">
+                            #{index + 1}
+                          </div>
+                          <div className="absolute top-2 right-2 bg-purple-500 text-white font-mono px-2 py-1 text-sm">
+                            {count} plays
+                          </div>
+                          <button 
+                            onClick={() => handlePlayAudio(nft)}
+                            className="absolute bottom-4 right-4 retro-button p-3 text-white"
+                          >
+                            {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
+                              <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                                <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
+                              </svg>
+                            ) : (
+                              <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                                <path d="M320-200v-560l440 280-440 280Z"/>
+                              </svg>
+                            )}
+                          </button>
+                        </div>
+                        <h3 className="font-mono text-green-400 truncate">{nft.name}</h3>
+                        <audio
+                          id={`audio-${nft.contract}-${nft.tokenId}`}
+                          src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
+                          preload="none"
+                          onTimeUpdate={(e) => {
+                            if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
+                              setAudioProgress((e.target as HTMLAudioElement).currentTime);
+                            }
+                          }}
+                          onEnded={() => {
+                            if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
+                              setIsPlaying(false);
+                            }
+                          }}
+                        />
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </div>
+              )}
+              {/* Rest of the existing content */}
+            </>
+          )}
+          {/* Separate Liked NFTs View */}
+          {showLikedNFTs && (
+            <div className="retro-container p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-mono text-green-400">My Liked NFTs</h2>
+                <button
+                  onClick={() => setShowLikedNFTs(false)}
+                  className="retro-button p-2 text-green-400 hover:text-green-300"
+                >
+                  Back
+                </button>
               </div>
+              
+              {likedNFTs.length === 0 ? (
+                <p className="text-center font-mono text-gray-400 py-8">
+                  No liked NFTs yet. Start liking some music!
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                  {likedNFTs.map((nft) => (
+                    <div
+                      key={`${nft.contract}-${nft.tokenId}`}
+                      className="retro-container p-4 bg-gray-800 relative"
+                    >
+                      <div className="aspect-square relative mb-2">
+                        <NFTImage
+                          src={processMediaUrl(nft.image || nft.metadata?.image || '') || '/placeholder.jpg'}
+                          alt={nft.name || 'NFT'}
+                          className="w-full h-full object-cover"
+                        />
+                        <button 
+                          onClick={() => handlePlayAudio(nft)}
+                          className="absolute bottom-4 right-4 retro-button p-3 text-white"
+                        >
+                          {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
+                            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                              <path d="M560-200v-560h160v560H560Zm-320 0v-560h160v560H240Z"/>
+                            </svg>
+                          ) : (
+                            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                              <path d="M320-200v-560l440 280-440 280Z"/>
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+                      <h3 className="font-mono text-green-400 truncate">{nft.name}</h3>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
-          {/* Rest of the existing content */}
         </>
-      )}
-      {showLikedNFTs && (
-        <div className="mt-4">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-green-400">My Liked NFTs</h2>
-            <button
-              onClick={() => setShowLikedNFTs(false)}
-              className="text-gray-400 hover:text-green-400"
-            >
-              Back
-            </button>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {likedNFTs.map((nft) => (
-              <div
-                key={`${nft.contract}-${nft.tokenId}`}
-                className="border border-green-400/30 rounded-lg p-4 hover:border-green-400 transition-colors"
-                onClick={() => handlePlayAudio(nft)}
-              >
-                {/* NFT display similar to your search results */}
-                <img
-                  src={nft.image || nft.metadata?.image}
-                  alt={nft.name}
-                  className="w-full h-48 object-cover rounded-lg mb-2"
-                />
-                <h3 className="text-green-400 font-semibold truncate">{nft.name}</h3>
-              </div>
-            ))}
-          </div>
-        </div>
       )}
     </div>
   );
