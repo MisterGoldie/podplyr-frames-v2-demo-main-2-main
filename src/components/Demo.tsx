@@ -2076,7 +2076,6 @@ export default function Demo({ title }: { title?: string }) {
                       setShowLikedNFTs(true);
                       setIsProfileView(true);
                       setIsProfileMenuOpen(false);
-                      // Clear current NFTs when switching to likes
                       setNfts(likedNFTs);
                     }}
                     className="w-full px-4 py-2 text-left font-mono text-green-400 hover:bg-green-400/10 transition-colors cursor-pointer"
@@ -2095,7 +2094,6 @@ export default function Demo({ title }: { title?: string }) {
                       setShowLikedNFTs(false);
                       setIsProfileView(true);
                       setIsProfileMenuOpen(false);
-                      // Reload user's media
                       if (userContext?.user) {
                         handleViewProfile()
                           .then(() => {
@@ -2120,7 +2118,6 @@ export default function Demo({ title }: { title?: string }) {
                       e.preventDefault();
                       e.stopPropagation();
                       console.log('Button mousedown - Home');
-                      // Reset all states when going home
                       handleBack();
                       setIsProfileView(false);
                       setShowLikedNFTs(false);
@@ -2269,6 +2266,9 @@ export default function Demo({ title }: { title?: string }) {
                         src={processMediaUrl(nft.image || nft.metadata?.image || '') || '/placeholder.jpg'}
                         alt={nft.name || 'NFT'}
                         className="w-full h-full object-cover"
+                        width={192}
+                        height={192}
+                        priority={true}
                       />
                     </div>
 
@@ -2650,9 +2650,9 @@ export default function Demo({ title }: { title?: string }) {
                 </p>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-                  {likedNFTs.map((nft) => (
+                  {likedNFTs.map((nft, index) => (
                     <div
-                      key={`${nft.contract}-${nft.tokenId}`}
+                      key={`${nft.contract}-${nft.tokenId}-${index}`}
                       className="retro-container p-4 bg-gray-800 relative"
                     >
                       <div className="aspect-square relative mb-2">
@@ -2660,6 +2660,9 @@ export default function Demo({ title }: { title?: string }) {
                           src={processMediaUrl(nft.metadata?.image || nft.image || '') || '/placeholder.jpg'}
                           alt={nft.name || 'NFT'}
                           className="w-full h-full object-cover"
+                          width={192}
+                          height={192}
+                          priority={true}
                         />
                         <button 
                           onClick={() => handlePlayAudio(nft)}
