@@ -187,7 +187,8 @@ export async function getTopPlayedNFTs(): Promise<{ nft: NFT; count: number }[]>
   
   querySnapshot.forEach((doc) => {
     const data = doc.data();
-    const nftKey = data.nftContract.toLowerCase();
+    // Create a unique key using both contract and tokenId
+    const nftKey = `${data.nftContract.toLowerCase()}-${data.tokenId}`;
     
     if (!playCount[nftKey]) {
       playCount[nftKey] = {
@@ -198,6 +199,7 @@ export async function getTopPlayedNFTs(): Promise<{ nft: NFT; count: number }[]>
           name: data.name,
           image: data.image,
           audio: data.audioUrl,
+          hasValidAudio: true,
           metadata: {
             image: data.image,
             animation_url: data.animationUrl

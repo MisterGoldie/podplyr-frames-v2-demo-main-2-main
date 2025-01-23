@@ -297,6 +297,7 @@ export interface NFT {
   };
   metadata?: NFTMetadata;
   network?: 'ethereum' | 'base';
+  playTracked?: boolean;
 }
 
 interface _AlchemyNFT {
@@ -929,7 +930,9 @@ export default function Demo({ title }: { title?: string }) {
 
   const playMedia = async (audio: HTMLAudioElement, video: HTMLVideoElement | null, nft: NFT) => {
     try {
+      console.log('[playMedia] Starting playback for NFT:', nft.contract);
       const nftId = `${nft.contract}-${nft.tokenId}`;
+      let mediaStarted = false;
       
       // Set playing state first
       setIsPlaying(true);
@@ -945,6 +948,7 @@ export default function Demo({ title }: { title?: string }) {
           (!video.src || !video.src.includes(nft.metadata.animation_url))) {
         const videoUrl = processMediaUrl(nft.metadata.animation_url);
         if (videoUrl) {
+          console.log('[playMedia] Loading video:', videoUrl);
           video.src = videoUrl;
           video.load();
           
@@ -957,6 +961,7 @@ export default function Demo({ title }: { title?: string }) {
 
       // Load and play audio
       if (!audio.src || audio.src !== mediaUrl) {
+        console.log('[playMedia] Loading audio:', mediaUrl);
         audio.src = mediaUrl;
         audio.load();
         
@@ -969,25 +974,40 @@ export default function Demo({ title }: { title?: string }) {
       // Start playback
       const playPromises: Promise<void>[] = [];
 
-      // Play audio
-      playPromises.push(audio.play());
-
-      // Play video if exists
-      if (video && !video.paused) {
-        video.currentTime = audio.currentTime;
-        playPromises.push(video.play());
+      // Play audio if it exists
+      if (audio && !audio.error) {
+        console.log('[playMedia] Starting audio playback');
+        playPromises.push(audio.play());
+        mediaStarted = true;
       }
 
-      // Wait for both to start playing
+      // Play video if exists
+      if (video && !video.error) {
+        console.log('[playMedia] Starting video playback');
+        video.currentTime = audio?.currentTime || 0;
+        playPromises.push(video.play());
+        mediaStarted = true;
+      }
+
+      // Wait for media to start playing
       await Promise.all(playPromises);
 
-      // Track play after successful playback start
-      if (userContext?.user?.fid) {
+      // Only track play if media actually started and hasn't been tracked
+      if (mediaStarted && userContext?.user?.fid && !nft.playTracked) {
+        console.log('[playMedia] Tracking play for NFT:', nftId);
         await trackNFTPlay(nft, userContext.user.fid);
+        nft.playTracked = true; // Mark this play as tracked
+        console.log('[playMedia] Play tracked successfully');
+      } else {
+        console.log('[playMedia] Skipping play tracking:', {
+          mediaStarted,
+          hasFid: !!userContext?.user?.fid,
+          alreadyTracked: nft.playTracked
+        });
       }
 
     } catch (error) {
-      console.error('Playback error:', error);
+      console.error('[playMedia] Playback error:', error);
       setIsPlaying(false);
       throw error;
     }
@@ -996,6 +1016,7 @@ export default function Demo({ title }: { title?: string }) {
   const handlePlayAudio = async (nft: NFT) => {
     try {
       const nftId = `${nft.contract}-${nft.tokenId}`;
+      console.log('[handlePlayAudio] Starting playback for NFT:', nftId);
       
       // Stop any currently playing audio first
       if (currentPlayingNFT) {
@@ -1017,29 +1038,13 @@ export default function Demo({ title }: { title?: string }) {
       
       // Clear previous audio source and reload
       const audio = document.getElementById(`audio-${nftId}`) as HTMLAudioElement;
-      if (audio) {
-        audio.src = processMediaUrl(nft.audio || nft.metadata?.animation_url || '') || '';
-        audio.load();
-        
-        // Wait for audio to be ready
-        await new Promise((resolve) => {
-          audio.oncanplay = resolve;
-        });
-      }
-
-      // Track the play and start playback
       if (audio && nft.hasValidAudio) {
         setIsPlaying(true); // Set playing state before starting media
         await playMedia(audio, videoRef.current, nft);
-        
-        // Track play after successful playback start
-        if (userContext?.user?.fid) {
-          await trackNFTPlay(nft, userContext.user.fid);
-        }
       }
 
     } catch (error) {
-      console.error('Playback error:', error);
+      console.error('[handlePlayAudio] Playback error:', error);
       setIsPlaying(false);
       setError('Failed to play media');
     }
