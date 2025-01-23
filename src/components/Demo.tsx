@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { useEffect, useCallback, useState, useMemo, useRef, ReactEventHandler, SyntheticEvent } from "react";
 import AudioVisualizer from './AudioVisualizer';
 import { debounce } from 'lodash';
-import { trackUserSearch, getRecentSearches, SearchedUser, getTopPlayedNFTs, fetchNFTDetails, trackNFTPlay, toggleLikeNFT, getLikedNFTs } from '../lib/firebase';
+import { trackUserSearch, getRecentSearches, SearchedUser, getTopPlayedNFTs, fetchNFTDetails, trackNFTPlay, toggleLikeNFT, getLikedNFTs, removeLikedNFT, addLikedNFT } from '../lib/firebase';
 import sdk, { type FrameContext } from "@farcaster/frame-sdk";
 import { db } from '../lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -1908,26 +1908,34 @@ export default function Demo({ title }: { title?: string }) {
     fetchTopPlayed();
   }, []);
 
-  const handleLikeToggle = async () => {
-    if (!currentPlayingNFT || !userContext?.user?.fid) return;
-    
-    try {
-      const isNowLiked = await toggleLikeNFT(currentPlayingNFT, userContext.user.fid);
-      
-      // Update local state based on the toggle result
-      if (isNowLiked) {
-        setLikedNFTs(prev => [...prev, currentPlayingNFT]);
-      } else {
-        setLikedNFTs(prev => 
-          prev.filter(nft => 
-            nft.contract !== currentPlayingNFT.contract || 
-            nft.tokenId !== currentPlayingNFT.tokenId
-          )
-        );
+  // Add this helper function if you don't already have it
+  const isNFTLiked = (nft: NFT) => {
+    return likedNFTs.some(
+      likedNFT => 
+        likedNFT.contract === nft.contract && 
+        likedNFT.tokenId === nft.tokenId
+    );
+  };
+
+  // Then update your handleLikeToggle function
+  const handleLikeToggle = async (nft: NFT) => {
+    if (!userContext?.user?.fid) return;
+
+    if (isNFTLiked(nft)) {
+      // Remove from likes
+      const updatedLikes = likedNFTs.filter(
+        likedNFT => 
+          !(likedNFT.contract === nft.contract && 
+            likedNFT.tokenId === nft.tokenId)
+      );
+      setLikedNFTs(updatedLikes);
+      await removeLikedNFT(userContext.user.fid, nft);
+    } else {
+      // Add to likes (only if not already present)
+      if (!isNFTLiked(nft)) {
+        setLikedNFTs([...likedNFTs, nft]);
+        await addLikedNFT(userContext.user.fid, nft);
       }
-    } catch (error) {
-      console.error('Error toggling like:', error);
-      setError('Failed to update like status');
     }
   };
 
@@ -2483,7 +2491,7 @@ export default function Demo({ title }: { title?: string }) {
                       POD PLAYR
                     </span>
                     <button
-                      onClick={handleLikeToggle}
+                      onClick={() => handleLikeToggle(currentPlayingNFT)}
                       className={`absolute right-4 retro-button p-1 ${isLiked ? 'text-red-500' : 'text-gray-400'} hover:text-red-500 transition-colors`}
                     >
                       <svg 

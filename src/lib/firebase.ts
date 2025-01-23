@@ -347,26 +347,88 @@ export async function getLikedNFTs(fid: number): Promise<NFT[]> {
     const q = query(likesRef, where('fid', '==', fid), orderBy('timestamp', 'desc'));
     const querySnapshot = await getDocs(q);
     
-    return querySnapshot.docs.map(doc => {
+    // Use a Map to track unique NFTs by their metadata signature
+    const uniqueNFTs = new Map();
+    
+    querySnapshot.docs.forEach(doc => {
       const data = doc.data();
-      return {
-        contract: data.nftContract,
-        tokenId: data.tokenId,
-        name: data.name,
-        image: data.image,
-        audio: data.audioUrl,
-        hasValidAudio: true, // Since it was liked, it must have had valid audio
-        collection: {
-          name: data.collectionName || 'Unknown Collection'
-        },
-        metadata: {
+      // Create a unique key using contract and name
+      const metadataKey = `${data.nftContract}-${data.name}`;
+      
+      // Only add if we haven't seen this NFT before
+      if (!uniqueNFTs.has(metadataKey)) {
+        uniqueNFTs.set(metadataKey, {
+          contract: data.nftContract,
+          tokenId: data.tokenId,
+          name: data.name,
           image: data.image,
-          animation_url: data.audioUrl
-        }
-      };
+          audio: data.audioUrl,
+          hasValidAudio: true,
+          collection: {
+            name: data.collectionName || 'Unknown Collection'
+          },
+          metadata: {
+            image: data.image,
+            animation_url: data.audioUrl
+          }
+        });
+      }
     });
+    
+    return Array.from(uniqueNFTs.values());
   } catch (error) {
     console.error('Error getting liked NFTs:', error);
     throw error;
   }
-} 
+}
+
+export const addLikedNFT = async (fid: number, nft: NFT) => {
+  // Extract tokenId using same logic as toggleLikeNFT
+  let cleanTokenId = nft.tokenId;
+  
+  if (nft.metadata?.animation_url) {
+    const animationMatch = nft.metadata.animation_url.match(/\/(\d+)\./);
+    if (animationMatch) {
+      cleanTokenId = animationMatch[1];
+    }
+  }
+
+  if (!cleanTokenId) {
+    cleanTokenId = `0x${nft.contract.slice(0, 10)}`;
+  }
+
+  const likesRef = collection(db, 'user_likes');
+  const likeId = `${fid}-${nft.contract}-${cleanTokenId}`;
+  const likeDoc = doc(likesRef, likeId);
+  
+  await setDoc(likeDoc, {
+    fid,
+    nftContract: nft.contract,
+    tokenId: cleanTokenId,
+    name: nft.name,
+    image: nft.image || nft.metadata?.image || '',
+    audioUrl: nft.audio || nft.metadata?.animation_url || '',
+    timestamp: serverTimestamp(),
+  });
+};
+
+export const removeLikedNFT = async (fid: number, nft: NFT) => {
+  // Use same tokenId cleaning logic
+  let cleanTokenId = nft.tokenId;
+  
+  if (nft.metadata?.animation_url) {
+    const animationMatch = nft.metadata.animation_url.match(/\/(\d+)\./);
+    if (animationMatch) {
+      cleanTokenId = animationMatch[1];
+    }
+  }
+
+  if (!cleanTokenId) {
+    cleanTokenId = `0x${nft.contract.slice(0, 10)}`;
+  }
+
+  const likesRef = collection(db, 'user_likes');
+  const likeId = `${fid}-${nft.contract}-${cleanTokenId}`;
+  const likeDoc = doc(likesRef, likeId);
+  await deleteDoc(likeDoc);
+};
