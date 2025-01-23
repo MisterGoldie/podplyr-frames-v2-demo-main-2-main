@@ -1165,6 +1165,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@heroicons/react@npm:^2.2.0":
+  version: 2.2.0
+  resolution: "@heroicons/react@npm:2.2.0"
+  peerDependencies:
+    react: ">= 16 || ^19.0.0-rc"
+  checksum: 10c0/f8d3cf689b56716339c91df3542f3948115042d1e70e6bc940a3f3e347c0bc78b56aa563917fbd7ce097fe2f38ebb21bffb0db39be914cbc545a754bddae9ab4
+  languageName: node
+  linkType: hard
+
 "@humanwhocodes/config-array@npm:^0.13.0":
   version: 0.13.0
   resolution: "@humanwhocodes/config-array@npm:0.13.0"
@@ -7639,6 +7648,7 @@ __metadata:
     "@farcaster/frame-sdk": "npm:^0.0.22"
     "@farcaster/frame-wagmi-connector": "npm:^0.0.8"
     "@firebase/firestore": "npm:^4.7.6"
+    "@heroicons/react": "npm:^2.2.0"
     "@neynar/nodejs-sdk": "npm:^2.5.0"
     "@soundxyz/sdk": "npm:^8.0.1"
     "@tanstack/react-query": "npm:^5.62.10"

@@ -2599,7 +2599,7 @@ export default function Demo({ title }: { title?: string }) {
                     >
                       <div className="aspect-square relative mb-2">
                         <NFTImage
-                          src={processMediaUrl(nft.image || nft.metadata?.image || '') || '/placeholder.jpg'}
+                          src={processMediaUrl(nft.metadata?.image || nft.image || '') || '/placeholder.jpg'}
                           alt={nft.name || 'NFT'}
                           className="w-full h-full object-cover"
                         />
@@ -2609,7 +2609,7 @@ export default function Demo({ title }: { title?: string }) {
                         >
                           {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
                             <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                              <path d="M560-200v-560h160v560H560Zm-320 0v-560h160v560H240Z"/>
+                              <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
                             </svg>
                           ) : (
                             <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
@@ -2617,6 +2617,21 @@ export default function Demo({ title }: { title?: string }) {
                             </svg>
                           )}
                         </button>
+                        <audio
+                          id={`audio-${nft.contract}-${nft.tokenId}`}
+                          src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
+                          preload="none"
+                          onTimeUpdate={(e) => {
+                            if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
+                              setAudioProgress((e.target as HTMLAudioElement).currentTime);
+                            }
+                          }}
+                          onEnded={() => {
+                            if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
+                              setIsPlaying(false);
+                            }
+                          }}
+                        />
                       </div>
                       <h3 className="font-mono text-green-400 truncate">{nft.name}</h3>
                     </div>
