@@ -2065,63 +2065,65 @@ export default function Demo({ title }: { title?: string }) {
                     </p>
                   </div>
                   
-                  {/* Add My Likes button */}
+                  {/* My Likes button */}
                   <button
                     type="button"
-                    onMouseEnter={() => {
-                      console.log('Button hover');
-                    }}
+                    onMouseEnter={() => console.log('Button hover')}
                     onMouseDown={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      console.log('Button mousedown');
+                      console.log('Button mousedown - My Likes');
                       setShowLikedNFTs(true);
+                      setIsProfileView(true);
                       setIsProfileMenuOpen(false);
+                      // Clear current NFTs when switching to likes
+                      setNfts(likedNFTs);
                     }}
                     className="w-full px-4 py-2 text-left font-mono text-green-400 hover:bg-green-400/10 transition-colors cursor-pointer"
                   >
                     My Likes
                   </button>
                   
-                  {/* Rest of your menu items */}
+                  {/* My Media button */}
                   <button
                     type="button"
                     onMouseEnter={() => console.log('Button hover')}
                     onMouseDown={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      console.log('Button mousedown');
-                      // Immediately execute handleViewProfile on mousedown
-                      if (typeof handleViewProfile === 'function') {
-                        console.log('Executing handleViewProfile from mousedown');
+                      console.log('Button mousedown - My Media');
+                      setShowLikedNFTs(false);
+                      setIsProfileView(true);
+                      setIsProfileMenuOpen(false);
+                      // Reload user's media
+                      if (userContext?.user) {
                         handleViewProfile()
                           .then(() => {
-                            console.log('handleViewProfile succeeded');
-                            setIsProfileView(true);  // Make sure profile view is enabled
-                            setIsProfileMenuOpen(false);
+                            console.log('Media loaded successfully');
                           })
                           .catch(err => {
-                            console.error('handleViewProfile failed:', err);
-                            setError('Failed to load profile');
+                            console.error('Failed to load media:', err);
+                            setError('Failed to load media');
                           });
-                      } else {
-                        console.error('handleViewProfile is not available');
                       }
                     }}
                     className="w-full px-4 py-2 text-left font-mono text-green-400 hover:bg-green-400/10 transition-colors cursor-pointer"
                   >
                     My Media
                   </button>
+
+                  {/* Home button */}
                   <button
                     type="button"
                     onMouseEnter={() => console.log('Button hover')}
                     onMouseDown={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      console.log('Button mousedown');
-                      // Reset states to return to search page
+                      console.log('Button mousedown - Home');
+                      // Reset all states when going home
                       handleBack();
                       setIsProfileView(false);
+                      setShowLikedNFTs(false);
                       setIsProfileMenuOpen(false);
                     }}
                     className="w-full px-4 py-2 text-left font-mono text-green-400 hover:bg-green-400/10 transition-colors cursor-pointer"
