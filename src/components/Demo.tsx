@@ -664,9 +664,10 @@ interface NFTImageProps {
   className?: string;
   width?: number;
   height?: number;
+  priority?: boolean;  // Add this prop
 }
 
-const NFTImage = ({ src, alt, className, width, height }: NFTImageProps) => {
+const NFTImage = ({ src, alt, className, width, height, priority }: NFTImageProps) => {
   const fallbackSrc = '/placeholder.jpg';
   return (
     <Image
@@ -675,6 +676,7 @@ const NFTImage = ({ src, alt, className, width, height }: NFTImageProps) => {
       className={className}
       width={width || 500}
       height={height || 500}
+      priority={priority}  // Pass it to Image
     />
   );
 };
@@ -2470,6 +2472,7 @@ export default function Demo({ title }: { title?: string }) {
                           className="w-48 h-48 object-cover"
                           width={192}
                           height={192}
+                          priority={true}
                         />
                       )}
                     </div>
@@ -2577,6 +2580,9 @@ export default function Demo({ title }: { title?: string }) {
                             src={nft.metadata?.image || ''}
                             alt={nft.name}
                             className="w-full h-full object-cover"
+                            width={192}
+                            height={192}
+                            priority={true}
                           />
                           <div className="absolute top-2 left-2 bg-green-400 text-black font-mono px-2 py-1 text-sm">
                             #{index + 1}
