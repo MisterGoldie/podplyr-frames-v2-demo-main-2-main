@@ -2760,12 +2760,6 @@ export default function Demo({ title }: { title?: string }) {
             <div className="retro-container p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-mono text-green-400">My Liked NFTs</h2>
-                <button
-                  onClick={() => setShowLikedNFTs(false)}
-                  className="retro-button p-2 text-green-400 hover:text-green-300"
-                >
-                  Back to Media
-                </button>
               </div>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
