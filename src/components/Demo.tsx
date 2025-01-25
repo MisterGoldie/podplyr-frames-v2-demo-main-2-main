@@ -2719,7 +2719,7 @@ export default function Demo({ title }: { title?: string }) {
       {!selectedUser && (
         <>
           {/* Top Played NFTs Section */}
-          {!selectedUser && !showLikedNFTs && (
+          {!selectedUser && !showLikedNFTs && !isProfileView && (
             <>
               {topPlayedNFTs.length > 0 && (
                 <div className="retro-container p-6 mb-8">
