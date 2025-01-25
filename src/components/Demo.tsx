@@ -535,22 +535,20 @@ const IPFS_GATEWAYS = [
 
 const processMediaUrl = (url: string): string => {
   if (!url) return '';
-  
-  // Handle IPFS URLs
-  if (url.startsWith('ipfs://')) {
-    return url.replace('ipfs://', 'https://ipfs.io/ipfs/');
-  }
-
-  // Handle NFT.storage URLs
-  if (url.includes('nftstorage.link')) {
-    return url.replace('nftstorage.link', 'ipfs.io');
-  }
 
   // Handle Arweave URLs
-  if (url.includes('arweave.net')) {
-    return url; // Return as-is, Arweave URLs work directly
+  if (url.startsWith('ar://')) {
+    const arweaveHash = url.replace('ar://', '');
+    return `https://arweave.net/${arweaveHash}`;
   }
 
+  // Handle IPFS URLs
+  if (url.startsWith('ipfs://')) {
+    const ipfsHash = url.replace('ipfs://', '');
+    return `https://ipfs.io/ipfs/${ipfsHash}`;
+  }
+
+  // Return unchanged if it's already an HTTP(S) URL
   return url;
 };
 
