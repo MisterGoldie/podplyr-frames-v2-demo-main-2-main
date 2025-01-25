@@ -1894,14 +1894,36 @@ export default function Demo({ title }: { title?: string }) {
       setError('');
       setNfts([]);
 
+      // First get the custody address from Neynar
+      const neynarKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
+      const profileResponse = await fetch(
+        `https://api.neynar.com/v2/farcaster/user/bulk?fids=${userContext.user.fid}`,
+        {
+          headers: {
+            'accept': 'application/json',
+            'api_key': neynarKey || ''
+          }
+        }
+      );
+
+      const profileData = await profileResponse.json();
+      let allAddresses: string[] = [];
+
+      // Get custody address
+      if (profileData.users?.[0]?.custody_address) {
+        allAddresses.push(profileData.users[0].custody_address);
+        console.log('Added custody address:', profileData.users[0].custody_address);
+      }
+
+      // Fetch verified addresses from Airstack
       console.log('Fetching wallet addresses from Airstack...');
-      const query = `
-        query GetFarcasterUserWalletAddresses {
+      const addressQuery = `
+        query GetFarcasterUserWalletAddresses($username: String!) {
           Socials(
             input: {
               filter: {
                 dappName: {_eq: farcaster},
-                profileName: {_eq: "${userContext.user.username}"}
+                profileName: {_eq: $username}
               },
               blockchain: ethereum,
               limit: 50
@@ -1918,33 +1940,26 @@ export default function Demo({ title }: { title?: string }) {
         }
       `;
 
-      console.log('Making Airstack API request...');
-      const response = await fetch('https://api.airstack.xyz/gql', {
+      const addressResponse = await fetch('https://api.airstack.xyz/gql', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': process.env.NEXT_PUBLIC_AIRSTACK_API_KEY || ''
         },
-        body: JSON.stringify({ query })
+        body: JSON.stringify({ 
+          query: addressQuery,
+          variables: { username: userContext.user.username }
+        })
       });
 
-      if (!response.ok) {
-        console.error('Airstack API request failed:', response.status, response.statusText);
-        throw new Error('Failed to fetch wallet addresses');
-      }
-
-      const data = await response.json();
-      console.log('Airstack API response:', data);
-
-      const addresses = data?.data?.Socials?.Social?.[0]?.connectedAddresses?.map(
+      const addressData = await addressResponse.json();
+      const verifiedAddresses = addressData?.data?.Socials?.Social?.[0]?.connectedAddresses?.map(
         (addr: { address: string }) => addr.address
       ) || [];
 
-      console.log('Found addresses:', addresses);
-
-      if (addresses.length === 0) {
-        throw new Error('No wallet addresses found');
-      }
+      // Combine and deduplicate addresses
+      allAddresses = [...new Set([...allAddresses, ...verifiedAddresses])];
+      console.log('All addresses to check:', allAddresses);
 
       // Update UI with user info
       setSelectedUser({
@@ -1954,40 +1969,73 @@ export default function Demo({ title }: { title?: string }) {
         pfp_url: userContext.user.pfpUrl,
         follower_count: 0,
         following_count: 0,
-        verifiedAddresses: addresses
+        verifiedAddresses: allAddresses
       });
 
-      // Fetch NFTs for each address
-      console.log('Fetching NFTs for addresses...');
+      // Process addresses in batches
+      const BATCH_SIZE = 2;
       const allNFTs: NFT[] = [];
-      for (const address of addresses) {
-        try {
-          console.log(`Fetching NFTs for address: ${address}`);
-          const nftsResponse = await fetch(
-            `https://eth-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}/getNFTs?owner=${address}&withMetadata=true`
-          );
-          
-          if (!nftsResponse.ok) {
-            console.error(`Failed to fetch NFTs for address ${address}:`, nftsResponse.status);
-            continue;
+      let totalProcessed = 0;
+      
+      for (let i = 0; i < allAddresses.length; i += BATCH_SIZE) {
+        const batch = allAddresses.slice(i, i + BATCH_SIZE);
+        console.log(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1}:`, batch);
+
+        const batchPromises = batch.map(async (address) => {
+          try {
+            const url = `https://eth-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}/getNFTsForOwner?owner=${address}&withMetadata=true&pageSize=100`;
+            console.log('[NFT Fetch] Attempting mainnet fetch:', url.replace(process.env.NEXT_PUBLIC_ALCHEMY_API_KEY || '', 'HIDDEN_KEY'));
+            
+            const response = await fetch(url);
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const data = await response.json();
+            return { address, nfts: data.ownedNfts || [] };
+          } catch (error) {
+            console.error(`[NFT Fetch] Error fetching NFTs for ${address}:`, error);
+            return { address, nfts: [] };
           }
-          
-          const nftsData = await nftsResponse.json();
-          console.log(`Found ${nftsData.ownedNfts.length} NFTs for address ${address}`);
-          
-          const processedNFTs = nftsData.ownedNfts
-            .map((nft: any) => processNFTMetadata(nft))
+        });
+
+        const batchResults = await Promise.all(batchPromises);
+        
+        // Process NFTs from this batch
+        for (const result of batchResults) {
+          const processedNFTs = result.nfts
+            .map((nft: any) => {
+              try {
+                return processNFTMetadata(nft);
+              } catch (error) {
+                console.warn('[NFT Processing] Error:', error);
+                return null;
+              }
+            })
             .filter((nft: NFT | null) => nft && nft.hasValidAudio);
           
-          console.log(`Found ${processedNFTs.length} audio NFTs for address ${address}`);
           allNFTs.push(...processedNFTs);
-        } catch (error) {
-          console.error(`Error fetching NFTs for address ${address}:`, error);
+          totalProcessed += processedNFTs.length;
+        }
+
+        console.log(`Batch ${Math.floor(i / BATCH_SIZE) + 1} results:`, {
+          totalNFTs: totalProcessed,
+          addressesProcessed: batch
+        });
+
+        // Add delay between batches if not the last batch
+        if (i + BATCH_SIZE < allAddresses.length) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
 
+      console.log('Final NFT count:', {
+        total: allNFTs.length,
+        withAudio: allNFTs.filter(nft => nft.hasValidAudio).length
+      });
+
       console.log('Setting NFTs in state:', allNFTs.length);
       setNfts(allNFTs);
+
     } catch (error) {
       console.error('Error in handleViewProfile:', error);
       setError(error instanceof Error ? error.message : 'An error occurred');
@@ -1996,6 +2044,15 @@ export default function Demo({ title }: { title?: string }) {
       setIsProfileMenuOpen(false);
       console.log('=== handleViewProfile END ===');
     }
+  };
+
+  // Helper function to validate audio NFTs
+  const isValidAudioNFT = (url: string): boolean => {
+    const audioExtensions = ['.mp3', '.wav', '.ogg', '.m4a', '.aac'];
+    const lowerUrl = url.toLowerCase();
+    return audioExtensions.some(ext => lowerUrl.endsWith(ext)) || 
+           lowerUrl.includes('audio') ||
+           lowerUrl.includes('music');
   };
 
   // Add back button handler for profile view
