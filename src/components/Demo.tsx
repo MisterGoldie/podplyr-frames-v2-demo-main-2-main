@@ -1879,8 +1879,7 @@ export default function Demo({ title }: { title?: string }) {
 
   // Add function to handle profile view
   const handleViewProfile = async () => {
-    console.log('=== handleViewProfile START ===');
-    console.log('Current userContext:', userContext);
+    console.log('=== START NFT FETCH ===');
     
     if (!userContext?.user) {
       console.error('No user context available');
@@ -1888,14 +1887,29 @@ export default function Demo({ title }: { title?: string }) {
     }
 
     try {
-      console.log('Setting view states...');
+      // Set initial states
       setIsProfileView(true);
       setIsLoadingNFTs(true);
       setError('');
       setNfts([]);
+      setSearchResults([]);
+      setSelectedUser(null);
+
+      // Check API keys
+      const neynarKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
+      const alchemyKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
+      console.log('API Keys present:', {
+        hasNeynarKey: !!neynarKey,
+        hasAlchemyKey: !!alchemyKey
+      });
+
+      // Log user being processed
+      console.log('Processing user:', {
+        fid: userContext.user.fid,
+        username: userContext.user.username
+      });
 
       // First get the custody address from Neynar
-      const neynarKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
       const profileResponse = await fetch(
         `https://api.neynar.com/v2/farcaster/user/bulk?fids=${userContext.user.fid}`,
         {
@@ -1907,75 +1921,53 @@ export default function Demo({ title }: { title?: string }) {
       );
 
       const profileData = await profileResponse.json();
+      console.log('Profile data received:', profileData);
+
       let allAddresses: string[] = [];
 
-      // Get custody address
-      if (profileData.users?.[0]?.custody_address) {
-        allAddresses.push(profileData.users[0].custody_address);
-        console.log('Added custody address:', profileData.users[0].custody_address);
-      }
-
-      // Fetch verified addresses from Airstack
-      console.log('Fetching wallet addresses from Airstack...');
-      const addressQuery = `
-        query GetFarcasterUserWalletAddresses($username: String!) {
-          Socials(
-            input: {
-              filter: {
-                dappName: {_eq: farcaster},
-                profileName: {_eq: $username}
-              },
-              blockchain: ethereum,
-              limit: 50
+      // Get verified addresses from profile data
+      if (profileData.users?.[0]) {
+        const user = profileData.users[0];
+        
+        // Handle verified addresses
+        if (user.verified_addresses) {
+          try {
+            // Log raw data for debugging
+            console.log('Raw verified addresses:', user.verified_addresses);
+            
+            // Extract ETH addresses
+            if (user.verified_addresses.eth_addresses && 
+                Array.isArray(user.verified_addresses.eth_addresses)) {
+              const ethAddresses = user.verified_addresses.eth_addresses
+                .filter((addr: unknown): addr is string => typeof addr === 'string')
+                .map((addr: string) => addr.toLowerCase());
+              
+              allAddresses.push(...ethAddresses);
             }
-          ) {
-            Social {
-              dappName
-              profileName
-              connectedAddresses {
-                address
-              }
-            }
+            
+            console.log('Verified addresses found:', allAddresses);
+          } catch (error) {
+            console.warn('Error processing verified addresses:', error);
           }
         }
-      `;
 
-      const addressResponse = await fetch('https://api.airstack.xyz/gql', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': process.env.NEXT_PUBLIC_AIRSTACK_API_KEY || ''
-        },
-        body: JSON.stringify({ 
-          query: addressQuery,
-          variables: { username: userContext.user.username }
-        })
-      });
+        // Add custody address if it exists
+        if (user.custody_address) {
+          const custodyAddress = user.custody_address.toLowerCase();
+          if (!allAddresses.includes(custodyAddress)) {
+            allAddresses.push(custodyAddress);
+            console.log('Added custody address:', custodyAddress);
+          }
+        }
+      }
 
-      const addressData = await addressResponse.json();
-      const verifiedAddresses = addressData?.data?.Socials?.Social?.[0]?.connectedAddresses?.map(
-        (addr: { address: string }) => addr.address
-      ) || [];
-
-      // Combine and deduplicate addresses
-      allAddresses = [...new Set([...allAddresses, ...verifiedAddresses])];
-      console.log('All addresses to check:', allAddresses);
-
-      // Update UI with user info
-      setSelectedUser({
-        fid: userContext.user.fid,
-        username: userContext.user.username || '',
-        display_name: userContext.user?.displayName || userContext.user?.username,
-        pfp_url: userContext.user.pfpUrl,
-        follower_count: 0,
-        following_count: 0,
-        verifiedAddresses: allAddresses
-      });
+      // Remove duplicates and log final addresses
+      allAddresses = [...new Set(allAddresses)];
+      console.log('Final addresses to check:', allAddresses);
 
       // Process addresses in batches
       const BATCH_SIZE = 2;
       const allNFTs: NFT[] = [];
-      let totalProcessed = 0;
       
       for (let i = 0; i < allAddresses.length; i += BATCH_SIZE) {
         const batch = allAddresses.slice(i, i + BATCH_SIZE);
@@ -1983,15 +1975,10 @@ export default function Demo({ title }: { title?: string }) {
 
         const batchPromises = batch.map(async (address) => {
           try {
-            const url = `https://eth-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}/getNFTsForOwner?owner=${address}&withMetadata=true&pageSize=100`;
-            console.log('[NFT Fetch] Attempting mainnet fetch:', url.replace(process.env.NEXT_PUBLIC_ALCHEMY_API_KEY || '', 'HIDDEN_KEY'));
-            
-            const response = await fetch(url);
-            if (!response.ok) {
-              throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            const data = await response.json();
-            return { address, nfts: data.ownedNfts || [] };
+            // Use the same fetchNFTsForAddress helper function
+            const nfts = await fetchNFTsForAddress(address, alchemyKey || '');
+            console.log(`[NFT Fetch] Found ${nfts.length} NFTs for address ${address}`);
+            return { address, nfts };
           } catch (error) {
             console.error(`[NFT Fetch] Error fetching NFTs for ${address}:`, error);
             return { address, nfts: [] };
@@ -2001,24 +1988,11 @@ export default function Demo({ title }: { title?: string }) {
         const batchResults = await Promise.all(batchPromises);
         
         // Process NFTs from this batch
-        for (const result of batchResults) {
-          const processedNFTs = result.nfts
-            .map((nft: any) => {
-              try {
-                return processNFTMetadata(nft);
-              } catch (error) {
-                console.warn('[NFT Processing] Error:', error);
-                return null;
-              }
-            })
-            .filter((nft: NFT | null) => nft && nft.hasValidAudio);
-          
-          allNFTs.push(...processedNFTs);
-          totalProcessed += processedNFTs.length;
-        }
+        const batchNFTs = batchResults.flatMap(result => result.nfts);
+        allNFTs.push(...batchNFTs);
 
         console.log(`Batch ${Math.floor(i / BATCH_SIZE) + 1} results:`, {
-          totalNFTs: totalProcessed,
+          totalNFTs: allNFTs.length,
           addressesProcessed: batch
         });
 
@@ -2033,7 +2007,7 @@ export default function Demo({ title }: { title?: string }) {
         withAudio: allNFTs.filter(nft => nft.hasValidAudio).length
       });
 
-      console.log('Setting NFTs in state:', allNFTs.length);
+      // Update state with found NFTs
       setNfts(allNFTs);
 
     } catch (error) {
@@ -2042,7 +2016,7 @@ export default function Demo({ title }: { title?: string }) {
     } finally {
       setIsLoadingNFTs(false);
       setIsProfileMenuOpen(false);
-      console.log('=== handleViewProfile END ===');
+      console.log('=== END NFT FETCH ===');
     }
   };
 
@@ -2265,7 +2239,6 @@ export default function Demo({ title }: { title?: string }) {
                   {/* My Media button */}
                   <button
                     type="button"
-                    onMouseEnter={() => console.log('Button hover')}
                     onMouseDown={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -2275,7 +2248,6 @@ export default function Demo({ title }: { title?: string }) {
                       setShowLikedNFTs(false);
                       setIsProfileView(true);
                       setIsProfileMenuOpen(false);
-                      setLikedNFTs([]); // Clear liked NFTs
                       
                       if (userContext?.user) {
                         handleViewProfile()
