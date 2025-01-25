@@ -95,7 +95,7 @@ KV_REST_API_TOKEN=               # Upstash Redis token
 
 1. Clone the repository:
    ```bash
-   git clone [repository-url]
+   git clone https://github.com/MisterGoldie/podplyr-frames-v2-demo-main-2-main
    cd podplyr
    ```
 
