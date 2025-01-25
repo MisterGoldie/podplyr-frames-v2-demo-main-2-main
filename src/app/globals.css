@@ -46,19 +46,3 @@ body {
     transform: scaleY(1.2);
   }
 }
-
-/* Hide scrollbar but keep functionality */
-.hide-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-.hide-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-
-/* Smooth scrolling */
-.overflow-x-auto {
-  scroll-behavior: smooth;
-  -webkit-overflow-scrolling: touch;
-}
