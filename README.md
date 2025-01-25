@@ -1,7 +1,7 @@
 # PodPlayr 🎵
 
 <div align="center">
-  <img src="public/mainlogo.png" alt="PodPlayr Logo" width="200"/>
+  <img src="public/splash.png" alt="PodPlayr Logo" width="200"/>
 </div>
 
 A modern web3-enabled media player for NFT audio content, built with Next.js and blockchain technology. PodPlayr allows users to play and manage their NFT audio content with a sleek, user-friendly interface while leveraging blockchain technology for ownership verification.
