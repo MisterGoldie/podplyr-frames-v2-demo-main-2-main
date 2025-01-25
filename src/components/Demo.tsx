@@ -533,23 +533,46 @@ const IPFS_GATEWAYS = [
   'https://gateway.ipfs.io/ipfs/'
 ];
 
-const processMediaUrl = (url: string): string => {
+const processMediaUrl = (url: string | undefined): string => {
   if (!url) return '';
 
-  // Handle Arweave URLs
-  if (url.startsWith('ar://')) {
-    const arweaveHash = url.replace('ar://', '');
-    return `https://arweave.net/${arweaveHash}`;
+  // Trim any whitespace and remove any duplicate URLs that might have been concatenated
+  const trimmedUrl = url.trim();
+  
+  // Handle Arweave URLs - check if it's a direct Arweave hash
+  if (trimmedUrl.match(/^[a-zA-Z0-9_-]{43}$/)) {
+    return `https://arweave.net/${trimmedUrl}`;
+  }
+
+  // Handle Arweave URLs with protocol
+  if (trimmedUrl.startsWith('ar://')) {
+    const hash = trimmedUrl.slice(5);
+    return `https://arweave.net/${hash}`;
+  }
+
+  // Handle direct arweave.net URLs that might have been duplicated
+  if (trimmedUrl.includes('arweave.net')) {
+    const match = trimmedUrl.match(/https:\/\/arweave\.net\/([a-zA-Z0-9_-]{43})/);
+    if (match) {
+      return `https://arweave.net/${match[1]}`;
+    }
   }
 
   // Handle IPFS URLs
-  if (url.startsWith('ipfs://')) {
-    const ipfsHash = url.replace('ipfs://', '');
-    return `https://ipfs.io/ipfs/${ipfsHash}`;
+  if (trimmedUrl.startsWith('ipfs://')) {
+    return `${IPFS_GATEWAYS[0]}${trimmedUrl.slice(7)}`;
   }
 
-  // Return unchanged if it's already an HTTP(S) URL
-  return url;
+  // For regular HTTP(S) URLs, ensure no duplication and proper encoding
+  if (trimmedUrl.startsWith('http://') || trimmedUrl.startsWith('https://')) {
+    // Remove any duplicated URLs that might have been concatenated
+    const urlParts = trimmedUrl.split(/https?:\/\//);
+    const lastPart = urlParts[urlParts.length - 1];
+    return `https://${lastPart}`;
+  }
+
+  // If it's not a recognized format, return the encoded URL
+  return encodeURI(trimmedUrl);
 };
 
 // Update the MediaRenderer component props interface and implementation
@@ -1227,6 +1250,39 @@ export default function Demo({ title }: { title?: string }) {
     [] // Empty dependency array since handleSearch is defined in the component
   );
 
+  // Add these utility functions near the top of the file
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+  const fetchWithRetry = async (url: string, options: RequestInit, maxRetries = 3): Promise<Response> => {
+    let lastError: Error | null = null;
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const response = await fetch(url, options);
+        
+        // If we hit the rate limit, wait and retry
+        if (response.status === 429) {
+          const retryAfter = response.headers.get('Retry-After');
+          const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : (attempt + 1) * 2000;
+          console.log(`Rate limited, waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
+          await delay(waitTime);
+          continue;
+        }
+        
+        return response;
+      } catch (error) {
+        console.warn(`Attempt ${attempt + 1} failed:`, error);
+        lastError = error as Error;
+        
+        // Wait longer between retries
+        await delay(1000 * (attempt + 1));
+      }
+    }
+    
+    throw lastError || new Error('Failed to fetch after retries');
+  };
+
+  // Update the fetchNFTsForAddress function
   const fetchNFTsForAddress = async (address: string, alchemyKey: string) => {
     try {
       const allNFTs: NFT[] = [];
@@ -1244,7 +1300,7 @@ export default function Demo({ title }: { title?: string }) {
       
       console.log('[NFT Fetch] Attempting mainnet fetch:', mainnetUrl.replace(alchemyKey, 'HIDDEN_KEY'));
 
-      const response = await fetch(mainnetUrl, options);
+      const response = await fetchWithRetry(mainnetUrl, options);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${await response.text()}`);
@@ -1271,11 +1327,13 @@ export default function Demo({ title }: { title?: string }) {
         allNFTs.push(...processedNFTs);
       }
 
-      // Try Base network with same format
+      // Try Base network with same format, but with delay to avoid rate limits
       try {
+        await delay(1000); // Wait 1 second before making Base request
+        
         const baseUrl = `https://base-mainnet.g.alchemy.com/v2/${alchemyKey}/getNFTsForOwner?owner=${address}&withMetadata=true&pageSize=100`;
         
-        const baseResponse = await fetch(baseUrl, options);
+        const baseResponse = await fetchWithRetry(baseUrl, options);
         
         if (baseResponse.ok) {
           const baseData = await baseResponse.json();
@@ -1309,7 +1367,7 @@ export default function Demo({ title }: { title?: string }) {
     }
   };
 
-  // Update handleUserSelect with better error handling
+  // Update handleUserSelect to process addresses sequentially instead of in parallel
   const handleUserSelect = async (user: FarcasterUser) => {
     try {
       await trackUserSearch(user);
@@ -1332,14 +1390,8 @@ export default function Demo({ title }: { title?: string }) {
         throw new Error('Missing API keys - check your environment variables');
       }
 
-      // Log the user data we're working with
-      console.log('Processing user:', {
-        fid: user.fid,
-        username: user.username
-      });
-
       // Fetch user profile from Neynar
-      const profileResponse = await fetch(
+      const profileResponse = await fetchWithRetry(
         `https://api.neynar.com/v2/farcaster/user/bulk?fids=${user.fid}`,
         {
           headers: {
@@ -1351,37 +1403,26 @@ export default function Demo({ title }: { title?: string }) {
 
       if (!profileResponse.ok) {
         const errorText = await profileResponse.text();
-        console.error('Profile fetch failed:', {
-          status: profileResponse.status,
-          statusText: profileResponse.statusText,
-          error: errorText
-        });
         throw new Error(`Failed to fetch user profile: ${errorText}`);
       }
 
       const profileData = await profileResponse.json();
-      console.log('Profile data received:', profileData);
-
       let allAddresses: string[] = [];
 
       // Get verified addresses
       if (profileData.users?.[0]?.verifications) {
         allAddresses = [...profileData.users[0].verifications];
-        console.log('Verified addresses found:', allAddresses);
       }
 
       // Get custody address
       if (profileData.users?.[0]?.custody_address) {
         allAddresses.push(profileData.users[0].custody_address);
-        console.log('Added custody address:', profileData.users[0].custody_address);
       }
 
       // Filter addresses
       allAddresses = [...new Set(allAddresses)].filter(addr => 
         addr && addr.startsWith('0x') && addr.length === 42
       );
-
-      console.log('Final addresses to check:', allAddresses);
 
       if (allAddresses.length === 0) {
         throw new Error('No valid addresses found for this user');
@@ -1392,27 +1433,23 @@ export default function Demo({ title }: { title?: string }) {
         verifiedAddresses: allAddresses
       });
 
-      // Process addresses in smaller batches
-      const batchSize = 3;
+      // Process addresses sequentially instead of in batches
       const allNFTs: NFT[] = [];
-
-      for (let i = 0; i < allAddresses.length; i += batchSize) {
-        const addressBatch = allAddresses.slice(i, i + batchSize);
-        console.log(`Processing batch ${i/batchSize + 1}:`, addressBatch);
+      
+      for (let i = 0; i < allAddresses.length; i++) {
+        const address = allAddresses[i];
+        console.log(`Processing address ${i + 1}/${allAddresses.length}:`, address);
         
         try {
-          const batchResults = await Promise.all(
-            addressBatch.map(address => fetchNFTsForAddress(address, alchemyKey))
-          );
+          const nfts = await fetchNFTsForAddress(address, alchemyKey);
+          allNFTs.push(...nfts);
           
-          console.log(`Batch ${i/batchSize + 1} results:`, {
-            totalNFTs: batchResults.flat().length,
-            addressesProcessed: addressBatch
-          });
-          
-          allNFTs.push(...batchResults.flat());
-        } catch (batchError) {
-          console.error(`Error processing batch ${i/batchSize + 1}:`, batchError);
+          // Add delay between addresses if not the last one
+          if (i < allAddresses.length - 1) {
+            await delay(2000); // Wait 2 seconds between addresses
+          }
+        } catch (error) {
+          console.error(`Error processing address ${address}:`, error);
         }
       }
 
@@ -1908,7 +1945,7 @@ export default function Demo({ title }: { title?: string }) {
       });
 
       // First get the custody address from Neynar
-      const profileResponse = await fetch(
+      const profileResponse = await fetchWithRetry(
         `https://api.neynar.com/v2/farcaster/user/bulk?fids=${userContext.user.fid}`,
         {
           headers: {
