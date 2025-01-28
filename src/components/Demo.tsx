@@ -2363,12 +2363,12 @@ export default function Demo({ title }: { title?: string }) {
               </button>
               <div className="flex-grow">
                 <SearchBar onSearch={handleSearch} isSearching={isSearching} />
+                </div>
               </div>
-            </div>
 
             {/* Search Results */}
             {searchResults.length > 0 && !selectedUser && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-8">
                 {searchResults.map((user, index) => (
                   <button
                     key={`search-${user.fid}-${index}`}
@@ -2398,6 +2398,55 @@ export default function Demo({ title }: { title?: string }) {
                     </div>
                   </button>
                 ))}
+              </div>
+            )}
+
+            {/* Recently Played Section - Show when no search results and not viewing a user */}
+            {!searchResults.length && !selectedUser && (
+              <div className="mt-8">
+                <h2 className="text-xl font-mono text-green-400 mb-4">Recently Played</h2>
+                <div className="space-y-2">
+                  {topPlayedNFTs.slice(0, 10).map(({nft}) => (
+                    <div 
+                      key={`${nft.contract}-${nft.tokenId}`}
+                      className="bg-gray-800/30 backdrop-blur-sm rounded-lg p-3 flex items-center gap-4 hover:bg-gray-800/50 transition-colors cursor-pointer group"
+                      onClick={() => handlePlayAudio(nft)}
+                    >
+                      {/* NFT Image */}
+                      <div className="w-12 h-12 rounded overflow-hidden flex-shrink-0">
+                        <NFTImage
+                          src={nft.metadata?.image || ''}
+                          alt={nft.name}
+                          className="w-full h-full object-cover"
+                          width={48}
+                          height={48}
+                          priority={true}
+                        />
+                      </div>
+                      
+                      {/* Track Info */}
+                      <div className="flex-grow min-w-0">
+                        <h3 className="font-mono text-white text-sm truncate">{nft.name}</h3>
+                        <p className="font-mono text-gray-400 text-xs truncate">{nft.collection?.name}</p>
+                      </div>
+                      
+                      {/* Play Button */}
+                      <button 
+                        className="w-10 h-10 rounded-full bg-green-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex-shrink-0"
+                      >
+                        {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
+                          <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="currentColor">
+                            <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
+                          </svg>
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="currentColor">
+                            <path d="M320-200v-560l440 280-440 280Z"/>
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
