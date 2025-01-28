@@ -837,6 +837,15 @@ interface PageState {
   isProfile: boolean;
 }
 
+// Add near the top with other utility functions
+const formatTime = (seconds: number): string => {
+  if (!seconds) return '0:00';
+  
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = Math.floor(seconds % 60);
+  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+};
+
 export default function Demo({ title }: { title?: string }) {
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
   const [userContext, setUserContext] = useState<ExtendedFrameContext>();
@@ -2726,6 +2735,7 @@ export default function Demo({ title }: { title?: string }) {
 
               {/* Controls */}
               <div className="flex items-center gap-4">
+                {/* Play/Pause Button */}
                 <button 
                   onClick={handlePlayPause}
                   className="text-green-400 hover:text-green-300"
@@ -2740,7 +2750,136 @@ export default function Demo({ title }: { title?: string }) {
                     </svg>
                   )}
                 </button>
+
+                {/* Expand Button */}
+                <button 
+                  onClick={() => setIsPlayerMinimized(false)}
+                  className="text-green-400 hover:text-green-300"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                    <path d="M120-120v-280h80v280h280v80H120v-80Zm560-560h280v280h-80v-280h-280v-80h360v360h-80v-280ZM120-840h360v80H200v280h-80v-360Z"/>
+                  </svg>
+                </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Full Screen Player */}
+      {currentPlayingNFT && !isPlayerMinimized && (
+        <div className="fixed inset-0 bg-gray-900/95 backdrop-blur-md z-50 flex flex-col">
+          {/* Header */}
+          <div className="p-4 flex items-center justify-between border-b border-green-400/20">
+            <button 
+              onClick={() => setIsPlayerMinimized(true)}
+              className="text-green-400 hover:text-green-300"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                <path d="m336-280-56-56 184-184-184-184 56-56 240 240-240 240Z"/>
+              </svg>
+            </button>
+            <h3 className="font-mono text-green-400">Now Playing</h3>
+            <div className="w-8"></div>
+          </div>
+
+          {/* Main Content */}
+          <div className="flex-1 overflow-y-auto p-4">
+            {/* NFT Image */}
+            <div className="aspect-square w-full max-w-md mx-auto mb-8 rounded-lg overflow-hidden">
+              {currentPlayingNFT.isVideo || currentPlayingNFT.metadata?.animation_url ? (
+                <video
+                  ref={videoRef}
+                  src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || '')}
+                  className="w-full h-full object-cover"
+                  playsInline
+                  loop={currentPlayingNFT.isAnimation}
+                  muted={true}
+                  controls={false}
+                  autoPlay={isPlaying}
+                />
+              ) : (
+                <Image
+                  src={processMediaUrl(currentPlayingNFT.metadata?.image || '')}
+                  alt={currentPlayingNFT.name}
+                  className="w-full h-full object-cover"
+                  width={500}
+                  height={500}
+                  priority={true}
+                />
+              )}
+            </div>
+
+            {/* Track Info */}
+            <div className="text-center mb-8">
+              <h2 className="font-mono text-green-400 text-xl mb-2">{currentPlayingNFT.name}</h2>
+              <p className="font-mono text-gray-400">{currentPlayingNFT.collection?.name}</p>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="max-w-md mx-auto mb-8">
+              <div 
+                className="h-1 bg-gray-800 rounded-full cursor-pointer"
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const percent = (e.clientX - rect.left) / rect.width;
+                  handleSeek(memoizedAudioDurations * percent);
+                }}
+              >
+                <div 
+                  className="h-full bg-green-400 rounded-full"
+                  style={{ width: `${(audioProgress / memoizedAudioDurations) * 100}%` }}
+                />
+              </div>
+              <div className="flex justify-between mt-2 font-mono text-gray-400 text-sm">
+                <span>{formatTime(audioProgress)}</span>
+                <span>{formatTime(memoizedAudioDurations)}</span>
+              </div>
+            </div>
+
+            {/* Controls */}
+            <div className="flex justify-center items-center gap-8">
+              {/* Like Button */}
+              <button 
+                onClick={() => handleLikeToggle(currentPlayingNFT)}
+                className="text-white hover:scale-110 transition-transform"
+              >
+                {isNFTLiked(currentPlayingNFT) ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" height="32" viewBox="0 -960 960 960" width="32" fill="currentColor" className="text-red-500">
+                    <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" height="32" viewBox="0 -960 960 960" width="32" fill="currentColor">
+                    <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Zm0-108q96-86 158-147.5t98-107q36-45.5 50-81t14-70.5q0-60-40-100t-100-40q-47 0-87 26.5T518-680h-76q-15-41-55-67.5T300-774q-60 0-100 40t-40 100q0 35 14 70.5t50 81q36 45.5 98 107T480-228Zm0-273Z"/>
+                  </svg>
+                )}
+              </button>
+
+              {/* Play/Pause Button */}
+              <button 
+                onClick={handlePlayPause}
+                className="w-16 h-16 rounded-full bg-green-400 text-black flex items-center justify-center hover:scale-105 transition-transform"
+              >
+                {isPlaying ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px" fill="currentColor">
+                    <path d="M560-200v-560h80v560H560Zm-320 0v-560h80v560H240Z"/>
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px" fill="currentColor">
+                    <path d="M320-200v-560l440 280-440 280Z"/>
+                  </svg>
+                )}
+              </button>
+
+              {/* PiP Button */}
+              <button 
+                onClick={togglePictureInPicture}
+                className="text-white hover:scale-110 transition-transform"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" height="32" viewBox="0 -960 960 960" width="32" fill="currentColor">
+                  <path d="M560-120v-80h280v-280h80v360H560Zm-520 0v-360h80v280h280v80H40Zm520-520v-280h280v80H640v200h-80ZM120-640v-200h280v-80H40v280h80Z"/>
+                </svg>
+              </button>
             </div>
           </div>
         </div>
