@@ -2521,6 +2521,71 @@ export default function Demo({ title }: { title?: string }) {
         )}
       </div>
 
+      {/* Media Player - Minimized Mode */}
+      {currentPlayingNFT && (
+        <div className="fixed bottom-[64px] left-0 right-0 bg-gray-900/95 backdrop-blur-md border-t border-green-400/20 h-20 z-30">
+          {/* Progress bar */}
+          <div 
+            className="absolute top-0 left-0 right-0 h-1 bg-gray-800 cursor-pointer group"
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const percent = (e.clientX - rect.left) / rect.width;
+              handleSeek(memoizedAudioDurations * percent);
+            }}
+          >
+            <div 
+              className="absolute top-0 left-0 h-0.5 bg-red-500 transition-all duration-100 group-hover:h-1"
+              style={{ width: `${(audioProgress / memoizedAudioDurations) * 100}%` }}
+            />
+          </div>
+
+          {/* Player content */}
+          <div className="container mx-auto h-full pt-2">
+            <div className="flex items-center justify-between h-[calc(100%-8px)] px-4 gap-4">
+              {/* Thumbnail and title */}
+              <div className="flex items-center gap-4 flex-1 min-w-0">
+                <div className="w-12 h-12 flex-shrink-0 relative rounded overflow-hidden">
+                  <NFTImage
+                    src={currentPlayingNFT.metadata?.image || ''}
+                    alt={currentPlayingNFT.name}
+                    className="w-full h-full object-cover"
+                    width={48}
+                    height={48}
+                    priority={true}
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-mono text-green-400 truncate text-sm">
+                    {currentPlayingNFT.name}
+                  </h4>
+                  <p className="font-mono text-gray-400 truncate text-xs">
+                    {currentPlayingNFT.collection?.name}
+                  </p>
+                </div>
+              </div>
+
+              {/* Controls */}
+              <div className="flex items-center gap-4">
+                <button 
+                  onClick={handlePlayPause}
+                  className="text-green-400 hover:text-green-300"
+                >
+                  {isPlaying ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                      <path d="M560-200v-560h80v560H560Zm-320 0v-560h80v560H240Z"/>
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                      <path d="M320-200v-560l440 280-440 280Z"/>
+                    </svg>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-md border-t border-green-400/20 h-[64px] z-40">
         <div className="container mx-auto px-4 py-2.5">
