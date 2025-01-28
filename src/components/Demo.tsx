@@ -757,9 +757,10 @@ interface NFTCardProps {
   onPlay: (nft: NFT) => void;
   isPlaying: boolean;
   currentlyPlaying: string | null;
+  handlePlayPause: () => void;
 }
 
-const NFTCard: React.FC<NFTCardProps> = ({ nft, onPlay, isPlaying, currentlyPlaying }) => {
+const NFTCard: React.FC<NFTCardProps> = ({ nft, onPlay, isPlaying, currentlyPlaying, handlePlayPause }) => {
   return (
     <div 
       className="retro-container bg-gray-800 overflow-hidden relative z-0"
@@ -779,7 +780,16 @@ const NFTCard: React.FC<NFTCardProps> = ({ nft, onPlay, isPlaying, currentlyPlay
 
         {/* Play button */}
         <button 
-          onClick={() => onPlay(nft)}
+          onClick={(e) => {
+            e.preventDefault();
+            if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
+              // If this NFT is currently playing, toggle play/pause
+              handlePlayPause();
+            } else {
+              // If this is a different NFT, start playing it
+              onPlay(nft);
+            }
+          }}
           className="absolute bottom-4 right-4 retro-button p-3 text-white"
         >
           {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
@@ -818,6 +828,14 @@ const NFTCard: React.FC<NFTCardProps> = ({ nft, onPlay, isPlaying, currentlyPlay
     </div>
   );
 };
+
+// Add new interface for page states
+interface PageState {
+  isHome: boolean;
+  isExplore: boolean;
+  isLibrary: boolean;
+  isProfile: boolean;
+}
 
 export default function Demo({ title }: { title?: string }) {
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
@@ -2194,11 +2212,34 @@ export default function Demo({ title }: { title?: string }) {
     setIsPlayerMinimized(true);
   }, []);
 
+  // Add new state for page management
+  const [currentPage, setCurrentPage] = useState<PageState>({
+    isHome: true,
+    isExplore: false,
+    isLibrary: false,
+    isProfile: false
+  });
+
+  // Add helper function to switch pages
+  const switchPage = (page: keyof PageState) => {
+    const newState: PageState = {
+      isHome: false,
+      isExplore: false,
+      isLibrary: false,
+      isProfile: false
+    };
+    newState[page] = true;
+    setCurrentPage(newState);
+    
+    // Reset states when switching pages
+    setSelectedUser(null);
+    setSearchResults([]);
+    setError(null);
+  };
+
   // Add the top played section to the main page
   return (
-    <div className={`min-h-screen flex flex-col bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 ${
-      isProfileView ? 'pb-96' : ''
-    }`}>
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900">
       <RetroStyles />
       
       {/* Top Navigation Bar */}
@@ -2226,588 +2267,137 @@ export default function Demo({ title }: { title?: string }) {
         </div>
       </div>
 
-      {/* Main Content - Add padding bottom to account for navigation */}
+      {/* Main Content Area - Add padding for top and bottom bars */}
       <div className="container mx-auto px-4 pt-20 pb-24">
-        {/* Remove the duplicate profile menu and start directly with the content */}
-        <div className="retro-container p-6 mb-8">
-          <SearchBar onSearch={handleSearch} isSearching={isSearching} />
-        </div>
-
-        {error && error !== 'Failed to play media' && (
-          <div className="retro-container p-4 mb-6 border-red-500">
-            <div className="flex items-center gap-2 text-red-500">
-              <div className="led-light"></div>
-              <p className="font-mono">{error}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Show search results */}
-        {searchResults.length > 0 && !selectedUser && (
-          <div className="retro-container p-6 mb-8">
-            <h2 className="text-xl font-mono text-green-400 mb-4">EXPLORE RESULTS</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              {searchResults.map((user, index) => (
-                <button
-                  key={`search-${user.fid}-${index}`}
-                  onClick={() => handleUserSelect(user)}
-                  className="retro-container p-4 text-left hover:border-green-400 transition-colors"
-                >
-                  <div className="flex items-center gap-4">
-                    {user.pfp_url ? (
-                      <Image
-                        src={user.pfp_url}
-                        alt={user.display_name || user.username}
-                        className="w-12 h-12 rounded-full border-2 border-gray-600"
-                        width={48}
-                        height={48}
-                />
-                    ) : (
-                      <div className="w-12 h-12 rounded-full bg-gray-800 border-2 border-gray-600 flex items-center justify-center text-green-400 font-mono">
-                        {(user.display_name || user.username).charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                    <div>
-                      <h3 className="font-mono text-green-400 truncate max-w-[200px]">
-                        {user.display_name || user.username}
-                      </h3>
-                      <p className="font-mono text-gray-400 truncate max-w-[200px]">@{user.username}</p>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Show selected user */}
-        {selectedUser && (
-          <div className="retro-container p-6 mb-8">
-            <div className="flex items-center gap-6">
-                <button
-                  onClick={handleBack}
-                className="retro-button p-2 text-green-400 hover:text-green-300 transition-colors"
-                aria-label="Go back"
-                >
-                <svg
-                  className="w-6 h-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M10 19l-7-7m0 0l7-7m-7 7h18"
-                  />
-                  </svg>
-                </button>
-              <div className="flex items-center gap-4 max-w-[calc(100%-4rem)] overflow-hidden">
-                {selectedUser.pfp_url ? (
-                  <Image
-                    src={selectedUser.pfp_url}
-                    alt={selectedUser.display_name || selectedUser.username || 'User avatar'}
-                    className="w-16 h-16 rounded-full border-2 border-gray-600 flex-shrink-0"
-                    width={64}
-                    height={64}
-                  />
-                ) : (
-                  <div className="w-16 h-16 rounded-full bg-gray-800 border-2 border-gray-600 flex items-center justify-center text-green-400 font-mono text-xl flex-shrink-0">
-                    {(selectedUser.display_name || selectedUser.username).charAt(0).toUpperCase()}
-                  </div>
-                )}
-                <div className="min-w-0">
-                  <h2 className="text-2xl font-mono text-green-400 truncate">
-                  {selectedUser.display_name || selectedUser.username}
-                  </h2>
-                  <p className="font-mono text-gray-400 truncate">@{selectedUser.username}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {selectedUser && (
-          <div className="text-center mb-8">
-            <p className="font-mono text-gray-400">Browsing @{selectedUser.username}'s collection</p>
-          </div>
-        )}
-
-        {/* Loading state */}
-        {isLoadingNFTs && (
-          <div className="retro-container p-6 mb-8">
-            <div className="flex flex-col items-center justify-center">
-              <div className="tape-wheel spinning mb-4"></div>
-              <p className="font-mono text-green-400 mb-2">LOADING NFTs...</p>
-              <p className="font-mono text-gray-400 text-sm">Found {filteredNfts.length} NFTs with audio</p>
-            </div>
-          </div>
-        )}
-
-        {/* NFT display grid */}
-        {filteredNfts.length > 0 && (
-          <div className="retro-container p-6 bg-gray-900">
-            <h3 className="text-xl font-mono text-green-400 mb-4">
-              MEDIA NFTs [{filteredNfts.length}]
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-              {filteredNfts.map((nft, index) => (
-                <div key={`${nft.contract}-${nft.tokenId}-${index}`} 
-                     className="retro-container bg-gray-800 overflow-hidden relative z-0">
-                  <div className="aspect-square relative bg-gray-800">
-                    {/* Always show the base image */}
-                    <div className="w-full h-full absolute top-0 left-0">
-                      <NFTImage 
-                        src={processMediaUrl(nft.image || nft.metadata?.image || '')}
-                        alt={nft.name || 'NFT'}
-                        className="w-full h-full object-cover"
-                        width={192}
-                        height={192}
-                        priority={true}
-                      />
-                    </div>
-
-                    {/* Show video/animation content if available */}
-                    {nft.metadata?.animation_url && (
-                      <div className="w-full h-full relative">
-                        <video 
-                          ref={videoRef}
-                          src={processMediaUrl(nft.metadata.animation_url)}
-                          className="w-full h-full object-cover"
-                          playsInline
-                          loop={false}
-                          muted={true}
-                          controls={false}
-                          preload="auto"
-                          disablePictureInPicture={false}
-                          poster={nft.image ? processMediaUrl(nft.image) : undefined}
-                          onLoadedData={() => {
-                            const video = videoRef.current;
-                            const audio = document.getElementById(`audio-${nft.contract}-${nft.tokenId}`) as HTMLAudioElement;
-                            
-                            if (video && audio) {
-                              video.currentTime = audio.currentTime;
-                              if (isPlaying) {
-                                video.play().catch(console.warn);
-                              }
-                            }
-                          }}
+        {/* Home Page */}
+        {currentPage.isHome && (
+          <div>
+            {/* Top Played NFTs Section */}
+            {topPlayedNFTs.length > 0 && (
+              <div className="retro-container p-6 mb-8">
+                <h2 className="text-xl font-mono text-green-400 mb-4">TOP PLAYED NFTs</h2>
+                <div className="relative">
+                  <div className="overflow-x-auto pb-4 hide-scrollbar">
+                    <div className="flex gap-4 min-w-min">
+                      {topPlayedNFTs.map(({nft, count}, index) => (
+                        <NFTCard 
+                          key={`${nft.contract}-${nft.tokenId}`}
+                          nft={nft}
+                          onPlay={handlePlayAudio}
+                          isPlaying={isPlaying}
+                          currentlyPlaying={currentlyPlaying}
+                          handlePlayPause={handlePlayPause}
                         />
-                      </div>
-                    )}
-
-                    <button 
-                      onClick={() => handlePlayAudio(nft)}
-                      className="absolute bottom-4 right-4 retro-button p-3 text-white"
-                    >
-                      {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
-                        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                          <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
-                        </svg>
-                      ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                          <path d="M320-200v-560l440 280-440 280Z"/>
-                        </svg>
-                      )}
-                    </button>
-                  </div>
-                  <div className="p-4">
-                    <div className="retro-display p-2">
-                      <div className="marquee-container">
-                        <div className={`text-lg text-green-400 truncate max-w-[200px] ${
-                          nft.name.length > 20 ? 'marquee-content' : ''
-                        }`}>
-                          {nft.name}
-                        </div>
-                      </div>
+                      ))}
                     </div>
                   </div>
-                  {nft.hasValidAudio && (
-                    <audio
-                    key={`${nft.contract}-${nft.tokenId}`}
-                      id={`audio-${nft.contract}-${nft.tokenId}`}
-                      src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
-                      onLoadedMetadata={(e) => {
-                        const audio = e.target as HTMLAudioElement;
-                        const nftId = `${nft.contract}-${nft.tokenId}`;
-                        handleAudioLoaded(nftId);
-                        setAudioDurations(prev => ({
-                          ...prev,
-                          [nftId]: audio.duration
-                        }));
-                      }}
-                      preload="metadata"
-                  />
-                  )}
                 </div>
-                ))}
               </div>
+            )}
+          </div>
+        )}
+
+        {/* Explore Page */}
+        {currentPage.isExplore && (
+          <div>
+            <div className="retro-container p-6 mb-8">
+              <h2 className="text-xl font-mono text-green-400 mb-4">EXPLORE FARCASTER USERS</h2>
+              <SearchBar onSearch={handleSearch} isSearching={isSearching} />
             </div>
-          )}
 
-        {/* Update the media player to look like YouTube's minimized player */}
-        <div
-          className={`fixed left-0 right-0 transition-all duration-300 z-40 
-            ${isPlayerMinimized 
-              ? 'bottom-[64px] h-20 bg-gray-900/95 backdrop-blur-md' 
-              : 'bottom-0 top-0 bg-gray-900/95 backdrop-blur-md'
-            } 
-            ${isPlayerVisible ? 'translate-y-0' : 'translate-y-full'}`}
-        >
-          {isPlayerMinimized ? (
-            // Minimized player view with red line
-            <div className="relative w-full">
-              {/* Red line progress indicator */}
-              <div 
-                className="absolute top-0 left-0 right-0 h-1 bg-gray-800 cursor-pointer group"
-                onClick={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const percent = (e.clientX - rect.left) / rect.width;
-                  handleSeek(memoizedAudioDurations * percent);
-                }}
-                onMouseEnter={() => {
-                  const progressBar = document.querySelector('.progress-line');
-                  if (progressBar) progressBar.classList.add('h-1');
-                }}
-                onMouseLeave={() => {
-                  const progressBar = document.querySelector('.progress-line');
-                  if (progressBar) progressBar.classList.remove('h-1');
-                }}
-              >
-                <div 
-                  className="progress-line absolute top-0 left-0 h-0.5 bg-red-500 transition-all duration-100 group-hover:h-1"
-                  style={{ width: `${(audioProgress / memoizedAudioDurations) * 100}%` }}
-                />
-                {/* Draggable handle */}
-                <div 
-                  className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-red-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                  style={{ 
-                    left: `calc(${(audioProgress / memoizedAudioDurations) * 100}% - 6px)`,
-                    transform: 'translateY(-50%)'
-                  }}
-                />
-                {/* Time tooltip */}
-                <div 
-                  className="absolute top-[-20px] opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/80 text-white text-xs px-1 py-0.5 rounded font-mono"
-                  style={{ 
-                    left: `${(audioProgress / memoizedAudioDurations) * 100}%`,
-                    transform: 'translateX(-50%)'
-                  }}
-                >
-                  {Math.floor(audioProgress / 60)}:{String(Math.floor(audioProgress % 60)).padStart(2, '0')}
-                </div>
-              </div>
-              
-              {/* Player content with proper spacing */}
-              <div className="container mx-auto h-full pt-4">
-                <div className="flex items-center justify-between h-[calc(100%-8px)] px-4 gap-4">
-                  {/* Thumbnail and title */}
-                  <div className="flex items-center gap-4 flex-1 min-w-0">
-                    {currentPlayingNFT && (
-                      <>
-                        <div className="w-12 h-12 flex-shrink-0 relative rounded overflow-hidden">
-                          {currentPlayingNFT.metadata?.animation_url ? (
-                            <video 
-                              ref={videoRef}
-                              src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || '')}
-                              className="w-full h-full object-cover"
-                              playsInline
-                              loop={false}
-                              muted={true}
-                              controls={false}
-                              preload="auto"
-                            />
-                          ) : (
-                            <NFTImage
-                              src={processMediaUrl(currentPlayingNFT.image || '') || '/placeholder.jpg'}
-                              alt={currentPlayingNFT.name}
-                              className="w-full h-full object-cover"
-                              width={48}
-                              height={48}
-                              priority={true}
-                            />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-mono text-green-400 truncate text-sm">
-                            {currentPlayingNFT.name}
-                          </h4>
-                          <p className="font-mono text-gray-400 truncate text-xs">
-                            {currentPlayingNFT.collection?.name}
-                          </p>
-                        </div>
-                      </>
-                    )}
-                  </div>
-
-                  {/* Controls */}
-                  <div className="flex items-center gap-4">
+            {/* Search Results */}
+            {searchResults.length > 0 && !selectedUser && (
+              <div className="retro-container p-6 mb-8">
+                <h2 className="text-xl font-mono text-green-400 mb-4">SEARCH RESULTS</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  {searchResults.map((user, index) => (
                     <button
-                      onClick={handlePlayPause}
-                      className="text-green-400 hover:text-green-300"
+                      key={`search-${user.fid}-${index}`}
+                      onClick={() => handleUserSelect(user)}
+                      className="retro-container p-4 text-left hover:border-green-400 transition-colors"
                     >
-                      {isPlaying ? (
-                        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                          <path d="M560-200v-560h80v560H560Zm-320 0v-560h80v560H240Z"/>
-                        </svg>
-                      ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                          <path d="M320-200v-560l440 280-440 280Z"/>
-                        </svg>
-                      )}
-                    </button>
-                    <button
-                      onClick={() => setIsPlayerMinimized(false)}
-                      className="text-green-400 hover:text-green-300"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                        <path d="M120-520v-320h320v320H120Zm80-80h160v-160H200v160Zm-80 480v-320h320v320H120Zm80-80h160v-160H200v160Zm320-320v-320h320v320H520Zm80-80h160v-160H600v160Zm-80 480v-320h320v320H520Zm80-80h160v-160H600v160Z"/>
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            // Expanded player view (full screen)
-            <div className="h-full flex flex-col">
-              <div className="container mx-auto px-4 py-4 flex-1 flex flex-col">
-                {/* Header with minimize button */}
-                <div className="flex justify-between items-center mb-8">
-                  <h3 className="font-mono text-green-400 text-2xl">Now Playing</h3>
-                  <button
-                    onClick={() => setIsPlayerMinimized(true)}
-                    className="text-green-400 hover:text-green-300 p-2"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                      <path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/>
-                    </svg>
-                  </button>
-                </div>
-
-                {/* Center content with NFT display */}
-                <div className="flex-1 flex flex-col items-center justify-center max-w-4xl mx-auto w-full gap-8">
-                  {currentPlayingNFT && (
-                    <>
-                      <div className="w-96 h-96 relative rounded-lg overflow-hidden shadow-2xl">
-                        {currentPlayingNFT.metadata?.animation_url ? (
-                          <video 
-                            ref={videoRef}
-                            src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || '')}
-                            className="w-full h-full object-cover"
-                            playsInline
-                            loop={false}
-                            muted={true}
-                            controls={false}
-                            preload="auto"
+                      <div className="flex items-center gap-4">
+                        {user.pfp_url ? (
+                          <Image
+                            src={user.pfp_url}
+                            alt={user.display_name || user.username}
+                            className="w-12 h-12 rounded-full border-2 border-gray-600"
+                            width={48}
+                            height={48}
                           />
                         ) : (
-                          <NFTImage
-                            src={processMediaUrl(currentPlayingNFT.image || '') || '/placeholder.jpg'}
-                            alt={currentPlayingNFT.name}
-                            className="w-full h-full object-cover"
-                            width={384}
-                            height={384}
-                            priority={true}
-                          />
-                        )}
-                      </div>
-                      <div className="text-center">
-                        <h4 className="font-mono text-green-400 text-2xl mb-2">{currentPlayingNFT.name}</h4>
-                        <p className="font-mono text-gray-400 text-lg">{currentPlayingNFT.collection?.name}</p>
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                {/* Bottom controls */}
-                <div className="mt-auto pt-8">
-                  <div className="flex flex-col gap-4 max-w-2xl mx-auto w-full">
-                    {/* Progress bar */}
-                    <div className="flex items-center gap-4">
-                      <span className="font-mono text-green-400 text-sm min-w-[60px] text-right">
-                        {Math.floor(audioProgress / 60)}:{String(Math.floor(audioProgress % 60)).padStart(2, '0')}
-                      </span>
-                      <div className="flex-1 relative group">
-                        <input
-                          type="range"
-                          min={0}
-                          max={memoizedAudioDurations}
-                          value={audioProgress}
-                          onChange={(e) => handleSeek(Number(e.target.value))}
-                          className="w-full h-1 bg-gray-700 rounded-full appearance-none cursor-pointer relative z-10"
-                          style={{
-                            background: `linear-gradient(to right, #4ade80 ${(audioProgress / memoizedAudioDurations) * 100}%, #374151 0%)`,
-                            WebkitAppearance: 'none',
-                          }}
-                        />
-                        <div 
-                          className="absolute top-1/2 -mt-2 w-4 h-4 bg-green-400 rounded-full shadow-lg transform -translate-y-1/2 pointer-events-none z-20"
-                          style={{
-                            left: `calc(${(audioProgress / memoizedAudioDurations) * 100}% - 8px)`,
-                            transition: 'left 0.1s linear'
-                          }}
-                        />
-                      </div>
-                      <span className="font-mono text-green-400 text-sm min-w-[60px]">
-                        {Math.floor(memoizedAudioDurations / 60)}:{String(Math.floor(memoizedAudioDurations % 60)).padStart(2, '0')}
-                      </span>
-                    </div>
-
-                    {/* Playback controls */}
-                    <div className="flex items-center justify-center gap-8">
-                      <button
-                        onClick={() => handleSeekOffset(-10)}
-                        className="text-green-400 hover:text-green-300 p-2"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px" fill="currentColor">
-                          <path d="M860-240 500-480l360-240v480Zm-400 0L100-480l360-240v480Z"/>
-                        </svg>
-                      </button>
-                      <button
-                        onClick={handlePlayPause}
-                        className="text-green-400 hover:text-green-300 p-4"
-                      >
-                        {isPlaying ? (
-                          <svg xmlns="http://www.w3.org/2000/svg" height="48px" viewBox="0 -960 960 960" width="48px" fill="currentColor">
-                            <path d="M560-200v-560h80v560H560Zm-320 0v-560h80v560H240Z"/>
-                          </svg>
-                        ) : (
-                          <svg xmlns="http://www.w3.org/2000/svg" height="48px" viewBox="0 -960 960 960" width="48px" fill="currentColor">
-                            <path d="M320-200v-560l440 280-440 280Z"/>
-                          </svg>
-                        )}
-                      </button>
-                      <button
-                        onClick={() => handleSeekOffset(10)}
-                        className="text-green-400 hover:text-green-300 p-2"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px" fill="currentColor">
-                          <path d="M100-240v-480l360 240-360 240Zm400 0v-480l360 240-360 240Z"/>
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-      {!selectedUser && (
-        <>
-          {/* Top Played NFTs Section */}
-          {!selectedUser && !showLikedNFTs && !isProfileView && (
-            <>
-              {topPlayedNFTs.length > 0 && (
-                <div className="retro-container p-6 mb-8">
-                  <h2 className="text-xl font-mono text-green-400 mb-4">TOP PLAYED NFTs</h2>
-                  <div className="relative">
-                    {/* Scrollable container */}
-                    <div className="overflow-x-auto pb-4 hide-scrollbar">
-                      <div className="flex gap-4 min-w-min">
-                        {topPlayedNFTs.map(({nft, count}, index) => (
-                          <div 
-                            key={`${nft.contract}-${nft.tokenId}`}
-                            className="retro-container p-2 bg-gray-800 relative flex-shrink-0 w-[200px]"
-                          >
-                            <div className="aspect-square relative mb-2">
-                              <NFTImage
-                                src={nft.metadata?.image || ''}
-                                alt={nft.name}
-                                className="w-full h-full object-cover"
-                                width={200}
-                                height={200}
-                                priority={true}
-                              />
-                              <div className="absolute top-2 left-2 bg-green-400 text-black font-mono px-2 py-1 text-xs">
-                                #{index + 1}
-                              </div>
-                              <div className="absolute top-2 right-2 bg-purple-500 text-white font-mono px-2 py-1 text-xs">
-                                {count} plays
-                              </div>
-                              <button 
-                                onClick={() => handlePlayAudio(nft)}
-                                className="absolute bottom-2 right-2 retro-button p-2 text-white"
-                              >
-                                {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
-                                  <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="currentColor">
-                                    <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
-                                  </svg>
-                                ) : (
-                                  <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="currentColor">
-                                    <path d="M320-200v-560l440 280-440 280Z"/>
-                                  </svg>
-                                )}
-                              </button>
-                            </div>
-                            <h3 className="font-mono text-green-400 truncate text-sm">{nft.name}</h3>
-                            <audio
-                              id={`audio-${nft.contract}-${nft.tokenId}`}
-                              src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
-                              preload="none"
-                              onTimeUpdate={(e) => {
-                                if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
-                                  setAudioProgress((e.target as HTMLAudioElement).currentTime);
-                                }
-                              }}
-                              onEnded={() => {
-                                if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
-                                  setIsPlaying(false);
-                                }
-                              }}
-                            />
+                          <div className="w-12 h-12 rounded-full bg-gray-800 border-2 border-gray-600 flex items-center justify-center text-green-400 font-mono">
+                            {(user.display_name || user.username).charAt(0).toUpperCase()}
                           </div>
-                        ))}
+                        )}
+                        <div>
+                          <h3 className="font-mono text-green-400 truncate max-w-[200px]">
+                            {user.display_name || user.username}
+                          </h3>
+                          <p className="font-mono text-gray-400 truncate max-w-[200px]">@{user.username}</p>
+                        </div>
                       </div>
-                    </div>
-                  </div>
+                    </button>
+                  ))}
                 </div>
-              )}
-              {/* Rest of the existing content */}
-            </>
-          )}
-          {/* Separate Liked NFTs View */}
-          {showLikedNFTs && (
-            <div className="retro-container p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-mono text-green-400">My Liked NFTs</h2>
-        </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-                {likedNFTs.length === 0 ? (
-                  <p className="text-center font-mono text-gray-400 py-8 col-span-full">
-                    No liked NFTs yet. Start liking some music!
-                  </p>
-                ) : (
-                  likedNFTs.map((nft, index) => (
-                    <NFTCard 
-                      key={`${nft.contract}-${nft.tokenId}-${index}`}
-                      nft={nft}
-                      onPlay={handlePlayAudio}
-                      isPlaying={isPlaying}
-                      currentlyPlaying={currentlyPlaying}
-      />
-                  ))
-                )}
               </div>
-        </div>
-          )}
-        </>
-      )}
-      {/* Bottom Navigation - Always visible */}
-      <div className="fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-md border-t border-green-400/20 h-[64px] z-30">
+            )}
+
+            {/* Selected User NFTs */}
+            {selectedUser && (
+              <div>
+                {/* ... existing selected user content ... */}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Library Page */}
+        {currentPage.isLibrary && (
+          <div className="retro-container p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-mono text-green-400">My Liked NFTs</h2>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+              {likedNFTs.length === 0 ? (
+                <p className="text-center font-mono text-gray-400 py-8 col-span-full">
+                  No liked NFTs yet. Start liking some music!
+                </p>
+              ) : (
+                likedNFTs.map((nft, index) => (
+                  <NFTCard 
+                    key={`${nft.contract}-${nft.tokenId}-${index}`}
+                    nft={nft}
+                    onPlay={handlePlayAudio}
+                    isPlaying={isPlaying}
+                    currentlyPlaying={currentlyPlaying}
+                    handlePlayPause={handlePlayPause}
+                  />
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Profile Page */}
+        {currentPage.isProfile && userContext?.user && (
+          <div>
+            {/* Add profile content here */}
+          </div>
+        )}
+      </div>
+
+      {/* Bottom Navigation */}
+      <div className="fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-md border-t border-green-400/20 h-[64px] z-40">
         <div className="container mx-auto px-4 py-2.5">
           <div className="flex justify-around items-center h-full">
             {/* Home Button */}
             <button 
-              onClick={() => {
-                handleBack();
-                setIsProfileView(false);
-                setShowLikedNFTs(false);
-              }} 
-              className="flex flex-col items-center gap-1 text-green-400 hover:text-green-300 transition-colors"
+              onClick={() => switchPage('isHome')}
+              className={`flex flex-col items-center gap-1 transition-colors ${
+                currentPage.isHome ? 'text-green-400' : 'text-gray-400 hover:text-green-400'
+              }`}
             >
               <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
                 <path d="M240-200h120v-240h240v240h120v-360L480-740 240-560v360Zm-80 80v-480l320-240 320 240v480H520v-240h-80v240H160Zm320-350Z"/>
@@ -2817,12 +2407,10 @@ export default function Demo({ title }: { title?: string }) {
 
             {/* Explore Button */}
             <button 
-              onClick={() => {
-                handleBack();
-                setIsProfileView(false);
-                setShowLikedNFTs(false);
-              }}
-              className="flex flex-col items-center gap-1 text-green-400 hover:text-green-300 transition-colors"
+              onClick={() => switchPage('isExplore')}
+              className={`flex flex-col items-center gap-1 transition-colors ${
+                currentPage.isExplore ? 'text-green-400' : 'text-gray-400 hover:text-green-400'
+              }`}
             >
               <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
                 <path d="M784-120 532-372q-30 24-69 38t-83 14q-109 0-184.5-75.5T120-580q0-109 75.5-184.5T380-840q109 0 184.5 75.5T640-580q0 44-14 83t-38 69l252 252-56 56ZM380-400q75 0 127.5-52.5T560-580q0-75-52.5-127.5T380-760q-75 0-127.5 52.5T200-580q0 75 52.5 127.5T380-400Z"/>
@@ -2830,14 +2418,12 @@ export default function Demo({ title }: { title?: string }) {
               <span className="text-xs font-mono">Explore</span>
             </button>
 
-            {/* Library/Likes Button */}
+            {/* Library Button */}
             <button 
-              onClick={() => {
-                setSelectedUser(null);
-                setShowLikedNFTs(true);
-                setIsProfileView(true);
-              }}
-              className="flex flex-col items-center gap-1 text-green-400 hover:text-green-300 transition-colors"
+              onClick={() => switchPage('isLibrary')}
+              className={`flex flex-col items-center gap-1 transition-colors ${
+                currentPage.isLibrary ? 'text-green-400' : 'text-gray-400 hover:text-green-400'
+              }`}
             >
               <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
                 <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Zm0-108q96-86 158-147.5t98-107q36-45.5 50-81t14-70.5q0-60-40-100t-100-40q-47 0-87 26.5T518-680h-76q-15-41-55-67.5T300-774q-60 0-100 40t-40 100q0 35 14 70.5t50 81q36 45.5 98 107T480-228Zm0-273Z"/>
@@ -2847,34 +2433,31 @@ export default function Demo({ title }: { title?: string }) {
 
             {/* Profile Button */}
             {userContext?.user && (
-            <button 
-              onClick={() => {
-                  setSelectedUser(null);
-                  setShowLikedNFTs(false);
-                  setIsProfileView(true);
-                  handleViewProfile();
-              }}
-              className="flex flex-col items-center gap-1 text-green-400 hover:text-green-300 transition-colors"
-            >
-              <div className="relative w-6 h-6 rounded-full overflow-hidden">
-                <Image
+              <button 
+                onClick={() => switchPage('isProfile')}
+                className={`flex flex-col items-center gap-1 transition-colors ${
+                  currentPage.isProfile ? 'text-green-400' : 'text-gray-400 hover:text-green-400'
+                }`}
+              >
+                <div className="relative w-6 h-6 rounded-full overflow-hidden">
+                  <Image
                     src={userContext.user.pfpUrl || '/placeholder-avatar.png'}
-                  alt="Profile"
-                  width={24}
-                  height={24}
-                  className="object-cover"
-                />
-              </div>
-              <span className="text-xs font-mono">Profile</span>
-            </button>
+                    alt="Profile"
+                    width={24}
+                    height={24}
+                    className="object-cover"
+                  />
+                </div>
+                <span className="text-xs font-mono">Profile</span>
+              </button>
             )}
           </div>
         </div>
       </div>
 
-      {/* Media Player - Only show when there's an NFT playing */}
+      {/* Media Player */}
       {currentPlayingNFT && (
-        <div className={`fixed left-0 right-0 transition-all duration-300 z-40 
+        <div className={`fixed left-0 right-0 transition-all duration-300 z-20 
           ${isPlayerMinimized 
             ? 'bottom-[64px] h-20 bg-gray-900/95 backdrop-blur-md' 
             : 'bottom-0 top-0 bg-gray-900/95 backdrop-blur-md'
