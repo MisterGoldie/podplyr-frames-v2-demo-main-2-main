@@ -768,7 +768,7 @@ const NFTCard: React.FC<NFTCardProps> = ({ nft, onPlay, isPlaying, currentlyPlay
       <div className="aspect-square relative bg-gray-800">
         {/* Base image or video */}
         <div className="w-full h-full absolute top-0 left-0">
-          <NFTImage 
+          <NFTImage
             src={processMediaUrl(nft.image || nft.metadata?.image || '')}
             alt={nft.name || 'NFT'}
             className="w-full h-full object-cover"
@@ -2327,6 +2327,235 @@ export default function Demo({ title }: { title?: string }) {
             )}
           </div>
         )}
+
+        {/* Explore Page */}
+        {currentPage.isExplore && (
+          <div>
+            <div className="mb-8">
+              <h2 className="text-xl font-mono text-green-400 mb-6">Explore Farcaster Users</h2>
+              <SearchBar onSearch={handleSearch} isSearching={isSearching} />
+            </div>
+
+            {/* Search Results */}
+            {searchResults.length > 0 && !selectedUser && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {searchResults.map((user, index) => (
+                  <button
+                    key={`search-${user.fid}-${index}`}
+                    onClick={() => handleUserSelect(user)}
+                    className="bg-gray-800/50 backdrop-blur-sm p-4 rounded-lg text-left hover:bg-gray-800/70 transition-colors"
+                  >
+                    <div className="flex items-center gap-4">
+                      {user.pfp_url ? (
+                        <Image
+                          src={user.pfp_url}
+                          alt={user.display_name || user.username}
+                          className="w-12 h-12 rounded-full"
+                          width={48}
+                          height={48}
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center text-green-400 font-mono">
+                          {(user.display_name || user.username).charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div>
+                        <h3 className="font-mono text-green-400 truncate max-w-[200px]">
+                          {user.display_name || user.username}
+                        </h3>
+                        <p className="font-mono text-gray-400 truncate max-w-[200px]">@{user.username}</p>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Selected User NFTs */}
+            {selectedUser && (
+              <div>
+                <button 
+                  onClick={handleBack}
+                  className="mb-6 flex items-center gap-2 text-green-400 hover:text-green-300 transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                    <path d="M400-80 0-480l400-400 56 57-343 343 343 343-56 57Z"/>
+                  </svg>
+                  <span className="font-mono">Back to Search</span>
+                </button>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                  {isLoadingNFTs ? (
+                    <div className="col-span-full text-center py-12">
+                      <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-400"></div>
+                      <p className="mt-4 font-mono text-green-400">Loading NFTs...</p>
+                    </div>
+                  ) : nfts.length === 0 ? (
+                    <div className="col-span-full text-center py-12">
+                      <p className="font-mono text-gray-400">No audio NFTs found</p>
+                    </div>
+                  ) : (
+                    nfts.map((nft) => (
+                      <NFTCard
+                        key={`${nft.contract}-${nft.tokenId}`}
+                        nft={nft}
+                        onPlay={handlePlayAudio}
+                        isPlaying={isPlaying}
+                        currentlyPlaying={currentlyPlaying}
+                        handlePlayPause={handlePlayPause}
+                      />
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Library Page */}
+        {currentPage.isLibrary && (
+          <div>
+            <div className="mb-8">
+              <h2 className="text-xl font-mono text-green-400 mb-6">My Liked NFTs</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                {likedNFTs.length === 0 ? (
+                  <div className="col-span-full text-center py-12">
+                    <p className="font-mono text-gray-400">No liked NFTs yet. Start liking some music!</p>
+                  </div>
+                ) : (
+                  likedNFTs.map((nft) => (
+                    <NFTCard
+                      key={`${nft.contract}-${nft.tokenId}`}
+                      nft={nft}
+                      onPlay={handlePlayAudio}
+                      isPlaying={isPlaying}
+                      currentlyPlaying={currentlyPlaying}
+                      handlePlayPause={handlePlayPause}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Profile Page */}
+        {currentPage.isProfile && userContext?.user && (
+          <div>
+            <div className="mb-8">
+              <div className="flex items-center gap-6 mb-8">
+                <div className="w-24 h-24 rounded-full overflow-hidden">
+                  <Image
+                    src={userContext.user.pfpUrl || '/placeholder-avatar.png'}
+                    alt="Profile"
+                    width={96}
+                    height={96}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-mono text-green-400 mb-2">
+                    {userContext.user.displayName || userContext.user.username || `User ${userContext.user.fid}`}
+                  </h2>
+                  {userContext.user.username && (
+                    <p className="font-mono text-gray-400">@{userContext.user.username}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                {isLoadingNFTs ? (
+                  <div className="col-span-full text-center py-12">
+                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-400"></div>
+                    <p className="mt-4 font-mono text-green-400">Loading your NFTs...</p>
+                  </div>
+                ) : nfts.length === 0 ? (
+                  <div className="col-span-full text-center py-12">
+                    <p className="font-mono text-gray-400">No audio NFTs found in your collection</p>
+                  </div>
+                ) : (
+                  nfts.map((nft) => (
+                    <NFTCard
+                      key={`${nft.contract}-${nft.tokenId}`}
+                      nft={nft}
+                      onPlay={handlePlayAudio}
+                      isPlaying={isPlaying}
+                      currentlyPlaying={currentlyPlaying}
+                      handlePlayPause={handlePlayPause}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Bottom Navigation */}
+      <div className="fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-md border-t border-green-400/20 h-[64px] z-40">
+        <div className="container mx-auto px-4 py-2.5">
+          <div className="flex justify-around items-center h-full">
+            {/* Home Button */}
+            <button 
+              onClick={() => switchPage('isHome')}
+              className={`flex flex-col items-center gap-1 transition-colors ${
+                currentPage.isHome ? 'text-green-400' : 'text-gray-400 hover:text-green-400'
+              }`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                <path d="M240-200h120v-240h240v240h120v-360L480-740 240-560v360Zm-80 80v-480l320-240 320 240v480H520v-240h-80v240H160Zm320-350Z"/>
+              </svg>
+              <span className="text-xs font-mono">Home</span>
+            </button>
+
+            {/* Explore Button */}
+            <button 
+              onClick={() => switchPage('isExplore')}
+              className={`flex flex-col items-center gap-1 transition-colors ${
+                currentPage.isExplore ? 'text-green-400' : 'text-gray-400 hover:text-green-400'
+              }`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                <path d="M784-120 532-372q-30 24-69 38t-83 14q-109 0-184.5-75.5T120-580q0-109 75.5-184.5T380-840q109 0 184.5 75.5T640-580q0 44-14 83t-38 69l252 252-56 56ZM380-400q75 0 127.5-52.5T560-580q0-75-52.5-127.5T380-760q-75 0-127.5 52.5T200-580q0 75 52.5 127.5T380-400Z"/>
+              </svg>
+              <span className="text-xs font-mono">Explore</span>
+            </button>
+
+            {/* Library Button */}
+            <button 
+              onClick={() => switchPage('isLibrary')}
+              className={`flex flex-col items-center gap-1 transition-colors ${
+                currentPage.isLibrary ? 'text-green-400' : 'text-gray-400 hover:text-green-400'
+              }`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Zm0-108q96-86 158-147.5t98-107q36-45.5 50-81t14-70.5q0-60-40-100t-100-40q-47 0-87 26.5T518-680h-76q-15-41-55-67.5T300-774q-60 0-100 40t-40 100q0 35 14 70.5t50 81q36 45.5 98 107T480-228Zm0-273Z"/>
+              </svg>
+              <span className="text-xs font-mono">Library</span>
+            </button>
+
+            {/* Profile Button */}
+            {userContext?.user && (
+              <button 
+                onClick={() => switchPage('isProfile')}
+                className={`flex flex-col items-center gap-1 transition-colors ${
+                  currentPage.isProfile ? 'text-green-400' : 'text-gray-400 hover:text-green-400'
+                }`}
+              >
+                <div className="relative w-6 h-6 rounded-full overflow-hidden">
+                  <Image
+                    src={userContext.user.pfpUrl || '/placeholder-avatar.png'}
+                    alt="Profile"
+                    width={24}
+                    height={24}
+                    className="object-cover"
+                  />
+                </div>
+                <span className="text-xs font-mono">Profile</span>
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
