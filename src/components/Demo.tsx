@@ -2242,33 +2242,35 @@ export default function Demo({ title }: { title?: string }) {
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900">
       <RetroStyles />
       
-      {/* Top Navigation Bar */}
-      <div className="fixed top-0 left-0 right-0 bg-gray-900/95 backdrop-blur-md border-b border-green-400/20 h-[64px] z-30">
-        <div className="container mx-auto px-4 h-full">
-          <div className="flex items-center justify-between h-full">
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-mono text-green-400 tracking-widest">PODPLAYR</h1>
-              <div className="flex items-end space-x-1 h-3">
-                {[1,2,3,4].map((i) => (
-                  <div 
-                    key={i}
-                    className="w-[2px] bg-green-400 rounded-full transition-all duration-150"
-                    style={{
-                      height: `${2 + (i * 3)}px`,
-                      animation: `audioWavePulse 1.5s ease-in-out infinite`,
-                      animationDelay: `${(4-i) * 0.2}s`,
-                      transformOrigin: 'bottom'
-                    }}
-                  />
-                ))}
+      {/* Top Navigation Bar - Only show when not on Explore page */}
+      {!currentPage.isExplore && (
+        <div className="fixed top-0 left-0 right-0 bg-gray-900/95 backdrop-blur-md border-b border-green-400/20 h-[64px] z-30">
+          <div className="container mx-auto px-4 h-full">
+            <div className="flex items-center justify-between h-full">
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-mono text-green-400 tracking-widest">PODPLAYR</h1>
+                <div className="flex items-end space-x-1 h-3">
+                  {[1,2,3,4].map((i) => (
+                    <div 
+                      key={i}
+                      className="w-[2px] bg-green-400 rounded-full transition-all duration-150"
+                      style={{
+                        height: `${2 + (i * 3)}px`,
+                        animation: `audioWavePulse 1.5s ease-in-out infinite`,
+                        animationDelay: `${(4-i) * 0.2}s`,
+                        transformOrigin: 'bottom'
+                      }}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Main Content Area - Add padding for top and bottom bars */}
-      <div className="container mx-auto px-4 pt-20 pb-24">
+      {/* Main Content Area - Adjust padding based on page */}
+      <div className={`container mx-auto px-4 ${currentPage.isExplore ? 'pt-4' : 'pt-20'} pb-24`}>
         {/* Home Page */}
         {currentPage.isHome && (
           <div>
@@ -2331,9 +2333,18 @@ export default function Demo({ title }: { title?: string }) {
         {/* Explore Page */}
         {currentPage.isExplore && (
           <div>
-            <div className="mb-8">
-              <h2 className="text-xl font-mono text-green-400 mb-6">Explore Farcaster Users</h2>
-              <SearchBar onSearch={handleSearch} isSearching={isSearching} />
+            <div className="flex items-center gap-4 mb-8">
+              <button 
+                onClick={() => switchPage('isHome')}
+                className="text-green-400 hover:text-green-300 transition-colors flex-shrink-0"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                  <path d="M400-80 0-480l400-400 56 57-343 343 343 343-56 57Z"/>
+                </svg>
+              </button>
+              <div className="flex-grow">
+                <SearchBar onSearch={handleSearch} isSearching={isSearching} />
+              </div>
             </div>
 
             {/* Search Results */}
