@@ -2468,7 +2468,7 @@ export default function Demo({ title }: { title?: string }) {
           {isPlayerMinimized ? (
             // Minimized player view with red line
             <div className="relative w-full">
-              {/* Red line progress indicator with drag functionality */}
+              {/* Red line progress indicator */}
               <div 
                 className="absolute top-0 left-0 right-0 h-1 bg-gray-800 cursor-pointer group"
                 onClick={(e) => {
@@ -2509,19 +2509,20 @@ export default function Demo({ title }: { title?: string }) {
                 </div>
               </div>
               
-              <div className="container mx-auto h-full">
-                <div className="flex items-center justify-between h-full px-4 gap-4">
-                  {/* Rest of minimized player content */}
+              {/* Player content with proper spacing */}
+              <div className="container mx-auto h-full pt-4">
+                <div className="flex items-center justify-between h-[calc(100%-8px)] px-4 gap-4">
+                  {/* Thumbnail and title */}
                   <div className="flex items-center gap-4 flex-1 min-w-0">
                     {currentPlayingNFT && (
                       <>
-                        <div className="w-14 h-14 flex-shrink-0 relative rounded overflow-hidden">
+                        <div className="w-12 h-12 flex-shrink-0 relative rounded overflow-hidden">
                           <NFTImage
                             src={processMediaUrl(currentPlayingNFT.image || '') || '/placeholder.jpg'}
                             alt={currentPlayingNFT.name}
                             className="w-full h-full object-cover"
-                            width={56}
-                            height={56}
+                            width={48}
+                            height={48}
                             priority={true}
                           />
                         </div>
@@ -2529,6 +2530,9 @@ export default function Demo({ title }: { title?: string }) {
                           <h4 className="font-mono text-green-400 truncate text-sm">
                             {currentPlayingNFT.name}
                           </h4>
+                          <p className="font-mono text-gray-400 truncate text-xs">
+                            {currentPlayingNFT.collection?.name}
+                          </p>
                         </div>
                       </>
                     )}
