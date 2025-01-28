@@ -1796,6 +1796,7 @@ export default function Demo({ title }: { title?: string }) {
     }, 2000);
   };
 
+  // Update the handlePlayPause function
   const handlePlayPause = async () => {
     const audio = document.getElementById(`audio-${currentPlayingNFT?.contract}-${currentPlayingNFT?.tokenId}`) as HTMLAudioElement;
     const video = videoRef.current;
@@ -1804,90 +1805,40 @@ export default function Demo({ title }: { title?: string }) {
     try {
       if (isPlaying) {
         // Pause everything
-        if (audio) audio.pause();
-        if (video) video.pause();
-        if (pipVideo) pipVideo.pause();
-        setLastKnownPosition(audio?.currentTime || video?.currentTime || 0);
+        if (audio) {
+          audio.pause();
+          setLastKnownPosition(audio.currentTime);
+        }
+        if (video) {
+          video.pause();
+        }
+        if (pipVideo && pipVideo !== video) {
+          pipVideo.pause();
+        }
         setIsPlaying(false);
       } else {
         // Resume everything from the same position
         const currentTime = lastKnownPosition;
         
+        if (audio) {
+          audio.currentTime = currentTime;
+          await audio.play();
+        }
         if (video) {
           video.currentTime = currentTime;
-          await video.play().catch(console.warn);
+          await video.play();
         }
         if (pipVideo && pipVideo !== video) {
           pipVideo.currentTime = currentTime;
-          await pipVideo.play().catch(console.warn);
+          await pipVideo.play();
         }
-        if (audio) {
-          audio.currentTime = currentTime;
-          await audio.play().catch(console.warn);
-        }
+        
         setIsPlaying(true);
       }
     } catch (error) {
       console.error('Error toggling play/pause:', error);
     }
   };
-
-  // Update the PiP event handlers
-  useEffect(() => {
-    const video = videoRef.current;
-    const audio = document.getElementById(`audio-${currentPlayingNFT?.contract}-${currentPlayingNFT?.tokenId}`) as HTMLAudioElement;
-    
-    if (!video || !audio) return;
-
-    const handleVideoPlay = async () => {
-      if (!isPlaying) {
-        setIsPlaying(true);
-        if (audio.paused) {
-          audio.currentTime = video.currentTime;
-          await audio.play().catch(console.warn);
-        }
-      }
-    };
-
-    const handleVideoPause = () => {
-      if (isPlaying) {
-        setIsPlaying(false);
-        audio.pause();
-        setLastKnownPosition(video.currentTime);
-      }
-    };
-
-    const handlePipChange = async () => {
-      const pipVideo = document.pictureInPictureElement as HTMLVideoElement | null;
-      if (pipVideo) {
-        // Entered PiP
-        pipVideo.addEventListener('play', handleVideoPlay);
-        pipVideo.addEventListener('pause', handleVideoPause);
-        if (isPlaying) {
-          await pipVideo.play().catch(console.warn);
-        } else {
-          pipVideo.pause();
-        }
-      }
-    };
-
-    video.addEventListener('play', handleVideoPlay);
-    video.addEventListener('pause', handleVideoPause);
-    video.addEventListener('enterpictureinpicture', handlePipChange);
-
-    return () => {
-      video.removeEventListener('play', handleVideoPlay);
-      video.removeEventListener('pause', handleVideoPause);
-      video.removeEventListener('enterpictureinpicture', handlePipChange);
-      
-      // Clean up PiP video listeners if needed
-      const pipVideo = document.pictureInPictureElement as HTMLVideoElement | null;
-      if (pipVideo) {
-        pipVideo.removeEventListener('play', handleVideoPlay);
-        pipVideo.removeEventListener('pause', handleVideoPause);
-      }
-    };
-  }, [currentPlayingNFT, isPlaying]);
 
   // Add memoized values for expensive computations
   const memoizedAudioDurations = useMemo(() => {
@@ -2258,6 +2209,66 @@ export default function Demo({ title }: { title?: string }) {
     setSearchResults([]);
     setError(null);
   };
+
+  // Add this effect to sync video playback with audio state
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !currentPlayingNFT?.isVideo) return;
+
+    const syncVideo = () => {
+      if (isPlaying) {
+        video.play().catch(console.error);
+      } else {
+        video.pause();
+      }
+    };
+
+    syncVideo();
+
+    // Add event listeners to handle video state
+    video.addEventListener('play', () => {
+      if (!isPlaying) setIsPlaying(true);
+    });
+    video.addEventListener('pause', () => {
+      if (isPlaying) setIsPlaying(false);
+    });
+
+    return () => {
+      video.removeEventListener('play', () => {
+        if (!isPlaying) setIsPlaying(true);
+      });
+      video.addEventListener('pause', () => {
+        if (isPlaying) setIsPlaying(false);
+      });
+    };
+  }, [isPlaying, currentPlayingNFT]);
+
+  // Add this useEffect for video synchronization
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !currentPlayingNFT?.isVideo) return;
+
+    const syncVideoWithAudio = () => {
+      if (isPlaying) {
+        video.play().catch(console.error);
+      } else {
+        video.pause();
+      }
+    };
+
+    syncVideoWithAudio();
+    
+    // Keep video in sync with audio progress
+    const syncInterval = setInterval(() => {
+      if (video && Math.abs(video.currentTime - audioProgress) > 0.5) {
+        video.currentTime = audioProgress;
+      }
+    }, 1000);
+
+    return () => {
+      clearInterval(syncInterval);
+    };
+  }, [isPlaying, currentPlayingNFT, audioProgress]);
 
   // Add the top played section to the main page
   return (
@@ -2691,16 +2702,28 @@ export default function Demo({ title }: { title?: string }) {
               {/* Thumbnail and title */}
               <div className="flex items-center gap-4 flex-1 min-w-0">
                 <div className="w-12 h-12 flex-shrink-0 relative rounded overflow-hidden">
-                  {currentPlayingNFT.isVideo || currentPlayingNFT.metadata?.animation_url ? (
+                  {currentPlayingNFT.isVideo ? (
                     <video
                       ref={videoRef}
                       src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || '')}
                       className="w-full h-full object-cover"
                       playsInline
-                      loop={currentPlayingNFT.isAnimation}
+                      loop={false}
                       muted={true}
                       controls={false}
                       autoPlay={isPlaying}
+                      onPlay={() => {
+                        if (!isPlaying) setIsPlaying(true);
+                      }}
+                      onPause={() => {
+                        if (isPlaying) setIsPlaying(false);
+                      }}
+                      onTimeUpdate={(e) => {
+                        const video = e.currentTarget;
+                        if (video && Math.abs(video.currentTime - audioProgress) > 0.5) {
+                          video.currentTime = audioProgress;
+                        }
+                      }}
                     />
                   ) : currentPlayingNFT.isAnimation ? (
                     <Image
@@ -2757,7 +2780,7 @@ export default function Demo({ title }: { title?: string }) {
                   className="text-green-400 hover:text-green-300"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                    <path d="M120-120v-280h80v280h280v80H120v-80Zm560-560h280v280h-80v-280h-280v-80h360v360h-80v-280ZM120-840h360v80H200v280h-80v-360Z"/>
+                    <path d="M480-528 296-344l-56-56 240-240 240 240-56 56-184-184Z"/>
                   </svg>
                 </button>
               </div>
@@ -2784,102 +2807,104 @@ export default function Demo({ title }: { title?: string }) {
           </div>
 
           {/* Main Content */}
-          <div className="flex-1 overflow-y-auto p-4">
-            {/* NFT Image */}
-            <div className="aspect-square w-full max-w-md mx-auto mb-8 rounded-lg overflow-hidden">
-              {currentPlayingNFT.isVideo || currentPlayingNFT.metadata?.animation_url ? (
-                <video
-                  ref={videoRef}
-                  src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || '')}
-                  className="w-full h-full object-cover"
-                  playsInline
-                  loop={currentPlayingNFT.isAnimation}
-                  muted={true}
-                  controls={false}
-                  autoPlay={isPlaying}
-                />
-              ) : (
-                <Image
-                  src={processMediaUrl(currentPlayingNFT.metadata?.image || '')}
-                  alt={currentPlayingNFT.name}
-                  className="w-full h-full object-cover"
-                  width={500}
-                  height={500}
-                  priority={true}
-                />
-              )}
-            </div>
+          <div className="flex-1 overflow-y-auto">
+            <div className="max-w-screen-sm mx-auto px-4 py-8">
+              {/* NFT Image/Video Container */}
+              <div className="relative w-full mb-8">
+                {currentPlayingNFT.isVideo || currentPlayingNFT.metadata?.animation_url ? (
+                  <video
+                    ref={videoRef}
+                    src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || '')}
+                    className="w-full h-auto object-contain"
+                    playsInline
+                    loop={currentPlayingNFT.isAnimation}
+                    muted={true}
+                    controls={false}
+                    autoPlay={isPlaying}
+                  />
+                ) : (
+                  <Image
+                    src={processMediaUrl(currentPlayingNFT.metadata?.image || '')}
+                    alt={currentPlayingNFT.name}
+                    className="w-full h-auto object-contain"
+                    width={500}
+                    height={500}
+                    priority={true}
+                  />
+                )}
+              </div>
 
-            {/* Track Info */}
-            <div className="text-center mb-8">
-              <h2 className="font-mono text-green-400 text-xl mb-2">{currentPlayingNFT.name}</h2>
-              <p className="font-mono text-gray-400">{currentPlayingNFT.collection?.name}</p>
-            </div>
+              {/* Track Info */}
+              <div className="text-center mb-12">
+                <h2 className="font-mono text-green-400 text-xl mb-3">{currentPlayingNFT.name}</h2>
+                <p className="font-mono text-gray-400">{currentPlayingNFT.collection?.name}</p>
+              </div>
 
-            {/* Progress Bar */}
-            <div className="max-w-md mx-auto mb-8">
-              <div 
-                className="h-1 bg-gray-800 rounded-full cursor-pointer"
-                onClick={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const percent = (e.clientX - rect.left) / rect.width;
-                  handleSeek(memoizedAudioDurations * percent);
-                }}
-              >
+              {/* Progress Bar */}
+              <div className="mb-12">
                 <div 
-                  className="h-full bg-green-400 rounded-full"
-                  style={{ width: `${(audioProgress / memoizedAudioDurations) * 100}%` }}
-                />
+                  className="h-1.5 bg-gray-800 rounded-full cursor-pointer"
+                  onClick={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const percent = (e.clientX - rect.left) / rect.width;
+                    handleSeek(memoizedAudioDurations * percent);
+                  }}
+                >
+                  <div 
+                    className="h-full bg-green-400 rounded-full"
+                    style={{ width: `${(audioProgress / memoizedAudioDurations) * 100}%` }}
+                  />
+                </div>
+                <div className="flex justify-between mt-3 font-mono text-gray-400 text-sm">
+                  <span>{formatTime(audioProgress)}</span>
+                  <span>{formatTime(memoizedAudioDurations)}</span>
+                </div>
               </div>
-              <div className="flex justify-between mt-2 font-mono text-gray-400 text-sm">
-                <span>{formatTime(audioProgress)}</span>
-                <span>{formatTime(memoizedAudioDurations)}</span>
-              </div>
-            </div>
 
-            {/* Controls */}
-            <div className="flex justify-center items-center gap-8">
-              {/* Like Button */}
-              <button 
-                onClick={() => handleLikeToggle(currentPlayingNFT)}
-                className="text-white hover:scale-110 transition-transform"
-              >
-                {isNFTLiked(currentPlayingNFT) ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" height="32" viewBox="0 -960 960 960" width="32" fill="currentColor" className="text-red-500">
-                    <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
-                  </svg>
-                ) : (
+              {/* Controls */}
+              <div className="flex justify-center items-center gap-12">
+                {/* Like Button */}
+                <button 
+                  onClick={() => handleLikeToggle(currentPlayingNFT)}
+                  className="text-white hover:scale-110 transition-transform"
+                >
+                  {isNFTLiked(currentPlayingNFT) ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" height="32" viewBox="0 -960 960 960" width="32" fill="currentColor" className="text-red-500">
+                      <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" height="32" viewBox="0 -960 960 960" width="32" fill="currentColor">
+                      <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Zm0-108q96-86 158-147.5t98-107q36-45.5 50-81t14-70.5q0-60-40-100t-100-40q-47 0-87 26.5T518-680h-76q-15-41-55-67.5T300-774q-60 0-100 40t-40 100q0 35 14 70.5t50 81q36 45.5 98 107T480-228Zm0-273Z"/>
+                    </svg>
+                  )}
+                </button>
+
+                {/* Play/Pause Button */}
+                <button 
+                  onClick={handlePlayPause}
+                  className="w-20 h-20 rounded-full bg-green-400 text-black flex items-center justify-center hover:scale-105 transition-transform"
+                >
+                  {isPlaying ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" height="40px" viewBox="0 -960 960 960" width="40px" fill="currentColor">
+                      <path d="M560-200v-560h80v560H560Zm-320 0v-560h80v560H240Z"/>
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" height="40px" viewBox="0 -960 960 960" width="40px" fill="currentColor">
+                      <path d="M320-200v-560l440 280-440 280Z"/>
+                    </svg>
+                  )}
+                </button>
+
+                {/* PiP Button */}
+                <button 
+                  onClick={togglePictureInPicture}
+                  className="text-white hover:scale-110 transition-transform"
+                >
                   <svg xmlns="http://www.w3.org/2000/svg" height="32" viewBox="0 -960 960 960" width="32" fill="currentColor">
-                    <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Zm0-108q96-86 158-147.5t98-107q36-45.5 50-81t14-70.5q0-60-40-100t-100-40q-47 0-87 26.5T518-680h-76q-15-41-55-67.5T300-774q-60 0-100 40t-40 100q0 35 14 70.5t50 81q36 45.5 98 107T480-228Zm0-273Z"/>
+                    <path d="M560-120v-80h280v-280h80v360H560Zm-520 0v-360h80v280h280v80H40Zm520-520v-280h280v80H640v200h-80ZM120-640v-200h280v-80H40v280h80Z"/>
                   </svg>
-                )}
-              </button>
-
-              {/* Play/Pause Button */}
-              <button 
-                onClick={handlePlayPause}
-                className="w-16 h-16 rounded-full bg-green-400 text-black flex items-center justify-center hover:scale-105 transition-transform"
-              >
-                {isPlaying ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px" fill="currentColor">
-                    <path d="M560-200v-560h80v560H560Zm-320 0v-560h80v560H240Z"/>
-                  </svg>
-                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px" fill="currentColor">
-                    <path d="M320-200v-560l440 280-440 280Z"/>
-                  </svg>
-                )}
-              </button>
-
-              {/* PiP Button */}
-              <button 
-                onClick={togglePictureInPicture}
-                className="text-white hover:scale-110 transition-transform"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" height="32" viewBox="0 -960 960 960" width="32" fill="currentColor">
-                  <path d="M560-120v-80h280v-280h80v360H560Zm-520 0v-360h80v280h280v80H40Zm520-520v-280h280v80H640v200h-80ZM120-640v-200h280v-80H40v280h80Z"/>
-                </svg>
-              </button>
+                </button>
+              </div>
             </div>
           </div>
         </div>
