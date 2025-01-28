@@ -2213,26 +2213,6 @@ export default function Demo({ title }: { title?: string }) {
                 ))}
               </div>
             </div>
-            {userContext?.user && (
-              <div className="flex items-center gap-4">
-                <button 
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setIsProfileMenuOpen(!isProfileMenuOpen);
-                  }}
-                  className="relative profile-menu"
-                >
-                  <Image
-                    src={userContext.user.pfpUrl || ''}
-                    alt="Profile"
-                    width={40}
-                    height={40}
-                    className="rounded-full border-2 border-green-400 hover:border-green-300 transition-colors"
-                  />
-                </button>
-              </div>
-            )}
           </div>
         </div>
       </div>
