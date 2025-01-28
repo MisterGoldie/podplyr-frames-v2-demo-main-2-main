@@ -836,6 +836,7 @@ export default function Demo({ title }: { title?: string }) {
   const [audioProgress, setAudioProgress] = useState(0);
   const [audioDurations, setAudioDurations] = useState<Record<string, number>>({});
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Set initial state to false
   const [isPlayerVisible, setIsPlayerVisible] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isSearchPage, setIsSearchPage] = useState(true);
@@ -861,7 +862,7 @@ export default function Demo({ title }: { title?: string }) {
   const [likedNFTs, setLikedNFTs] = useState<NFT[]>([]);
   // Add this state
   const [showLikedNFTs, setShowLikedNFTs] = useState(false);
-  
+
   // Add near other state declarations (around line 661)
   const NFT_CACHE_KEY = 'nft-cache-';
   const TWO_HOURS = 2 * 60 * 60 * 1000;
@@ -948,7 +949,7 @@ export default function Demo({ title }: { title?: string }) {
         sdk.actions.ready();
       } catch (error) {
         console.error('SDK Context error:', error);
-      }
+    }
     };
 
     if (!isSDKLoaded) {
@@ -1164,7 +1165,8 @@ export default function Demo({ title }: { title?: string }) {
       setCurrentlyPlaying(nftId);
       setCurrentPlayingNFT(nft);
       setIsPlayerVisible(true);
-      setIsPlayerMinimized(false);
+      // Always start in minimized mode
+      setIsPlayerMinimized(true);
       
       // Clear previous audio source and reload
       const audio = document.getElementById(`audio-${nftId}`) as HTMLAudioElement;
@@ -2185,6 +2187,13 @@ export default function Demo({ title }: { title?: string }) {
     }
   }, [currentPlayingNFT, likedNFTs, userContext?.user?.fid]);
 
+  // Add initialization effect
+  useEffect(() => {
+    // Ensure player is hidden on initial load
+    setIsPlayerVisible(false);
+    setIsPlayerMinimized(true);
+  }, []);
+
   // Add the top played section to the main page
   return (
     <div className={`min-h-screen flex flex-col bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 ${
@@ -2217,7 +2226,8 @@ export default function Demo({ title }: { title?: string }) {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 pt-20 pb-8">
+      {/* Main Content - Add padding bottom to account for navigation */}
+      <div className="container mx-auto px-4 pt-20 pb-24">
         {/* Remove the duplicate profile menu and start directly with the content */}
         <div className="retro-container p-6 mb-8">
           <SearchBar onSearch={handleSearch} isSearching={isSearching} />
@@ -2349,7 +2359,7 @@ export default function Demo({ title }: { title?: string }) {
                     {/* Always show the base image */}
                     <div className="w-full h-full absolute top-0 left-0">
                       <NFTImage 
-                        src={processMediaUrl(nft.image || nft.metadata?.image || '') || '/placeholder.jpg'}
+                        src={processMediaUrl(nft.image || nft.metadata?.image || '')}
                         alt={nft.name || 'NFT'}
                         className="w-full h-full object-cover"
                         width={192}
@@ -2786,7 +2796,7 @@ export default function Demo({ title }: { title?: string }) {
           )}
         </>
       )}
-      {/* Bottom Navigation */}
+      {/* Bottom Navigation - Always visible */}
       <div className="fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-md border-t border-green-400/20 h-[64px] z-30">
         <div className="container mx-auto px-4 py-2.5">
           <div className="flex justify-around items-center h-full">
@@ -2805,7 +2815,7 @@ export default function Demo({ title }: { title?: string }) {
               <span className="text-xs font-mono">Home</span>
             </button>
 
-            {/* Search Button */}
+            {/* Explore Button */}
             <button 
               onClick={() => {
                 handleBack();
@@ -2817,7 +2827,7 @@ export default function Demo({ title }: { title?: string }) {
               <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
                 <path d="M784-120 532-372q-30 24-69 38t-83 14q-109 0-184.5-75.5T120-580q0-109 75.5-184.5T380-840q109 0 184.5 75.5T640-580q0 44-14 83t-38 69l252 252-56 56ZM380-400q75 0 127.5-52.5T560-580q0-75-52.5-127.5T380-760q-75 0-127.5 52.5T200-580q0 75 52.5 127.5T380-400Z"/>
               </svg>
-              <span className="text-xs font-mono">Search</span>
+              <span className="text-xs font-mono">Explore</span>
             </button>
 
             {/* Library/Likes Button */}
@@ -2837,30 +2847,278 @@ export default function Demo({ title }: { title?: string }) {
 
             {/* Profile Button */}
             {userContext?.user && (
-              <button 
-                onClick={() => {
+            <button 
+              onClick={() => {
                   setSelectedUser(null);
                   setShowLikedNFTs(false);
                   setIsProfileView(true);
                   handleViewProfile();
-                }}
-                className="flex flex-col items-center gap-1 text-green-400 hover:text-green-300 transition-colors"
-              >
-                <div className="relative w-6 h-6 rounded-full overflow-hidden">
-                  <Image
+              }}
+              className="flex flex-col items-center gap-1 text-green-400 hover:text-green-300 transition-colors"
+            >
+              <div className="relative w-6 h-6 rounded-full overflow-hidden">
+                <Image
                     src={userContext.user.pfpUrl || '/placeholder-avatar.png'}
-                    alt="Profile"
-                    width={24}
-                    height={24}
-                    className="object-cover"
-                  />
-            </div>
-                <span className="text-xs font-mono">Profile</span>
-              </button>
+                  alt="Profile"
+                  width={24}
+                  height={24}
+                  className="object-cover"
+                />
+              </div>
+              <span className="text-xs font-mono">Profile</span>
+            </button>
             )}
           </div>
         </div>
       </div>
+
+      {/* Media Player - Only show when there's an NFT playing */}
+      {currentPlayingNFT && (
+        <div className={`fixed left-0 right-0 transition-all duration-300 z-40 
+          ${isPlayerMinimized 
+            ? 'bottom-[64px] h-20 bg-gray-900/95 backdrop-blur-md' 
+            : 'bottom-0 top-0 bg-gray-900/95 backdrop-blur-md'
+          }`}>
+          {isPlayerMinimized ? (
+            // Minimized player view with red line
+            <div className="relative w-full">
+              {/* Red line progress indicator */}
+              <div 
+                className="absolute top-0 left-0 right-0 h-1 bg-gray-800 cursor-pointer group"
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const percent = (e.clientX - rect.left) / rect.width;
+                  handleSeek(memoizedAudioDurations * percent);
+                }}
+                onMouseEnter={() => {
+                  const progressBar = document.querySelector('.progress-line');
+                  if (progressBar) progressBar.classList.add('h-1');
+                }}
+                onMouseLeave={() => {
+                  const progressBar = document.querySelector('.progress-line');
+                  if (progressBar) progressBar.classList.remove('h-1');
+                }}
+              >
+                <div 
+                  className="progress-line absolute top-0 left-0 h-0.5 bg-red-500 transition-all duration-100 group-hover:h-1"
+                  style={{ width: `${(audioProgress / memoizedAudioDurations) * 100}%` }}
+                />
+                {/* Draggable handle */}
+                <div 
+                  className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-red-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                  style={{ 
+                    left: `calc(${(audioProgress / memoizedAudioDurations) * 100}% - 6px)`,
+                    transform: 'translateY(-50%)'
+                  }}
+                />
+                {/* Time tooltip */}
+                <div 
+                  className="absolute top-[-20px] opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/80 text-white text-xs px-1 py-0.5 rounded font-mono"
+                  style={{ 
+                    left: `${(audioProgress / memoizedAudioDurations) * 100}%`,
+                    transform: 'translateX(-50%)'
+                  }}
+                >
+                  {Math.floor(audioProgress / 60)}:{String(Math.floor(audioProgress % 60)).padStart(2, '0')}
+                </div>
+              </div>
+              
+              {/* Player content with proper spacing */}
+              <div className="container mx-auto h-full pt-4">
+                <div className="flex items-center justify-between h-[calc(100%-8px)] px-4 gap-4">
+                  {/* Thumbnail and title */}
+                  <div className="flex items-center gap-4 flex-1 min-w-0">
+                    {currentPlayingNFT && (
+                      <>
+                        <div className="w-12 h-12 flex-shrink-0 relative rounded overflow-hidden">
+                          {currentPlayingNFT.metadata?.animation_url ? (
+                            <video 
+                              ref={videoRef}
+                              src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || '')}
+                              className="w-full h-full object-cover"
+                              playsInline
+                              loop={false}
+                              muted={true}
+                              controls={false}
+                              preload="auto"
+                            />
+                          ) : (
+                            <NFTImage
+                              src={processMediaUrl(currentPlayingNFT.image || '') || '/placeholder.jpg'}
+                              alt={currentPlayingNFT.name}
+                              className="w-full h-full object-cover"
+                              width={48}
+                              height={48}
+                              priority={true}
+                            />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-mono text-green-400 truncate text-sm">
+                            {currentPlayingNFT.name}
+                          </h4>
+                          <p className="font-mono text-gray-400 truncate text-xs">
+                            {currentPlayingNFT.collection?.name}
+                          </p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Controls */}
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={handlePlayPause}
+                      className="text-green-400 hover:text-green-300"
+                    >
+                      {isPlaying ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                          <path d="M560-200v-560h80v560H560Zm-320 0v-560h80v560H240Z"/>
+                        </svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                          <path d="M320-200v-560l440 280-440 280Z"/>
+                        </svg>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => setIsPlayerMinimized(false)}
+                      className="text-green-400 hover:text-green-300"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                        <path d="M120-520v-320h320v320H120Zm80-80h160v-160H200v160Zm-80 480v-320h320v320H120Zm80-80h160v-160H200v160Zm320-320v-320h320v320H520Zm80-80h160v-160H600v160Zm-80 480v-320h320v320H520Zm80-80h160v-160H600v160Z"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            // Expanded player view (full screen)
+            <div className="h-full flex flex-col">
+              <div className="container mx-auto px-4 py-4 flex-1 flex flex-col">
+                {/* Header with minimize button */}
+                <div className="flex justify-between items-center mb-8">
+                  <h3 className="font-mono text-green-400 text-2xl">Now Playing</h3>
+                  <button
+                    onClick={() => setIsPlayerMinimized(true)}
+                    className="text-green-400 hover:text-green-300 p-2"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                      <path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/>
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Center content with NFT display */}
+                <div className="flex-1 flex flex-col items-center justify-center max-w-4xl mx-auto w-full gap-8">
+                  {currentPlayingNFT && (
+                    <>
+                      <div className="w-96 h-96 relative rounded-lg overflow-hidden shadow-2xl">
+                        {currentPlayingNFT.metadata?.animation_url ? (
+                          <video 
+                            ref={videoRef}
+                            src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || '')}
+                            className="w-full h-full object-cover"
+                            playsInline
+                            loop={false}
+                            muted={true}
+                            controls={false}
+                            preload="auto"
+                          />
+                        ) : (
+                          <NFTImage
+                            src={processMediaUrl(currentPlayingNFT.image || '') || '/placeholder.jpg'}
+                            alt={currentPlayingNFT.name}
+                            className="w-full h-full object-cover"
+                            width={384}
+                            height={384}
+                            priority={true}
+                          />
+                        )}
+                      </div>
+                      <div className="text-center">
+                        <h4 className="font-mono text-green-400 text-2xl mb-2">{currentPlayingNFT.name}</h4>
+                        <p className="font-mono text-gray-400 text-lg">{currentPlayingNFT.collection?.name}</p>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Bottom controls */}
+                <div className="mt-auto pt-8">
+                  <div className="flex flex-col gap-4 max-w-2xl mx-auto w-full">
+                    {/* Progress bar */}
+                    <div className="flex items-center gap-4">
+                      <span className="font-mono text-green-400 text-sm min-w-[60px] text-right">
+                        {Math.floor(audioProgress / 60)}:{String(Math.floor(audioProgress % 60)).padStart(2, '0')}
+                      </span>
+                      <div className="flex-1 relative group">
+                        <input
+                          type="range"
+                          min={0}
+                          max={memoizedAudioDurations}
+                          value={audioProgress}
+                          onChange={(e) => handleSeek(Number(e.target.value))}
+                          className="w-full h-1 bg-gray-700 rounded-full appearance-none cursor-pointer relative z-10"
+                          style={{
+                            background: `linear-gradient(to right, #4ade80 ${(audioProgress / memoizedAudioDurations) * 100}%, #374151 0%)`,
+                            WebkitAppearance: 'none',
+                          }}
+                        />
+                        <div 
+                          className="absolute top-1/2 -mt-2 w-4 h-4 bg-green-400 rounded-full shadow-lg transform -translate-y-1/2 pointer-events-none z-20"
+                          style={{
+                            left: `calc(${(audioProgress / memoizedAudioDurations) * 100}% - 8px)`,
+                            transition: 'left 0.1s linear'
+                          }}
+                        />
+                      </div>
+                      <span className="font-mono text-green-400 text-sm min-w-[60px]">
+                        {Math.floor(memoizedAudioDurations / 60)}:{String(Math.floor(memoizedAudioDurations % 60)).padStart(2, '0')}
+                      </span>
+                    </div>
+
+                    {/* Playback controls */}
+                    <div className="flex items-center justify-center gap-8">
+                      <button
+                        onClick={() => handleSeekOffset(-10)}
+                        className="text-green-400 hover:text-green-300 p-2"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px" fill="currentColor">
+                          <path d="M860-240 500-480l360-240v480Zm-400 0L100-480l360-240v480Z"/>
+                        </svg>
+                      </button>
+                      <button
+                        onClick={handlePlayPause}
+                        className="text-green-400 hover:text-green-300 p-4"
+                      >
+                        {isPlaying ? (
+                          <svg xmlns="http://www.w3.org/2000/svg" height="48px" viewBox="0 -960 960 960" width="48px" fill="currentColor">
+                            <path d="M560-200v-560h80v560H560Zm-320 0v-560h80v560H240Z"/>
+                          </svg>
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" height="48px" viewBox="0 -960 960 960" width="48px" fill="currentColor">
+                            <path d="M320-200v-560l440 280-440 280Z"/>
+                          </svg>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => handleSeekOffset(10)}
+                        className="text-green-400 hover:text-green-300 p-2"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px" fill="currentColor">
+                          <path d="M100-240v-480l360 240-360 240Zm400 0v-480l360 240-360 240Z"/>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
