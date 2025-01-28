@@ -2517,14 +2517,27 @@ export default function Demo({ title }: { title?: string }) {
                     {currentPlayingNFT && (
                       <>
                         <div className="w-12 h-12 flex-shrink-0 relative rounded overflow-hidden">
-                          <NFTImage
-                            src={processMediaUrl(currentPlayingNFT.image || '') || '/placeholder.jpg'}
-                            alt={currentPlayingNFT.name}
-                            className="w-full h-full object-cover"
-                            width={48}
-                            height={48}
-                            priority={true}
-                          />
+                          {currentPlayingNFT.metadata?.animation_url ? (
+                            <video 
+                              ref={videoRef}
+                              src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || '')}
+                              className="w-full h-full object-cover"
+                              playsInline
+                              loop={false}
+                              muted={true}
+                              controls={false}
+                              preload="auto"
+                            />
+                          ) : (
+                            <NFTImage
+                              src={processMediaUrl(currentPlayingNFT.image || '') || '/placeholder.jpg'}
+                              alt={currentPlayingNFT.name}
+                              className="w-full h-full object-cover"
+                              width={48}
+                              height={48}
+                              priority={true}
+                            />
+                          )}
                         </div>
                         <div className="flex-1 min-w-0">
                           <h4 className="font-mono text-green-400 truncate text-sm">
