@@ -2461,74 +2461,117 @@ export default function Demo({ title }: { title?: string }) {
           className={`fixed left-0 right-0 transition-all duration-300 z-40 
             ${isPlayerMinimized 
               ? 'bottom-[64px] h-20 bg-gray-900/95 backdrop-blur-md' 
-              : 'bottom-0 h-96 bg-gray-900/95 backdrop-blur-md'
+              : 'bottom-0 top-0 bg-gray-900/95 backdrop-blur-md'
             } 
             ${isPlayerVisible ? 'translate-y-0' : 'translate-y-full'}`}
         >
           {isPlayerMinimized ? (
-            // Minimized player view
-            <div className="container mx-auto h-full">
-              <div className="flex items-center justify-between h-full px-4 gap-4">
-                {/* Thumbnail and title */}
-                <div className="flex items-center gap-4 flex-1 min-w-0">
-                  {currentPlayingNFT && (
-                    <>
-                      <div className="w-14 h-14 flex-shrink-0 relative rounded overflow-hidden">
-                        <NFTImage
-                          src={processMediaUrl(currentPlayingNFT.image || '') || '/placeholder.jpg'}
-                          alt={currentPlayingNFT.name}
-                          className="w-full h-full object-cover"
-                          width={56}
-                          height={56}
-                          priority={true}
-                        />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-mono text-green-400 truncate text-sm">
-                          {currentPlayingNFT.name}
-                        </h4>
-                      </div>
-                    </>
-                  )}
+            // Minimized player view with red line
+            <div className="relative w-full">
+              {/* Red line progress indicator with drag functionality */}
+              <div 
+                className="absolute top-0 left-0 right-0 h-1 bg-gray-800 cursor-pointer group"
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const percent = (e.clientX - rect.left) / rect.width;
+                  handleSeek(memoizedAudioDurations * percent);
+                }}
+                onMouseEnter={() => {
+                  const progressBar = document.querySelector('.progress-line');
+                  if (progressBar) progressBar.classList.add('h-1');
+                }}
+                onMouseLeave={() => {
+                  const progressBar = document.querySelector('.progress-line');
+                  if (progressBar) progressBar.classList.remove('h-1');
+                }}
+              >
+                <div 
+                  className="progress-line absolute top-0 left-0 h-0.5 bg-red-500 transition-all duration-100 group-hover:h-1"
+                  style={{ width: `${(audioProgress / memoizedAudioDurations) * 100}%` }}
+                />
+                {/* Draggable handle */}
+                <div 
+                  className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-red-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                  style={{ 
+                    left: `calc(${(audioProgress / memoizedAudioDurations) * 100}% - 6px)`,
+                    transform: 'translateY(-50%)'
+                  }}
+                />
+                {/* Time tooltip */}
+                <div 
+                  className="absolute top-[-20px] opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/80 text-white text-xs px-1 py-0.5 rounded font-mono"
+                  style={{ 
+                    left: `${(audioProgress / memoizedAudioDurations) * 100}%`,
+                    transform: 'translateX(-50%)'
+                  }}
+                >
+                  {Math.floor(audioProgress / 60)}:{String(Math.floor(audioProgress % 60)).padStart(2, '0')}
                 </div>
-
-                {/* Controls */}
-                <div className="flex items-center gap-4">
-                  <button
-                    onClick={handlePlayPause}
-                    className="text-green-400 hover:text-green-300"
-                  >
-                    {isPlaying ? (
-                      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                        <path d="M560-200v-560h80v560H560Zm-320 0v-560h80v560H240Z"/>
-                      </svg>
-                    ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                        <path d="M320-200v-560l440 280-440 280Z"/>
-                      </svg>
+              </div>
+              
+              <div className="container mx-auto h-full">
+                <div className="flex items-center justify-between h-full px-4 gap-4">
+                  {/* Rest of minimized player content */}
+                  <div className="flex items-center gap-4 flex-1 min-w-0">
+                    {currentPlayingNFT && (
+                      <>
+                        <div className="w-14 h-14 flex-shrink-0 relative rounded overflow-hidden">
+                          <NFTImage
+                            src={processMediaUrl(currentPlayingNFT.image || '') || '/placeholder.jpg'}
+                            alt={currentPlayingNFT.name}
+                            className="w-full h-full object-cover"
+                            width={56}
+                            height={56}
+                            priority={true}
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-mono text-green-400 truncate text-sm">
+                            {currentPlayingNFT.name}
+                          </h4>
+                        </div>
+                      </>
                     )}
-                  </button>
-                  <button
-                    onClick={() => setIsPlayerMinimized(false)}
-                    className="text-green-400 hover:text-green-300"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                      <path d="M120-520v-320h320v320H120Zm80-80h160v-160H200v160Zm-80 480v-320h320v320H120Zm80-80h160v-160H200v160Zm320-320v-320h320v320H520Zm80-80h160v-160H600v160Zm-80 480v-320h320v320H520Zm80-80h160v-160H600v160Z"/>
-                    </svg>
-                  </button>
+                  </div>
+
+                  {/* Controls */}
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={handlePlayPause}
+                      className="text-green-400 hover:text-green-300"
+                    >
+                      {isPlaying ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                          <path d="M560-200v-560h80v560H560Zm-320 0v-560h80v560H240Z"/>
+                        </svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                          <path d="M320-200v-560l440 280-440 280Z"/>
+                        </svg>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => setIsPlayerMinimized(false)}
+                      className="text-green-400 hover:text-green-300"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                        <path d="M120-520v-320h320v320H120Zm80-80h160v-160H200v160Zm-80 480v-320h320v320H120Zm80-80h160v-160H200v160Zm320-320v-320h320v320H520Zm80-80h160v-160H600v160Zm-80 480v-320h320v320H520Zm80-80h160v-160H600v160Z"/>
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
           ) : (
-            // Expanded player view
-            <div className="container mx-auto h-full px-4 py-4">
-              <div className="flex flex-col h-full gap-4">
+            // Expanded player view (full screen)
+            <div className="h-full flex flex-col">
+              <div className="container mx-auto px-4 py-4 flex-1 flex flex-col">
                 {/* Header with minimize button */}
-                <div className="flex justify-between items-center">
-                  <h3 className="font-mono text-green-400 text-lg">Now Playing</h3>
+                <div className="flex justify-between items-center mb-8">
+                  <h3 className="font-mono text-green-400 text-2xl">Now Playing</h3>
                   <button
                     onClick={() => setIsPlayerMinimized(true)}
-                    className="text-green-400 hover:text-green-300"
+                    className="text-green-400 hover:text-green-300 p-2"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
                       <path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/>
@@ -2536,95 +2579,108 @@ export default function Demo({ title }: { title?: string }) {
                   </button>
                 </div>
 
-                {/* NFT Display */}
-                {currentPlayingNFT && (
-                  <div className="flex gap-6">
-                    <div className="w-48 h-48 relative rounded-lg overflow-hidden">
-                      {currentPlayingNFT.metadata?.animation_url ? (
-                        <video 
-                          ref={videoRef}
-                          src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || '')}
-                          className="w-full h-full object-cover"
-                          playsInline
-                          loop={false}
-                          muted={true}
-                          controls={false}
-                          preload="auto"
-                        />
-                      ) : (
-                        <NFTImage
-                          src={processMediaUrl(currentPlayingNFT.image || '') || '/placeholder.jpg'}
-                          alt={currentPlayingNFT.name}
-                          className="w-full h-full object-cover"
-                          width={192}
-                          height={192}
-                          priority={true}
-                        />
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-mono text-green-400 text-xl mb-2">{currentPlayingNFT.name}</h4>
-                      <p className="font-mono text-gray-400 text-sm">{currentPlayingNFT.collection?.name}</p>
-                    </div>
-                  </div>
-                )}
+                {/* Center content with NFT display */}
+                <div className="flex-1 flex flex-col items-center justify-center max-w-4xl mx-auto w-full gap-8">
+                  {currentPlayingNFT && (
+                    <>
+                      <div className="w-96 h-96 relative rounded-lg overflow-hidden shadow-2xl">
+                        {currentPlayingNFT.metadata?.animation_url ? (
+                          <video 
+                            ref={videoRef}
+                            src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || '')}
+                            className="w-full h-full object-cover"
+                            playsInline
+                            loop={false}
+                            muted={true}
+                            controls={false}
+                            preload="auto"
+                          />
+                        ) : (
+                          <NFTImage
+                            src={processMediaUrl(currentPlayingNFT.image || '') || '/placeholder.jpg'}
+                            alt={currentPlayingNFT.name}
+                            className="w-full h-full object-cover"
+                            width={384}
+                            height={384}
+                            priority={true}
+                          />
+                        )}
+                      </div>
+                      <div className="text-center">
+                        <h4 className="font-mono text-green-400 text-2xl mb-2">{currentPlayingNFT.name}</h4>
+                        <p className="font-mono text-gray-400 text-lg">{currentPlayingNFT.collection?.name}</p>
+                      </div>
+                    </>
+                  )}
+                </div>
 
-                {/* Progress bar and controls */}
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-green-400 text-sm min-w-[40px]">
-                      {Math.floor(audioProgress / 60)}:{String(Math.floor(audioProgress % 60)).padStart(2, '0')}
-                    </span>
-                    <div className="flex-1 relative">
-                      <input
-                        type="range"
-                        min={0}
-                        max={memoizedAudioDurations}
-                        value={audioProgress}
-                        onChange={(e) => handleSeek(Number(e.target.value))}
-                        className="w-full h-1 bg-gray-700 rounded-full appearance-none cursor-pointer"
-                        style={{
-                          background: `linear-gradient(to right, #4ade80 ${(audioProgress / memoizedAudioDurations) * 100}%, #374151 0%)`
-                        }}
-                      />
+                {/* Bottom controls */}
+                <div className="mt-auto pt-8">
+                  <div className="flex flex-col gap-4 max-w-2xl mx-auto w-full">
+                    {/* Progress bar */}
+                    <div className="flex items-center gap-4">
+                      <span className="font-mono text-green-400 text-sm min-w-[60px] text-right">
+                        {Math.floor(audioProgress / 60)}:{String(Math.floor(audioProgress % 60)).padStart(2, '0')}
+                      </span>
+                      <div className="flex-1 relative group">
+                        <input
+                          type="range"
+                          min={0}
+                          max={memoizedAudioDurations}
+                          value={audioProgress}
+                          onChange={(e) => handleSeek(Number(e.target.value))}
+                          className="w-full h-1 bg-gray-700 rounded-full appearance-none cursor-pointer relative z-10"
+                          style={{
+                            background: `linear-gradient(to right, #4ade80 ${(audioProgress / memoizedAudioDurations) * 100}%, #374151 0%)`,
+                            WebkitAppearance: 'none',
+                          }}
+                        />
+                        <div 
+                          className="absolute top-1/2 -mt-2 w-4 h-4 bg-green-400 rounded-full shadow-lg transform -translate-y-1/2 pointer-events-none z-20"
+                          style={{
+                            left: `calc(${(audioProgress / memoizedAudioDurations) * 100}% - 8px)`,
+                            transition: 'left 0.1s linear'
+                          }}
+                        />
+                      </div>
+                      <span className="font-mono text-green-400 text-sm min-w-[60px]">
+                        {Math.floor(memoizedAudioDurations / 60)}:{String(Math.floor(memoizedAudioDurations % 60)).padStart(2, '0')}
+                      </span>
                     </div>
-                    <span className="font-mono text-green-400 text-sm min-w-[40px]">
-                      {Math.floor(memoizedAudioDurations / 60)}:{String(Math.floor(memoizedAudioDurations % 60)).padStart(2, '0')}
-                    </span>
-                  </div>
 
-                  {/* Playback controls */}
-                  <div className="flex items-center justify-center gap-6">
-                    <button
-                      onClick={() => handleSeekOffset(-10)}
-                      className="text-green-400 hover:text-green-300"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                        <path d="M860-240 500-480l360-240v480Zm-400 0L100-480l360-240v480Z"/>
-                      </svg>
-                    </button>
-                    <button
-                      onClick={handlePlayPause}
-                      className="text-green-400 hover:text-green-300"
-                    >
-                      {isPlaying ? (
+                    {/* Playback controls */}
+                    <div className="flex items-center justify-center gap-8">
+                      <button
+                        onClick={() => handleSeekOffset(-10)}
+                        className="text-green-400 hover:text-green-300 p-2"
+                      >
                         <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px" fill="currentColor">
-                          <path d="M560-200v-560h80v560H560Zm-320 0v-560h80v560H240Z"/>
+                          <path d="M860-240 500-480l360-240v480Zm-400 0L100-480l360-240v480Z"/>
                         </svg>
-                      ) : (
+                      </button>
+                      <button
+                        onClick={handlePlayPause}
+                        className="text-green-400 hover:text-green-300 p-4"
+                      >
+                        {isPlaying ? (
+                          <svg xmlns="http://www.w3.org/2000/svg" height="48px" viewBox="0 -960 960 960" width="48px" fill="currentColor">
+                            <path d="M560-200v-560h80v560H560Zm-320 0v-560h80v560H240Z"/>
+                          </svg>
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" height="48px" viewBox="0 -960 960 960" width="48px" fill="currentColor">
+                            <path d="M320-200v-560l440 280-440 280Z"/>
+                          </svg>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => handleSeekOffset(10)}
+                        className="text-green-400 hover:text-green-300 p-2"
+                      >
                         <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px" fill="currentColor">
-                          <path d="M320-200v-560l440 280-440 280Z"/>
+                          <path d="M100-240v-480l360 240-360 240Zm400 0v-480l360 240-360 240Z"/>
                         </svg>
-                      )}
-                    </button>
-                    <button
-                      onClick={() => handleSeekOffset(10)}
-                      className="text-green-400 hover:text-green-300"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                        <path d="M100-240v-480l360 240-360 240Zm400 0v-480l360 240-360 240Z"/>
-                      </svg>
-                    </button>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
