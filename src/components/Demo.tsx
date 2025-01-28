@@ -2545,14 +2545,37 @@ export default function Demo({ title }: { title?: string }) {
               {/* Thumbnail and title */}
               <div className="flex items-center gap-4 flex-1 min-w-0">
                 <div className="w-12 h-12 flex-shrink-0 relative rounded overflow-hidden">
-                  <NFTImage
-                    src={currentPlayingNFT.metadata?.image || ''}
-                    alt={currentPlayingNFT.name}
-                    className="w-full h-full object-cover"
-                    width={48}
-                    height={48}
-                    priority={true}
-                  />
+                  {currentPlayingNFT.isVideo || currentPlayingNFT.metadata?.animation_url ? (
+                    <video
+                      ref={videoRef}
+                      src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || '')}
+                      className="w-full h-full object-cover"
+                      playsInline
+                      loop={currentPlayingNFT.isAnimation}
+                      muted={true}
+                      controls={false}
+                      autoPlay={isPlaying}
+                    />
+                  ) : currentPlayingNFT.isAnimation ? (
+                    <Image
+                      src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || currentPlayingNFT.metadata?.image || '')}
+                      alt={currentPlayingNFT.name}
+                      className="w-full h-full object-cover"
+                      width={48}
+                      height={48}
+                      priority={true}
+                      unoptimized={true}
+                    />
+                  ) : (
+                    <Image
+                      src={processMediaUrl(currentPlayingNFT.metadata?.image || '')}
+                      alt={currentPlayingNFT.name}
+                      className="w-full h-full object-cover"
+                      width={48}
+                      height={48}
+                      priority={true}
+                    />
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <h4 className="font-mono text-green-400 truncate text-sm">
