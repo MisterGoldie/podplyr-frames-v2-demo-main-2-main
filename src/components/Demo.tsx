@@ -2145,43 +2145,12 @@ export default function Demo({ title }: { title?: string }) {
     fetchTopPlayed();
   }, []);
 
-  // Add this helper function if you don't already have it
-  const isNFTLiked = (nft: NFT) => {
-    return likedNFTs.some(
-      likedNFT => 
-        likedNFT.contract === nft.contract && 
-        likedNFT.tokenId === nft.tokenId
-    );
-  };
-
-  // Then update your handleLikeToggle function
-  const handleLikeToggle = async (nft: NFT) => {
-    if (!userContext?.user?.fid) return;
-
-    if (isNFTLiked(nft)) {
-      // Remove from likes
-      const updatedLikes = likedNFTs.filter(
-        likedNFT => 
-          !(likedNFT.contract === nft.contract && 
-            likedNFT.tokenId === nft.tokenId)
-      );
-      setLikedNFTs(updatedLikes);
-      await removeLikedNFT(userContext.user.fid, nft);
-    } else {
-      // Add to likes (only if not already present)
-      if (!isNFTLiked(nft)) {
-        setLikedNFTs([...likedNFTs, nft]);
-        await addLikedNFT(userContext.user.fid, nft);
-      }
-    }
-  };
-
-  // Add this useEffect to load liked NFTs when user changes
+  // Update the useEffect to load liked NFTs
   useEffect(() => {
     const loadLikedNFTs = async () => {
-      if (userContext?.user?.fid && showLikedNFTs) {
+      if (userContext?.user?.fid) {
         try {
-          console.log('Loading liked NFTs...');
+          console.log('Loading liked NFTs for user:', userContext.user.fid);
           const liked = await getLikedNFTs(userContext.user.fid);
           console.log('Loaded liked NFTs:', liked);
           setLikedNFTs(liked);
@@ -2192,7 +2161,51 @@ export default function Demo({ title }: { title?: string }) {
     };
 
     loadLikedNFTs();
-  }, [showLikedNFTs, userContext?.user?.fid]);
+  }, [userContext?.user?.fid]); // Only depend on user FID
+
+  // Update the isNFTLiked helper function to be more robust
+  const isNFTLiked = useCallback((nft: NFT) => {
+    return likedNFTs.some(
+      likedNFT => 
+        likedNFT.contract.toLowerCase() === nft.contract.toLowerCase() && 
+        likedNFT.tokenId === nft.tokenId
+    );
+  }, [likedNFTs]);
+
+  // Update handleLikeToggle function
+  const handleLikeToggle = async (nft: NFT) => {
+    if (!userContext?.user?.fid) {
+      console.log('No user logged in');
+      return;
+    }
+
+    try {
+      const isCurrentlyLiked = isNFTLiked(nft);
+      console.log('Toggling like for NFT:', {
+        contract: nft.contract,
+        tokenId: nft.tokenId,
+        currentlyLiked: isCurrentlyLiked
+      });
+
+      if (isCurrentlyLiked) {
+        // Remove from likes
+        await removeLikedNFT(userContext.user.fid, nft);
+        setLikedNFTs(prev => prev.filter(
+          likedNFT => 
+            !(likedNFT.contract.toLowerCase() === nft.contract.toLowerCase() && 
+              likedNFT.tokenId === nft.tokenId)
+        ));
+        console.log('NFT removed from likes');
+      } else {
+        // Add to likes
+        await addLikedNFT(userContext.user.fid, nft);
+        setLikedNFTs(prev => [...prev, nft]);
+        console.log('NFT added to likes');
+      }
+    } catch (error) {
+      console.error('Error toggling like:', error);
+    }
+  };
 
   // Add this to check if current NFT is liked
   useEffect(() => {
@@ -2447,7 +2460,7 @@ export default function Demo({ title }: { title?: string }) {
               </div>
             )}
 
-            {/* Recently Played Section - Show when no search results and not viewing a user */}
+            {/* Recently Played Section */}
             {!searchResults.length && !selectedUser && (
               <div className="mt-8">
                 <h2 className="text-xl font-mono text-green-400 mb-4">Recently Played</h2>
@@ -2455,8 +2468,7 @@ export default function Demo({ title }: { title?: string }) {
                   {topPlayedNFTs.slice(0, 10).map(({nft}) => (
                     <div 
                       key={`${nft.contract}-${nft.tokenId}`}
-                      className="bg-gray-800/30 backdrop-blur-sm rounded-lg p-3 flex items-center gap-4 hover:bg-gray-800/50 transition-colors cursor-pointer group"
-                      onClick={() => handlePlayAudio(nft)}
+                      className="bg-gray-800/30 backdrop-blur-sm rounded-lg p-3 flex items-center gap-4 hover:bg-gray-800/50 transition-colors group"
                     >
                       {/* NFT Image */}
                       <div className="w-12 h-12 rounded overflow-hidden flex-shrink-0">
@@ -2476,20 +2488,50 @@ export default function Demo({ title }: { title?: string }) {
                         <p className="font-mono text-gray-400 text-xs truncate">{nft.collection?.name}</p>
                       </div>
                       
-                      {/* Play Button */}
-                      <button 
-                        className="w-10 h-10 rounded-full bg-green-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex-shrink-0"
-                      >
-                        {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
-                          <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="currentColor">
-                            <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
-                          </svg>
-                        ) : (
-                          <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="currentColor">
-                            <path d="M320-200v-560l440 280-440 280Z"/>
-                          </svg>
-                        )}
-                      </button>
+                      {/* Controls */}
+                      <div className="flex items-center gap-3">
+                        {/* Like Button */}
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleLikeToggle(nft);
+                          }}
+                          className="w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center transition-all duration-200 hover:scale-110"
+                        >
+                          {isNFTLiked(nft) ? (
+                            <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor" className="text-red-500">
+                              <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
+                            </svg>
+                          ) : (
+                            <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor" className="text-white hover:text-red-500">
+                              <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Zm0-108q96-86 158-147.5t98-107q36-45.5 50-81t14-70.5q0-60-40-100t-100-40q-47 0-87 26.5T518-680h-76q-15-41-55-67.5T300-774q-60 0-100 40t-40 100q0 35 14 70.5t50 81q36 45.5 98 107T480-228Zm0-273Z"/>
+                            </svg>
+                          )}
+                        </button>
+
+                        {/* Play Button */}
+                        <button 
+                          onClick={() => handlePlayAudio(nft)}
+                          className="w-10 h-10 rounded-full bg-green-400 text-black flex items-center justify-center hover:scale-105 transform transition-all duration-200"
+                        >
+                          {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
+                            <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="currentColor">
+                              <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
+                            </svg>
+                          ) : (
+                            <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="currentColor">
+                              <path d="M320-200v-560l440 280-440 280Z"/>
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Hidden Audio Element */}
+                      <audio
+                        id={`audio-${nft.contract}-${nft.tokenId}`}
+                        src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
+                        preload="none"
+                      />
                     </div>
                   ))}
                 </div>
