@@ -2401,6 +2401,52 @@ export default function Demo({ title }: { title?: string }) {
               </div>
             )}
 
+            {/* Recently Searched Users Section - Show when no search results and not viewing a user */}
+            {!searchResults.length && !selectedUser && recentSearches.length > 0 && (
+              <div className="mb-8">
+                <h2 className="text-xl font-mono text-green-400 mb-4">Recently Searched</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                  {recentSearches.slice(0, 6).map((user) => (
+                    <button
+                      key={`${user.fid}`}
+                      onClick={() => {
+                        const farcasterUser: FarcasterUser = {
+                          fid: user.fid,
+                          username: user.username,
+                          display_name: user.display_name,
+                          pfp_url: user.pfp_url,
+                          follower_count: 0,
+                          following_count: 0
+                        };
+                        handleUserSelect(farcasterUser);
+                      }}
+                      className="bg-gray-800/30 backdrop-blur-sm p-4 rounded-lg text-left hover:bg-gray-800/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 relative">
+                          <Image
+                            src={user.pfp_url || `https://avatar.vercel.sh/${user.username}`}
+                            alt={user.display_name || user.username}
+                            className="object-cover"
+                            fill
+                            sizes="48px"
+                          />
+                        </div>
+                        <div>
+                          <h3 className="font-mono text-green-400 truncate max-w-[200px]">
+                            {user.display_name || user.username}
+                          </h3>
+                          <p className="font-mono text-gray-400 truncate max-w-[200px]">
+                            @{user.username}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Recently Played Section - Show when no search results and not viewing a user */}
             {!searchResults.length && !selectedUser && (
               <div className="mt-8">
