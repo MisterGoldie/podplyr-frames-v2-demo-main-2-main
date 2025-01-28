@@ -112,34 +112,13 @@ function SearchBar({ onSearch, isSearching }: SearchBarProps) {
 
   return (
     <div className="w-full max-w-[90vw] mx-auto text-center">
-      {/* Animated Logo */}
-      <div className="relative p-4 rounded-xl bg-gray-900/40 backdrop-blur-sm border border-green-400/20">
-        <h1 className="text-4xl sm:text-6xl font-mono text-green-400 tracking-widest">
-          PODPLAYR
-        </h1>
-        {/* Audio Wave Animation */}
-        <div className="mt-2 flex justify-center items-end space-x-1 h-3">
-          {[1,2,3,4].map((i) => (
-            <div 
-              key={i}
-              className="w-[2px] bg-green-400 rounded-full transition-all duration-150"
-              style={{
-                height: `${2 + (i * 3)}px`,
-                animation: `audioWavePulse 1.5s ease-in-out infinite`,
-                animationDelay: `${(4-i) * 0.2}s`,
-                transformOrigin: 'bottom'
-              }}
-            />
-          ))}
-        </div>
-      </div>
 
       <div className="relative mt-4">
         <input
           type="text"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
-          placeholder="Enter Farcaster username.."
+          placeholder="Explore Farcaster users.."
           className="w-full px-4 py-3 bg-transparent border-2 border-green-400/30 
                    rounded-full text-green-400 placeholder-green-400/50 
                    focus:outline-none focus:border-green-400 
@@ -352,6 +331,16 @@ const retroStyles = `
   @keyframes blink {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.6; }
+  }
+
+  /* Add scrollbar hiding styles */
+  .hide-scrollbar {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;     /* Firefox */
+  }
+
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;             /* Chrome, Safari and Opera */
   }
 
   .retro-container {
@@ -2202,125 +2191,54 @@ export default function Demo({ title }: { title?: string }) {
       isProfileView ? 'pb-96' : ''
     }`}>
       <RetroStyles />
-      <div className="container mx-auto px-4 pt-20 pb-8"> {/* Changed py-8 to pt-20 pb-8 */}
-        {/* Profile Menu */}
-        {userContext?.user && (
-          <div 
-            className="absolute top-4 right-4 z-50"
-            onClick={(e) => {
-              e.stopPropagation();
-              console.log('Container clicked');
-            }}
-          >
-            <button 
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log('Profile button clicked');
-                setIsProfileMenuOpen(!isProfileMenuOpen);
-              }}
-              className="relative profile-menu"
-            >
-              <Image
-                src={userContext.user.pfpUrl || ''}
-                alt="Profile"
-                width={40}
-                height={40}
-                className="rounded-full border-2 border-green-400 hover:border-green-300 transition-colors"
-              />
-            </button>
-
-            {isProfileMenuOpen && (
-              <div 
-                className="absolute right-0 mt-2 w-48 bg-gray-900 border-2 border-green-400 rounded-lg shadow-xl"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  console.log('Menu container clicked');
-                }}
-              >
-                <div className="py-2">
-                  {/* Existing profile info */}
-                  <div className="px-4 py-2 border-b border-green-400/30">
-                    <p className="font-mono text-green-400 truncate">
-                      {userContext.user.displayName || userContext.user.username}
-                    </p>
-                    <p className="font-mono text-gray-400 text-sm truncate">
-                      @{userContext.user.username}
-                    </p>
-                  </div>
-                  
-                  {/* My Likes button */}
-                  <button
-                    type="button"
-                    onMouseEnter={() => console.log('Button hover')}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      console.log('Button mousedown - My Likes');
-                      
-                      setSelectedUser(null);
-                      setNfts([]); // Clear media NFTs
-                      setShowLikedNFTs(true);
-                      setIsProfileView(true);
-                      setIsProfileMenuOpen(false);
-                      
-                      console.log('Switching to liked NFTs view');
+      
+      {/* Top Navigation Bar */}
+      <div className="fixed top-0 left-0 right-0 bg-gray-900/95 backdrop-blur-md border-b border-green-400/20 h-[64px] z-30">
+        <div className="container mx-auto px-4 h-full">
+          <div className="flex items-center justify-between h-full">
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-mono text-green-400 tracking-widest">PODPLAYR</h1>
+              <div className="flex items-end space-x-1 h-3">
+                {[1,2,3,4].map((i) => (
+                  <div 
+                    key={i}
+                    className="w-[2px] bg-green-400 rounded-full transition-all duration-150"
+                    style={{
+                      height: `${2 + (i * 3)}px`,
+                      animation: `audioWavePulse 1.5s ease-in-out infinite`,
+                      animationDelay: `${(4-i) * 0.2}s`,
+                      transformOrigin: 'bottom'
                     }}
-                    className="w-full px-4 py-2 text-left font-mono text-green-400 hover:bg-green-400/10 transition-colors cursor-pointer"
-                  >
-                    My Likes
-                  </button>
-                  
-                  {/* My Media button */}
-                  <button
-                    type="button"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      console.log('Button mousedown - My Media');
-                      
-                      setSelectedUser(null);
-                      setShowLikedNFTs(false);
-                      setIsProfileView(true);
-                      setIsProfileMenuOpen(false);
-                      
-                      if (userContext?.user) {
-                        handleViewProfile()
-                          .then(() => console.log('Media loaded successfully'))
-                          .catch(err => {
-                            console.error('Failed to load media:', err);
-                            setError('Failed to load media');
-                          });
-                      }
-                    }}
-                    className="w-full px-4 py-2 text-left font-mono text-green-400 hover:bg-green-400/10 transition-colors cursor-pointer"
-                  >
-                    My Media
-                  </button>
-
-                  {/* Home button */}
-                  <button
-                    type="button"
-                    onMouseEnter={() => console.log('Button hover')}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      console.log('Button mousedown - Home');
-                      handleBack();
-                      setIsProfileView(false);
-                      setShowLikedNFTs(false);
-                      setIsProfileMenuOpen(false);
-                    }}
-                    className="w-full px-4 py-2 text-left font-mono text-green-400 hover:bg-green-400/10 transition-colors cursor-pointer"
-                  >
-                    Home
-                  </button>
-                </div>
+                  />
+                ))}
+              </div>
+            </div>
+            {userContext?.user && (
+              <div className="flex items-center gap-4">
+                <button 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsProfileMenuOpen(!isProfileMenuOpen);
+                  }}
+                  className="relative profile-menu"
+                >
+                  <Image
+                    src={userContext.user.pfpUrl || ''}
+                    alt="Profile"
+                    width={40}
+                    height={40}
+                    className="rounded-full border-2 border-green-400 hover:border-green-300 transition-colors"
+                  />
+                </button>
               </div>
             )}
           </div>
-        )}
+        </div>
+      </div>
 
+      <div className="container mx-auto px-4 pt-20 pb-8">
+        {/* Remove the duplicate profile menu and start directly with the content */}
         <div className="retro-container p-6 mb-8">
           <SearchBar onSearch={handleSearch} isSearching={isSearching} />
         </div>
@@ -2337,7 +2255,7 @@ export default function Demo({ title }: { title?: string }) {
         {/* Show search results */}
         {searchResults.length > 0 && !selectedUser && (
           <div className="retro-container p-6 mb-8">
-            <h2 className="text-xl font-mono text-green-400 mb-4">SEARCH RESULTS</h2>
+            <h2 className="text-xl font-mono text-green-400 mb-4">EXPLORE RESULTS</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {searchResults.map((user, index) => (
                 <button
@@ -2353,7 +2271,7 @@ export default function Demo({ title }: { title?: string }) {
                         className="w-12 h-12 rounded-full border-2 border-gray-600"
                         width={48}
                         height={48}
-                      />
+                />
                     ) : (
                       <div className="w-12 h-12 rounded-full bg-gray-800 border-2 border-gray-600 flex items-center justify-center text-green-400 font-mono">
                         {(user.display_name || user.username).charAt(0).toUpperCase()}
@@ -2376,11 +2294,11 @@ export default function Demo({ title }: { title?: string }) {
         {selectedUser && (
           <div className="retro-container p-6 mb-8">
             <div className="flex items-center gap-6">
-              <button
-                onClick={handleBack}
+                <button
+                  onClick={handleBack}
                 className="retro-button p-2 text-green-400 hover:text-green-300 transition-colors"
                 aria-label="Go back"
-              >
+                >
                 <svg
                   className="w-6 h-6"
                   fill="none"
@@ -2393,8 +2311,8 @@ export default function Demo({ title }: { title?: string }) {
                     strokeWidth={2}
                     d="M10 19l-7-7m0 0l7-7m-7 7h18"
                   />
-                </svg>
-              </button>
+                  </svg>
+                </button>
               <div className="flex items-center gap-4 max-w-[calc(100%-4rem)] overflow-hidden">
                 {selectedUser.pfp_url ? (
                   <Image
@@ -2411,7 +2329,7 @@ export default function Demo({ title }: { title?: string }) {
                 )}
                 <div className="min-w-0">
                   <h2 className="text-2xl font-mono text-green-400 truncate">
-                    {selectedUser.display_name || selectedUser.username}
+                  {selectedUser.display_name || selectedUser.username}
                   </h2>
                   <p className="font-mono text-gray-400 truncate">@{selectedUser.username}</p>
                 </div>
@@ -2517,7 +2435,7 @@ export default function Demo({ title }: { title?: string }) {
                   </div>
                   {nft.hasValidAudio && (
                     <audio
-                      key={`${nft.contract}-${nft.tokenId}`}
+                    key={`${nft.contract}-${nft.tokenId}`}
                       id={`audio-${nft.contract}-${nft.tokenId}`}
                       src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
                       onLoadedMetadata={(e) => {
@@ -2530,22 +2448,24 @@ export default function Demo({ title }: { title?: string }) {
                         }));
                       }}
                       preload="metadata"
-                    />
+                  />
                   )}
                 </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
         {/* Update the media player to look like a Walkman/cassette player */}
         <div
-          className={`fixed bottom-0 left-0 right-0 retro-container transition-all duration-300 z-50 
+          className={`fixed left-0 right-0 retro-container transition-all duration-300 z-40 
             ${isPlayerMinimized 
               ? 'bg-gray-900/40 backdrop-blur-sm rounded-t-[2rem] h-20 ' + (isPlaying ? 'bg-green-900/10' : '') 
               : 'bg-gray-900/60 backdrop-blur-md rounded-t-[2rem] h-96'
             } 
-            ${isPlayerVisible ? 'translate-y-0' : 'translate-y-full'}`}
+            ${isPlayerVisible 
+              ? 'bottom-[64px]' 
+              : 'translate-y-full bottom-0'}`}
         >
           <div className="container mx-auto px-4 h-full">
             <div className="flex flex-col h-full">
@@ -2577,8 +2497,8 @@ export default function Demo({ title }: { title?: string }) {
                     ) : (
                       <p className="font-mono text-lg">NO MEDIA PLAYING</p>
                     )}
-                  </div>
-                </div>
+          </div>
+        </div>
 
                 {/* Right minimize button */}
                 <button
@@ -2685,7 +2605,7 @@ export default function Demo({ title }: { title?: string }) {
                     </button>
                     
                     <div className="flex-1 relative">
-                      <input
+            <input
                         type="range"
                         min={0}
                         max={memoizedAudioDurations}
@@ -2759,60 +2679,65 @@ export default function Demo({ title }: { title?: string }) {
               {topPlayedNFTs.length > 0 && (
                 <div className="retro-container p-6 mb-8">
                   <h2 className="text-xl font-mono text-green-400 mb-4">TOP PLAYED NFTs</h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    {topPlayedNFTs.map(({nft, count}, index) => (
-                      <div 
-                        key={`${nft.contract}-${nft.tokenId}`}
-                        className="retro-container p-4 bg-gray-800 relative"
-                      >
-                        <div className="aspect-square relative mb-2">
-                          <NFTImage
-                            src={nft.metadata?.image || ''}
-                            alt={nft.name}
-                            className="w-full h-full object-cover"
-                            width={192}
-                            height={192}
-                            priority={true}
-                          />
-                          <div className="absolute top-2 left-2 bg-green-400 text-black font-mono px-2 py-1 text-sm">
-                            #{index + 1}
-                          </div>
-                          <div className="absolute top-2 right-2 bg-purple-500 text-white font-mono px-2 py-1 text-sm">
-                            {count} plays
-                          </div>
-                          <button 
-                            onClick={() => handlePlayAudio(nft)}
-                            className="absolute bottom-4 right-4 retro-button p-3 text-white"
+                  <div className="relative">
+                    {/* Scrollable container */}
+                    <div className="overflow-x-auto pb-4 hide-scrollbar">
+                      <div className="flex gap-4 min-w-min">
+                        {topPlayedNFTs.map(({nft, count}, index) => (
+                          <div 
+                            key={`${nft.contract}-${nft.tokenId}`}
+                            className="retro-container p-2 bg-gray-800 relative flex-shrink-0 w-[200px]"
                           >
-                            {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
-                              <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                                <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
-                              </svg>
-                            ) : (
-                              <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                                <path d="M320-200v-560l440 280-440 280Z"/>
-                              </svg>
-                            )}
-                          </button>
-                        </div>
-                        <h3 className="font-mono text-green-400 truncate">{nft.name}</h3>
-                        <audio
-                          id={`audio-${nft.contract}-${nft.tokenId}`}
-                          src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
-                          preload="none"
-                          onTimeUpdate={(e) => {
-                            if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
-                              setAudioProgress((e.target as HTMLAudioElement).currentTime);
-                            }
-                          }}
-                          onEnded={() => {
-                            if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
-                              setIsPlaying(false);
-                            }
-                          }}
-                        />
+                            <div className="aspect-square relative mb-2">
+                              <NFTImage
+                                src={nft.metadata?.image || ''}
+                                alt={nft.name}
+                                className="w-full h-full object-cover"
+                                width={200}
+                                height={200}
+                                priority={true}
+                              />
+                              <div className="absolute top-2 left-2 bg-green-400 text-black font-mono px-2 py-1 text-xs">
+                                #{index + 1}
+                              </div>
+                              <div className="absolute top-2 right-2 bg-purple-500 text-white font-mono px-2 py-1 text-xs">
+                                {count} plays
+                              </div>
+                              <button 
+                                onClick={() => handlePlayAudio(nft)}
+                                className="absolute bottom-2 right-2 retro-button p-2 text-white"
+                              >
+                                {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
+                                  <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="currentColor">
+                                    <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
+                                  </svg>
+                                ) : (
+                                  <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="currentColor">
+                                    <path d="M320-200v-560l440 280-440 280Z"/>
+                                  </svg>
+                                )}
+                              </button>
+                            </div>
+                            <h3 className="font-mono text-green-400 truncate text-sm">{nft.name}</h3>
+                            <audio
+                              id={`audio-${nft.contract}-${nft.tokenId}`}
+                              src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
+                              preload="none"
+                              onTimeUpdate={(e) => {
+                                if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
+                                  setAudioProgress((e.target as HTMLAudioElement).currentTime);
+                                }
+                              }}
+                              onEnded={() => {
+                                if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
+                                  setIsPlaying(false);
+                                }
+                              }}
+                            />
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    </div>
                   </div>
                 </div>
               )}
@@ -2824,8 +2749,8 @@ export default function Demo({ title }: { title?: string }) {
             <div className="retro-container p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-mono text-green-400">My Liked NFTs</h2>
-              </div>
-              
+        </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
                 {likedNFTs.length === 0 ? (
                   <p className="text-center font-mono text-gray-400 py-8 col-span-full">
@@ -2839,113 +2764,92 @@ export default function Demo({ title }: { title?: string }) {
                       onPlay={handlePlayAudio}
                       isPlaying={isPlaying}
                       currentlyPlaying={currentlyPlaying}
-                    />
+      />
                   ))
                 )}
               </div>
-            </div>
+        </div>
           )}
         </>
       )}
+      {/* Bottom Navigation */}
+      <div className="fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-md border-t border-green-400/20 h-[64px] z-30">
+        <div className="container mx-auto px-4">
+          <div className="flex justify-around items-center h-full">
+            {/* Home Button */}
+            <button 
+              onClick={() => {
+                handleBack();
+                setIsProfileView(false);
+                setShowLikedNFTs(false);
+              }} 
+              className="flex flex-col items-center gap-1 text-green-400 hover:text-green-300 transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                <path d="M240-200h120v-240h240v240h120v-360L480-740 240-560v360Zm-80 80v-480l320-240 320 240v480H520v-240h-80v240H160Zm320-350Z"/>
+              </svg>
+              <span className="text-xs font-mono">Home</span>
+            </button>
+
+            {/* Search Button */}
+            <button 
+              onClick={() => {
+                handleBack();
+                setIsProfileView(false);
+                setShowLikedNFTs(false);
+              }}
+              className="flex flex-col items-center gap-1 text-green-400 hover:text-green-300 transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                <path d="M784-120 532-372q-30 24-69 38t-83 14q-109 0-184.5-75.5T120-580q0-109 75.5-184.5T380-840q109 0 184.5 75.5T640-580q0 44-14 83t-38 69l252 252-56 56ZM380-400q75 0 127.5-52.5T560-580q0-75-52.5-127.5T380-760q-75 0-127.5 52.5T200-580q0 75 52.5 127.5T380-400Z"/>
+              </svg>
+              <span className="text-xs font-mono">Search</span>
+            </button>
+
+            {/* Library/Likes Button */}
+            <button 
+              onClick={() => {
+                setSelectedUser(null);
+                setShowLikedNFTs(true);
+                setIsProfileView(true);
+              }}
+              className="flex flex-col items-center gap-1 text-green-400 hover:text-green-300 transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Zm0-108q96-86 158-147.5t98-107q36-45.5 50-81t14-70.5q0-60-40-100t-100-40q-47 0-87 26.5T518-680h-76q-15-41-55-67.5T300-774q-60 0-100 40t-40 100q0 35 14 70.5t50 81q36 45.5 98 107T480-228Zm0-273Z"/>
+              </svg>
+              <span className="text-xs font-mono">Library</span>
+            </button>
+
+            {/* Profile Button */}
+            {userContext?.user && (
+              <button 
+                onClick={() => {
+                  setSelectedUser(null);
+                  setShowLikedNFTs(false);
+                  setIsProfileView(true);
+                  handleViewProfile();
+                }}
+                className="flex flex-col items-center gap-1 text-green-400 hover:text-green-300 transition-colors"
+              >
+                <div className="relative w-6 h-6 rounded-full overflow-hidden">
+                  <Image
+                    src={userContext.user.pfpUrl || '/placeholder-avatar.png'}
+                    alt="Profile"
+                    width={24}
+                    height={24}
+                    className="object-cover"
+                  />
+            </div>
+                <span className="text-xs font-mono">Profile</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
-const fetchWithRetry = async (url: string, retries = 3): Promise<Response> => {
-  let lastError: Error | null = null;
-  
-  for (let i = 0; i < retries; i++) {
-    try {
-      const response = await fetch(url);
-      return response;
-    } catch (error) {
-      console.warn(`Fetch attempt ${i + 1} failed:`, error);
-      lastError = error as Error;
-      if (i < retries - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
-      }
-    }
-  }
-  
-  throw lastError || new Error('Failed to fetch after retries');
-};
 
-const fetchNFTsWithPagination = async (baseUrl: string, startToken?: string) => {
-  const url = startToken 
-    ? `${baseUrl}&pageKey=${startToken}`
-    : baseUrl;
-  
-  try {
-    const response = await fetchWithRetry(url);
-    if (!response.ok) return null;
-    return response.json();
-  } catch (error) {
-    console.error('Failed to fetch NFTs:', error);
-    return null;
-  }
-};
 
-const fetchNFTs = async (fid: number): Promise<NFT[]> => {
-  const allNFTs: NFT[] = [];
-  const ITEMS_PER_PAGE = 50;
-  const MAX_ITEMS = 100;
-
-  try {
-    const address = await getUserAddress(fid);
-    if (address === null) return [];
-
-    // Fetch from Mainnet with pagination
-    const mainnetBaseUrl = `https://eth-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_KEY}/getNFTsForOwner?owner=${address}&withMetadata=true&pageSize=${ITEMS_PER_PAGE}`;
-    
-    let pageKey = undefined;
-    let totalMainnetNFTs = 0;
-
-    do {
-      const data = await fetchNFTsWithPagination(mainnetBaseUrl, pageKey);
-      if (!data) break;
-
-      if (data.ownedNfts?.length) {
-        const processedNFTs = data.ownedNfts
-          .map((nft: any) => {
-            try {
-              return processNFTMetadata(nft);
-            } catch (error) {
-              console.warn('[NFT Fetch] Mainnet processing error:', error);
-              return null;
-            }
-          })
-          .filter((nft: NFT | null) => nft && nft.hasValidAudio);
-
-        allNFTs.push(...processedNFTs);
-        totalMainnetNFTs += processedNFTs.length;
-      }
-
-      pageKey = data.pageKey;
-    } while (pageKey && totalMainnetNFTs < MAX_ITEMS);
-
-    // Rest of the function remains the same...
-  } catch (error) {
-    console.error('[NFT Fetch] Network error:', error);
-  }
-
-  return allNFTs;
-};
-
-function resetPlaybackStates() {
-  throw new Error('Function not implemented.');
-}
-
-async function getUserAddress(fid: number): Promise<string | null> {
-  try {
-    // Your existing getUserAddress implementation
-    // Make sure it returns a string or null
-    return "0x..."; // Replace with actual implementation
-  } catch (error) {
-    console.error('[Get Address] Error:', error);
-    return null;
-  }
-}
-
-function processNFTMetadata(nft: any) {
-  throw new Error('Function not implemented.');
-}
