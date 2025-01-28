@@ -2788,7 +2788,7 @@ export default function Demo({ title }: { title?: string }) {
       )}
       {/* Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-md border-t border-green-400/20 h-[64px] z-30">
-        <div className="container mx-auto px-4">
+        <div className="container mx-auto px-4 py-2.5">
           <div className="flex justify-around items-center h-full">
             {/* Home Button */}
             <button 
