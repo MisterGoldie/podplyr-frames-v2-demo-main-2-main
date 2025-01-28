@@ -2811,27 +2811,43 @@ export default function Demo({ title }: { title?: string }) {
             <div className="max-w-screen-sm mx-auto px-4 py-8">
               {/* NFT Image/Video Container */}
               <div className="relative w-full mb-8">
-                {currentPlayingNFT.isVideo || currentPlayingNFT.metadata?.animation_url ? (
-                  <video
-                    ref={videoRef}
-                    src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || '')}
-                    className="w-full h-auto object-contain"
-                    playsInline
-                    loop={currentPlayingNFT.isAnimation}
-                    muted={true}
-                    controls={false}
-                    autoPlay={isPlaying}
-                  />
-                ) : (
-                  <Image
-                    src={processMediaUrl(currentPlayingNFT.metadata?.image || '')}
-                    alt={currentPlayingNFT.name}
-                    className="w-full h-auto object-contain"
-                    width={500}
-                    height={500}
-                    priority={true}
-                  />
-                )}
+                <div className={`transition-all duration-500 ease-in-out transform ${isPlaying ? 'scale-100' : 'scale-90'}`}>
+                  {currentPlayingNFT.isVideo || currentPlayingNFT.metadata?.animation_url ? (
+                    <video
+                      ref={videoRef}
+                      src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || '')}
+                      className="w-full h-auto object-contain rounded-lg transition-transform duration-500"
+                      playsInline
+                      loop={currentPlayingNFT.isAnimation}
+                      muted={true}
+                      controls={false}
+                      autoPlay={isPlaying}
+                    />
+                  ) : (
+                    <Image
+                      src={processMediaUrl(currentPlayingNFT.metadata?.image || '')}
+                      alt={currentPlayingNFT.name}
+                      className="w-full h-auto object-contain rounded-lg transition-transform duration-500"
+                      width={500}
+                      height={500}
+                      priority={true}
+                    />
+                  )}
+                </div>
+
+                {/* Play/Pause Overlay */}
+                <div 
+                  className={`absolute inset-0 flex items-center justify-center bg-black/40 transition-opacity duration-300 ${
+                    isPlaying ? 'opacity-0' : 'opacity-100'
+                  }`}
+                  onClick={handlePlayPause}
+                >
+                  <div className="transform transition-transform duration-300 hover:scale-110">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="64px" viewBox="0 -960 960 960" width="64px" fill="currentColor" className="text-white">
+                      <path d="M320-200v-560l440 280-440 280Z"/>
+                    </svg>
+                  </div>
+                </div>
               </div>
 
               {/* Track Info */}
@@ -2862,48 +2878,92 @@ export default function Demo({ title }: { title?: string }) {
               </div>
 
               {/* Controls */}
-              <div className="flex justify-center items-center gap-12">
-                {/* Like Button */}
-                <button 
-                  onClick={() => handleLikeToggle(currentPlayingNFT)}
-                  className="text-white hover:scale-110 transition-transform"
-                >
-                  {isNFTLiked(currentPlayingNFT) ? (
-                    <svg xmlns="http://www.w3.org/2000/svg" height="32" viewBox="0 -960 960 960" width="32" fill="currentColor" className="text-red-500">
-                      <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
+              <div className="flex flex-col gap-8">
+                {/* Main Controls */}
+                <div className="flex justify-center items-center gap-12">
+                  {/* Previous Track */}
+                  <button 
+                    onClick={() => {
+                      const currentIndex = nfts.findIndex(nft => 
+                        nft.contract === currentPlayingNFT.contract && 
+                        nft.tokenId === currentPlayingNFT.tokenId
+                      );
+                      if (currentIndex > 0) {
+                        handlePlayAudio(nfts[currentIndex - 1]);
+                      }
+                    }}
+                    className="text-white hover:scale-110 transition-transform"
+                    disabled={!nfts.length}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px" fill="currentColor">
+                      <path d="M220-240v-480h80v480h-80Zm520 0L380-480l360-240v480Z"/>
                     </svg>
-                  ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" height="32" viewBox="0 -960 960 960" width="32" fill="currentColor">
-                      <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Zm0-108q96-86 158-147.5t98-107q36-45.5 50-81t14-70.5q0-60-40-100t-100-40q-47 0-87 26.5T518-680h-76q-15-41-55-67.5T300-774q-60 0-100 40t-40 100q0 35 14 70.5t50 81q36 45.5 98 107T480-228Zm0-273Z"/>
-                    </svg>
-                  )}
-                </button>
+                  </button>
 
-                {/* Play/Pause Button */}
-                <button 
-                  onClick={handlePlayPause}
-                  className="w-20 h-20 rounded-full bg-green-400 text-black flex items-center justify-center hover:scale-105 transition-transform"
-                >
-                  {isPlaying ? (
-                    <svg xmlns="http://www.w3.org/2000/svg" height="40px" viewBox="0 -960 960 960" width="40px" fill="currentColor">
-                      <path d="M560-200v-560h80v560H560Zm-320 0v-560h80v560H240Z"/>
-                    </svg>
-                  ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" height="40px" viewBox="0 -960 960 960" width="40px" fill="currentColor">
-                      <path d="M320-200v-560l440 280-440 280Z"/>
-                    </svg>
-                  )}
-                </button>
+                  {/* Play/Pause Button */}
+                  <button 
+                    onClick={handlePlayPause}
+                    className="w-20 h-20 rounded-full bg-green-400 text-black flex items-center justify-center hover:scale-105 transition-transform"
+                  >
+                    {isPlaying ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" height="40px" viewBox="0 -960 960 960" width="40px" fill="currentColor">
+                        <path d="M560-200v-560h80v560H560Zm-320 0v-560h80v560H240Z"/>
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" height="40px" viewBox="0 -960 960 960" width="40px" fill="currentColor">
+                        <path d="M320-200v-560l440 280-440 280Z"/>
+                      </svg>
+                    )}
+                  </button>
 
-                {/* PiP Button */}
-                <button 
-                  onClick={togglePictureInPicture}
-                  className="text-white hover:scale-110 transition-transform"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" height="32" viewBox="0 -960 960 960" width="32" fill="currentColor">
-                    <path d="M560-120v-80h280v-280h80v360H560Zm-520 0v-360h80v280h280v80H40Zm520-520v-280h280v80H640v200h-80ZM120-640v-200h280v-80H40v280h80Z"/>
-                  </svg>
-                </button>
+                  {/* Next Track */}
+                  <button 
+                    onClick={() => {
+                      const currentIndex = nfts.findIndex(nft => 
+                        nft.contract === currentPlayingNFT.contract && 
+                        nft.tokenId === currentPlayingNFT.tokenId
+                      );
+                      if (currentIndex < nfts.length - 1) {
+                        handlePlayAudio(nfts[currentIndex + 1]);
+                      }
+                    }}
+                    className="text-white hover:scale-110 transition-transform"
+                    disabled={!nfts.length}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px" fill="currentColor">
+                      <path d="M660-240v-480h80v480h-80ZM220-240v-480l360 240-360 240Z"/>
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Secondary Controls */}
+                <div className="flex justify-center items-center gap-8">
+                  {/* Like Button */}
+                  <button 
+                    onClick={() => handleLikeToggle(currentPlayingNFT)}
+                    className="text-white hover:scale-110 transition-transform"
+                  >
+                    {isNFTLiked(currentPlayingNFT) ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor" className="text-red-500">
+                        <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                        <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Zm0-108q96-86 158-147.5t98-107q36-45.5 50-81t14-70.5q0-60-40-100t-100-40q-47 0-87 26.5T518-680h-76q-15-41-55-67.5T300-774q-60 0-100 40t-40 100q0 35 14 70.5t50 81q36 45.5 98 107T480-228Zm0-273Z"/>
+                      </svg>
+                    )}
+                  </button>
+
+                  {/* PiP Button */}
+                  <button 
+                    onClick={togglePictureInPicture}
+                    className="text-white hover:scale-110 transition-transform"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                      <path d="M560-120v-80h280v-280h80v360H560Zm-520 0v-360h80v280h280v80H40Zm520-520v-280h280v80H640v200h-80ZM120-640v-200h280v-80H40v280h80Z"/>
+                    </svg>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
