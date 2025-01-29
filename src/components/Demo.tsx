@@ -3242,49 +3242,56 @@ export default function Demo({ title }: { title?: string }) {
                 </div>
                 
             {/* NFT Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {isLoadingNFTs ? (
-                  <div className="col-span-full flex flex-col items-center justify-center py-12">
-                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-400 mb-4"></div>
-                    <p className="font-mono text-green-400">Loading your NFTs...</p>
-                </div>
-              ) : nfts.length === 0 ? (
-                <div className="col-span-full text-center py-12">
-                    <p className="font-mono text-gray-400">No audio NFTs found in your collection</p>
-                    <p className="font-mono text-gray-400 text-sm mt-2">
-                      Make sure your wallet is connected and contains audio NFTs
-                    </p>
+              <div className="mb-8">
+                <div className="relative">
+                  <div className="overflow-x-auto pb-4 hide-scrollbar">
+                    <div className="flex gap-4">
+                      {isLoadingNFTs ? (
+                        <div className="flex-shrink-0 w-full flex flex-col items-center justify-center py-12">
+                          <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-400 mb-4"></div>
+                          <p className="font-mono text-green-400">Loading your NFTs...</p>
+                        </div>
+                      ) : nfts.length === 0 ? (
+                        <div className="flex-shrink-0 w-full text-center py-12">
+                          <p className="font-mono text-gray-400">No audio NFTs found in your collection</p>
+                          <p className="font-mono text-gray-400 text-sm mt-2">
+                            Make sure your wallet is connected and contains audio NFTs
+                          </p>
+                        </div>
+                      ) : (
+                        groupNFTsByUniqueId(nfts.filter(nft => nft.hasValidAudio)).map((nft) => {
+                          // Create a more reliable unique key
+                          let cleanTokenId = nft.tokenId;
+                          if (nft.metadata?.animation_url) {
+                            const animationMatch = nft.metadata.animation_url.match(/\/(\d+)\./);
+                            if (animationMatch) {
+                              cleanTokenId = animationMatch[1];
+                            }
+                          }
+                          if (!cleanTokenId) {
+                            cleanTokenId = `0x${nft.contract.slice(0, 10)}`;
+                          }
+                          const uniqueKey = `${nft.contract.toLowerCase()}-${cleanTokenId}`;
+                          
+                          return (
+                            <div key={uniqueKey} className="flex-shrink-0 w-[200px]">
+                              <NFTCard
+                                nft={nft}
+                                onPlay={handlePlayAudio}
+                                isPlaying={isPlaying}
+                                currentlyPlaying={currentlyPlaying}
+                                handlePlayPause={handlePlayPause}
+                                publicCollections={publicCollections}
+                                onAddToCollection={addToPublicCollection}
+                                onRemoveFromCollection={removeFromPublicCollection}
+                              />
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
                   </div>
-                ) : (
-                  groupNFTsByUniqueId(nfts.filter(nft => nft.hasValidAudio)).map((nft) => {
-                    // Create a more reliable unique key
-                    let cleanTokenId = nft.tokenId;
-                    if (nft.metadata?.animation_url) {
-                      const animationMatch = nft.metadata.animation_url.match(/\/(\d+)\./);
-                      if (animationMatch) {
-                        cleanTokenId = animationMatch[1];
-                      }
-                    }
-                    if (!cleanTokenId) {
-                      cleanTokenId = `0x${nft.contract.slice(0, 10)}`;
-                    }
-                    const uniqueKey = `${nft.contract.toLowerCase()}-${cleanTokenId}`;
-                    
-                    return (
-                      <NFTCard
-                        key={uniqueKey}
-                        nft={nft}
-                        onPlay={handlePlayAudio}
-                        isPlaying={isPlaying}
-                        currentlyPlaying={currentlyPlaying}
-                        handlePlayPause={handlePlayPause}
-                        publicCollections={publicCollections}
-                        onAddToCollection={addToPublicCollection}
-                        onRemoveFromCollection={removeFromPublicCollection}
-                      />
-                    );
-                  })
-                )}
+                </div>
               </div>
                               
               {/* Refresh Button */}
