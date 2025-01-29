@@ -7,7 +7,7 @@ import { debounce } from 'lodash';
 import { trackUserSearch, getRecentSearches, SearchedUser, getTopPlayedNFTs, fetchNFTDetails, trackNFTPlay, toggleLikeNFT, getLikedNFTs, removeLikedNFT, addLikedNFT } from '../lib/firebase';
 import sdk, { type FrameContext } from "@farcaster/frame-sdk";
 import { db } from '../lib/firebase';
-import { collection, addDoc, serverTimestamp, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, getDocs, query, where, orderBy, limit, updateDoc, arrayUnion, arrayRemove, doc, deleteDoc } from 'firebase/firestore';
 
 
 interface FarcasterUser {
@@ -277,6 +277,7 @@ export interface NFT {
   metadata?: NFTMetadata;
   network?: 'ethereum' | 'base';
   playTracked?: boolean;
+  quantity?: number;
 }
 
 interface _AlchemyNFT {
@@ -741,56 +742,154 @@ const NFTImage = ({ src, alt, className, width, height, priority }: NFTImageProp
   );
 };
 
-// Add near the top with other interfaces
+// Update the ExtendedFrameContext interface
 interface ExtendedFrameContext extends Omit<FrameContext, 'user'> {
   user?: {
     fid: number;
     username?: string;
     displayName?: string;
     pfpUrl?: string;
+    custody_address?: string;
+    verified_addresses?: {
+      eth_addresses?: string[];
+    };
   };
 }
 
-// Add this component definition before the Demo component
+// Add this interface near other interfaces
+interface GroupedNFT extends Omit<NFT, 'quantity'> {
+  quantity: number;
+}
+
+// Add this utility function before the Demo component
+const groupNFTsByUniqueId = (nfts: NFT[]): NFT[] => {
+  const groupedMap = nfts.reduce((acc, nft) => {
+    const key = `${nft.contract}-${nft.tokenId}`;
+    
+    if (!acc.has(key)) {
+      acc.set(key, {
+        ...nft,
+        quantity: 1
+      });
+    } else {
+      const existing = acc.get(key)!;
+      existing.quantity = (existing.quantity || 1) + 1;
+    }
+    
+    return acc;
+  }, new Map<string, NFT>());
+
+  return Array.from(groupedMap.values());
+};
+
+// Update the NFTCardProps interface
 interface NFTCardProps {
   nft: NFT;
   onPlay: (nft: NFT) => void;
   isPlaying: boolean;
   currentlyPlaying: string | null;
   handlePlayPause: () => void;
+  publicCollections?: PublicCollection[];
+  onAddToCollection?: (nft: NFT, collectionId: string) => void;
+  onRemoveFromCollection?: (nft: NFT, collectionId: string) => void;
 }
 
-const NFTCard: React.FC<NFTCardProps> = ({ nft, onPlay, isPlaying, currentlyPlaying, handlePlayPause }) => {
-  return (
-    <div 
-      className="retro-container bg-gray-800 overflow-hidden relative z-0"
-    >
-      <div className="aspect-square relative bg-gray-800">
-        {/* Base image or video */}
-        <div className="w-full h-full absolute top-0 left-0">
-          <NFTImage 
-            src={processMediaUrl(nft.image || nft.metadata?.image || '')}
-            alt={nft.name || 'NFT'}
-            className="w-full h-full object-cover"
-            width={192}
-            height={192}
-            priority={true}
-          />
-        </div>
+// Update the NFTCard component
+const NFTCard: React.FC<NFTCardProps> = ({ 
+  nft, 
+  onPlay, 
+  isPlaying, 
+  currentlyPlaying, 
+  handlePlayPause,
+  publicCollections,
+  onAddToCollection,
+  onRemoveFromCollection
+}) => {
+  const [showCollectionMenu, setShowCollectionMenu] = useState(false);
 
-        {/* Play button */}
+  return (
+    <div className="group relative">
+      <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-gray-800/20">
+        <NFTImage
+          src={processMediaUrl(nft.image || nft.metadata?.image || '')}
+          alt={nft.name || 'NFT'}
+          className="w-full h-full object-cover"
+          width={160}
+          height={160}
+          priority={true}
+        />
+        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+        
+        {/* Collection Menu Button */}
+        {publicCollections && onAddToCollection && (
+          <div className="absolute top-2 right-2">
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowCollectionMenu(!showCollectionMenu);
+              }}
+              className="w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center transition-all duration-200 hover:scale-110 z-10"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor">
+                <path d="M280-240q-33 0-56.5-23.5T200-320v-480q0-33 23.5-56.5T280-880h560q33 0 56.5 23.5T920-800v480q0 33-23.5 56.5T840-240H280Zm0-80h560v-480H280v480ZM120-80q-33 0-56.5-23.5T40-160v-560h80v560h560v80H120Zm160-240v-480 480Z"/>
+              </svg>
+            </button>
+
+            {/* Collection Menu */}
+            {showCollectionMenu && (
+              <div className="absolute top-full right-0 mt-2 w-48 bg-gray-900 rounded-lg shadow-lg border border-green-400/20 z-20">
+                <div className="p-2">
+                  {publicCollections.map(collection => {
+                    const isInCollection = collection.nfts.some(
+                      n => n.contract === nft.contract && n.tokenId === nft.tokenId
+                    );
+
+                    return (
+                      <button
+                        key={collection.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (isInCollection) {
+                            onRemoveFromCollection?.(nft, collection.id);
+                          } else {
+                            onAddToCollection(nft, collection.id);
+                          }
+                          setShowCollectionMenu(false);
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm font-mono rounded hover:bg-gray-800 flex items-center justify-between gap-2"
+                      >
+                        <span className="truncate text-green-400">{collection.name}</span>
+                        {isInCollection && (
+                          <svg xmlns="http://www.w3.org/2000/svg" height="16" viewBox="0 -960 960 960" width="16" fill="currentColor" className="text-green-400 flex-shrink-0">
+                            <path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/>
+                          </svg>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Quantity Badge */}
+        {nft.quantity && nft.quantity > 1 && (
+          <div className="absolute top-2 left-2 bg-black/40 text-white text-xs font-mono px-2 py-1 rounded-full">
+            x{nft.quantity}
+          </div>
+        )}
+
+        {/* Play Button */}
         <button 
-          onClick={(e) => {
-            e.preventDefault();
+          onClick={() => {
             if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
-              // If this NFT is currently playing, toggle play/pause
               handlePlayPause();
             } else {
-              // If this is a different NFT, start playing it
               onPlay(nft);
             }
           }}
-          className="absolute bottom-4 right-4 retro-button p-3 text-white"
+          className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-green-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
         >
           {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
             <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
@@ -803,26 +902,17 @@ const NFTCard: React.FC<NFTCardProps> = ({ nft, onPlay, isPlaying, currentlyPlay
           )}
         </button>
       </div>
-      
-      {/* NFT name */}
-      <div className="p-4">
-        <div className="retro-display p-2">
-          <div className="marquee-container">
-            <div className={`text-lg text-green-400 truncate max-w-[200px] ${
-              nft.name.length > 20 ? 'marquee-content' : ''
-            }`}>
-              {nft.name}
-            </div>
-          </div>
-        </div>
+      <div className="px-1">
+        <h3 className={`font-mono text-white text-sm truncate mb-1 ${nft.name.length > 20 ? 'marquee-content' : ''}`}>
+          {nft.name}
+        </h3>
+        <p className="font-mono text-gray-400 text-xs truncate">{nft.collection?.name || 'Unknown Collection'}</p>
       </div>
-
-      {/* Audio element */}
       {nft.hasValidAudio && (
         <audio
           id={`audio-${nft.contract}-${nft.tokenId}`}
           src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
-          preload="metadata"
+          preload="none"
         />
       )}
     </div>
@@ -857,6 +947,37 @@ interface NFTPlayData {
   collection: string;
   network: string;
   timestamp: any;
+}
+
+// Add these new interfaces near the top with other interfaces
+interface UserWalletInfo {
+  custody_address: string;
+  verified_addresses: {
+    eth_addresses?: string[];
+  };
+}
+
+interface UserProfileData {
+  user: {
+    fid: number;
+    username: string;
+    display_name?: string;
+    pfp_url?: string;
+    custody_address?: string;
+    verified_addresses?: {
+      eth_addresses?: string[];
+    };
+  };
+}
+
+// Add these interfaces near other interfaces
+interface PublicCollection {
+  id: string;
+  name: string;
+  description?: string;
+  nfts: NFT[];
+  createdAt: any;
+  updatedAt: any;
 }
 
 export default function Demo({ title }: { title?: string }) {
@@ -913,6 +1034,12 @@ export default function Demo({ title }: { title?: string }) {
   // Add near other state declarations (around line 661)
   const NFT_CACHE_KEY = 'nft-cache-';
   const TWO_HOURS = 2 * 60 * 60 * 1000;
+
+  const [publicCollections, setPublicCollections] = useState<PublicCollection[]>([]);
+  const [isEditingCollection, setIsEditingCollection] = useState(false);
+  const [selectedCollection, setSelectedCollection] = useState<PublicCollection | null>(null);
+  const [newCollectionName, setNewCollectionName] = useState('');
+  const [newCollectionDescription, setNewCollectionDescription] = useState('');
 
   const getCachedNFTs = (userId: number) => {
     const cached = localStorage.getItem(`${NFT_CACHE_KEY}${userId}`);
@@ -1176,7 +1303,7 @@ export default function Demo({ title }: { title?: string }) {
         await trackNFTPlay(nft, userContext.user.fid);
         nft.playTracked = true; // Mark this play as tracked
         console.log('[playMedia] Play tracked successfully');
-      } else {
+            } else {
         console.log('[playMedia] Skipping play tracking:', {
           mediaStarted,
           hasFid: !!userContext?.user?.fid,
@@ -1272,8 +1399,13 @@ export default function Demo({ title }: { title?: string }) {
     fetchRecentlyPlayed();
   }, [fetchRecentlyPlayed]);
 
-  // Update handlePlayAudio to refresh recently played after tracking play
-  const handlePlayAudio = async (nft: NFT) => {
+  // Add a type guard function to check if an NFT is grouped
+  const isGroupedNFT = (nft: NFT | GroupedNFT): nft is GroupedNFT => {
+    return typeof (nft as GroupedNFT).quantity === 'number';
+  };
+
+  // Update the handlePlayAudio function to handle both types
+  const handlePlayAudio = async (nft: NFT | GroupedNFT) => {
     if (!nft) {
       console.warn('No NFT provided to handlePlayAudio');
       return;
@@ -1337,7 +1469,6 @@ export default function Demo({ title }: { title?: string }) {
       setCurrentlyPlaying(null);
       setCurrentPlayingNFT(null);
       
-      // Log the error with details
       console.error('[handlePlayAudio] Error:', {
         error: error instanceof Error ? error.message : 'Unknown error',
         nft: {
@@ -1348,7 +1479,6 @@ export default function Demo({ title }: { title?: string }) {
         }
       });
       
-      // Set user-facing error message
       setError(error instanceof Error ? error.message : 'Failed to play media');
     }
   };
@@ -2040,113 +2170,101 @@ export default function Demo({ title }: { title?: string }) {
       setIsLoadingNFTs(true);
       setError('');
       setNfts([]);
-      setSearchResults([]);
-      setSelectedUser(null);
 
       // Check API keys
       const neynarKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
       const alchemyKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
-      console.log('API Keys present:', {
-        hasNeynarKey: !!neynarKey,
-        hasAlchemyKey: !!alchemyKey
-      });
+      
+      if (!neynarKey || !alchemyKey) {
+        throw new Error('Missing API keys');
+      }
 
-      // Log user being processed
-      console.log('Processing user:', {
-        fid: userContext.user.fid,
-        username: userContext.user.username
-      });
-
-      // First get the custody address from Neynar
+      // Fetch user profile from Neynar to get wallet addresses
       const profileResponse = await fetchWithRetry(
         `https://api.neynar.com/v2/farcaster/user/bulk?fids=${userContext.user.fid}`,
         {
           headers: {
             'accept': 'application/json',
-            'api_key': neynarKey || ''
+            'api_key': neynarKey
           }
-        }
+            }
       );
 
-      const profileData = await profileResponse.json();
-      console.log('Profile data received:', profileData);
-
-      let allAddresses: string[] = [];
-
-      // Get verified addresses from profile data
-      if (profileData.users?.[0]) {
-        const user = profileData.users[0];
-        
-        // Handle verified addresses
-        if (user.verified_addresses) {
-          try {
-            // Log raw data for debugging
-            console.log('Raw verified addresses:', user.verified_addresses);
-            
-            // Extract ETH addresses
-            if (user.verified_addresses.eth_addresses && 
-                Array.isArray(user.verified_addresses.eth_addresses)) {
-              const ethAddresses = user.verified_addresses.eth_addresses
-                .filter((addr: unknown): addr is string => typeof addr === 'string')
-                .map((addr: string) => addr.toLowerCase());
-              
-              allAddresses.push(...ethAddresses);
-            }
-            
-            console.log('Verified addresses found:', allAddresses);
-          } catch (error) {
-            console.warn('Error processing verified addresses:', error);
-          }
-        }
-
-        // Add custody address if it exists
-        if (user.custody_address) {
-          const custodyAddress = user.custody_address.toLowerCase();
-          if (!allAddresses.includes(custodyAddress)) {
-            allAddresses.push(custodyAddress);
-            console.log('Added custody address:', custodyAddress);
-          }
-        }
+      if (!profileResponse.ok) {
+        throw new Error('Failed to fetch user profile');
       }
 
-      // Remove duplicates and log final addresses
-      allAddresses = [...new Set(allAddresses)];
-      console.log('Final addresses to check:', allAddresses);
+      const profileData = await profileResponse.json();
+      const userData = profileData.users?.[0];
+
+      if (!userData) {
+        throw new Error('User data not found');
+      }
+
+      console.log('Profile data received:', userData);
+
+      // Collect all ETH addresses
+      const allAddresses = new Set<string>();
+
+      // Add custody address if available
+      if (userData.custody_address) {
+        allAddresses.add(userData.custody_address.toLowerCase());
+      }
+
+      // Add verified addresses
+      if (userData.verified_addresses?.eth_addresses) {
+        userData.verified_addresses.eth_addresses.forEach((addr: string) => {
+          allAddresses.add(addr.toLowerCase());
+        });
+      }
+
+      // Convert to array and filter invalid addresses
+      const validAddresses = Array.from(allAddresses).filter(addr => 
+        addr && addr.startsWith('0x') && addr.length === 42
+      );
+
+      if (validAddresses.length === 0) {
+        throw new Error('No valid wallet addresses found');
+      }
+
+      console.log('Found wallet addresses:', validAddresses);
 
       // Process addresses in batches
       const BATCH_SIZE = 2;
       const allNFTs: NFT[] = [];
       
-      for (let i = 0; i < allAddresses.length; i += BATCH_SIZE) {
-        const batch = allAddresses.slice(i, i + BATCH_SIZE);
+      for (let i = 0; i < validAddresses.length; i += BATCH_SIZE) {
+        const batch = validAddresses.slice(i, i + BATCH_SIZE);
         console.log(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1}:`, batch);
 
         const batchPromises = batch.map(async (address) => {
           try {
-            // Use the same fetchNFTsForAddress helper function
-            const nfts = await fetchNFTsForAddress(address, alchemyKey || '');
-            console.log(`[NFT Fetch] Found ${nfts.length} NFTs for address ${address}`);
-            return { address, nfts };
+            const nfts = await fetchNFTsForAddress(address, alchemyKey);
+            console.log(`Found ${nfts.length} NFTs for address ${address}`);
+            return nfts;
           } catch (error) {
-            console.error(`[NFT Fetch] Error fetching NFTs for ${address}:`, error);
-            return { address, nfts: [] };
+            console.error(`Error fetching NFTs for ${address}:`, error);
+            return [];
           }
         });
 
         const batchResults = await Promise.all(batchPromises);
+        const batchNFTs = batchResults.flat();
         
-        // Process NFTs from this batch
-        const batchNFTs = batchResults.flatMap(result => result.nfts);
-        allNFTs.push(...batchNFTs);
-
-        console.log(`Batch ${Math.floor(i / BATCH_SIZE) + 1} results:`, {
-          totalNFTs: allNFTs.length,
-          addressesProcessed: batch
+        // Filter duplicates based on contract address and token ID
+        const uniqueNFTs = batchNFTs.filter(nft => {
+          const key = `${nft.contract}-${nft.tokenId}`;
+          const exists = allNFTs.some(existing => 
+            `${existing.contract}-${existing.tokenId}` === key
+          );
+          return !exists;
         });
 
+        allNFTs.push(...uniqueNFTs);
+
         // Add delay between batches if not the last batch
-        if (i + BATCH_SIZE < allAddresses.length) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
+        if (i + BATCH_SIZE < validAddresses.length) {
+          await delay(1000);
         }
       }
 
@@ -2163,7 +2281,6 @@ export default function Demo({ title }: { title?: string }) {
       setError(error instanceof Error ? error.message : 'An error occurred');
     } finally {
       setIsLoadingNFTs(false);
-      setIsProfileMenuOpen(false);
       console.log('=== END NFT FETCH ===');
     }
   };
@@ -2414,6 +2531,96 @@ export default function Demo({ title }: { title?: string }) {
     };
   }, [isPlaying, currentPlayingNFT, audioProgress]);
 
+  // Add this useEffect after other useEffects but before the return statement
+  useEffect(() => {
+    // Only fetch NFTs when profile page is active and we have a user context
+    if (currentPage.isProfile && userContext?.user) {
+      console.log('Profile page active, fetching NFTs for user:', userContext.user.fid);
+      handleViewProfile();
+            }
+  }, [currentPage.isProfile, userContext?.user]); // Dependencies: profile page state and user context
+
+  // Public Collection Functions
+  const createPublicCollection = async () => {
+    if (!userContext?.user?.fid || !newCollectionName.trim()) return;
+
+    try {
+      const newCollection = {
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        name: newCollectionName.trim(),
+        description: newCollectionDescription.trim(),
+        nfts: [],
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+
+      await addDoc(collection(db, `users/${userContext.user.fid}/public_collections`), newCollection);
+      setPublicCollections(prev => [...prev, newCollection]);
+      setNewCollectionName('');
+      setNewCollectionDescription('');
+      setIsEditingCollection(false);
+    } catch (error) {
+      console.error('Error creating collection:', error);
+    }
+  };
+
+  const addToPublicCollection = async (nft: NFT, collectionId: string) => {
+    if (!userContext?.user?.fid) return;
+
+    try {
+      const collectionRef = doc(db, `users/${userContext.user.fid}/public_collections/${collectionId}`);
+      await updateDoc(collectionRef, {
+        nfts: arrayUnion(nft),
+        updatedAt: serverTimestamp()
+      });
+
+      setPublicCollections(prev => 
+        prev.map(collection => 
+          collection.id === collectionId 
+            ? { ...collection, nfts: [...collection.nfts, nft] }
+            : collection
+        )
+      );
+    } catch (error) {
+      console.error('Error adding NFT to collection:', error);
+    }
+  };
+
+  const removeFromPublicCollection = async (nft: NFT, collectionId: string) => {
+    if (!userContext?.user?.fid) return;
+
+    try {
+      const collectionRef = doc(db, `users/${userContext.user.fid}/public_collections/${collectionId}`);
+      await updateDoc(collectionRef, {
+        nfts: arrayRemove(nft),
+        updatedAt: serverTimestamp()
+      });
+
+      setPublicCollections(prev => 
+        prev.map(collection => 
+          collection.id === collectionId 
+            ? { ...collection, nfts: collection.nfts.filter(n => n.contract !== nft.contract || n.tokenId !== nft.tokenId) }
+            : collection
+        )
+      );
+    } catch (error) {
+      console.error('Error removing NFT from collection:', error);
+    }
+  };
+
+  const deletePublicCollection = async (collectionId: string) => {
+    if (!userContext?.user?.fid) return;
+
+    try {
+      await deleteDoc(doc(db, `users/${userContext.user.fid}/public_collections/${collectionId}`));
+      setPublicCollections(prev => prev.filter(collection => collection.id !== collectionId));
+    } catch (error) {
+      console.error('Error deleting collection:', error);
+    }
+  };
+
+  // ... rest of the component code ...
+
   // Add the top played section to the main page
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900">
@@ -2436,7 +2643,7 @@ export default function Demo({ title }: { title?: string }) {
                       animation: `audioWavePulse 1.5s ease-in-out infinite`,
                       animationDelay: `${(4-i) * 0.2}s`,
                       transformOrigin: 'bottom'
-                    }}
+          }}
                   />
                 ))}
               </div>
@@ -2468,11 +2675,11 @@ export default function Demo({ title }: { title?: string }) {
                               src={nft.metadata?.image || ''}
                               alt={nft.name}
                               className="w-full h-full object-cover"
-                          width={160}
-                          height={160}
-                              priority={true}
-                            />
-                            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+          width={160}
+          height={160}
+          priority={true}
+        />
+        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
                             {/* Like Button */}
                             <button 
                               onClick={(e) => {
@@ -2494,20 +2701,20 @@ export default function Demo({ title }: { title?: string }) {
                             {/* Play Button */}
                             <button 
                               onClick={() => handlePlayAudio(nft)}
-                          className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-green-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
-                            >
-                              {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
-                            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                                  <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
-                                </svg>
-                              ) : (
-                            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                                  <path d="M320-200v-560l440 280-440 280Z"/>
-                                </svg>
-                              )}
-                            </button>
-        </div>
-                          <div className="px-1">
+          className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-green-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
+        >
+          {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
+            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+              <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+              <path d="M320-200v-560l440 280-440 280Z"/>
+            </svg>
+          )}
+        </button>
+      </div>
+      <div className="px-1">
                         <h3 className="font-mono text-white text-sm truncate mb-1">{nft.name}</h3>
                             <p className="font-mono text-gray-400 text-xs truncate">{nft.collection?.name || 'Unknown Collection'}</p>
                           </div>
@@ -2523,7 +2730,7 @@ export default function Demo({ title }: { title?: string }) {
                 </div>
               </div>
             )}
-
+        
             {/* Top Played NFTs Section */}
             {topPlayedNFTs.length > 0 && (
               <div className="mb-8">
@@ -2547,18 +2754,18 @@ export default function Demo({ title }: { title?: string }) {
                             />
                             <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
                             {/* Like Button */}
-                            <button 
-                              onClick={(e) => {
-                                e.stopPropagation();
+        <button 
+          onClick={(e) => {
+            e.stopPropagation();
                                 handleLikeToggle(nft);
-                              }}
-                              className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center transition-all duration-200 hover:scale-110 z-10"
-                            >
+          }}
+          className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center transition-all duration-200 hover:scale-110 z-10"
+        >
                               {isNFTLiked(nft) ? (
                                 <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor" className="text-red-500">
                                   <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
-                                </svg>
-                              ) : (
+            </svg>
+          ) : (
                                 <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor" className="text-white hover:text-red-500">
                                   <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Zm0-108q96-86 158-147.5t98-107q36-45.5 50-81t14-70.5q0-60-40-100t-100-40q-47 0-87 26.5T518-680h-76q-15-41-55-67.5T300-774q-60 0-100 40t-40 100q0 35 14 70.5t50 81q36 45.5 98 107T480-228Zm0-273Z"/>
                                 </svg>
@@ -2567,20 +2774,20 @@ export default function Demo({ title }: { title?: string }) {
                             {/* Play Button */}
                             <button 
                               onClick={() => handlePlayAudio(nft)}
-                          className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-green-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
-                            >
-                              {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
-                            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                                  <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
-                                </svg>
-                              ) : (
-                            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                                  <path d="M320-200v-560l440 280-440 280Z"/>
-                                </svg>
-                              )}
-                            </button>
-            </div>
-                          <div className="px-1">
+          className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-green-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
+        >
+          {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
+            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+              <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+              <path d="M320-200v-560l440 280-440 280Z"/>
+            </svg>
+          )}
+        </button>
+      </div>
+      <div className="px-1">
                         <h3 className="font-mono text-white text-sm truncate mb-1">{nft.name}</h3>
                             <p className="font-mono text-gray-400 text-xs truncate">{nft.collection?.name || 'Unknown Collection'}</p>
                           </div>
@@ -2685,7 +2892,7 @@ export default function Demo({ title }: { title?: string }) {
                         <div>
                           <h3 className="font-mono text-green-400 truncate max-w-[200px]">
                             {user.display_name || user.username}
-                          </h3>
+        </h3>
                           <p className="font-mono text-gray-400 truncate max-w-[200px]">
                             @{user.username}
                           </p>
@@ -2737,20 +2944,20 @@ export default function Demo({ title }: { title?: string }) {
                           </div>
                           <div className="px-1">
                             <h3 className="font-mono text-white text-xs truncate mb-1">{nft.name}</h3>
-                            <p className="font-mono text-gray-400 text-xs truncate">{nft.collection?.name || 'Unknown Collection'}</p>
-                          </div>
-                          <audio
-                            id={`audio-${nft.contract}-${nft.tokenId}`}
-                            src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
-                            preload="none"
-                          />
+        <p className="font-mono text-gray-400 text-xs truncate">{nft.collection?.name || 'Unknown Collection'}</p>
+      </div>
+        <audio
+          id={`audio-${nft.contract}-${nft.tokenId}`}
+          src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
+          preload="none"
+        />
                   </div>
                       ))}
                 </div>
               </div>
             </div>
           </div>
-        )}
+      )}
 
             {/* Selected User NFTs */}
         {selectedUser && (
@@ -2784,6 +2991,9 @@ export default function Demo({ title }: { title?: string }) {
                         isPlaying={isPlaying}
                         currentlyPlaying={currentlyPlaying}
                         handlePlayPause={handlePlayPause}
+                        publicCollections={publicCollections}
+                        onAddToCollection={addToPublicCollection}
+                        onRemoveFromCollection={removeFromPublicCollection}
                       />
                     ))
                   )}
@@ -2901,7 +3111,7 @@ export default function Demo({ title }: { title?: string }) {
                             <p className="font-mono text-gray-400 text-sm truncate">
                               {nft.collection?.name || 'Unknown Collection'}
                             </p>
-                      </div>
+    </div>
 
                           {/* Controls */}
                           <div className="flex items-center gap-3">
@@ -2929,11 +3139,11 @@ export default function Demo({ title }: { title?: string }) {
                     </button>
                   </div>
 
-                          <audio
-                            id={`audio-${nft.contract}-${nft.tokenId}`}
-                            src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
-                            preload="none"
-                          />
+        <audio
+          id={`audio-${nft.contract}-${nft.tokenId}`}
+          src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
+          preload="none"
+        />
                         </div>
                       ))}
                       </div>
@@ -2962,6 +3172,9 @@ export default function Demo({ title }: { title?: string }) {
                           isPlaying={isPlaying}
                           currentlyPlaying={currentlyPlaying}
                           handlePlayPause={handlePlayPause}
+                          publicCollections={publicCollections}
+                          onAddToCollection={addToPublicCollection}
+                          onRemoveFromCollection={removeFromPublicCollection}
                         />
                       ))}
                     </div>
@@ -2973,10 +3186,11 @@ export default function Demo({ title }: { title?: string }) {
 
         {/* Profile Page */}
         {currentPage.isProfile && userContext?.user && (
-          <div>
+          <div className="container mx-auto px-4 py-8">
+            {/* Profile Header */}
             <div className="mb-8">
               <div className="flex items-center gap-6 mb-8">
-                <div className="w-24 h-24 rounded-full overflow-hidden">
+                <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-800">
                   <Image
                     src={userContext.user.pfpUrl || '/placeholder-avatar.png'}
                     alt="Profile"
@@ -2995,32 +3209,236 @@ export default function Demo({ title }: { title?: string }) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-                {isLoadingNFTs ? (
-                  <div className="col-span-full text-center py-12">
-                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-400"></div>
-                    <p className="mt-4 font-mono text-green-400">Loading your NFTs...</p>
-                  </div>
-                ) : nfts.length === 0 ? (
-                  <div className="col-span-full text-center py-12">
+              {/* NFT Collection Stats */}
+              <div className="grid grid-cols-2 sm:grid-cols-2 gap-4 mb-8">
+              <div className="bg-gray-800/30 rounded-lg p-4">
+                <p className="font-mono text-gray-400 text-sm mb-1">Total NFTs</p>
+                <p className="font-mono text-green-400 text-xl">{nfts.length}</p>
+              </div>
+              <div className="bg-gray-800/30 rounded-lg p-4">
+                <p className="font-mono text-gray-400 text-sm mb-1">Audio NFTs</p>
+                <p className="font-mono text-green-400 text-xl">
+                  {nfts.filter(nft => nft.hasValidAudio).length}
+                </p>
+              </div>
+                </div>
+                
+            {/* NFT Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {isLoadingNFTs ? (
+                  <div className="col-span-full flex flex-col items-center justify-center py-12">
+                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-400 mb-4"></div>
+                    <p className="font-mono text-green-400">Loading your NFTs...</p>
+                </div>
+              ) : nfts.length === 0 ? (
+                <div className="col-span-full text-center py-12">
                     <p className="font-mono text-gray-400">No audio NFTs found in your collection</p>
+                    <p className="font-mono text-gray-400 text-sm mt-2">
+                      Make sure your wallet is connected and contains audio NFTs
+                    </p>
                   </div>
                 ) : (
-                  nfts.map((nft) => (
-                    <NFTCard
-                    key={`${nft.contract}-${nft.tokenId}`}
-                      nft={nft}
-                      onPlay={handlePlayAudio}
-                      isPlaying={isPlaying}
-                      currentlyPlaying={currentlyPlaying}
-                      handlePlayPause={handlePlayPause}
-                    />
-                  ))
-                  )}
-                </div>
+                  groupNFTsByUniqueId(nfts.filter(nft => nft.hasValidAudio)).map((nft) => (
+                  <NFTCard
+                            key={`${nft.contract}-${nft.tokenId}`}
+                    nft={nft}
+                    onPlay={handlePlayAudio}
+                    isPlaying={isPlaying}
+                    currentlyPlaying={currentlyPlaying}
+                    handlePlayPause={handlePlayPause}
+                    publicCollections={publicCollections}
+                    onAddToCollection={addToPublicCollection}
+                    onRemoveFromCollection={removeFromPublicCollection}
+                              />
+                ))
+                              )}
+              </div>
+                              
+              {/* Refresh Button */}
+              <div className="flex justify-center mt-8">
+                              <button 
+                  onClick={handleViewProfile}
+                  disabled={isLoadingNFTs}
+                  className={`
+                    flex items-center gap-2 px-6 py-3 rounded-full
+                    font-mono text-sm
+                    ${isLoadingNFTs 
+                      ? 'bg-gray-800/50 text-gray-400 cursor-not-allowed' 
+                      : 'bg-green-400 text-black hover:bg-green-300 transition-colors'}
+                  `}
+                              >
+                  <svg 
+                    xmlns="http://www.w3.org/2000/svg" 
+                    height="20" 
+                    viewBox="0 -960 960 960" 
+                    width="20" 
+                    fill="currentColor"
+                    className={`${isLoadingNFTs ? 'animate-spin' : ''}`}
+                  >
+                    <path d="M480-160q-134 0-227-93t-93-227q0-134 93-227t227-93q69 0 132 28.5T720-690v-110h80v280H520v-80h168q-32-56-87.5-88T480-720q-100 0-170 70t-70 170q0 100 70 170t170 70q77 0 139-44t87-116h84q-28 106-114 173t-196 67Z"/>
+                                  </svg>
+                  {isLoadingNFTs ? 'Refreshing...' : 'Refresh NFTs'}
+                              </button>
               </div>
             </div>
-          )}
+
+            {/* Public Collections Section */}
+            <div className="mb-8">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-mono text-green-400">Public Collections</h3>
+                <button
+                  onClick={() => setIsEditingCollection(true)}
+                  className="px-4 py-2 bg-green-400 text-black rounded-lg font-mono text-sm hover:bg-green-300 transition-colors"
+                >
+                  Create Collection
+                </button>
+              </div>
+
+              {/* Create Collection Modal */}
+              {isEditingCollection && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
+                  <div className="bg-gray-900 p-6 rounded-lg w-full max-w-md">
+                    <h4 className="text-lg font-mono text-green-400 mb-4">Create New Collection</h4>
+                    <input
+                      type="text"
+                      value={newCollectionName}
+                      onChange={(e) => setNewCollectionName(e.target.value)}
+                      placeholder="Collection Name"
+                      className="w-full px-4 py-2 bg-gray-800 border border-green-400/20 rounded-lg text-green-400 placeholder-green-400/50 mb-4 font-mono"
+                    />
+                    <textarea
+                      value={newCollectionDescription}
+                      onChange={(e) => setNewCollectionDescription(e.target.value)}
+                      placeholder="Description (optional)"
+                      className="w-full px-4 py-2 bg-gray-800 border border-green-400/20 rounded-lg text-green-400 placeholder-green-400/50 mb-4 font-mono resize-none h-24"
+                    />
+                    <div className="flex justify-end gap-4">
+                      <button
+                        onClick={() => {
+                          setIsEditingCollection(false);
+                          setNewCollectionName('');
+                          setNewCollectionDescription('');
+                        }}
+                        className="px-4 py-2 text-gray-400 hover:text-white transition-colors font-mono"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={createPublicCollection}
+                        disabled={!newCollectionName.trim()}
+                        className="px-4 py-2 bg-green-400 text-black rounded-lg font-mono hover:bg-green-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Create
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Collections Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {publicCollections.map((collection) => (
+                  <div
+                    key={collection.id}
+                    className="bg-gray-800/30 rounded-lg p-4 group hover:bg-gray-800/50 transition-colors"
+                  >
+                    {/* Collection Header */}
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <h4 className="font-mono text-green-400 text-lg mb-1">{collection.name}</h4>
+                        {collection.description && (
+                          <p className="font-mono text-gray-400 text-sm">{collection.description}</p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => deletePublicCollection(collection.id)}
+                        className="text-red-400 opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-300"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor">
+                          <path d="M280-120q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T680-120H280Zm400-600H280v520h400v-520ZM360-280h80v-360h-80v360Zm160 0h80v-360h-80v360ZM280-720v520-520Z"/>
+                        </svg>
+                      </button>
+                    </div>
+
+                    {/* Collection NFTs */}
+                    <div className="grid grid-cols-3 gap-2">
+                      {collection.nfts.slice(0, 6).map((nft, index) => (
+                        <div key={`${nft.contract}-${nft.tokenId}`} className="relative aspect-square">
+                          <NFTImage
+                            src={processMediaUrl(nft.metadata?.image || '')}
+                            alt={nft.name}
+                            className="w-full h-full object-cover rounded-md"
+                            width={80}
+                            height={80}
+                            priority={true}
+                          />
+                          {index === 5 && collection.nfts.length > 6 && (
+                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-md">
+                              <span className="text-white font-mono">+{collection.nfts.length - 6}</span>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Collection Footer */}
+                    <div className="mt-4 flex items-center justify-between">
+                      <span className="font-mono text-gray-400 text-sm">
+                        {collection.nfts.length} {collection.nfts.length === 1 ? 'track' : 'tracks'}
+                      </span>
+                      <button
+                        onClick={() => setSelectedCollection(collection)}
+                        className="text-green-400 hover:text-green-300 transition-colors font-mono text-sm"
+                      >
+                        View All
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Selected Collection View */}
+              {selectedCollection && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
+                  <div className="bg-gray-900 p-6 rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+                    <div className="flex items-center justify-between mb-6">
+                      <div>
+                        <h4 className="text-xl font-mono text-green-400 mb-1">{selectedCollection.name}</h4>
+                        {selectedCollection.description && (
+                          <p className="font-mono text-gray-400">{selectedCollection.description}</p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => setSelectedCollection(null)}
+                        className="text-gray-400 hover:text-white transition-colors"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                          <path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/>
+                        </svg>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                      {selectedCollection.nfts.map((nft) => (
+                        <NFTCard
+                          key={`${nft.contract}-${nft.tokenId}`}
+                          nft={nft}
+                          onPlay={handlePlayAudio}
+                          isPlaying={isPlaying}
+                          currentlyPlaying={currentlyPlaying}
+                          handlePlayPause={handlePlayPause}
+                          publicCollections={publicCollections}
+                          onAddToCollection={addToPublicCollection}
+                          onRemoveFromCollection={removeFromPublicCollection}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Media Player - Minimized Mode */}
@@ -3109,7 +3527,7 @@ export default function Demo({ title }: { title?: string }) {
                         <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
                           <path d="M320-200v-560l440 280-440 280Z"/>
                         </svg>
-                      )}
+      )}
                     </button>
 
                 {/* Expand Button */}
@@ -3124,7 +3542,7 @@ export default function Demo({ title }: { title?: string }) {
                   </div>
                 </div>
               </div>
-            </div>
+    </div>
       )}
 
       {/* Full Screen Player */}
@@ -3192,7 +3610,7 @@ export default function Demo({ title }: { title?: string }) {
               <div className="text-center mb-12">
                 <h2 className="font-mono text-green-400 text-xl mb-3">{currentPlayingNFT.name}</h2>
                 <p className="font-mono text-gray-400">{currentPlayingNFT.collection?.name}</p>
-              </div>
+    </div>
 
               {/* Progress Bar */}
               <div className="mb-12">
@@ -3225,7 +3643,7 @@ export default function Demo({ title }: { title?: string }) {
                       const currentIndex = nfts.findIndex(nft => 
                         nft.contract === currentPlayingNFT.contract && 
                         nft.tokenId === currentPlayingNFT.tokenId
-                      );
+  );
                       if (currentIndex > 0) {
                         handlePlayAudio(nfts[currentIndex - 1]);
                       }
@@ -3260,7 +3678,7 @@ export default function Demo({ title }: { title?: string }) {
                       const currentIndex = nfts.findIndex(nft => 
                         nft.contract === currentPlayingNFT.contract && 
                         nft.tokenId === currentPlayingNFT.tokenId
-                      );
+  );
                       if (currentIndex < nfts.length - 1) {
                         handlePlayAudio(nfts[currentIndex + 1]);
                       }
