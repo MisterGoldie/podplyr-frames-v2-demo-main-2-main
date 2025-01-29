@@ -1274,9 +1274,18 @@ export default function Demo({ title }: { title?: string }) {
 
   // Update handlePlayAudio to refresh recently played after tracking play
   const handlePlayAudio = async (nft: NFT) => {
+    if (!nft) {
+      console.warn('No NFT provided to handlePlayAudio');
+      return;
+    }
+
     try {
       const nftId = `${nft.contract}-${nft.tokenId}`;
-      console.log('[handlePlayAudio] Starting playback for NFT:', nftId);
+      console.log('[handlePlayAudio] Starting playback for:', {
+        nftId,
+        name: nft.name,
+        hasAudio: nft.hasValidAudio
+      });
       
       // Stop any currently playing audio first
       if (currentPlayingNFT) {
@@ -1290,30 +1299,57 @@ export default function Demo({ title }: { title?: string }) {
         }
       }
 
-      // Set new NFT as current first
+      // Set new NFT as current
       setCurrentlyPlaying(nftId);
       setCurrentPlayingNFT(nft);
       setIsPlayerVisible(true);
       setIsPlayerMinimized(true);
       
+      // Get the audio element
+      const audio = document.getElementById(`audio-${nftId}`) as HTMLAudioElement;
+      if (!audio) {
+        throw new Error(`Audio element not found for NFT: ${nftId}`);
+      }
+
       // Track play in database if user is logged in
       if (userContext?.user?.fid) {
-        await logNFTPlay(nft, userContext.user.fid);
-        // Refresh recently played list
-        fetchRecentlyPlayed();
+        try {
+          await logNFTPlay(nft, userContext.user.fid);
+          // Refresh recently played list
+          await fetchRecentlyPlayed();
+        } catch (dbError) {
+          console.warn('[handlePlayAudio] Failed to log play:', dbError);
+          // Continue playback even if logging fails
+        }
       }
-      
-      // Clear previous audio source and reload
-      const audio = document.getElementById(`audio-${nftId}`) as HTMLAudioElement;
-      if (audio && nft.hasValidAudio) {
+
+      // Start playback
+      if (nft.hasValidAudio) {
         setIsPlaying(true);
         await playMedia(audio, videoRef.current, nft);
+      } else {
+        throw new Error('NFT does not have valid audio');
       }
 
     } catch (error) {
-      console.error('[handlePlayAudio] Playback error:', error);
+      // Reset states on error
       setIsPlaying(false);
-      setError('Failed to play media');
+      setCurrentlyPlaying(null);
+      setCurrentPlayingNFT(null);
+      
+      // Log the error with details
+      console.error('[handlePlayAudio] Error:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        nft: {
+          contract: nft.contract,
+          tokenId: nft.tokenId,
+          name: nft.name,
+          hasValidAudio: nft.hasValidAudio
+        }
+      });
+      
+      // Set user-facing error message
+      setError(error instanceof Error ? error.message : 'Failed to play media');
     }
   };
 
