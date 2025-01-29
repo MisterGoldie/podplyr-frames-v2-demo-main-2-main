@@ -3437,9 +3437,6 @@ export default function Demo({ title }: { title?: string }) {
                 </div>
               )}
             </div>
-
-            {/* Rest of profile content */}
-            // ... existing profile content ...
           </div>
         )}
       </div>
