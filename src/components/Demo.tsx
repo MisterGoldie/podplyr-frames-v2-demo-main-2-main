@@ -2644,7 +2644,7 @@ export default function Demo({ title }: { title?: string }) {
       
       {/* Top Navigation Bar - Only show when not on Explore page */}
       {!currentPage.isExplore && (
-      <div className="fixed top-0 left-0 right-0 bg-gray-900/95 backdrop-blur-md border-b border-green-400/20 h-[64px] z-30">
+      <div className="fixed top-0 left-0 right-0 bg-black border-b border-green-400/20 h-[64px] z-30">
         <div className="container mx-auto px-4 h-full">
           <div className="flex items-center justify-between h-full">
             <div className="flex items-center gap-2">
@@ -3470,7 +3470,7 @@ export default function Demo({ title }: { title?: string }) {
 
       {/* Media Player - Minimized Mode */}
       {currentPlayingNFT && (
-        <div className="fixed bottom-[64px] left-0 right-0 bg-gray-900/95 backdrop-blur-md border-t border-green-400/20 h-20 z-30">
+        <div className="fixed bottom-[64px] left-0 right-0 bg-black border-t border-green-400/20 h-20 z-30">
           {/* Progress bar */}
               <div 
                 className="absolute top-0 left-0 right-0 h-1 bg-gray-800 cursor-pointer group"
@@ -3574,7 +3574,7 @@ export default function Demo({ title }: { title?: string }) {
 
       {/* Full Screen Player */}
       {currentPlayingNFT && !isPlayerMinimized && (
-        <div className="fixed inset-0 bg-gray-900/95 backdrop-blur-md z-50 flex flex-col">
+        <div className="fixed inset-0 bg-black backdrop-blur-md z-50 flex flex-col">
           {/* Header */}
           <div className="p-4 flex items-center justify-between border-b border-green-400/20">
                   <button
@@ -3754,9 +3754,9 @@ export default function Demo({ title }: { title?: string }) {
               )}
 
       {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-md border-t border-green-400/20 h-[80px] z-40">
-        <div className="container mx-auto px-4 py-2.5">
-          <div className="flex justify-around items-center h-full">
+      <div className="fixed bottom-0 left-0 right-0 bg-black border-t border-green-400/20 h-16 z-20">
+        <div className="container mx-auto h-full">
+          <div className="grid grid-cols-4 h-full items-center">
             {/* Home Button */}
             <button 
               onClick={() => switchPage('isHome')}
