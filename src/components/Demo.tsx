@@ -741,13 +741,17 @@ const NFTImage = ({ src, alt, className, width, height, priority }: NFTImageProp
   );
 };
 
-// Add near the top with other interfaces
+// Update the ExtendedFrameContext interface
 interface ExtendedFrameContext extends Omit<FrameContext, 'user'> {
   user?: {
     fid: number;
     username?: string;
     displayName?: string;
     pfpUrl?: string;
+    custody_address?: string;
+    verified_addresses?: {
+      eth_addresses?: string[];
+    };
   };
 }
 
@@ -857,6 +861,27 @@ interface NFTPlayData {
   collection: string;
   network: string;
   timestamp: any;
+}
+
+// Add these new interfaces near the top with other interfaces
+interface UserWalletInfo {
+  custody_address: string;
+  verified_addresses: {
+    eth_addresses?: string[];
+  };
+}
+
+interface UserProfileData {
+  user: {
+    fid: number;
+    username: string;
+    display_name?: string;
+    pfp_url?: string;
+    custody_address?: string;
+    verified_addresses?: {
+      eth_addresses?: string[];
+    };
+  };
 }
 
 export default function Demo({ title }: { title?: string }) {
@@ -2040,113 +2065,101 @@ export default function Demo({ title }: { title?: string }) {
       setIsLoadingNFTs(true);
       setError('');
       setNfts([]);
-      setSearchResults([]);
-      setSelectedUser(null);
 
       // Check API keys
       const neynarKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
       const alchemyKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
-      console.log('API Keys present:', {
-        hasNeynarKey: !!neynarKey,
-        hasAlchemyKey: !!alchemyKey
-      });
+      
+      if (!neynarKey || !alchemyKey) {
+        throw new Error('Missing API keys');
+      }
 
-      // Log user being processed
-      console.log('Processing user:', {
-        fid: userContext.user.fid,
-        username: userContext.user.username
-      });
-
-      // First get the custody address from Neynar
+      // Fetch user profile from Neynar to get wallet addresses
       const profileResponse = await fetchWithRetry(
         `https://api.neynar.com/v2/farcaster/user/bulk?fids=${userContext.user.fid}`,
         {
           headers: {
             'accept': 'application/json',
-            'api_key': neynarKey || ''
+            'api_key': neynarKey
           }
         }
       );
 
-      const profileData = await profileResponse.json();
-      console.log('Profile data received:', profileData);
-
-      let allAddresses: string[] = [];
-
-      // Get verified addresses from profile data
-      if (profileData.users?.[0]) {
-        const user = profileData.users[0];
-        
-        // Handle verified addresses
-        if (user.verified_addresses) {
-          try {
-            // Log raw data for debugging
-            console.log('Raw verified addresses:', user.verified_addresses);
-            
-            // Extract ETH addresses
-            if (user.verified_addresses.eth_addresses && 
-                Array.isArray(user.verified_addresses.eth_addresses)) {
-              const ethAddresses = user.verified_addresses.eth_addresses
-                .filter((addr: unknown): addr is string => typeof addr === 'string')
-                .map((addr: string) => addr.toLowerCase());
-              
-              allAddresses.push(...ethAddresses);
-            }
-            
-            console.log('Verified addresses found:', allAddresses);
-          } catch (error) {
-            console.warn('Error processing verified addresses:', error);
-          }
-        }
-
-        // Add custody address if it exists
-        if (user.custody_address) {
-          const custodyAddress = user.custody_address.toLowerCase();
-          if (!allAddresses.includes(custodyAddress)) {
-            allAddresses.push(custodyAddress);
-            console.log('Added custody address:', custodyAddress);
-          }
-        }
+      if (!profileResponse.ok) {
+        throw new Error('Failed to fetch user profile');
       }
 
-      // Remove duplicates and log final addresses
-      allAddresses = [...new Set(allAddresses)];
-      console.log('Final addresses to check:', allAddresses);
+      const profileData = await profileResponse.json();
+      const userData = profileData.users?.[0];
+
+      if (!userData) {
+        throw new Error('User data not found');
+      }
+
+      console.log('Profile data received:', userData);
+
+      // Collect all ETH addresses
+      const allAddresses = new Set<string>();
+
+      // Add custody address if available
+      if (userData.custody_address) {
+        allAddresses.add(userData.custody_address.toLowerCase());
+      }
+
+      // Add verified addresses
+      if (userData.verified_addresses?.eth_addresses) {
+        userData.verified_addresses.eth_addresses.forEach((addr: string) => {
+          allAddresses.add(addr.toLowerCase());
+        });
+      }
+
+      // Convert to array and filter invalid addresses
+      const validAddresses = Array.from(allAddresses).filter(addr => 
+        addr && addr.startsWith('0x') && addr.length === 42
+      );
+
+      if (validAddresses.length === 0) {
+        throw new Error('No valid wallet addresses found');
+      }
+
+      console.log('Found wallet addresses:', validAddresses);
 
       // Process addresses in batches
       const BATCH_SIZE = 2;
       const allNFTs: NFT[] = [];
       
-      for (let i = 0; i < allAddresses.length; i += BATCH_SIZE) {
-        const batch = allAddresses.slice(i, i + BATCH_SIZE);
+      for (let i = 0; i < validAddresses.length; i += BATCH_SIZE) {
+        const batch = validAddresses.slice(i, i + BATCH_SIZE);
         console.log(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1}:`, batch);
 
         const batchPromises = batch.map(async (address) => {
           try {
-            // Use the same fetchNFTsForAddress helper function
-            const nfts = await fetchNFTsForAddress(address, alchemyKey || '');
-            console.log(`[NFT Fetch] Found ${nfts.length} NFTs for address ${address}`);
-            return { address, nfts };
+            const nfts = await fetchNFTsForAddress(address, alchemyKey);
+            console.log(`Found ${nfts.length} NFTs for address ${address}`);
+            return nfts;
           } catch (error) {
-            console.error(`[NFT Fetch] Error fetching NFTs for ${address}:`, error);
-            return { address, nfts: [] };
+            console.error(`Error fetching NFTs for ${address}:`, error);
+            return [];
           }
         });
 
         const batchResults = await Promise.all(batchPromises);
+        const batchNFTs = batchResults.flat();
         
-        // Process NFTs from this batch
-        const batchNFTs = batchResults.flatMap(result => result.nfts);
-        allNFTs.push(...batchNFTs);
-
-        console.log(`Batch ${Math.floor(i / BATCH_SIZE) + 1} results:`, {
-          totalNFTs: allNFTs.length,
-          addressesProcessed: batch
+        // Filter duplicates based on contract address and token ID
+        const uniqueNFTs = batchNFTs.filter(nft => {
+          const key = `${nft.contract}-${nft.tokenId}`;
+          const exists = allNFTs.some(existing => 
+            `${existing.contract}-${existing.tokenId}` === key
+          );
+          return !exists;
         });
 
+        allNFTs.push(...uniqueNFTs);
+
         // Add delay between batches if not the last batch
-        if (i + BATCH_SIZE < allAddresses.length) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
+        if (i + BATCH_SIZE < validAddresses.length) {
+          await delay(1000);
         }
       }
 
@@ -2163,7 +2176,6 @@ export default function Demo({ title }: { title?: string }) {
       setError(error instanceof Error ? error.message : 'An error occurred');
     } finally {
       setIsLoadingNFTs(false);
-      setIsProfileMenuOpen(false);
       console.log('=== END NFT FETCH ===');
     }
   };
@@ -2413,6 +2425,15 @@ export default function Demo({ title }: { title?: string }) {
       clearInterval(syncInterval);
     };
   }, [isPlaying, currentPlayingNFT, audioProgress]);
+
+  // Add this useEffect after other useEffects but before the return statement
+  useEffect(() => {
+    // Only fetch NFTs when profile page is active and we have a user context
+    if (currentPage.isProfile && userContext?.user) {
+      console.log('Profile page active, fetching NFTs for user:', userContext.user.fid);
+      handleViewProfile();
+    }
+  }, [currentPage.isProfile, userContext?.user]); // Dependencies: profile page state and user context
 
   // Add the top played section to the main page
   return (
@@ -2973,10 +2994,11 @@ export default function Demo({ title }: { title?: string }) {
 
         {/* Profile Page */}
         {currentPage.isProfile && userContext?.user && (
-          <div>
+          <div className="container mx-auto px-4 py-8">
+            {/* Profile Header */}
             <div className="mb-8">
               <div className="flex items-center gap-6 mb-8">
-                <div className="w-24 h-24 rounded-full overflow-hidden">
+                <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-800">
                   <Image
                     src={userContext.user.pfpUrl || '/placeholder-avatar.png'}
                     alt="Profile"
@@ -2995,32 +3017,90 @@ export default function Demo({ title }: { title?: string }) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+              {/* NFT Collection Stats */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-8">
+                <div className="bg-gray-800/30 rounded-lg p-4">
+                  <p className="font-mono text-gray-400 text-sm mb-1">Total NFTs</p>
+                  <p className="font-mono text-green-400 text-xl">{nfts.length}</p>
+                </div>
+                <div className="bg-gray-800/30 rounded-lg p-4">
+                  <p className="font-mono text-gray-400 text-sm mb-1">Audio NFTs</p>
+                  <p className="font-mono text-green-400 text-xl">
+                    {nfts.filter(nft => nft.hasValidAudio).length}
+                  </p>
+                </div>
+                <div className="bg-gray-800/30 rounded-lg p-4">
+                  <p className="font-mono text-gray-400 text-sm mb-1">Connected Wallets</p>
+                  <p className="font-mono text-green-400 text-xl">
+                    {/* Add state for connected wallets count */}
+                    {userContext?.user?.verified_addresses?.eth_addresses?.length 
+                      ? userContext.user.verified_addresses.eth_addresses.length + (userContext.user.custody_address ? 1 : 0)
+                      : userContext.user.custody_address 
+                        ? 1 
+                        : 0}
+                  </p>
+                </div>
+              </div>
+
+              {/* NFT Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                 {isLoadingNFTs ? (
-                  <div className="col-span-full text-center py-12">
-                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-400"></div>
-                    <p className="mt-4 font-mono text-green-400">Loading your NFTs...</p>
+                  <div className="col-span-full flex flex-col items-center justify-center py-12">
+                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-400 mb-4"></div>
+                    <p className="font-mono text-green-400">Loading your NFTs...</p>
                   </div>
                 ) : nfts.length === 0 ? (
                   <div className="col-span-full text-center py-12">
                     <p className="font-mono text-gray-400">No audio NFTs found in your collection</p>
+                    <p className="font-mono text-gray-400 text-sm mt-2">
+                      Make sure your wallet is connected and contains audio NFTs
+                    </p>
                   </div>
                 ) : (
-                  nfts.map((nft) => (
-                    <NFTCard
-                    key={`${nft.contract}-${nft.tokenId}`}
-                      nft={nft}
-                      onPlay={handlePlayAudio}
-                      isPlaying={isPlaying}
-                      currentlyPlaying={currentlyPlaying}
-                      handlePlayPause={handlePlayPause}
-                    />
-                  ))
-                  )}
-                </div>
+                  nfts
+                    .filter(nft => nft.hasValidAudio)
+                    .map((nft) => (
+                      <NFTCard
+                        key={`${nft.contract}-${nft.tokenId}`}
+                        nft={nft}
+                        onPlay={handlePlayAudio}
+                        isPlaying={isPlaying}
+                        currentlyPlaying={currentlyPlaying}
+                        handlePlayPause={handlePlayPause}
+                      />
+                    ))
+                )}
+              </div>
+
+              {/* Refresh Button */}
+              <div className="flex justify-center mt-8">
+                <button
+                  onClick={handleViewProfile}
+                  disabled={isLoadingNFTs}
+                  className={`
+                    flex items-center gap-2 px-6 py-3 rounded-full
+                    font-mono text-sm
+                    ${isLoadingNFTs 
+                      ? 'bg-gray-800/50 text-gray-400 cursor-not-allowed' 
+                      : 'bg-green-400 text-black hover:bg-green-300 transition-colors'}
+                  `}
+                >
+                  <svg 
+                    xmlns="http://www.w3.org/2000/svg" 
+                    height="20" 
+                    viewBox="0 -960 960 960" 
+                    width="20" 
+                    fill="currentColor"
+                    className={`${isLoadingNFTs ? 'animate-spin' : ''}`}
+                  >
+                    <path d="M480-160q-134 0-227-93t-93-227q0-134 93-227t227-93q69 0 132 28.5T720-690v-110h80v280H520v-80h168q-32-56-87.5-88T480-720q-100 0-170 70t-70 170q0 100 70 170t170 70q77 0 139-44t87-116h84q-28 106-114 173t-196 67Z"/>
+                  </svg>
+                  {isLoadingNFTs ? 'Refreshing...' : 'Refresh NFTs'}
+                </button>
               </div>
             </div>
-          )}
+          </div>
+        )}
       </div>
 
       {/* Media Player - Minimized Mode */}
