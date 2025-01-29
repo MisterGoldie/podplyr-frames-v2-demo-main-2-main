@@ -2,7 +2,6 @@
 
 import Image from 'next/image';
 import { useEffect, useCallback, useState, useMemo, useRef, ReactEventHandler, SyntheticEvent } from "react";
-import AudioVisualizer from './AudioVisualizer';
 import { debounce } from 'lodash';
 import { trackUserSearch, getRecentSearches, SearchedUser, getTopPlayedNFTs, fetchNFTDetails, trackNFTPlay, toggleLikeNFT, getLikedNFTs, removeLikedNFT, addLikedNFT } from '../lib/firebase';
 import sdk, { type FrameContext } from "@farcaster/frame-sdk";
@@ -2649,20 +2648,15 @@ export default function Demo({ title }: { title?: string }) {
         <div className="container mx-auto px-4 h-full">
           <div className="flex items-center justify-between h-full">
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-mono text-green-400 tracking-widest">PODPLAYR</h1>
-              <div className="flex items-end space-x-1 h-3">
-                {[1,2,3,4].map((i) => (
-                  <div 
-                    key={i}
-                    className="w-[2px] bg-green-400 rounded-full transition-all duration-150"
-                    style={{
-                      height: `${2 + (i * 3)}px`,
-                      animation: `audioWavePulse 1.5s ease-in-out infinite`,
-                      animationDelay: `${(4-i) * 0.2}s`,
-                      transformOrigin: 'bottom'
-          }}
-                  />
-                ))}
+              <div className="flex items-center justify-center p-4">
+                <Image
+                  src="/fontlogo.png"
+                  alt="PODPLAYR"
+                  width={120}
+                  height={24}
+                  priority={true}
+                  className="h-auto"
+                />
               </div>
             </div>
           </div>
