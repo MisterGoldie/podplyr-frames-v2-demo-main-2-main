@@ -2644,7 +2644,7 @@ export default function Demo({ title }: { title?: string }) {
       
       {/* Top Navigation Bar - Only show when not on Explore page */}
       {!currentPage.isExplore && (
-      <div className="fixed top-0 left-0 right-0 bg-gray-900/95 backdrop-blur-md border-b border-green-400/20 h-[64px] z-30">
+      <div className="fixed top-0 left-0 right-0 bg-black border-b border-green-400/20 h-[64px] z-30">
         <div className="container mx-auto px-4 h-full">
           <div className="flex items-center justify-between h-full">
             <div className="flex items-center gap-2">
@@ -2670,27 +2670,27 @@ export default function Demo({ title }: { title?: string }) {
         {currentPage.isHome && (
           <div>
             {/* Recently Played NFTs Section */}
-            {topPlayedNFTs.length > 0 && (
+            {recentlyPlayedNFTs.length > 0 && (
               <div className="mb-8">
                 <h2 className="text-xl font-mono text-green-400 mb-2 px-2">Recently Played</h2>
                 <div className="relative">
                   <div className="overflow-x-auto hide-scrollbar">
                     <div className="flex gap-4 px-2">
-                  {topPlayedNFTs.map(({nft, count}, index) => (
+                      {groupNFTsByUniqueId(recentlyPlayedNFTs).map((nft) => (
                         <div 
                           key={`${nft.contract}-${nft.tokenId}`}
-                      className="flex-shrink-0 w-[100px] group"
+                          className="flex-shrink-0 w-[100px] group"
                         >
                           <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-gray-800/20">
                             <NFTImage
                               src={nft.metadata?.image || ''}
                               alt={nft.name}
                               className="w-full h-full object-cover"
-          width={160}
-          height={160}
-          priority={true}
-        />
-        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                              width={160}
+                              height={160}
+                              priority={true}
+                            />
+                            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
                             {/* Like Button */}
                             <button 
                               onClick={(e) => {
@@ -2712,21 +2712,21 @@ export default function Demo({ title }: { title?: string }) {
                             {/* Play Button */}
                             <button 
                               onClick={() => handlePlayAudio(nft)}
-          className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-green-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
-        >
-          {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
-            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-              <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
-            </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-              <path d="M320-200v-560l440 280-440 280Z"/>
-            </svg>
-          )}
-        </button>
-      </div>
-      <div className="px-1">
-                        <h3 className="font-mono text-white text-sm truncate mb-1">{nft.name}</h3>
+                              className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-green-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
+                            >
+                              {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
+                                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                                  <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
+                                </svg>
+                              ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                                  <path d="M320-200v-560l440 280-440 280Z"/>
+                                </svg>
+                              )}
+                            </button>
+                          </div>
+                          <div className="px-1">
+                            <h3 className="font-mono text-white text-sm truncate mb-1">{nft.name}</h3>
                             <p className="font-mono text-gray-400 text-xs truncate">{nft.collection?.name || 'Unknown Collection'}</p>
                           </div>
                           <audio
@@ -3293,7 +3293,7 @@ export default function Demo({ title }: { title?: string }) {
 
       {/* Media Player - Minimized Mode */}
       {currentPlayingNFT && (
-        <div className="fixed bottom-[64px] left-0 right-0 bg-gray-900/95 backdrop-blur-md border-t border-green-400/20 h-20 z-30">
+        <div className="fixed bottom-[64px] left-0 right-0 bg-black border-t border-green-400/20 h-20 z-30">
           {/* Progress bar */}
               <div 
                 className="absolute top-0 left-0 right-0 h-1 bg-gray-800 cursor-pointer group"
@@ -3397,7 +3397,7 @@ export default function Demo({ title }: { title?: string }) {
 
       {/* Full Screen Player */}
       {currentPlayingNFT && !isPlayerMinimized && (
-        <div className="fixed inset-0 bg-gray-900/95 backdrop-blur-md z-50 flex flex-col">
+        <div className="fixed inset-0 bg-black backdrop-blur-md z-50 flex flex-col">
           {/* Header */}
           <div className="p-4 flex items-center justify-between border-b border-green-400/20">
                   <button
@@ -3577,13 +3577,13 @@ export default function Demo({ title }: { title?: string }) {
               )}
 
       {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-md border-t border-green-400/20 h-[80px] z-40">
-        <div className="container mx-auto px-4 py-2.5">
-          <div className="flex justify-around items-center h-full">
+      <div className="fixed bottom-0 left-0 right-0 bg-black border-t border-green-400/20 h-16 z-20 pb-[env(safe-area-inset-bottom,0px)]">
+        <div className="container mx-auto h-full">
+          <div className="grid grid-cols-4 h-full items-center">
             {/* Home Button */}
             <button 
               onClick={() => switchPage('isHome')}
-              className={`flex flex-col items-center gap-1 transition-colors ${
+              className={`flex flex-col items-center gap-1 transition-colors mb-2 ${
                 currentPage.isHome ? 'text-green-400' : 'text-gray-400 hover:text-green-400'
               }`}
             >
@@ -3596,7 +3596,7 @@ export default function Demo({ title }: { title?: string }) {
             {/* Explore Button */}
             <button 
               onClick={() => switchPage('isExplore')}
-              className={`flex flex-col items-center gap-1 transition-colors ${
+              className={`flex flex-col items-center gap-1 transition-colors mb-2 ${
                 currentPage.isExplore ? 'text-green-400' : 'text-gray-400 hover:text-green-400'
               }`}
             >
@@ -3609,7 +3609,7 @@ export default function Demo({ title }: { title?: string }) {
             {/* Library Button */}
             <button 
               onClick={() => switchPage('isLibrary')}
-              className={`flex flex-col items-center gap-1 transition-colors ${
+              className={`flex flex-col items-center gap-1 transition-colors mb-2 ${
                 currentPage.isLibrary ? 'text-green-400' : 'text-gray-400 hover:text-green-400'
               }`}
             >
@@ -3623,7 +3623,7 @@ export default function Demo({ title }: { title?: string }) {
             {userContext?.user && (
               <button 
                 onClick={() => switchPage('isProfile')}
-                className={`flex flex-col items-center gap-1 transition-colors ${
+                className={`flex flex-col items-center gap-1 transition-colors mb-2 ${
                   currentPage.isProfile ? 'text-green-400' : 'text-gray-400 hover:text-green-400'
                 }`}
               >
@@ -3647,4 +3647,4 @@ export default function Demo({ title }: { title?: string }) {
 }
 
 
-
+//

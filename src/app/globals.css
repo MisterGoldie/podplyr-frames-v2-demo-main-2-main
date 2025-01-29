@@ -20,6 +20,12 @@ body {
   min-height: 100vh;
 }
 
+/* Add styles for logo image */
+.logo-image {
+  width: auto;
+  height: auto;
+}
+
 * {
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* IE and Edge */
