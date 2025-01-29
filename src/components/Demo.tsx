@@ -3256,20 +3256,35 @@ export default function Demo({ title }: { title?: string }) {
                     </p>
                   </div>
                 ) : (
-                  groupNFTsByUniqueId(nfts.filter(nft => nft.hasValidAudio)).map((nft) => (
-                  <NFTCard
-                            key={`${nft.contract}-${nft.tokenId}`}
-                    nft={nft}
-                    onPlay={handlePlayAudio}
-                    isPlaying={isPlaying}
-                    currentlyPlaying={currentlyPlaying}
-                    handlePlayPause={handlePlayPause}
-                    publicCollections={publicCollections}
-                    onAddToCollection={addToPublicCollection}
-                    onRemoveFromCollection={removeFromPublicCollection}
-                              />
-                ))
-                              )}
+                  groupNFTsByUniqueId(nfts.filter(nft => nft.hasValidAudio)).map((nft) => {
+                    // Create a more reliable unique key
+                    let cleanTokenId = nft.tokenId;
+                    if (nft.metadata?.animation_url) {
+                      const animationMatch = nft.metadata.animation_url.match(/\/(\d+)\./);
+                      if (animationMatch) {
+                        cleanTokenId = animationMatch[1];
+                      }
+                    }
+                    if (!cleanTokenId) {
+                      cleanTokenId = `0x${nft.contract.slice(0, 10)}`;
+                    }
+                    const uniqueKey = `${nft.contract.toLowerCase()}-${cleanTokenId}`;
+                    
+                    return (
+                      <NFTCard
+                        key={uniqueKey}
+                        nft={nft}
+                        onPlay={handlePlayAudio}
+                        isPlaying={isPlaying}
+                        currentlyPlaying={currentlyPlaying}
+                        handlePlayPause={handlePlayPause}
+                        publicCollections={publicCollections}
+                        onAddToCollection={addToPublicCollection}
+                        onRemoveFromCollection={removeFromPublicCollection}
+                      />
+                    );
+                  })
+                )}
               </div>
                               
               {/* Refresh Button */}
