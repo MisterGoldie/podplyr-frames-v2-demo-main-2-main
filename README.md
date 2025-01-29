@@ -112,7 +112,7 @@ Start the development server:
 ```bash
 yarn dev
 ```
-Visit [http://localhost:3002](http://localhost:3002) in your browser.
+Visit [http://localhost:3002](http://localhost:3001) in your browser.
 
 ### Production Build
 
