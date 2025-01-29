@@ -1,14 +1,13 @@
 "use client";
 
 import Image from 'next/image';
-import { useEffect, useCallback, useState, useMemo, useRef, ReactEventHandler, SyntheticEvent } from "react";
+import { useEffect, useCallback, useState, useMemo, useRef, ReactEventHandler, SyntheticEvent, Component, ReactNode } from "react";
 import AudioVisualizer from './AudioVisualizer';
 import { debounce } from 'lodash';
 import { trackUserSearch, getRecentSearches, SearchedUser, getTopPlayedNFTs, fetchNFTDetails, trackNFTPlay, toggleLikeNFT, getLikedNFTs, removeLikedNFT, addLikedNFT, getLastThreePlayedNFTs } from '../lib/firebase';
 import sdk, { type FrameContext } from "@farcaster/frame-sdk";
 import { db } from '../lib/firebase';
 import { collection, addDoc, serverTimestamp, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
-
 
 interface FarcasterUser {
   fid: number;
@@ -23,6 +22,52 @@ interface FarcasterUser {
     } | string;
   };
   verifiedAddresses?: string[];
+}
+
+interface NFTPlayData {
+  fid: number;
+  nftContract: string;
+  tokenId: string;
+  name: string;
+  image: string;
+  audioUrl: string;
+  collection?: string;
+  network?: string;
+  timestamp: any;
+  animationUrl?: string;
+}
+
+interface MediaErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+interface MediaErrorBoundaryProps {
+  children: ReactNode;
+}
+
+class MediaErrorBoundary extends Component<MediaErrorBoundaryProps, MediaErrorBoundaryState> {
+  constructor(props: MediaErrorBoundaryProps) {
+    super(props);
+    this.state = { 
+      hasError: false, 
+      error: null 
+    };
+  }
+  
+  static getDerivedStateFromError(error: Error): MediaErrorBoundaryState {
+    return { 
+      hasError: true, 
+      error: error instanceof Error ? error : new Error('Unknown error occurred')
+    };
+  }
+  
+  render() {
+    if (this.state.hasError && this.state.error instanceof Error) {
+      return <div>Error loading media: {this.state.error.message}</div>;
+    }
+    return this.props.children;
+  }
 }
 
 interface _UserDetails {
@@ -1094,90 +1139,52 @@ export default function Demo({ title }: { title?: string }) {
 
   const playMedia = async (audio: HTMLAudioElement, video: HTMLVideoElement | null, nft: NFT) => {
     try {
-      console.log('[playMedia] Starting playback for NFT:', nft.contract);
-      const nftId = `${nft.contract}-${nft.tokenId}`;
-      let mediaStarted = false;
+      // Add loading state
+      setIsMediaLoading(true);
       
-      // Set playing state first
-      setIsPlaying(true);
-      
-      // Get the media URL with a fallback
       const mediaUrl = processMediaUrl(nft.audio || nft.metadata?.animation_url || '');
       if (!mediaUrl) {
         throw new Error('No valid media URL found');
       }
-      
-      // Only load video if it's a video NFT and not already loaded
-      if (video && nft.metadata?.animation_url && 
-          (!video.src || !video.src.includes(nft.metadata.animation_url))) {
-        const videoUrl = processMediaUrl(nft.metadata.animation_url);
-        if (videoUrl) {
-          console.log('[playMedia] Loading video:', videoUrl);
-          video.src = videoUrl;
-          video.load();
-          
-          // Wait for video to be ready
-          await new Promise((resolve) => {
-            video.oncanplay = resolve;
-          });
+
+      // Add retry logic
+      const MAX_RETRIES = 3;
+      let attempt = 0;
+      let success = false;
+
+      while (attempt < MAX_RETRIES && !success) {
+        try {
+          await Promise.race([
+            new Promise((resolve, reject) => {
+              audio.oncanplay = resolve;
+              audio.onerror = reject;
+              audio.src = mediaUrl;
+              audio.load();
+            }),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Media load timeout')), 10000)
+            )
+          ]);
+          success = true;
+        } catch (error) {
+          attempt++;
+          if (attempt === MAX_RETRIES) throw error;
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
         }
       }
 
-      // Load and play audio
-      if (!audio.src || audio.src !== mediaUrl) {
-        console.log('[playMedia] Loading audio:', mediaUrl);
-        audio.src = mediaUrl;
-        audio.load();
-        
-        // Wait for audio to be ready
-        await new Promise((resolve) => {
-          audio.oncanplay = resolve;
-        });
+      if (isPlaying) {
+        await audio.play();
+        if (video) {
+          video.currentTime = audio.currentTime;
+          await video.play();
+        }
       }
-
-      // Start playback
-      const playPromises: Promise<void>[] = [];
-
-      // Play audio if it exists
-      if (audio && !audio.error) {
-        console.log('[playMedia] Starting audio playback');
-        playPromises.push(audio.play());
-        mediaStarted = true;
-      }
-
-      // Play video if exists
-      if (video && !video.error) {
-        console.log('[playMedia] Starting video playback');
-        video.currentTime = audio?.currentTime || 0;
-        playPromises.push(video.play());
-        mediaStarted = true;
-      }
-
-      // Wait for media to start playing
-      await Promise.all(playPromises);
-
-      // Only track play if media actually started and hasn't been tracked
-      if (mediaStarted && userContext?.user?.fid && !nft.playTracked) {
-        console.log('[playMedia] Tracking play for NFT:', nftId);
-        await trackNFTPlay(nft, userContext.user.fid);
-        nft.playTracked = true; // Mark this play as tracked
-        
-        // Fetch updated recently played list after tracking the play
-        await fetchRecentlyPlayed();
-        
-        console.log('[playMedia] Play tracked successfully');
-      } else {
-        console.log('[playMedia] Skipping play tracking:', {
-          mediaStarted,
-          hasFid: !!userContext?.user?.fid,
-          alreadyTracked: nft.playTracked
-        });
-      }
-
     } catch (error) {
-      console.error('[playMedia] Playback error:', error);
-      setIsPlaying(false);
+      console.error('Media playback error:', error);
       throw error;
+    } finally {
+      setIsMediaLoading(false);
     }
   };
 
@@ -1413,6 +1420,27 @@ export default function Demo({ title }: { title?: string }) {
 
   // Update the fetchNFTsForAddress function
   const fetchNFTsForAddress = async (address: string, alchemyKey: string) => {
+    const BATCH_SIZE = 2;
+    const RETRY_DELAY = 2000;
+    const MAX_RETRIES = 3;
+
+    const fetchWithRetry = async (url: string, options: RequestInit) => {
+      for (let i = 0; i < MAX_RETRIES; i++) {
+        try {
+          const response = await fetch(url, options);
+          if (response.ok) return response.json();
+          if (response.status === 429) {
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * (i + 1)));
+            continue;
+          }
+          throw new Error(`HTTP ${response.status}`);
+        } catch (error) {
+          if (i === MAX_RETRIES - 1) throw error;
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * (i + 1)));
+        }
+      }
+    };
+
     try {
       const allNFTs: NFT[] = [];
       
@@ -2245,11 +2273,9 @@ export default function Demo({ title }: { title?: string }) {
 
   // Update handleLikeToggle function
   const handleLikeToggle = async (nft: NFT) => {
-    if (!userContext?.user?.fid) {
-      console.log('No user logged in');
-      return;
-    }
-
+    if (!userContext?.user?.fid) return;
+    
+    setLoadingStates(prev => ({ ...prev, isProcessingLike: true }));
     try {
       const isCurrentlyLiked = isNFTLiked(nft);
       console.log('Toggling like for NFT:', {
@@ -2275,6 +2301,8 @@ export default function Demo({ title }: { title?: string }) {
       }
     } catch (error) {
       console.error('Error toggling like:', error);
+    } finally {
+      setLoadingStates(prev => ({ ...prev, isProcessingLike: false }));
     }
   };
 
@@ -2390,6 +2418,12 @@ export default function Demo({ title }: { title?: string }) {
     
     fetchLastThreePlayed();
   }, [userContext?.user?.fid, fetchRecentlyPlayed]); // Add fetchRecentlyPlayed to dependencies
+
+  const [loadingStates, setLoadingStates] = useState({
+    isLoadingMedia: false,
+    isLoadingNFTs: false,
+    isProcessingLike: false
+  });
 
   // Add the top played section to the main page
   return (
@@ -3204,17 +3238,6 @@ export default function Demo({ title }: { title?: string }) {
   );
 }
 
-interface NFTPlayData {
-  fid: number;
-  nftContract: string;
-  tokenId: string;
-  name: string;
-  image: string;
-  audioUrl: string;
-  collection?: string;
-  network?: string;
-  timestamp: any;
-  animationUrl?: string;
-}
+
 
 

@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs, serverTimestamp, orderBy, limit, addDoc, deleteDoc } from 'firebase/firestore';
 import { Alchemy, Network } from 'alchemy-sdk';
 import { signInAnonymously, getAuth } from 'firebase/auth';
+import { DocumentData } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -446,7 +447,7 @@ export interface User {
   verifiedAddresses?: string[];
 }
 
-// Add the searchFarcasterUsers function
+// Add the searchFarcasterUsers function with proper type annotations
 export const searchFarcasterUsers = async (query: string): Promise<User[]> => {
   try {
     // Replace this with your actual Farcaster API endpoint
@@ -454,7 +455,7 @@ export const searchFarcasterUsers = async (query: string): Promise<User[]> => {
     if (!response.ok) throw new Error('Failed to fetch users');
     
     const data = await response.json();
-    return data.users.map((user: any) => ({
+    return data.users.map((user: DocumentData) => ({
       fid: user.fid,
       username: user.username,
       displayName: user.display_name,
@@ -480,7 +481,7 @@ export async function getLastThreePlayedNFTs(fid: number): Promise<NFT[]> {
     );
 
     const querySnapshot = await getDocs(q);
-    const recentPlays = querySnapshot.docs.map(doc => {
+    const recentPlays = querySnapshot.docs.map((doc: DocumentData) => {
       const data = doc.data();
       return {
         contract: data.nftContract,
