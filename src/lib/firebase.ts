@@ -220,29 +220,17 @@ export async function trackNFTPlay(nft: NFT, fid?: number) {
   try {
     let cleanTokenId = nft.tokenId;
     
-    if (!cleanTokenId && nft.metadata) {
-      // Try to extract from metadata.uri if it exists
-      if (nft.metadata.uri) {
-        const uriMatch = nft.metadata.uri.match(/\/(\d+)$/);
-        if (uriMatch) {
-          cleanTokenId = uriMatch[1];
-        }
-      }
-      
-      // Try to extract from metadata.animation_url
-      if (!cleanTokenId && nft.metadata.animation_url) {
-        const animationMatch = nft.metadata.animation_url.match(/\/(\d+)\./);
-        if (animationMatch) {
-          cleanTokenId = animationMatch[1];
-        }
-      }
+    // Remove any instances of the contract address from the tokenId
+    if (cleanTokenId && nft.contract) {
+      cleanTokenId = cleanTokenId.replace(nft.contract, '');
+      cleanTokenId = cleanTokenId.replace('0x', ''); // Remove any remaining '0x' prefixes
     }
-
-    // If still no tokenId, generate a safe hash
+    
+    // If no valid tokenId exists, generate a unique one
     if (!cleanTokenId) {
-      // Use encodeURIComponent to handle special characters
-      const safeStr = encodeURIComponent(`${nft.contract}-${nft.name}`);
-      cleanTokenId = safeStr.replace(/%/g, '').slice(0, 12);
+      const timestamp = Date.now();
+      const randomStr = Math.random().toString(36).substring(7);
+      cleanTokenId = `${timestamp}-${randomStr}`;
     }
 
     // Final validation
@@ -258,9 +246,8 @@ export async function trackNFTPlay(nft: NFT, fid?: number) {
       name: nft.name,
       image: nft.image || nft.metadata?.image || '',
       audioUrl: nft.audio || nft.metadata?.animation_url || '',
-      animationUrl: nft.metadata?.animation_url || '',
       timestamp: serverTimestamp(),
-      playedBy: fid || null, // Add Farcaster ID
+      fid: fid || null,
     });
     
     console.log('NFT play tracked successfully:', {
@@ -274,6 +261,7 @@ export async function trackNFTPlay(nft: NFT, fid?: number) {
 }
 
 export interface NFT {
+  id?: string;
   contract: string;
   tokenId: string;
   name: string;
