@@ -3052,7 +3052,7 @@ export default function Demo({ title }: { title?: string }) {
               </div>
 
               {/* NFT Collection Stats */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-8">
+              <div className="grid grid-cols-2 sm:grid-cols-2 gap-4 mb-8">
                 <div className="bg-gray-800/30 rounded-lg p-4">
                   <p className="font-mono text-gray-400 text-sm mb-1">Total NFTs</p>
                   <p className="font-mono text-green-400 text-xl">{nfts.length}</p>
@@ -3061,17 +3061,6 @@ export default function Demo({ title }: { title?: string }) {
                   <p className="font-mono text-gray-400 text-sm mb-1">Audio NFTs</p>
                   <p className="font-mono text-green-400 text-xl">
                     {nfts.filter(nft => nft.hasValidAudio).length}
-                  </p>
-                </div>
-                <div className="bg-gray-800/30 rounded-lg p-4">
-                  <p className="font-mono text-gray-400 text-sm mb-1">Connected Wallets</p>
-                  <p className="font-mono text-green-400 text-xl">
-                    {/* Add state for connected wallets count */}
-                    {userContext?.user?.verified_addresses?.eth_addresses?.length 
-                      ? userContext.user.verified_addresses.eth_addresses.length + (userContext.user.custody_address ? 1 : 0)
-                      : userContext.user.custody_address 
-                        ? 1 
-                        : 0}
                   </p>
                 </div>
               </div>
