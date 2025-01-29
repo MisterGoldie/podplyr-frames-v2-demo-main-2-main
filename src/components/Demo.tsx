@@ -2670,27 +2670,27 @@ export default function Demo({ title }: { title?: string }) {
         {currentPage.isHome && (
           <div>
             {/* Recently Played NFTs Section */}
-            {topPlayedNFTs.length > 0 && (
+            {recentlyPlayedNFTs.length > 0 && (
               <div className="mb-8">
                 <h2 className="text-xl font-mono text-green-400 mb-2 px-2">Recently Played</h2>
                 <div className="relative">
                   <div className="overflow-x-auto hide-scrollbar">
                     <div className="flex gap-4 px-2">
-                  {topPlayedNFTs.map(({nft, count}, index) => (
+                      {groupNFTsByUniqueId(recentlyPlayedNFTs).map((nft) => (
                         <div 
                           key={`${nft.contract}-${nft.tokenId}`}
-                      className="flex-shrink-0 w-[100px] group"
+                          className="flex-shrink-0 w-[100px] group"
                         >
                           <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-gray-800/20">
                             <NFTImage
                               src={nft.metadata?.image || ''}
                               alt={nft.name}
                               className="w-full h-full object-cover"
-          width={160}
-          height={160}
-          priority={true}
-        />
-        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                              width={160}
+                              height={160}
+                              priority={true}
+                            />
+                            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
                             {/* Like Button */}
                             <button 
                               onClick={(e) => {
@@ -2712,21 +2712,21 @@ export default function Demo({ title }: { title?: string }) {
                             {/* Play Button */}
                             <button 
                               onClick={() => handlePlayAudio(nft)}
-          className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-green-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
-        >
-          {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
-            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-              <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
-            </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-              <path d="M320-200v-560l440 280-440 280Z"/>
-            </svg>
-          )}
-        </button>
-      </div>
-      <div className="px-1">
-                        <h3 className="font-mono text-white text-sm truncate mb-1">{nft.name}</h3>
+                              className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-green-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
+                            >
+                              {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
+                                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                                  <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
+                                </svg>
+                              ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                                  <path d="M320-200v-560l440 280-440 280Z"/>
+                                </svg>
+                              )}
+                            </button>
+                          </div>
+                          <div className="px-1">
+                            <h3 className="font-mono text-white text-sm truncate mb-1">{nft.name}</h3>
                             <p className="font-mono text-gray-400 text-xs truncate">{nft.collection?.name || 'Unknown Collection'}</p>
                           </div>
                           <audio
