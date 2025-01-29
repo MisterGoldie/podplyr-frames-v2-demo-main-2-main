@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs, serverTimestamp, orderBy, limit, addDoc, deleteDoc, DocumentData } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs, serverTimestamp, orderBy, limit, addDoc, deleteDoc, DocumentData, onSnapshot } from 'firebase/firestore';
 import { Alchemy, Network } from 'alchemy-sdk';
 import { signInAnonymously, getAuth } from 'firebase/auth';
 
@@ -181,18 +181,24 @@ export async function fetchNFTDetails(contractAddress: string, tokenId: string) 
 
 export async function getTopPlayedNFTs(): Promise<{ nft: NFT; count: number }[]> {
   const nftPlaysRef = collection(db, 'nft_plays');
-  const querySnapshot = await getDocs(nftPlaysRef);
+  // Group by nftContract+tokenId and count plays
+  const q = query(
+    nftPlaysRef,
+    orderBy('nftContract'),
+    orderBy('tokenId')
+  );
   
-  const playCount: { [key: string]: { count: number, nft: NFT } } = {};
+  const querySnapshot = await getDocs(q);
+  const playCount: { [key: string]: { count: number, nft: NFT, lastPlayed: Date } } = {};
   
   querySnapshot.forEach((doc) => {
     const data = doc.data();
-    // Create a unique key using both contract and tokenId
     const nftKey = `${data.nftContract.toLowerCase()}-${data.tokenId}`;
     
     if (!playCount[nftKey]) {
       playCount[nftKey] = {
         count: 1,
+        lastPlayed: data.timestamp?.toDate() || new Date(),
         nft: {
           contract: data.nftContract,
           tokenId: data.tokenId,
@@ -200,20 +206,34 @@ export async function getTopPlayedNFTs(): Promise<{ nft: NFT; count: number }[]>
           image: data.image,
           audio: data.audioUrl,
           hasValidAudio: true,
+          collection: {
+            name: data.collection || 'Unknown Collection'
+          },
+          network: data.network || 'ethereum',
           metadata: {
             image: data.image,
-            animation_url: data.animationUrl
+            animation_url: data.audioUrl
           }
         }
       };
     } else {
       playCount[nftKey].count++;
+      // Update lastPlayed if this play is more recent
+      const playDate = data.timestamp?.toDate() || new Date();
+      if (playDate > playCount[nftKey].lastPlayed) {
+        playCount[nftKey].lastPlayed = playDate;
+      }
     }
   });
 
+  // Sort first by count (descending), then by lastPlayed (descending) for tiebreakers
   return Object.values(playCount)
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 3);
+    .sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count;
+      return b.lastPlayed.getTime() - a.lastPlayed.getTime();
+    })
+    .slice(0, 3)
+    .map(({ nft, count }) => ({ nft, count }));
 }
 
 export async function trackNFTPlay(nft: NFT, fid?: number) {
@@ -238,11 +258,17 @@ export async function trackNFTPlay(nft: NFT, fid?: number) {
       }
     }
 
-    // If still no tokenId, generate a safe hash
+    // If still no tokenId, generate a more unique hash
     if (!cleanTokenId) {
-      // Use encodeURIComponent to handle special characters
-      const safeStr = encodeURIComponent(`${nft.contract}-${nft.name}`);
-      cleanTokenId = safeStr.replace(/%/g, '').slice(0, 12);
+      // Create a more unique identifier using contract, name, and audio URL
+      const uniqueString = `${nft.contract}-${nft.name}-${nft.audio || nft.metadata?.animation_url || ''}`;
+      // Generate a hash of the unique string
+      const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(uniqueString));
+      // Convert hash to hex string and take first 12 characters
+      cleanTokenId = Array.from(new Uint8Array(hash))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('')
+        .slice(0, 12);
     }
 
     // Final validation
@@ -260,7 +286,7 @@ export async function trackNFTPlay(nft: NFT, fid?: number) {
       audioUrl: nft.audio || nft.metadata?.animation_url || '',
       animationUrl: nft.metadata?.animation_url || '',
       timestamp: serverTimestamp(),
-      playedBy: fid || null, // Add Farcaster ID
+      playedBy: fid || null,
     });
     
     console.log('NFT play tracked successfully:', {
@@ -441,3 +467,37 @@ const someFunction = (doc: DocumentData) => {
 }
 
 // Add similar type annotations to other functions that use 'doc' parameters
+
+export function subscribeToRecentPlays(fid: number, callback: (nfts: NFT[]) => void) {
+  const recentlyPlayedCollection = collection(db, 'nft_plays');
+  const q = query(
+    recentlyPlayedCollection,
+    where('playedBy', '==', fid),
+    orderBy('timestamp', 'desc'),
+    limit(8)
+  );
+
+  // Return the unsubscribe function
+  return onSnapshot(q, (snapshot) => {
+    const plays = snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        contract: data.nftContract || '',
+        tokenId: data.tokenId || '',
+        name: data.name || '',
+        image: data.image || '',
+        audio: data.audioUrl || '',
+        hasValidAudio: true,
+        collection: {
+          name: data.collection || 'Unknown Collection'
+        },
+        network: data.network || 'ethereum',
+        metadata: {
+          image: data.image || '',
+          animation_url: data.audioUrl || ''
+        }
+      } as NFT;
+    });
+    callback(plays);
+  });
+}

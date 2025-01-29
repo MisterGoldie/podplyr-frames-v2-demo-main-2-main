@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { useEffect, useCallback, useState, useMemo, useRef, ReactEventHandler, SyntheticEvent } from "react";
 import { debounce } from 'lodash';
-import { trackUserSearch, getRecentSearches, SearchedUser, getTopPlayedNFTs, fetchNFTDetails, trackNFTPlay, toggleLikeNFT, getLikedNFTs, removeLikedNFT, addLikedNFT } from '../lib/firebase';
+import { trackUserSearch, getRecentSearches, SearchedUser, getTopPlayedNFTs, fetchNFTDetails, trackNFTPlay, toggleLikeNFT, getLikedNFTs, removeLikedNFT, addLikedNFT, subscribeToRecentPlays } from '../lib/firebase';
 import sdk, { type FrameContext } from "@farcaster/frame-sdk";
 import { db } from '../lib/firebase';
 import { collection, addDoc, serverTimestamp, getDocs, query, where, orderBy, limit, updateDoc, arrayUnion, arrayRemove, doc, deleteDoc } from 'firebase/firestore';
@@ -1928,6 +1928,7 @@ export default function Demo({ title }: { title?: string }) {
   useEffect(() => {
     const video = videoRef.current;
     const audio = document.getElementById(`audio-${currentPlayingNFT?.contract}-${currentPlayingNFT?.tokenId}`) as HTMLAudioElement;
+    
     if (!video || !audio) return;
 
     let lastKnownTime = 0;
@@ -2316,6 +2317,18 @@ export default function Demo({ title }: { title?: string }) {
     }
     fetchTopPlayed();
   }, []);
+
+  useEffect(() => {
+    if (!userContext?.user?.fid) return;
+
+    // Subscribe to real-time updates for recently played NFTs
+    const unsubscribe = subscribeToRecentPlays(userContext.user.fid, (plays) => {
+      setRecentlyPlayedNFTs(plays);
+    });
+
+    // Cleanup subscription when component unmounts
+    return () => unsubscribe();
+  }, [userContext?.user?.fid]); // Only re-run if fid changes
 
   // Update the useEffect to load liked NFTs
   useEffect(() => {
