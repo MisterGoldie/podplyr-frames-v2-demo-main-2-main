@@ -440,4 +440,4 @@ const someFunction = (doc: DocumentData) => {
     // Your function implementation
 }
 
-// Add similar type annotations to other functions that use 'doc' parameter
+// Add similar type annotations to other functions that use 'doc' parameters
