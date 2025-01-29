@@ -28,21 +28,3 @@ body {
 *::-webkit-scrollbar {
   display: none;
 }
-
-@keyframes audioWave {
-  0%, 100% {
-    height: 4px;
-  }
-  50% {
-    height: 16px;
-  }
-}
-
-@keyframes audioWavePulse {
-  0%, 100% {
-    transform: scaleY(0.8);
-  }
-  50% {
-    transform: scaleY(1.2);
-  }
-}
