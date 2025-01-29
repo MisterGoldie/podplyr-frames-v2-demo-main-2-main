@@ -434,3 +434,75 @@ export const removeLikedNFT = async (fid: number, nft: NFT) => {
   const likeDoc = doc(likesRef, likeId);
   await deleteDoc(likeDoc);
 };
+
+// Add the User interface
+export interface User {
+  fid: number;
+  username: string;
+  displayName?: string;
+  pfpUrl?: string;
+  followerCount: number;
+  followingCount: number;
+  verifiedAddresses?: string[];
+}
+
+// Add the searchFarcasterUsers function
+export const searchFarcasterUsers = async (query: string): Promise<User[]> => {
+  try {
+    // Replace this with your actual Farcaster API endpoint
+    const response = await fetch(`YOUR_FARCASTER_API_ENDPOINT/search/users?q=${query}`);
+    if (!response.ok) throw new Error('Failed to fetch users');
+    
+    const data = await response.json();
+    return data.users.map((user: any) => ({
+      fid: user.fid,
+      username: user.username,
+      displayName: user.display_name,
+      pfpUrl: user.pfp_url,
+      followerCount: user.follower_count,
+      followingCount: user.following_count,
+      verifiedAddresses: user.verified_addresses
+    }));
+  } catch (error) {
+    console.error('Error searching users:', error);
+    return [];
+  }
+};
+
+export async function getLastThreePlayedNFTs(fid: number): Promise<NFT[]> {
+  try {
+    const nftPlaysRef = collection(db, 'nft_plays');
+    const q = query(
+      nftPlaysRef,
+      where('fid', '==', fid),
+      orderBy('timestamp', 'desc'),
+      limit(3)
+    );
+
+    const querySnapshot = await getDocs(q);
+    const recentPlays = querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        contract: data.nftContract,
+        tokenId: data.tokenId,
+        name: data.name,
+        image: data.image,
+        audio: data.audioUrl,
+        hasValidAudio: true,
+        collection: {
+          name: data.collection || 'Unknown Collection'
+        },
+        network: data.network || 'ethereum',
+        metadata: {
+          image: data.image,
+          animation_url: data.audioUrl
+        }
+      } as NFT;
+    });
+
+    return recentPlays;
+  } catch (error) {
+    console.error('Error fetching last three played NFTs:', error);
+    return [];
+  }
+}
