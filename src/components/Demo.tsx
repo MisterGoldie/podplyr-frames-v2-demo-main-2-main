@@ -277,6 +277,7 @@ export interface NFT {
   metadata?: NFTMetadata;
   network?: 'ethereum' | 'base';
   playTracked?: boolean;
+  quantity?: number;
 }
 
 interface _AlchemyNFT {
@@ -755,7 +756,33 @@ interface ExtendedFrameContext extends Omit<FrameContext, 'user'> {
   };
 }
 
-// Add this component definition before the Demo component
+// Add this interface near other interfaces
+interface GroupedNFT extends Omit<NFT, 'quantity'> {
+  quantity: number;
+}
+
+// Add this utility function before the Demo component
+const groupNFTsByUniqueId = (nfts: NFT[]): NFT[] => {
+  const groupedMap = nfts.reduce((acc, nft) => {
+    const key = `${nft.contract}-${nft.tokenId}`;
+    
+    if (!acc.has(key)) {
+      acc.set(key, {
+        ...nft,
+        quantity: 1
+      });
+    } else {
+      const existing = acc.get(key)!;
+      existing.quantity = (existing.quantity || 1) + 1;
+    }
+    
+    return acc;
+  }, new Map<string, NFT>());
+
+  return Array.from(groupedMap.values());
+};
+
+// Update the NFTCardProps interface
 interface NFTCardProps {
   nft: NFT;
   onPlay: (nft: NFT) => void;
@@ -764,11 +791,10 @@ interface NFTCardProps {
   handlePlayPause: () => void;
 }
 
+// Update the NFTCard component to handle GroupedNFT
 const NFTCard: React.FC<NFTCardProps> = ({ nft, onPlay, isPlaying, currentlyPlaying, handlePlayPause }) => {
   return (
-    <div 
-      className="retro-container bg-gray-800 overflow-hidden relative z-0"
-    >
+    <div className="retro-container bg-gray-800 overflow-hidden relative z-0">
       <div className="aspect-square relative bg-gray-800">
         {/* Base image or video */}
         <div className="w-full h-full absolute top-0 left-0">
@@ -782,15 +808,20 @@ const NFTCard: React.FC<NFTCardProps> = ({ nft, onPlay, isPlaying, currentlyPlay
           />
         </div>
 
+        {/* Quantity Badge - only show if quantity is defined and greater than 1 */}
+        {nft.quantity && nft.quantity > 1 && (
+          <div className="absolute top-2 left-2 bg-green-400 text-black px-2 py-1 rounded-full font-mono text-sm">
+            x{nft.quantity}
+          </div>
+        )}
+
         {/* Play button */}
         <button 
           onClick={(e) => {
             e.preventDefault();
             if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
-              // If this NFT is currently playing, toggle play/pause
               handlePlayPause();
             } else {
-              // If this is a different NFT, start playing it
               onPlay(nft);
             }
           }}
@@ -1297,8 +1328,13 @@ export default function Demo({ title }: { title?: string }) {
     fetchRecentlyPlayed();
   }, [fetchRecentlyPlayed]);
 
-  // Update handlePlayAudio to refresh recently played after tracking play
-  const handlePlayAudio = async (nft: NFT) => {
+  // Add a type guard function to check if an NFT is grouped
+  const isGroupedNFT = (nft: NFT | GroupedNFT): nft is GroupedNFT => {
+    return typeof (nft as GroupedNFT).quantity === 'number';
+  };
+
+  // Update the handlePlayAudio function to handle both types
+  const handlePlayAudio = async (nft: NFT | GroupedNFT) => {
     if (!nft) {
       console.warn('No NFT provided to handlePlayAudio');
       return;
@@ -1362,7 +1398,6 @@ export default function Demo({ title }: { title?: string }) {
       setCurrentlyPlaying(null);
       setCurrentPlayingNFT(null);
       
-      // Log the error with details
       console.error('[handlePlayAudio] Error:', {
         error: error instanceof Error ? error.message : 'Unknown error',
         nft: {
@@ -1373,7 +1408,6 @@ export default function Demo({ title }: { title?: string }) {
         }
       });
       
-      // Set user-facing error message
       setError(error instanceof Error ? error.message : 'Failed to play media');
     }
   };
@@ -3057,18 +3091,16 @@ export default function Demo({ title }: { title?: string }) {
                     </p>
                   </div>
                 ) : (
-                  nfts
-                    .filter(nft => nft.hasValidAudio)
-                    .map((nft) => (
-                      <NFTCard
-                        key={`${nft.contract}-${nft.tokenId}`}
-                        nft={nft}
-                        onPlay={handlePlayAudio}
-                        isPlaying={isPlaying}
-                        currentlyPlaying={currentlyPlaying}
-                        handlePlayPause={handlePlayPause}
-                      />
-                    ))
+                  groupNFTsByUniqueId(nfts.filter(nft => nft.hasValidAudio)).map((nft) => (
+                    <NFTCard
+                      key={`${nft.contract}-${nft.tokenId}`}
+                      nft={nft}
+                      onPlay={handlePlayAudio}
+                      isPlaying={isPlaying}
+                      currentlyPlaying={currentlyPlaying}
+                      handlePlayPause={handlePlayPause}
+                    />
+                  ))
                 )}
               </div>
 
