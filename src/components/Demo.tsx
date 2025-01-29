@@ -3227,248 +3227,71 @@ export default function Demo({ title }: { title?: string }) {
                 </div>
               </div>
 
-              {/* NFT Collection Stats */}
-              <div className="grid grid-cols-2 sm:grid-cols-2 gap-4 mb-8">
-              <div className="bg-gray-800/30 rounded-lg p-4">
-                <p className="font-mono text-gray-400 text-sm mb-1">Total NFTs</p>
-                <p className="font-mono text-green-400 text-xl">{nfts.length}</p>
-              </div>
-              <div className="bg-gray-800/30 rounded-lg p-4">
-                <p className="font-mono text-gray-400 text-sm mb-1">Audio NFTs</p>
-                <p className="font-mono text-green-400 text-xl">
-                  {nfts.filter(nft => nft.hasValidAudio).length}
-                </p>
-              </div>
+              {/* Stats */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gray-800/30 rounded-lg p-4">
+                  <p className="font-mono text-gray-400 text-sm mb-1">Total NFTs</p>
+                  <p className="font-mono text-green-400 text-xl">{nfts.length}</p>
                 </div>
-                
-            {/* NFT Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {isLoadingNFTs ? (
-                  <div className="col-span-full flex flex-col items-center justify-center py-12">
-                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-400 mb-4"></div>
-                    <p className="font-mono text-green-400">Loading your NFTs...</p>
+                <div className="bg-gray-800/30 rounded-lg p-4">
+                  <p className="font-mono text-gray-400 text-sm mb-1">Audio NFTs</p>
+                  <p className="font-mono text-green-400 text-xl">
+                    {nfts.filter(nft => nft.hasValidAudio).length}
+                  </p>
                 </div>
-              ) : nfts.length === 0 ? (
-                <div className="col-span-full text-center py-12">
-                    <p className="font-mono text-gray-400">No audio NFTs found in your collection</p>
-                    <p className="font-mono text-gray-400 text-sm mt-2">
-                      Make sure your wallet is connected and contains audio NFTs
-                    </p>
-                  </div>
-                ) : (
-                  groupNFTsByUniqueId(nfts.filter(nft => nft.hasValidAudio)).map((nft) => {
-                    // Create a more reliable unique key
-                    let cleanTokenId = nft.tokenId;
-                    if (nft.metadata?.animation_url) {
-                      const animationMatch = nft.metadata.animation_url.match(/\/(\d+)\./);
-                      if (animationMatch) {
-                        cleanTokenId = animationMatch[1];
-                      }
-                    }
-                    if (!cleanTokenId) {
-                      cleanTokenId = `0x${nft.contract.slice(0, 10)}`;
-                    }
-                    const uniqueKey = `${nft.contract.toLowerCase()}-${cleanTokenId}`;
-                    
-                    return (
-                      <NFTCard
-                        key={uniqueKey}
-                        nft={nft}
-                        onPlay={handlePlayAudio}
-                        isPlaying={isPlaying}
-                        currentlyPlaying={currentlyPlaying}
-                        handlePlayPause={handlePlayPause}
-                        publicCollections={publicCollections}
-                        onAddToCollection={addToPublicCollection}
-                        onRemoveFromCollection={removeFromPublicCollection}
-                      />
-                    );
-                  })
-                )}
-              </div>
-                              
-              {/* Refresh Button */}
-              <div className="flex justify-center mt-8">
-                              <button 
-                  onClick={handleViewProfile}
-                  disabled={isLoadingNFTs}
-                  className={`
-                    flex items-center gap-2 px-6 py-3 rounded-full
-                    font-mono text-sm
-                    ${isLoadingNFTs 
-                      ? 'bg-gray-800/50 text-gray-400 cursor-not-allowed' 
-                      : 'bg-green-400 text-black hover:bg-green-300 transition-colors'}
-                  `}
-                              >
-                  <svg 
-                    xmlns="http://www.w3.org/2000/svg" 
-                    height="20" 
-                    viewBox="0 -960 960 960" 
-                    width="20" 
-                    fill="currentColor"
-                    className={`${isLoadingNFTs ? 'animate-spin' : ''}`}
-                  >
-                    <path d="M480-160q-134 0-227-93t-93-227q0-134 93-227t227-93q69 0 132 28.5T720-690v-110h80v280H520v-80h168q-32-56-87.5-88T480-720q-100 0-170 70t-70 170q0 100 70 170t170 70q77 0 139-44t87-116h84q-28 106-114 173t-196 67Z"/>
-                                  </svg>
-                  {isLoadingNFTs ? 'Refreshing...' : 'Refresh NFTs'}
-                              </button>
               </div>
             </div>
 
-            {/* Public Collections Section */}
+            {/* NFT Grid */}
             <div className="mb-8">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-mono text-green-400">Public Collections</h3>
-                <button
-                  onClick={() => setIsEditingCollection(true)}
-                  className="px-4 py-2 bg-green-400 text-black rounded-lg font-mono text-sm hover:bg-green-300 transition-colors"
-                >
-                  Create Collection
-                </button>
-              </div>
-
-              {/* Create Collection Modal */}
-              {isEditingCollection && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
-                  <div className="bg-gray-900 p-6 rounded-lg w-full max-w-md">
-                    <h4 className="text-lg font-mono text-green-400 mb-4">Create New Collection</h4>
-                    <input
-                      type="text"
-                      value={newCollectionName}
-                      onChange={(e) => setNewCollectionName(e.target.value)}
-                      placeholder="Collection Name"
-                      className="w-full px-4 py-2 bg-gray-800 border border-green-400/20 rounded-lg text-green-400 placeholder-green-400/50 mb-4 font-mono"
-                    />
-                    <textarea
-                      value={newCollectionDescription}
-                      onChange={(e) => setNewCollectionDescription(e.target.value)}
-                      placeholder="Description (optional)"
-                      className="w-full px-4 py-2 bg-gray-800 border border-green-400/20 rounded-lg text-green-400 placeholder-green-400/50 mb-4 font-mono resize-none h-24"
-                    />
-                    <div className="flex justify-end gap-4">
-                      <button
-                        onClick={() => {
-                          setIsEditingCollection(false);
-                          setNewCollectionName('');
-                          setNewCollectionDescription('');
-                        }}
-                        className="px-4 py-2 text-gray-400 hover:text-white transition-colors font-mono"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={createPublicCollection}
-                        disabled={!newCollectionName.trim()}
-                        className="px-4 py-2 bg-green-400 text-black rounded-lg font-mono hover:bg-green-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Create
-                      </button>
-                    </div>
+              <div className="relative">
+                <div className="overflow-x-auto pb-4 hide-scrollbar">
+                  <div className="flex gap-4">
+                    {isLoadingNFTs ? (
+                      <div className="flex-shrink-0 w-full flex flex-col items-center justify-center py-12">
+                        <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-400 mb-4"></div>
+                        <p className="font-mono text-green-400">Loading your NFTs...</p>
+                      </div>
+                    ) : nfts.length === 0 ? (
+                      <div className="flex-shrink-0 w-full text-center py-12">
+                        <p className="font-mono text-gray-400">No audio NFTs found in your collection</p>
+                        <p className="font-mono text-gray-400 text-sm mt-2">
+                          Make sure your wallet is connected and contains audio NFTs
+                        </p>
+                      </div>
+                    ) : (
+                      groupNFTsByUniqueId(nfts.filter(nft => nft.hasValidAudio)).map((nft) => {
+                        let cleanTokenId = nft.tokenId;
+                        if (nft.metadata?.animation_url) {
+                          const animationMatch = nft.metadata.animation_url.match(/\/(\d+)\./);
+                          if (animationMatch) {
+                            cleanTokenId = animationMatch[1];
+                          }
+                        }
+                        if (!cleanTokenId) {
+                          cleanTokenId = `0x${nft.contract.slice(0, 10)}`;
+                        }
+                        const uniqueKey = `${nft.contract.toLowerCase()}-${cleanTokenId}`;
+                        
+                        return (
+                          <div key={uniqueKey} className="flex-shrink-0 w-[200px]">
+                            <NFTCard
+                              nft={nft}
+                              onPlay={handlePlayAudio}
+                              isPlaying={isPlaying}
+                              currentlyPlaying={currentlyPlaying}
+                              handlePlayPause={handlePlayPause}
+                              publicCollections={publicCollections}
+                              onAddToCollection={addToPublicCollection}
+                              onRemoveFromCollection={removeFromPublicCollection}
+                            />
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
                 </div>
-              )}
-
-              {/* Collections Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {publicCollections.map((collection) => (
-                  <div
-                    key={collection.id}
-                    className="bg-gray-800/30 rounded-lg p-4 group hover:bg-gray-800/50 transition-colors"
-                  >
-                    {/* Collection Header */}
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <h4 className="font-mono text-green-400 text-lg mb-1">{collection.name}</h4>
-                        {collection.description && (
-                          <p className="font-mono text-gray-400 text-sm">{collection.description}</p>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => deletePublicCollection(collection.id)}
-                        className="text-red-400 opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-300"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor">
-                          <path d="M280-120q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T680-120H280Zm400-600H280v520h400v-520ZM360-280h80v-360h-80v360Zm160 0h80v-360h-80v360ZM280-720v520-520Z"/>
-                        </svg>
-                      </button>
-                    </div>
-
-                    {/* Collection NFTs */}
-                    <div className="grid grid-cols-3 gap-2">
-                      {collection.nfts.slice(0, 6).map((nft, index) => (
-                        <div key={`${nft.contract}-${nft.tokenId}`} className="relative aspect-square">
-                          <NFTImage
-                            src={processMediaUrl(nft.metadata?.image || '')}
-                            alt={nft.name}
-                            className="w-full h-full object-cover rounded-md"
-                            width={80}
-                            height={80}
-                            priority={true}
-                          />
-                          {index === 5 && collection.nfts.length > 6 && (
-                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-md">
-                              <span className="text-white font-mono">+{collection.nfts.length - 6}</span>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Collection Footer */}
-                    <div className="mt-4 flex items-center justify-between">
-                      <span className="font-mono text-gray-400 text-sm">
-                        {collection.nfts.length} {collection.nfts.length === 1 ? 'track' : 'tracks'}
-                      </span>
-                      <button
-                        onClick={() => setSelectedCollection(collection)}
-                        className="text-green-400 hover:text-green-300 transition-colors font-mono text-sm"
-                      >
-                        View All
-                      </button>
-                    </div>
-                  </div>
-                ))}
               </div>
-
-              {/* Selected Collection View */}
-              {selectedCollection && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
-                  <div className="bg-gray-900 p-6 rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-                    <div className="flex items-center justify-between mb-6">
-                      <div>
-                        <h4 className="text-xl font-mono text-green-400 mb-1">{selectedCollection.name}</h4>
-                        {selectedCollection.description && (
-                          <p className="font-mono text-gray-400">{selectedCollection.description}</p>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => setSelectedCollection(null)}
-                        className="text-gray-400 hover:text-white transition-colors"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
-                          <path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/>
-                        </svg>
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                      {selectedCollection.nfts.map((nft) => (
-                        <NFTCard
-                          key={`${nft.contract}-${nft.tokenId}`}
-                          nft={nft}
-                          onPlay={handlePlayAudio}
-                          isPlaying={isPlaying}
-                          currentlyPlaying={currentlyPlaying}
-                          handlePlayPause={handlePlayPause}
-                          publicCollections={publicCollections}
-                          onAddToCollection={addToPublicCollection}
-                          onRemoveFromCollection={removeFromPublicCollection}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         )}
