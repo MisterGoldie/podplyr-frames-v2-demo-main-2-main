@@ -763,13 +763,30 @@ interface GroupedNFT extends Omit<NFT, 'quantity'> {
 
 // Add this utility function before the Demo component
 const groupNFTsByUniqueId = (nfts: NFT[]): NFT[] => {
-  const groupedMap = nfts.reduce((acc, nft) => {
-    const key = `${nft.contract}-${nft.tokenId}`;
+  const groupedMap = nfts.reduce((acc: Map<string, NFT>, nft: NFT) => {
+    // Create a more reliable unique key by using full contract address and cleaned tokenId
+    let cleanTokenId = nft.tokenId;
+    
+    // Try to extract tokenId from animation_url if present
+    if (nft.metadata?.animation_url) {
+      const animationMatch = nft.metadata.animation_url.match(/\/(\d+)\./);
+      if (animationMatch) {
+        cleanTokenId = animationMatch[1];
+      }
+    }
+    
+    // If still no tokenId, use a hash of contract and name
+    if (!cleanTokenId) {
+      cleanTokenId = `0x${nft.contract.slice(0, 10)}`;
+    }
+    
+    const key = `${nft.contract.toLowerCase()}-${cleanTokenId}`;
     
     if (!acc.has(key)) {
       acc.set(key, {
         ...nft,
-        quantity: 1
+        quantity: 1,
+        tokenId: cleanTokenId // Use the cleaned tokenId
       });
     } else {
       const existing = acc.get(key)!;
@@ -2911,7 +2928,7 @@ export default function Demo({ title }: { title?: string }) {
                 <div className="relative">
                   <div className="overflow-x-auto pb-4 hide-scrollbar">
                     <div className="flex gap-4">
-                      {recentlyPlayedNFTs.map((nft) => (
+                      {groupNFTsByUniqueId(recentlyPlayedNFTs).map((nft) => (
                         <div 
                           key={`${nft.contract}-${nft.tokenId}`}
                           className="flex-shrink-0 w-[140px] group"
@@ -2926,24 +2943,25 @@ export default function Demo({ title }: { title?: string }) {
                               priority={true}
                             />
                             <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                            
                             {/* Play Button */}
                             <button 
                               onClick={() => handlePlayAudio(nft)}
-                              className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-green-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
+                              className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-green-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
                             >
                               {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
-                                <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="currentColor">
+                                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
                                   <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
-                  </svg>
+                    </svg>
                               ) : (
-                                <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="currentColor">
+                                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
                                   <path d="M320-200v-560l440 280-440 280Z"/>
                                 </svg>
                               )}
                 </button>
                           </div>
                           <div className="px-1">
-                            <h3 className="font-mono text-white text-xs truncate mb-1">{nft.name}</h3>
+                            <h3 className="font-mono text-white text-sm truncate mb-1">{nft.name}</h3>
         <p className="font-mono text-gray-400 text-xs truncate">{nft.collection?.name || 'Unknown Collection'}</p>
       </div>
         <audio
