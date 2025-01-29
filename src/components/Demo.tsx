@@ -572,6 +572,7 @@ interface MediaRendererProps {
 }
 
 // Add type declaration for model-viewers
+/* eslint-disable @typescript-eslint/no-namespace */
 declare global {
   namespace JSX {
     interface IntrinsicElements {
@@ -590,6 +591,7 @@ declare global {
     }
   }
 }
+/* eslint-enable @typescript-eslint/no-namespace */
 
 const MediaRenderer = ({ url, alt, className }: MediaRendererProps) => {
   const [currentGatewayIndex, setCurrentGatewayIndex] = useState(0);
