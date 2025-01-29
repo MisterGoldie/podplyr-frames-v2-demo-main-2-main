@@ -3754,13 +3754,13 @@ export default function Demo({ title }: { title?: string }) {
               )}
 
       {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-black border-t border-green-400/20 h-16 z-20">
+      <div className="fixed bottom-0 left-0 right-0 bg-black border-t border-green-400/20 h-16 z-20 pb-[env(safe-area-inset-bottom,0px)]">
         <div className="container mx-auto h-full">
           <div className="grid grid-cols-4 h-full items-center">
             {/* Home Button */}
             <button 
               onClick={() => switchPage('isHome')}
-              className={`flex flex-col items-center gap-1 transition-colors ${
+              className={`flex flex-col items-center gap-1 transition-colors mb-2 ${
                 currentPage.isHome ? 'text-green-400' : 'text-gray-400 hover:text-green-400'
               }`}
             >
@@ -3773,7 +3773,7 @@ export default function Demo({ title }: { title?: string }) {
             {/* Explore Button */}
             <button 
               onClick={() => switchPage('isExplore')}
-              className={`flex flex-col items-center gap-1 transition-colors ${
+              className={`flex flex-col items-center gap-1 transition-colors mb-2 ${
                 currentPage.isExplore ? 'text-green-400' : 'text-gray-400 hover:text-green-400'
               }`}
             >
@@ -3786,7 +3786,7 @@ export default function Demo({ title }: { title?: string }) {
             {/* Library Button */}
             <button 
               onClick={() => switchPage('isLibrary')}
-              className={`flex flex-col items-center gap-1 transition-colors ${
+              className={`flex flex-col items-center gap-1 transition-colors mb-2 ${
                 currentPage.isLibrary ? 'text-green-400' : 'text-gray-400 hover:text-green-400'
               }`}
             >
@@ -3800,7 +3800,7 @@ export default function Demo({ title }: { title?: string }) {
             {userContext?.user && (
               <button 
                 onClick={() => switchPage('isProfile')}
-                className={`flex flex-col items-center gap-1 transition-colors ${
+                className={`flex flex-col items-center gap-1 transition-colors mb-2 ${
                   currentPage.isProfile ? 'text-green-400' : 'text-gray-400 hover:text-green-400'
                 }`}
               >
@@ -3822,6 +3822,5 @@ export default function Demo({ title }: { title?: string }) {
     </div>
   );
 }
-
 
 
