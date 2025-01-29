@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs, serverTimestamp, orderBy, limit, addDoc, deleteDoc } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs, serverTimestamp, orderBy, limit, addDoc, deleteDoc, DocumentData } from 'firebase/firestore';
 import { Alchemy, Network } from 'alchemy-sdk';
 import { signInAnonymously, getAuth } from 'firebase/auth';
 
@@ -434,3 +434,10 @@ export const removeLikedNFT = async (fid: number, nft: NFT) => {
   const likeDoc = doc(likesRef, likeId);
   await deleteDoc(likeDoc);
 };
+
+// Fix the TypeScript errors by adding type annotations to your doc parameters
+const someFunction = (doc: DocumentData) => {
+    // Your function implementation
+}
+
+// Add similar type annotations to other functions that use 'doc' parameter
