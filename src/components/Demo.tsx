@@ -836,66 +836,6 @@ const NFTCard: React.FC<NFTCardProps> = ({
         />
         <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
         
-        {/* Collection Menu Button */}
-        {publicCollections && onAddToCollection && (
-          <div className="absolute top-2 right-2">
-            <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowCollectionMenu(!showCollectionMenu);
-              }}
-              className="w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center transition-all duration-200 hover:scale-110 z-10"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor">
-                <path d="M280-240q-33 0-56.5-23.5T200-320v-480q0-33 23.5-56.5T280-880h560q33 0 56.5 23.5T920-800v480q0 33-23.5 56.5T840-240H280Zm0-80h560v-480H280v480ZM120-80q-33 0-56.5-23.5T40-160v-560h80v560h560v80H120Zm160-240v-480 480Z"/>
-              </svg>
-            </button>
-
-            {/* Collection Menu */}
-            {showCollectionMenu && (
-              <div className="absolute top-full right-0 mt-2 w-48 bg-gray-900 rounded-lg shadow-lg border border-green-400/20 z-20">
-                <div className="p-2">
-                  {publicCollections.map(collection => {
-                    const isInCollection = collection.nfts.some(
-                      n => n.contract === nft.contract && n.tokenId === nft.tokenId
-                    );
-
-                    return (
-                      <button
-                        key={collection.id}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (isInCollection) {
-                            onRemoveFromCollection?.(nft, collection.id);
-                          } else {
-                            onAddToCollection(nft, collection.id);
-                          }
-                          setShowCollectionMenu(false);
-                        }}
-                        className="w-full px-3 py-2 text-left text-sm font-mono rounded hover:bg-gray-800 flex items-center justify-between gap-2"
-                      >
-                        <span className="truncate text-green-400">{collection.name}</span>
-                        {isInCollection && (
-                          <svg xmlns="http://www.w3.org/2000/svg" height="16" viewBox="0 -960 960 960" width="16" fill="currentColor" className="text-green-400 flex-shrink-0">
-                            <path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/>
-                          </svg>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Quantity Badge */}
-        {nft.quantity && nft.quantity > 1 && (
-          <div className="absolute top-2 left-2 bg-black/40 text-white text-xs font-mono px-2 py-1 rounded-full">
-            x{nft.quantity}
-          </div>
-        )}
-
         {/* Play Button */}
         <button 
           onClick={() => {
@@ -1031,8 +971,6 @@ export default function Demo({ title }: { title?: string }) {
   // Add this state for recent searches
   const [recentSearches, setRecentSearches] = useState<SearchedUser[]>([]);
   const [loadedAudioElements, setLoadedAudioElements] = useState<{[key: string]: boolean}>({});
-  const [isExpandVisible, setIsExpandVisible] = useState(false);
-  const expandTimeoutRef = useRef<NodeJS.Timeout>();
   // Add new state for top played NFTs
   const [topPlayedNFTs, setTopPlayedNFTs] = useState<{ nft: NFT; count: number }[]>([]);
   const [isLiked, setIsLiked] = useState(false);
@@ -1056,6 +994,9 @@ export default function Demo({ title }: { title?: string }) {
   const [selectedCollection, setSelectedCollection] = useState<PublicCollection | null>(null);
   const [newCollectionName, setNewCollectionName] = useState('');
   const [newCollectionDescription, setNewCollectionDescription] = useState('');
+
+  // Add this with other state/ref declarations at the top of the component
+  let expandTimeout: NodeJS.Timeout | null = null;
 
   const getCachedNFTs = (userId: number) => {
     const cached = localStorage.getItem(`${NFT_CACHE_KEY}${userId}`);
@@ -2078,14 +2019,6 @@ export default function Demo({ title }: { title?: string }) {
     }
   };
 
-  const handleNFTDisplayClick = () => {
-    setIsExpandButtonVisible(true);
-    // Auto-hide after 2 seconds
-    setTimeout(() => {
-      setIsExpandButtonVisible(false);
-    }, 2000);
-  };
-
   // Update the handlePlayPause function
   const handlePlayPause = async () => {
     const audio = document.getElementById(`audio-${currentPlayingNFT?.contract}-${currentPlayingNFT?.tokenId}`) as HTMLAudioElement;
@@ -2326,17 +2259,19 @@ export default function Demo({ title }: { title?: string }) {
   };
 
   const showExpandButton = () => {
-    setIsExpandVisible(true);
+    setIsExpandButtonVisible(true);
     
     // Clear any existing timeout
-    if (expandTimeoutRef.current) {
-      clearTimeout(expandTimeoutRef.current);
+    if (expandTimeout) {
+      clearTimeout(expandTimeout);
     }
     
     // Set new timeout to hide button after 2 seconds
-    expandTimeoutRef.current = setTimeout(() => {
-      setIsExpandVisible(false);
+    const timeout = setTimeout(() => {
+      setIsExpandButtonVisible(false);
     }, 2000);
+    
+    expandTimeout = timeout;
   };
 
   const logNFTPlay = async (nft: NFT, fid: number) => {
@@ -2648,7 +2583,22 @@ export default function Demo({ title }: { title?: string }) {
         <div className="container mx-auto px-4 h-full">
           <div className="flex items-center justify-between h-full">
             <div className="flex items-center gap-2">
-              <div className="flex items-center justify-center p-4">
+              <div 
+                className="flex items-center justify-center p-4 cursor-pointer" 
+                onClick={() => {
+                  setIsSearchPage(true);
+                  setSelectedUser(null);
+                  setSearchResults([]);
+                  setNfts([]);
+                  setCurrentPlayingNFT(null);
+                  setIsPlaying(false);
+                  setIsPlayerVisible(false);
+                  setIsPlayerMinimized(false);
+                  setCurrentlyPlaying('');
+                  setError('');
+                  switchPage('isHome');
+                }}
+              >
                 <Image
                   src="/fontlogo.png"
                   alt="PODPLAYR"
@@ -3380,15 +3330,15 @@ export default function Demo({ title }: { title?: string }) {
       )}
                     </button>
 
-                {/* Expand Button */}
-                    <button
-                      onClick={() => setIsPlayerMinimized(false)}
-                      className="text-green-400 hover:text-green-300"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                {/* Expand Button - Only in minimized player */}
+                <button
+                  onClick={() => setIsPlayerMinimized(false)}
+                  className="text-green-400 hover:text-green-300"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
                     <path d="M480-528 296-344l-56-56 240-240 240 240-56 56-184-184Z"/>
-                      </svg>
-                    </button>
+                  </svg>
+                </button>
                   </div>
                 </div>
               </div>
