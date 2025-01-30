@@ -858,12 +858,9 @@ const NFTCard: React.FC<NFTCardProps> = ({
           )}
         </button>
       </div>
-      <div className="px-1">
-        <h3 className={`font-mono text-white text-sm truncate mb-1 ${nft.name.length > 20 ? 'marquee-content' : ''}`}>
-          {nft.name}
-        </h3>
-        <p className="font-mono text-gray-400 text-xs truncate">{nft.collection?.name || 'Unknown Collection'}</p>
-      </div>
+      <h3 className="font-mono text-white text-sm truncate">
+        {nft.name}
+      </h3>
       {nft.hasValidAudio && (
         <audio
           id={`audio-${nft.contract}-${nft.tokenId}`}
@@ -1298,9 +1295,6 @@ export default function Demo({ title }: { title?: string }) {
           image: data.image || '',
           audio: data.audioUrl || '',
           hasValidAudio: true,
-          collection: {
-            name: data.collection || 'Unknown Collection'
-          },
           network: data.network || 'ethereum',
           metadata: {
             image: data.image || '',
@@ -1332,9 +1326,6 @@ export default function Demo({ title }: { title?: string }) {
               image: data.image || '',
               audio: data.audioUrl || '',
               hasValidAudio: true,
-              collection: {
-                name: data.collection || 'Unknown Collection'
-              },
               network: data.network || 'ethereum',
               metadata: {
                 image: data.image || '',
@@ -1852,8 +1843,8 @@ export default function Demo({ title }: { title?: string }) {
       isVideo,
       isAnimation,
       collection: {
-        name: nft.contract.name || 'Unknown Collection',
-        image: nft.contract.openSea?.imageUrl
+        image: nft.contract.openSea?.imageUrl,
+        name: ''
       },
       metadata: nft.metadata
     };
@@ -2352,19 +2343,20 @@ export default function Demo({ title }: { title?: string }) {
 
   const logNFTPlay = async (nft: NFT, fid: number) => {
     try {
-      await addDoc(collection(db, 'nft_plays'), {
-        timestamp: serverTimestamp(),
-        fid: fid,
+      const nftPlayData = {
+        fid,
         nftContract: nft.contract,
         tokenId: nft.tokenId,
         name: nft.name,
-        network: nft.network || 'ethereum',
-        collection: nft.collection?.name || 'Unknown Collection',
+        image: nft.image || nft.metadata?.image,
         audioUrl: nft.audio || nft.metadata?.animation_url,
-        image: nft.image || nft.metadata?.image
-      });
+        network: nft.network || 'ethereum',
+        timestamp: serverTimestamp()
+      };
+
+      await addDoc(collection(db, 'nft_plays'), nftPlayData);
     } catch (error) {
-      console.warn('Failed to log NFT play:', error);
+      console.error('Error logging NFT play:', error);
     }
   };
 
@@ -2763,10 +2755,8 @@ export default function Demo({ title }: { title?: string }) {
                               )}
                             </button>
                           </div>
-                          <div className="px-1">
-                            <h3 className="font-mono text-white text-sm truncate mb-1">{nft.name}</h3>
-                            <p className="font-mono text-gray-400 text-xs truncate">{nft.collection?.name || 'Unknown Collection'}</p>
-                          </div>
+                          {/* Only show NFT name */}
+                          <h3 className="font-mono text-white text-sm truncate mb-1">{nft.name}</h3>
                           <audio
                             id={`audio-${nft.contract}-${nft.tokenId}`}
                             src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
@@ -2836,15 +2826,13 @@ export default function Demo({ title }: { title?: string }) {
           )}
         </button>
       </div>
-      <div className="px-1">
-                        <h3 className="font-mono text-white text-sm truncate mb-1">{nft.name}</h3>
-                            <p className="font-mono text-gray-400 text-xs truncate">{nft.collection?.name || 'Unknown Collection'}</p>
-                          </div>
-                          <audio
-                            id={`audio-${nft.contract}-${nft.tokenId}`}
-                            src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
-                            preload="none"
-                          />
+      {/* Only show NFT name */}
+      <h3 className="font-mono text-white text-sm truncate mb-1">{nft.name}</h3>
+      <audio
+        id={`audio-${nft.contract}-${nft.tokenId}`}
+        src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
+        preload="none"
+      />
                         </div>
                       ))}
                     </div>
@@ -2992,15 +2980,13 @@ export default function Demo({ title }: { title?: string }) {
                               )}
                 </button>
                           </div>
-                          <div className="px-1">
-                            <h3 className="font-mono text-white text-sm truncate mb-1">{nft.name}</h3>
-        <p className="font-mono text-gray-400 text-xs truncate">{nft.collection?.name || 'Unknown Collection'}</p>
-      </div>
-        <audio
-          id={`audio-${nft.contract}-${nft.tokenId}`}
-          src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
-          preload="none"
-        />
+                          {/* Only show NFT name */}
+                          <h3 className="font-mono text-white text-sm truncate mb-1">{nft.name}</h3>
+      <audio
+        id={`audio-${nft.contract}-${nft.tokenId}`}
+        src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
+        preload="none"
+      />
                   </div>
                       ))}
                 </div>
@@ -3159,7 +3145,6 @@ export default function Demo({ title }: { title?: string }) {
                           <div className="flex-grow min-w-0">
                             <h3 className="font-mono text-green-400 truncate">{nft.name}</h3>
                             <p className="font-mono text-gray-400 text-sm truncate">
-                              {nft.collection?.name || 'Unknown Collection'}
                             </p>
     </div>
 
@@ -3493,8 +3478,8 @@ export default function Demo({ title }: { title?: string }) {
               {/* Track Info */}
               <div className="text-center mb-12">
                 <h2 className="font-mono text-green-400 text-xl mb-3">{currentPlayingNFT.name}</h2>
-                <p className="font-mono text-gray-400">{currentPlayingNFT.collection?.name}</p>
-    </div>
+                {/* Remove collection name display */}
+              </div>
 
               {/* Progress Bar */}
               <div className="mb-12">
