@@ -1361,8 +1361,93 @@ export default function Demo({ title }: { title?: string }) {
     return typeof (nft as GroupedNFT).quantity === 'number';
   };
 
-  // Update the handlePlayAudio function to handle both types
-  const handlePlayAudio = async (nft: NFT | GroupedNFT) => {
+  // Update findAdjacentNFT to handle different NFT lists
+  const findAdjacentNFT = (direction: 'next' | 'previous'): NFT | null => {
+    if (!currentPlayingNFT) return null;
+
+    // Determine which list of NFTs we're currently playing from
+    let currentList: NFT[] = [];
+    
+    // Check which section the current NFT is from
+    if (recentlyPlayedNFTs.some(nft => 
+      nft.contract === currentPlayingNFT.contract && 
+      nft.tokenId === currentPlayingNFT.tokenId
+    )) {
+      currentList = recentlyPlayedNFTs;
+    } else if (topPlayedNFTs.some(item => 
+      item.nft.contract === currentPlayingNFT.contract && 
+      item.nft.tokenId === currentPlayingNFT.tokenId
+    )) {
+      currentList = topPlayedNFTs.map(item => item.nft);
+    } else if (likedNFTs.some(nft => 
+      nft.contract === currentPlayingNFT.contract && 
+      nft.tokenId === currentPlayingNFT.tokenId
+    )) {
+      currentList = likedNFTs;
+    } else {
+      currentList = nfts.filter(nft => nft.hasValidAudio);
+    }
+
+    if (!currentList.length) return null;
+
+    const currentIndex = currentList.findIndex(
+      nft => nft.contract === currentPlayingNFT.contract && 
+             nft.tokenId === currentPlayingNFT.tokenId
+    );
+
+    if (currentIndex === -1) return null;
+
+    const adjacentIndex = direction === 'next' ? 
+      currentIndex + 1 : 
+      currentIndex - 1;
+
+    // Handle wrapping around the playlist
+    if (adjacentIndex < 0) {
+      return currentList[currentList.length - 1];
+    } else if (adjacentIndex >= currentList.length) {
+      return currentList[0];
+    }
+
+    return currentList[adjacentIndex];
+  };
+
+  // Update the button handlers to use the wrapped navigation
+  <>
+    // Update the button handlers to use the wrapped navigation
+    <button
+      onClick={() => {
+        const previousNFT = findAdjacentNFT('previous');
+        if (previousNFT) {
+          handlePlayAudio(previousNFT);
+        }
+      } }
+      className="text-white hover:scale-110 transition-transform"
+      // Only disable if there's no other tracks in the current context
+      disabled={!currentPlayingNFT}
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px"
+        fill={currentPlayingNFT ? 'currentColor' : '#666666'}>
+        <path d="M220-240v-480h80v480h-80Zm520 0L380-480l360-240v480Z" />
+      </svg>
+    </button><button
+      onClick={() => {
+        const nextNFT = findAdjacentNFT('next');
+        if (nextNFT) {
+          handlePlayAudio(nextNFT);
+        }
+      } }
+      className="text-white hover:scale-110 transition-transform"
+      // Only disable if there's no other tracks in the current context
+      disabled={!currentPlayingNFT}
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px"
+        fill={currentPlayingNFT ? 'currentColor' : '#666666'}>
+        <path d="M660-240v-480h80v480h-80ZM220-240v-480l360 240-360 240Z" />
+      </svg>
+    </button></>
+
+  // Update handlePlayAudio to ensure audio element exists
+  const handlePlayAudio = async (nft: NFT | GroupedNFT, context?: 'recent' | 'top' | 'liked' | 'profile') => {
     if (!nft) {
       console.warn('No NFT provided to handlePlayAudio');
       return;
@@ -1370,12 +1455,27 @@ export default function Demo({ title }: { title?: string }) {
 
     try {
       const nftId = `${nft.contract}-${nft.tokenId}`;
-      console.log('[handlePlayAudio] Starting playback for:', {
-        nftId,
-        name: nft.name,
-        hasAudio: nft.hasValidAudio
-      });
       
+      // Set the context when starting playback
+      if (context) {
+        setCurrentPlayingNFT(nft);
+      }
+
+      // If clicking the same track that's already playing, just toggle play/pause
+      if (currentlyPlaying === nftId) {
+        handlePlayPause();
+        return;
+      }
+
+      // Create audio element if it doesn't exist
+      let audio = document.getElementById(`audio-${nftId}`) as HTMLAudioElement;
+      if (!audio) {
+        audio = document.createElement('audio');
+        audio.id = `audio-${nftId}`;
+        audio.src = processMediaUrl(nft.audio || nft.metadata?.animation_url || '');
+        document.body.appendChild(audio);
+      }
+
       // Stop any currently playing audio first
       if (currentPlayingNFT) {
         const currentAudio = document.getElementById(
@@ -1393,22 +1493,14 @@ export default function Demo({ title }: { title?: string }) {
       setCurrentPlayingNFT(nft);
       setIsPlayerVisible(true);
       setIsPlayerMinimized(true);
-      
-      // Get the audio element
-      const audio = document.getElementById(`audio-${nftId}`) as HTMLAudioElement;
-      if (!audio) {
-        throw new Error(`Audio element not found for NFT: ${nftId}`);
-      }
 
       // Track play in database if user is logged in
       if (userContext?.user?.fid) {
         try {
           await logNFTPlay(nft, userContext.user.fid);
-          // Refresh recently played list
           await fetchRecentlyPlayed();
         } catch (dbError) {
           console.warn('[handlePlayAudio] Failed to log play:', dbError);
-          // Continue playback even if logging fails
         }
       }
 
@@ -1416,26 +1508,9 @@ export default function Demo({ title }: { title?: string }) {
       if (nft.hasValidAudio) {
         setIsPlaying(true);
         await playMedia(audio, videoRef.current, nft);
-      } else {
-        throw new Error('NFT does not have valid audio');
       }
-
     } catch (error) {
-      // Reset states on error
-      setIsPlaying(false);
-      setCurrentlyPlaying(null);
-      setCurrentPlayingNFT(null);
-      
-      console.error('[handlePlayAudio] Error:', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        nft: {
-          contract: nft.contract,
-          tokenId: nft.tokenId,
-          name: nft.name,
-          hasValidAudio: nft.hasValidAudio
-        }
-      });
-      
+      console.error('[handlePlayAudio] Error:', error);
       setError(error instanceof Error ? error.message : 'Failed to play media');
     }
   };
@@ -2674,7 +2749,7 @@ export default function Demo({ title }: { title?: string }) {
                             </button>
                             {/* Play Button */}
                             <button 
-                              onClick={() => handlePlayAudio(nft)}
+                              onClick={() => handlePlayAudio(nft, 'recent')}
                               className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-green-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
                             >
                               {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
@@ -2747,7 +2822,7 @@ export default function Demo({ title }: { title?: string }) {
                             </button>
                             {/* Play Button */}
                             <button 
-                              onClick={() => handlePlayAudio(nft)}
+                              onClick={() => handlePlayAudio(nft, 'top')}
           className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-green-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
         >
           {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
@@ -2903,7 +2978,7 @@ export default function Demo({ title }: { title?: string }) {
                             
                             {/* Play Button */}
                             <button 
-                              onClick={() => handlePlayAudio(nft)}
+                              onClick={() => handlePlayAudio(nft, 'recent')}
                               className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-green-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
                             >
                               {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
@@ -3099,7 +3174,7 @@ export default function Demo({ title }: { title?: string }) {
                               </svg>
                             </button>
                     <button 
-                      onClick={() => handlePlayAudio(nft)}
+                      onClick={() => handlePlayAudio(nft, 'liked')}
                               className="text-green-400 hover:scale-110 transition-transform"
                     >
                       {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
@@ -3449,21 +3524,19 @@ export default function Demo({ title }: { title?: string }) {
                   {/* Previous Track */}
                       <button
                     onClick={() => {
-                      const currentIndex = nfts.findIndex(nft => 
-                        nft.contract === currentPlayingNFT.contract && 
-                        nft.tokenId === currentPlayingNFT.tokenId
-  );
-                      if (currentIndex > 0) {
-                        handlePlayAudio(nfts[currentIndex - 1]);
+                      const previousNFT = findAdjacentNFT('previous');
+                      if (previousNFT) {
+                        handlePlayAudio(previousNFT);
                       }
                     }}
                     className="text-white hover:scale-110 transition-transform"
-                    disabled={!nfts.length}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px" fill="currentColor">
+                    disabled={!findAdjacentNFT('previous')}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px" 
+                      fill={findAdjacentNFT('previous') ? 'currentColor' : '#666666'}>
                       <path d="M220-240v-480h80v480h-80Zm520 0L380-480l360-240v480Z"/>
-                        </svg>
-                      </button>
+                    </svg>
+                  </button>
 
                   {/* Play/Pause Button */}
                       <button
@@ -3484,21 +3557,19 @@ export default function Demo({ title }: { title?: string }) {
                   {/* Next Track */}
                       <button
                     onClick={() => {
-                      const currentIndex = nfts.findIndex(nft => 
-                        nft.contract === currentPlayingNFT.contract && 
-                        nft.tokenId === currentPlayingNFT.tokenId
-  );
-                      if (currentIndex < nfts.length - 1) {
-                        handlePlayAudio(nfts[currentIndex + 1]);
+                      const nextNFT = findAdjacentNFT('next');
+                      if (nextNFT) {
+                        handlePlayAudio(nextNFT);
                       }
                     }}
                     className="text-white hover:scale-110 transition-transform"
-                    disabled={!nfts.length}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px" fill="currentColor">
+                    disabled={!findAdjacentNFT('next')}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px"
+                      fill={findAdjacentNFT('next') ? 'currentColor' : '#666666'}>
                       <path d="M660-240v-480h80v480h-80ZM220-240v-480l360 240-360 240Z"/>
-                        </svg>
-                      </button>
+                    </svg>
+                  </button>
                     </div>
 
                 {/* Secondary Controls */}
