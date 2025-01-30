@@ -3122,7 +3122,6 @@ export default function Demo({ title }: { title?: string }) {
                   >
                     <option value="recent">Recently Added</option>
                     <option value="name">Name</option>
-                    <option value="collection">Collection</option>
                   </select>
                 </div>
               </div>
