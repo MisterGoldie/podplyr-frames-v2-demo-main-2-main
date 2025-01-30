@@ -491,22 +491,21 @@ const IPFS_GATEWAYS = [
   'https://gateway.ipfs.io/ipfs/'
 ];
 
-const processMediaUrl = (url: string | undefined): string => {
+const processMediaUrl = (url: string): string => {
   if (!url) return '';
+  
+  // Handle IPFS URLs
+  if (url.startsWith('ipfs://')) {
+    const ipfsHash = url.replace('ipfs://', '');
+    return `https://ipfs.io/ipfs/${ipfsHash}`;
+  }
   
   // Handle Arweave URLs
   if (url.startsWith('ar://')) {
-    const arweaveId = url.replace('ar://', '');
-    return `https://arweave.net/${arweaveId}`;
+    const arweaveHash = url.replace('ar://', '');
+    return `https://arweave.net/${arweaveHash}`;
   }
-
-  // Handle IPFS URLs
-  if (url.startsWith('ipfs://')) {
-    const ipfsId = url.replace('ipfs://', '');
-    return `https://ipfs.io/ipfs/${ipfsId}`;
-  }
-
-  // Return unchanged if it's already an HTTPS URL
+  
   return url;
 };
 
@@ -642,60 +641,18 @@ interface NFTImageProps {
 }
 
 const NFTImage = ({ src, alt, className, width, height, priority }: NFTImageProps) => {
-  const [isVideo, setIsVideo] = useState(false);
-  const [imageUrl, setImageUrl] = useState(src || '');
+  const [imageUrl, setImageUrl] = useState(processMediaUrl(src));
 
   useEffect(() => {
-    const detectVideoContent = (url: string) => {
-      const videoExtensions = /\.(mp4|webm|ogg|mov)$/i;
-      const isVideoUrl = 
-        videoExtensions.test(url) || 
-        url.includes('animation_url') ||
-        url.includes('/video/');
-      setIsVideo(isVideoUrl);
-    };
-
     if (src) {
-      const processedUrl = processMediaUrl(src);
-      setImageUrl(processedUrl);
-      detectVideoContent(processedUrl);
+      setImageUrl(processMediaUrl(src));
     }
   }, [src]);
-
-  if (isVideo) {
-    return (
-      <div className={className} style={{ width, height, position: 'relative' }}>
-        <video
-          src={imageUrl}
-          className="w-full h-full object-cover"
-          preload="metadata"
-          playsInline
-          muted
-          loop
-          autoPlay
-        >
-          <source src={imageUrl} type="video/mp4" />
-        </video>
-        <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
-          <svg 
-            xmlns="http://www.w3.org/2000/svg" 
-            height="24px" 
-            viewBox="0 -960 960 960" 
-            width="24px" 
-            fill="currentColor" 
-            className="w-12 h-12 text-white opacity-75"
-          >
-            <path d="M320-200v-560l440 280-440 280Z"/>
-          </svg>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <Image
       src={imageUrl}
-      alt={alt}
+      alt={alt || ''}
       className={className}
       width={width || 500}
       height={height || 500}
@@ -2754,7 +2711,20 @@ export default function Demo({ title }: { title?: string }) {
         animation_url: "https://t2dc6gxkofbsunr7wc3brq2nkld2nf3pi4in5bzpfpltqeh3rwca.arweave.net/noYvGupxQyo2P7C2GMNNUseml29HEN6HLyvXOBD7jYQ"
       }
     },
-    // Ready to add your new NFT with contract 0x79428737e60a8a8db494229638eaa5e52874b6fb
+    {
+      contract: "0x79428737e60a8a8db494229638eaa5e52874b6fb",
+      tokenId: "2",
+      name: "Isolation(2020)",
+      image: "https://nftstorage.link/ipfs/bafybeibjen3vz5bbw7e3u5sj3x65dyg3k5bqznrmq4ctylvxadkazgnkli",
+      audio: "https://nftstorage.link/ipfs/bafybeibops7cqqf5ssqvueexmsyyrf6q4x6jbeaicymrnnzbg7dx34k2jq",
+      hasValidAudio: true,
+      network: "ethereum",
+      playTracked: false,
+      metadata: {
+        image: "https://nftstorage.link/ipfs/bafybeibjen3vz5bbw7e3u5sj3x65dyg3k5bqznrmq4ctylvxadkazgnkli",
+        animation_url: "https://nftstorage.link/ipfs/bafybeibops7cqqf5ssqvueexmsyyrf6q4x6jbeaicymrnnzbg7dx34k2jq"
+      }
+    }
   ];
 
   // Add to your JSX where you want to display the featured section
@@ -2972,7 +2942,7 @@ export default function Demo({ title }: { title?: string }) {
                               if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
                                 handlePlayPause();
                               } else {
-                                handlePlayAudio(nft);
+                                handlePlayAudio(nft);  // Removed source parameter
                               }
                             }}
                             className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-green-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
