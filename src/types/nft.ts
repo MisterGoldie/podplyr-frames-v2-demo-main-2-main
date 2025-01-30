@@ -1,17 +1,16 @@
 interface NFT {
-  name: any;
-  collection: any;
-  image: string | undefined;
-  audio: string | undefined;
-  network: 'ethereum' | 'base';
   contract: string;
   tokenId: string;
+  name: string;
+  image?: string;
+  audio?: string;
+  hasValidAudio?: boolean;
+  network?: 'ethereum' | 'base';
   metadata?: {
     animation_url?: string;
-    audio_url?: string;  // Add this if you're supporting multiple audio source fields
+    audio_url?: string;
     name?: string;
     image?: string;
-    // ... other metadata fields
+    tokenId?: string;
   };
-  // ... rest of your NFT interface
 } 

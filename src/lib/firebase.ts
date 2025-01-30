@@ -179,9 +179,28 @@ export async function fetchNFTDetails(contractAddress: string, tokenId: string) 
   }
 }
 
+export interface NFT {
+  contract: string;
+  tokenId: string;
+  name: string;
+  description?: string;
+  image?: string;
+  animationUrl?: string;
+  audio?: string;
+  hasValidAudio?: boolean;
+  isVideo?: boolean;
+  isAnimation?: boolean;
+  metadata?: {
+    image?: string;
+    animation_url?: string;
+    tokenId?: string;
+    uri?: string;
+  };
+  network?: 'ethereum' | 'base';
+}
+
 export async function getTopPlayedNFTs(): Promise<{ nft: NFT; count: number }[]> {
   const nftPlaysRef = collection(db, 'nft_plays');
-  // Group by nftContract+tokenId and count plays
   const q = query(
     nftPlaysRef,
     orderBy('nftContract'),
@@ -206,9 +225,6 @@ export async function getTopPlayedNFTs(): Promise<{ nft: NFT; count: number }[]>
           image: data.image,
           audio: data.audioUrl,
           hasValidAudio: true,
-          collection: {
-            name: data.collection || 'Unknown Collection'
-          },
           network: data.network || 'ethereum',
           metadata: {
             image: data.image,
@@ -218,7 +234,6 @@ export async function getTopPlayedNFTs(): Promise<{ nft: NFT; count: number }[]>
       };
     } else {
       playCount[nftKey].count++;
-      // Update lastPlayed if this play is more recent
       const playDate = data.timestamp?.toDate() || new Date();
       if (playDate > playCount[nftKey].lastPlayed) {
         playCount[nftKey].lastPlayed = playDate;
@@ -226,7 +241,6 @@ export async function getTopPlayedNFTs(): Promise<{ nft: NFT; count: number }[]>
     }
   });
 
-  // Sort first by count (descending), then by lastPlayed (descending) for tiebreakers
   return Object.values(playCount)
     .sort((a, b) => {
       if (b.count !== a.count) return b.count - a.count;
@@ -299,30 +313,6 @@ export async function trackNFTPlay(nft: NFT, fid?: number) {
   }
 }
 
-export interface NFT {
-  contract: string;
-  tokenId: string;
-  name: string;
-  description?: string;
-  image?: string;
-  animationUrl?: string;
-  audio?: string;
-  hasValidAudio?: boolean;
-  isVideo?: boolean;
-  isAnimation?: boolean;
-  collection?: {
-    name: string;
-    image?: string;
-  };
-  metadata?: {
-    image?: string;
-    animation_url?: string;
-    tokenId?: string;
-    uri?: string;
-  };
-  network?: 'ethereum' | 'base';
-}
-
 export async function toggleLikeNFT(nft: NFT, fid: number): Promise<boolean> {
   // Extract tokenId using same logic as trackNFTPlay
   let cleanTokenId = nft.tokenId;
@@ -375,29 +365,24 @@ export async function getLikedNFTs(fid: number): Promise<NFT[]> {
     const q = query(likesRef, where('fid', '==', fid), orderBy('timestamp', 'desc'));
     const querySnapshot = await getDocs(q);
     
-    // Use a Map to track unique NFTs by their metadata signature
     const uniqueNFTs = new Map();
     
     querySnapshot.docs.forEach(doc => {
       const data = doc.data();
-      // Create a unique key using contract and name
       const metadataKey = `${data.nftContract}-${data.name}`;
       
-      // Only add if we haven't seen this NFT before
       if (!uniqueNFTs.has(metadataKey)) {
         uniqueNFTs.set(metadataKey, {
           contract: data.nftContract,
           tokenId: data.tokenId,
           name: data.name,
-          image: data.image,
-          audio: data.audioUrl,
+          image: data.image || '',
+          audio: data.audioUrl || '',
           hasValidAudio: true,
-          collection: {
-            name: data.collectionName || 'Unknown Collection'
-          },
+          network: data.network || 'ethereum',
           metadata: {
-            image: data.image,
-            animation_url: data.audioUrl
+            image: data.image || '',
+            animation_url: data.audioUrl || ''
           }
         });
       }
@@ -405,8 +390,8 @@ export async function getLikedNFTs(fid: number): Promise<NFT[]> {
     
     return Array.from(uniqueNFTs.values());
   } catch (error) {
-    console.error('Error getting liked NFTs:', error);
-    throw error;
+    console.error('Error fetching liked NFTs:', error);
+    return [];
   }
 }
 
@@ -488,9 +473,6 @@ export function subscribeToRecentPlays(fid: number, callback: (nfts: NFT[]) => v
         image: data.image || '',
         audio: data.audioUrl || '',
         hasValidAudio: true,
-        collection: {
-          name: data.collection || 'Unknown Collection'
-        },
         network: data.network || 'ethereum',
         metadata: {
           image: data.image || '',
