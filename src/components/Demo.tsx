@@ -3184,14 +3184,10 @@ export default function Demo({ title }: { title?: string }) {
                 </div>
               </div>
 
-              {/* Stats */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-gray-800/30 rounded-lg p-4">
-                  <p className="font-mono text-gray-400 text-sm mb-1">Total NFTs</p>
-                  <p className="font-mono text-green-400 text-xl">{nfts.length}</p>
-                </div>
-                <div className="bg-gray-800/30 rounded-lg p-4">
-                  <p className="font-mono text-gray-400 text-sm mb-1">Audio NFTs</p>
+              {/* Stats - Keep only Media NFTs count */}
+              <div className="flex justify-center">
+                <div className="bg-gray-800/30 rounded-lg p-4 w-48 text-center">
+                  <p className="font-mono text-gray-400 text-sm mb-1">Your Media NFTs</p>
                   <p className="font-mono text-green-400 text-xl">
                     {nfts.filter(nft => nft.hasValidAudio).length}
                   </p>
