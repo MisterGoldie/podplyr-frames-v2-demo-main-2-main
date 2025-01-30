@@ -2659,12 +2659,11 @@ export default function Demo({ title }: { title?: string }) {
       
       {/* Top Navigation Bar - Only show when not on Explore page */}
       {!currentPage.isExplore && (
-      <div className="fixed top-0 left-0 right-0 bg-black border-b border-green-400/20 h-[64px] z-30">
+      <div className="fixed top-0 left-0 right-0 bg-black border-b border-black h-[64px] z-30">
         <div className="container mx-auto px-4 h-full">
-          {/* Change this div to center the content */}
-          <div className="flex items-center justify-center h-full"> {/* Changed justify-between to justify-center */}
+          <div className="flex items-center justify-center h-full">
             <div 
-              className="flex items-center justify-center cursor-pointer" // Removed p-2 since we want it centered
+              className="flex items-center justify-center cursor-pointer"
               onClick={() => {
                 setIsSearchPage(true);
                 setSelectedUser(null);
@@ -3417,7 +3416,7 @@ export default function Demo({ title }: { title?: string }) {
       {currentPlayingNFT && !isPlayerMinimized && (
         <div className="fixed inset-0 bg-black backdrop-blur-md z-50 flex flex-col">
           {/* Header */}
-          <div className="p-4 flex items-center justify-between border-b border-green-400/20">
+          <div className="p-4 flex items-center justify-between border-b border-black">
                   <button
                     onClick={() => setIsPlayerMinimized(true)}
               className="text-green-400 hover:text-green-300"
