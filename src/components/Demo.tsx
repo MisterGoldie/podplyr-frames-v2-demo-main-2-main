@@ -202,44 +202,13 @@ function _getArtworkUrl(artwork: unknown): string | null {
 
 interface NFTMetadata {
     name?: string;
+    description?: string;
     image?: string;
-    image_url?: string;
     animation_url?: string;
-    audio?: string;
-    audio_url?: string;
-    mimeType?: string;
-    mime_type?: string;
-    artwork?: unknown;
-    content?: {
-      mime?: string;
-    };
-    animation_details?: {
-      format?: string;
-      codecs?: string[];
-      bytes?: number;
-      duration?: number;
-      width?: number;
-      height?: number;
-    };
+    uri?: string;  // Add this line
     properties?: {
-      image?: string;
-      audio?: string;
-      audio_url?: string;
-      audio_file?: string;
-      audio_mime_type?: string;
-      animation_url?: string;
-      video?: string;
-      mimeType?: string;
-      files?: NFTFile[] | NFTFile;
+      files?: NFTFile[];
       category?: string;
-      sound?: boolean;
-      visual?: {
-        url?: string;
-      };
-      soundContent?: {
-        url?: string;
-        mimeType?: string;
-      };
     };
 }
 
@@ -591,6 +560,30 @@ declare global {
   }
 }
 
+// Add this interface to your existing interfaces
+interface NFTIdentifier {
+  contract: string;
+  tokenId: string;
+  name: string;
+  animation_url?: string;
+  audio?: string;
+}
+
+// Replace the existing generateUniqueNFTKey function
+const generateUniqueNFTKey = (nft: NFT, index: number): string => {
+  // Safely handle potentially undefined values
+  const components = [
+    nft?.contract?.toLowerCase() || 'unknown-contract',
+    nft?.tokenId || 'unknown-token',
+    nft?.name || 'unknown-name',
+    nft?.audio || nft?.metadata?.animation_url || 'no-media',
+    index.toString() // index should always be defined
+  ];
+
+  // Filter out any 'undefined' values and join with delimiter
+  return components.filter(Boolean).join('::');
+};
+
 const MediaRenderer = ({ url, alt, className }: MediaRendererProps) => {
   const [currentGatewayIndex, setCurrentGatewayIndex] = useState(0);
   const [error, setError] = useState(false);
@@ -760,42 +753,67 @@ interface GroupedNFT extends Omit<NFT, 'quantity'> {
   quantity: number;
 }
 
-// Add this utility function before the Demo component
-const groupNFTsByUniqueId = (nfts: NFT[]): NFT[] => {
-  const groupedMap = nfts.reduce((acc: Map<string, NFT>, nft: NFT) => {
-    // Create a more reliable unique key by using full contract address and cleaned tokenId
-    let cleanTokenId = nft.tokenId;
-    
-    // Try to extract tokenId from animation_url if present
-    if (nft.metadata?.animation_url) {
-      const animationMatch = nft.metadata.animation_url.match(/\/(\d+)\./);
-      if (animationMatch) {
-        cleanTokenId = animationMatch[1];
-      }
-    }
-    
-    // If still no tokenId, use a hash of contract and name
-    if (!cleanTokenId) {
-      cleanTokenId = `0x${nft.contract.slice(0, 10)}`;
-    }
-    
-    const key = `${nft.contract.toLowerCase()}-${cleanTokenId}`;
-    
-    if (!acc.has(key)) {
-      acc.set(key, {
-        ...nft,
-        quantity: 1,
-        tokenId: cleanTokenId // Use the cleaned tokenId
-      });
-    } else {
-      const existing = acc.get(key)!;
-      existing.quantity = (existing.quantity || 1) + 1;
-    }
-    
-    return acc;
-  }, new Map<string, NFT>());
+// Add this utility function at the top level
+const cleanNFTTokenId = (nft: NFT, index: number): string => {
+  // If we have a valid tokenId, use it
+  if (nft.tokenId && nft.tokenId !== 'undefined') {
+    return nft.tokenId;
+  }
 
-  return Array.from(groupedMap.values());
+  // Try to extract from animation_url
+  if (nft.metadata?.animation_url) {
+    const animationMatch = nft.metadata.animation_url.match(/\/(\d+)\./);
+    if (animationMatch) {
+      return animationMatch[1];
+    }
+  }
+
+  // Try to extract from uri if it exists in metadata
+  if (nft.metadata?.uri) {
+    const uriMatch = nft.metadata.uri.match(/\/(\d+)$/);
+    if (uriMatch) {
+      return uriMatch[1];
+    }
+  }
+
+  // Final fallback using index and timestamp
+  return `generated-${index}-${Date.now()}`;
+};
+
+// Update the groupNFTsByUniqueId function
+const groupNFTsByUniqueId = (nfts: NFT[]): NFT[] => {
+  // Use a Map with a stable key structure
+  const groupedMap = new Map<string, NFT>();
+  
+  // Process NFTs in reverse to keep most recent play
+  [...nfts].reverse().forEach((nft) => {
+    const key = `${nft.contract.toLowerCase()}-${cleanNFTTokenId(nft, 0)}`;
+    
+    // Only keep the most recent instance of each NFT
+    if (!groupedMap.has(key)) {
+      groupedMap.set(key, {
+        ...nft,
+        quantity: 1
+      });
+    }
+  });
+
+  // Convert back to array and reverse to maintain original order
+  return Array.from(groupedMap.values()).reverse();
+};
+
+// Add this near your other utility functions
+const logNFTDetails = (nft: NFT, source: string) => {
+  console.group(`NFT Details from ${source}`);
+  console.log('Contract:', nft.contract);
+  console.log('TokenId:', nft.tokenId);
+  console.log('Name:', nft.name);
+  console.log('Metadata:', {
+    uri: nft.metadata?.uri,
+    animation_url: nft.metadata?.animation_url,
+  });
+  console.log('Generated Key:', `${nft.contract}-${nft.tokenId}`);
+  console.groupEnd();
 };
 
 // Update the NFTCardProps interface
@@ -1488,7 +1506,7 @@ export default function Demo({ title }: { title?: string }) {
       // Track play in database if user is logged in
       if (userContext?.user?.fid) {
         try {
-          await logNFTPlay(nft, userContext.user.fid);
+          await logNFTPlay(nft);
           await fetchRecentlyPlayed();
         } catch (dbError) {
           console.warn('[handlePlayAudio] Failed to log play:', dbError);
@@ -2341,20 +2359,47 @@ export default function Demo({ title }: { title?: string }) {
     expandTimeout = timeout;
   };
 
-  const logNFTPlay = async (nft: NFT, fid: number) => {
+  const logNFTPlay = async (nft: NFT) => {
     try {
-      const nftPlayData = {
-        fid,
-        nftContract: nft.contract,
-        tokenId: nft.tokenId,
-        name: nft.name,
-        image: nft.image || nft.metadata?.image,
-        audioUrl: nft.audio || nft.metadata?.animation_url,
-        network: nft.network || 'ethereum',
-        timestamp: serverTimestamp()
-      };
+      // First try to get a clean tokenId using the same logic as firebase.ts
+      let cleanTokenId = nft.tokenId;
+      
+      if (!cleanTokenId || cleanTokenId === 'undefined') {
+        // Try metadata.uri first
+        if (nft.metadata?.uri) {
+          const uriMatch = nft.metadata.uri.match(/\/(\d+)$/);
+          if (uriMatch) {
+            cleanTokenId = uriMatch[1];
+          }
+        }
+        
+        // Then try animation_url
+        if (!cleanTokenId && nft.metadata?.animation_url) {
+          const animationMatch = nft.metadata.animation_url.match(/\/(\d+)\./);
+          if (animationMatch) {
+            cleanTokenId = animationMatch[1];
+          }
+        }
+        
+        // Finally generate a hash if still no tokenId
+        if (!cleanTokenId) {
+          const uniqueString = `${nft.contract}-${nft.name}-${nft.audio || nft.metadata?.animation_url || ''}`;
+          const encoder = new TextEncoder();
+          const data = encoder.encode(uniqueString);
+          const hash = await crypto.subtle.digest('SHA-256', data);
+          cleanTokenId = Array.from(new Uint8Array(hash))
+            .map(b => b.toString(16).padStart(2, '0'))
+            .join('')
+            .slice(0, 12);
+        }
+      }
 
-      await addDoc(collection(db, 'nft_plays'), nftPlayData);
+      // Only track if we have a valid tokenId
+      if (cleanTokenId) {
+        await trackNFTPlay({ ...nft, tokenId: cleanTokenId }, userContext?.user?.fid);
+      } else {
+        console.warn('Could not generate valid tokenId for NFT:', nft);
+      }
     } catch (error) {
       console.error('Error logging NFT play:', error);
     }
@@ -2704,9 +2749,9 @@ export default function Demo({ title }: { title?: string }) {
                 <div className="relative">
                   <div className="overflow-x-auto hide-scrollbar">
                     <div className="flex gap-4 px-2">
-                      {groupNFTsByUniqueId(recentlyPlayedNFTs).map((nft) => (
+                      {groupNFTsByUniqueId(recentlyPlayedNFTs).map((nft, index) => (
                         <div 
-                          key={`${nft.contract}-${nft.tokenId}`}
+                          key={generateUniqueNFTKey(nft, index)}
                           className="flex-shrink-0 w-[100px] group"
                         >
                           <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-gray-800/20">
@@ -2777,7 +2822,7 @@ export default function Demo({ title }: { title?: string }) {
                     <div className="flex gap-4 px-2">
                   {topPlayedNFTs.map(({nft, count}, index) => (
                         <div 
-                          key={`${nft.contract}-${nft.tokenId}`}
+                          key={generateUniqueNFTKey(nft, index)}
                       className="flex-shrink-0 w-[160px] group"
                         >
                           <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-gray-800/20">
@@ -2946,9 +2991,9 @@ export default function Demo({ title }: { title?: string }) {
                 <div className="relative">
                   <div className="overflow-x-auto pb-4 hide-scrollbar">
                     <div className="flex gap-4">
-                      {groupNFTsByUniqueId(recentlyPlayedNFTs).map((nft) => (
+                      {groupNFTsByUniqueId(recentlyPlayedNFTs).map((nft, index) => (
                         <div 
-                          key={`${nft.contract}-${nft.tokenId}`}
+                          key={generateUniqueNFTKey(nft, index)}
                           className="flex-shrink-0 w-[140px] group"
                         >
                           <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-gray-800/20">
@@ -3017,9 +3062,9 @@ export default function Demo({ title }: { title?: string }) {
                       <p className="font-mono text-gray-400">No audio NFTs found</p>
                     </div>
                   ) : (
-                    nfts.map((nft) => (
+                    nfts.map((nft, index) => (
                       <NFTCard
-                        key={`${nft.contract}-${nft.tokenId}`}
+                        key={generateUniqueNFTKey(nft, index)}
                         nft={nft}
                         onPlay={handlePlayAudio}
                         isPlaying={isPlaying}
@@ -3122,9 +3167,9 @@ export default function Demo({ title }: { title?: string }) {
                             return 0;
                         }
                       })
-                      .map((nft) => (
+                      .map((nft, index) => (
                         <div 
-                          key={`${nft.contract}-${nft.tokenId}`}
+                          key={generateUniqueNFTKey(nft, index)}
                           className="bg-gray-800/30 rounded-lg p-3 flex items-center gap-4 group hover:bg-gray-800/50 transition-colors"
                         >
                           {/* Thumbnail */}
@@ -3197,9 +3242,9 @@ export default function Demo({ title }: { title?: string }) {
                             return 0;
                         }
                       })
-                      .map((nft) => (
+                      .map((nft, index) => (
                         <NFTCard
-                          key={`${nft.contract}-${nft.tokenId}`}
+                          key={generateUniqueNFTKey(nft, index)}
                           nft={nft}
                           onPlay={handlePlayAudio}
                           isPlaying={isPlaying}
@@ -3271,21 +3316,10 @@ export default function Demo({ title }: { title?: string }) {
                         </p>
                       </div>
                     ) : (
-                      groupNFTsByUniqueId(nfts.filter(nft => nft.hasValidAudio)).map((nft) => {
-                        let cleanTokenId = nft.tokenId;
-                        if (nft.metadata?.animation_url) {
-                          const animationMatch = nft.metadata.animation_url.match(/\/(\d+)\./);
-                          if (animationMatch) {
-                            cleanTokenId = animationMatch[1];
-                          }
-                        }
-                        if (!cleanTokenId) {
-                          cleanTokenId = `0x${nft.contract.slice(0, 10)}`;
-                        }
-                        const uniqueKey = `${nft.contract.toLowerCase()}-${cleanTokenId}`;
-                        
+                      groupNFTsByUniqueId(nfts.filter(nft => nft.hasValidAudio)).map((nft, index) => {
+                        const key = generateUniqueNFTKey(nft, index);
                         return (
-                          <div key={uniqueKey} className="flex-shrink-0 w-[200px]">
+                          <div key={key} className="flex-shrink-0 w-[200px]">
                             <NFTCard
                               nft={nft}
                               onPlay={handlePlayAudio}
