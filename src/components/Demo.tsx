@@ -2685,7 +2685,7 @@ export default function Demo({ title }: { title?: string }) {
                   width={120}
                   height={24}
                   priority={true}
-                  className="h-auto"
+                  className="h-auto w-auto" // Add both width and height auto
                 />
               </div>
             </div>
