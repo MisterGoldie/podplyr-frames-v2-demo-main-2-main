@@ -493,44 +493,21 @@ const IPFS_GATEWAYS = [
 
 const processMediaUrl = (url: string | undefined): string => {
   if (!url) return '';
-
-  // Trim any whitespace and remove any duplicate URLs that might have been concatenated
-  const trimmedUrl = url.trim();
   
-  // Handle Arweave URLs - check if it's a direct Arweave hash
-  if (trimmedUrl.match(/^[a-zA-Z0-9_-]{43}$/)) {
-    return `https://arweave.net/${trimmedUrl}`;
-  }
-
-  // Handle Arweave URLs with protocol
-  if (trimmedUrl.startsWith('ar://')) {
-    const hash = trimmedUrl.slice(5);
-    return `https://arweave.net/${hash}`;
-  }
-
-  // Handle direct arweave.net URLs that might have been duplicated
-  if (trimmedUrl.includes('arweave.net')) {
-    const match = trimmedUrl.match(/https:\/\/arweave\.net\/([a-zA-Z0-9_-]{43})/);
-    if (match) {
-      return `https://arweave.net/${match[1]}`;
-    }
+  // Handle Arweave URLs
+  if (url.startsWith('ar://')) {
+    const arweaveId = url.replace('ar://', '');
+    return `https://arweave.net/${arweaveId}`;
   }
 
   // Handle IPFS URLs
-  if (trimmedUrl.startsWith('ipfs://')) {
-    return `${IPFS_GATEWAYS[0]}${trimmedUrl.slice(7)}`;
+  if (url.startsWith('ipfs://')) {
+    const ipfsId = url.replace('ipfs://', '');
+    return `https://ipfs.io/ipfs/${ipfsId}`;
   }
 
-  // For regular HTTP(S) URLs, ensure no duplication and proper encoding
-  if (trimmedUrl.startsWith('http://') || trimmedUrl.startsWith('https://')) {
-    // Remove any duplicated URLs that might have been concatenated
-    const urlParts = trimmedUrl.split(/https?:\/\//);
-    const lastPart = urlParts[urlParts.length - 1];
-    return `https://${lastPart}`;
-  }
-
-  // If it's not a recognized format, return the encoded URL
-  return encodeURI(trimmedUrl);
+  // Return unchanged if it's already an HTTPS URL
+  return url;
 };
 
 // Update the MediaRenderer component props interface and implementation
@@ -560,7 +537,7 @@ declare global {
   }
 }
 
-// Add this interface to your existing interfaces
+// Add near other interfaces at the top
 interface NFTIdentifier {
   contract: string;
   tokenId: string;
@@ -665,26 +642,22 @@ interface NFTImageProps {
 }
 
 const NFTImage = ({ src, alt, className, width, height, priority }: NFTImageProps) => {
-  const fallbackSrc = '/images/video-placeholder.png';
   const [isVideo, setIsVideo] = useState(false);
+  const [imageUrl, setImageUrl] = useState(src || '');
 
-  // Check if URL is likely a video based on extension or metadata
   useEffect(() => {
     const detectVideoContent = (url: string) => {
-      // Check common video extensions
       const videoExtensions = /\.(mp4|webm|ogg|mov)$/i;
-      
-      // Check if URL contains video indicators
       const isVideoUrl = 
         videoExtensions.test(url) || 
         url.includes('animation_url') ||
         url.includes('/video/');
-
       setIsVideo(isVideoUrl);
     };
 
     if (src) {
       const processedUrl = processMediaUrl(src);
+      setImageUrl(processedUrl);
       detectVideoContent(processedUrl);
     }
   }, [src]);
@@ -693,18 +666,16 @@ const NFTImage = ({ src, alt, className, width, height, priority }: NFTImageProp
     return (
       <div className={className} style={{ width, height, position: 'relative' }}>
         <video
-          src={processMediaUrl(src)}
+          src={imageUrl}
           className="w-full h-full object-cover"
           preload="metadata"
           playsInline
-          muted // Add muted to allow autoplay preview
-          loop // Optional: loop the preview
-          autoPlay // Optional: autoplay the preview
+          muted
+          loop
+          autoPlay
         >
-          <source src={processMediaUrl(src)} type="video/mp4" />
-          Your browser does not support the video tag.
+          <source src={imageUrl} type="video/mp4" />
         </video>
-        {/* Play icon overlay */}
         <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
           <svg 
             xmlns="http://www.w3.org/2000/svg" 
@@ -723,7 +694,7 @@ const NFTImage = ({ src, alt, className, width, height, priority }: NFTImageProp
 
   return (
     <Image
-      src={src || fallbackSrc}
+      src={imageUrl}
       alt={alt}
       className={className}
       width={width || 500}
@@ -845,7 +816,7 @@ const NFTCard: React.FC<NFTCardProps> = ({
     <div className="group relative">
       <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-gray-800/20">
         <NFTImage
-          src={processMediaUrl(nft.image || nft.metadata?.image || '')}
+          src={nft.metadata?.image || nft.image || '/images/video-placeholder.png'}
           alt={nft.name || 'NFT'}
           className="w-full h-full object-cover"
           width={160}
@@ -1220,6 +1191,12 @@ export default function Demo({ title }: { title?: string }) {
         throw new Error('No valid media URL found');
       }
       
+      // Test if media is supported before attempting playback
+      const isSupported = await testMediaSupport(mediaUrl);
+      if (!isSupported) {
+        throw new Error('Media format not supported');
+      }
+      
       // Only load video if it's a video NFT and not already loaded
       if (video && nft.metadata?.animation_url && 
           (!video.src || !video.src.includes(nft.metadata.animation_url))) {
@@ -1229,23 +1206,33 @@ export default function Demo({ title }: { title?: string }) {
           video.src = videoUrl;
           video.load();
           
-          // Wait for video to be ready
-          await new Promise((resolve) => {
-            video.oncanplay = resolve;
-          });
+          // Wait for video to be ready with timeout
+          await Promise.race([
+            new Promise((resolve) => {
+              video.oncanplay = resolve;
+            }),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Video load timeout')), 5000)
+            )
+          ]);
         }
       }
 
-      // Load and play audio
+      // Load and play audio with timeout
       if (!audio.src || audio.src !== mediaUrl) {
         console.log('[playMedia] Loading audio:', mediaUrl);
         audio.src = mediaUrl;
         audio.load();
         
-        // Wait for audio to be ready
-        await new Promise((resolve) => {
-          audio.oncanplay = resolve;
-        });
+        // Wait for audio to be ready with timeout
+        await Promise.race([
+          new Promise((resolve) => {
+            audio.oncanplay = resolve;
+          }),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Audio load timeout')), 5000)
+          )
+        ]);
       }
 
       // Start playback
@@ -1273,20 +1260,65 @@ export default function Demo({ title }: { title?: string }) {
       if (mediaStarted && userContext?.user?.fid && !nft.playTracked) {
         console.log('[playMedia] Tracking play for NFT:', nftId);
         await trackNFTPlay(nft, userContext.user.fid);
-        nft.playTracked = true; // Mark this play as tracked
+        nft.playTracked = true;
         console.log('[playMedia] Play tracked successfully');
-            } else {
-        console.log('[playMedia] Skipping play tracking:', {
-          mediaStarted,
-          hasFid: !!userContext?.user?.fid,
-          alreadyTracked: nft.playTracked
-        });
       }
 
     } catch (error) {
-      console.error('[playMedia] Playback error:', error);
+      console.warn('[playMedia] Playback error:', error);
+      // Reset states and cleanup
       setIsPlaying(false);
-      throw error;
+      setCurrentlyPlaying(null);
+      setCurrentPlayingNFT(null);
+      
+      // Clear audio/video sources
+      if (audio) {
+        audio.src = '';
+        audio.load();
+      }
+      if (video) {
+        video.src = '';
+        video.load();
+      }
+      
+      // Only throw if it's not a media support error
+      if (!(error instanceof Error && 
+          (error.message.includes('not supported') || 
+           error.message.includes('NotSupportedError')))) {
+        throw error;
+      }
+    }
+  };
+
+  // Add this utility function to test media support
+  const testMediaSupport = async (url: string): Promise<boolean> => {
+    try {
+      // First try a HEAD request with CORS mode
+      const response = await fetch(url, { 
+        method: 'HEAD',
+        mode: 'cors'
+      });
+      
+      if (response.ok) {
+        const contentType = response.headers.get('content-type');
+        return !!(contentType && (
+          contentType.includes('audio/') || 
+          contentType.includes('video/') || 
+          contentType.includes('application/octet-stream')
+        ));
+      }
+
+      // If CORS fails, try creating an audio element
+      const audio = new Audio();
+      return new Promise((resolve) => {
+        audio.onloadedmetadata = () => resolve(true);
+        audio.onerror = () => resolve(false);
+        audio.src = url;
+      });
+
+    } catch {
+      // If both methods fail, return true and let the audio/video elements handle it
+      return true;
     }
   };
 
@@ -2697,7 +2729,35 @@ export default function Demo({ title }: { title?: string }) {
 
   // ... rest of the component code ...
 
-  // Add the top played section to the main page
+  // Add near other interface declarations
+  interface FeaturedSection {
+    title: string;
+    nfts: NFT[];
+  }
+
+  // Add with other state declarations in the Demo component
+  const [featuredNFTs, setFeaturedNFTs] = useState<NFT[]>([]);
+
+  // Add the hardcoded NFTs
+  const FEATURED_NFTS: NFT[] = [
+    {
+      contract: "0x27430c3ef4b04f7d223df7f280ae8fc0b3a407b7",
+      tokenId: "1",
+      name: "Seasoning with Sazón - COD Zombies Terminus EP1",
+      image: "https://arweave.net/RvFQ8lrX3vRnnbbeA7eBoOvVsW5zOeqPXGOtZY_FXbw",
+      audio: "https://t2dc6gxkofbsunr7wc3brq2nkld2nf3pi4in5bzpfpltqeh3rwca.arweave.net/noYvGupxQyo2P7C2GMNNUseml29HEN6HLyvXOBD7jYQ",
+      hasValidAudio: true,
+      network: "ethereum",
+      playTracked: false,
+      metadata: {
+        image: "https://arweave.net/RvFQ8lrX3vRnnbbeA7eBoOvVsW5zOeqPXGOtZY_FXbw",
+        animation_url: "https://t2dc6gxkofbsunr7wc3brq2nkld2nf3pi4in5bzpfpltqeh3rwca.arweave.net/noYvGupxQyo2P7C2GMNNUseml29HEN6HLyvXOBD7jYQ"
+      }
+    },
+    // Ready to add your new NFT with contract 0x79428737e60a8a8db494229638eaa5e52874b6fb
+  ];
+
+  // Add to your JSX where you want to display the featured section
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900">
       <RetroStyles />
@@ -2883,6 +2943,60 @@ export default function Demo({ title }: { title?: string }) {
                 </div>
               </div>
             )}
+
+            {/* Featured NFTs Section */}
+            <div className="mb-8">
+              <h2 className="text-xl font-mono text-green-400 mb-2 px-2">Featured NFTs</h2>
+              <div className="relative">
+                <div className="overflow-x-auto pb-4 hide-scrollbar">
+                  <div className="flex gap-4 px-2">
+                    {FEATURED_NFTS.map((nft, index) => (
+                      <div 
+                        key={generateUniqueNFTKey(nft, index)}
+                        className="flex-shrink-0 w-[160px] group"
+                      >
+                        <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-gray-800/20">
+                          <NFTImage
+                            src={nft.metadata?.image || nft.image || ''}
+                            alt={nft.name}
+                            className="w-full h-full object-cover"
+                            width={160}
+                            height={160}
+                            priority={true}
+                          />
+                          <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                          
+                          {/* Play Button */}
+                          <button 
+                            onClick={() => {
+                              if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
+                                handlePlayPause();
+                              } else {
+                                handlePlayAudio(nft);
+                              }
+                            }}
+                            className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-green-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
+                          >
+                            {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
+                              <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                                <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
+                              </svg>
+                            ) : (
+                              <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                                <path d="M320-200v-560l440 280-440 280Z"/>
+                              </svg>
+                            )}
+                          </button>
+                        </div>
+                        <h3 className="font-mono text-white text-sm truncate">
+                          {nft.name}
+                        </h3>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
