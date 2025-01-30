@@ -941,7 +941,7 @@ interface UserProfileData {
   };
 }
 
-// Add these interfaces near other interfaces
+// Add these interfaces near other Interfaces
 interface PublicCollection {
   id: string;
   name: string;
