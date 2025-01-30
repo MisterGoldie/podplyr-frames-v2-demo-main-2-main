@@ -2661,33 +2661,32 @@ export default function Demo({ title }: { title?: string }) {
       {!currentPage.isExplore && (
       <div className="fixed top-0 left-0 right-0 bg-black border-b border-green-400/20 h-[64px] z-30">
         <div className="container mx-auto px-4 h-full">
-          <div className="flex items-center justify-between h-full">
-            <div className="flex items-center gap-2">
-              <div 
-                className="flex items-center justify-center p-4 cursor-pointer" 
-                onClick={() => {
-                  setIsSearchPage(true);
-                  setSelectedUser(null);
-                  setSearchResults([]);
-                  setNfts([]);
-                  setCurrentPlayingNFT(null);
-                  setIsPlaying(false);
-                  setIsPlayerVisible(false);
-                  setIsPlayerMinimized(false);
-                  setCurrentlyPlaying('');
-                  setError('');
-                  switchPage('isHome');
-                }}
-              >
-                <Image
-                  src="/fontlogo.png"
-                  alt="PODPLAYR"
-                  width={120}
-                  height={24}
-                  priority={true}
-                  className="h-auto w-auto" // Add both width and height auto
-                />
-              </div>
+          {/* Change this div to center the content */}
+          <div className="flex items-center justify-center h-full"> {/* Changed justify-between to justify-center */}
+            <div 
+              className="flex items-center justify-center cursor-pointer" // Removed p-2 since we want it centered
+              onClick={() => {
+                setIsSearchPage(true);
+                setSelectedUser(null);
+                setSearchResults([]);
+                setNfts([]);
+                setCurrentPlayingNFT(null);
+                setIsPlaying(false);
+                setIsPlayerVisible(false);
+                setIsPlayerMinimized(false);
+                setCurrentlyPlaying('');
+                setError('');
+                switchPage('isHome');
+              }}
+            >
+              <Image
+                src="/fontlogo.png"
+                alt="PODPLAYR"
+                width={120}
+                height={24}
+                priority={true}
+                className="h-auto w-auto"
+              />
             </div>
           </div>
         </div>
