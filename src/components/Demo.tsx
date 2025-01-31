@@ -2714,7 +2714,7 @@ export default function Demo({ title }: { title?: string }) {
     {
       contract: "0x79428737e60a8a8db494229638eaa5e52874b6fb",
       tokenId: "2",
-      name: "Featured NFT 2",
+      name: "Isolation(2020)",
       image: "https://nftstorage.link/ipfs/bafybeibjen3vz5bbw7e3u5sj3x65dyg3k5bqznrmq4ctylvxadkazgnkli",
       audio: "https://nftstorage.link/ipfs/bafybeibops7cqqf5ssqvueexmsyyrf6q4x6jbeaicymrnnzbg7dx34k2jq",
       hasValidAudio: true,
