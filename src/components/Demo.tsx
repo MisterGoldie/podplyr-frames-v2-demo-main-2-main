@@ -2710,7 +2710,7 @@ export default function Demo({ title }: { title?: string }) {
         animation_url: "https://t2dc6gxkofbsunr7wc3brq2nkld2nf3pi4in5bzpfpltqeh3rwca.arweave.net/noYvGupxQyo2P7C2GMNNUseml29HEN6HLyvXOBD7jYQ"
       }
     },
-    // Second NFT
+    // Second NFT (Isolation)
     {
       contract: "0x79428737e60a8a8db494229638eaa5e52874b6fb",
       tokenId: "2",
