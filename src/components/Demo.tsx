@@ -2938,7 +2938,7 @@ export default function Demo({ title }: { title?: string }) {
                     {FEATURED_NFTS.map((nft, index) => (
                       <div 
                         key={generateUniqueNFTKey(nft, index)}
-                        className="flex-shrink-0 w-[160px] group shadow-[0_0_15px_rgba(74,222,128,0.15)] rounded-lg overflow-hidden hover:shadow-[0_0_20px_rgba(74,222,128,0.25)] transition-shadow duration-300"
+                        className="flex-shrink-0 w-[160px] group"  // Removed any shadow classes
                       >
                         <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-gray-800/20">
                           <NFTImage
