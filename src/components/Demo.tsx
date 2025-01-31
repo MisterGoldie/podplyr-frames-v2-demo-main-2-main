@@ -863,7 +863,7 @@ const NFTCard: React.FC<NFTCardProps> = ({
               onPlay(nft);
             }
           }}
-          className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-green-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
+          className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-purple-500 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
         >
           {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
             <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
@@ -2785,7 +2785,7 @@ export default function Demo({ title }: { title?: string }) {
                             {/* Play Button */}
                             <button 
                               onClick={() => handlePlayAudio(nft, 'recent')}
-                              className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-green-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
+                              className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-purple-500 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
                             >
                               {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
                                 <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
@@ -2856,7 +2856,7 @@ export default function Demo({ title }: { title?: string }) {
                             {/* Play Button */}
                             <button 
                               onClick={() => handlePlayAudio(nft, 'top')}
-          className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-green-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
+          className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-purple-500 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
         >
           {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
             <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
@@ -3010,7 +3010,7 @@ export default function Demo({ title }: { title?: string }) {
                             {/* Play Button */}
                             <button 
                               onClick={() => handlePlayAudio(nft, 'recent')}
-                              className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-green-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
+                              className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-purple-500 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
                             >
                               {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
                                 <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
@@ -3344,7 +3344,7 @@ export default function Demo({ title }: { title?: string }) {
 
       {/* Media Player - Minimized Mode */}
       {currentPlayingNFT && (
-        <div className="fixed bottom-[64px] left-0 right-0 bg-black border-t border-green-400/20 h-20 z-30">
+        <div className="fixed bottom-[64px] left-0 right-0 bg-black border-t border-purple-400/20 h-20 z-30">
           {/* Progress bar */}
               <div 
                 className="absolute top-0 left-0 right-0 h-1 bg-gray-800 cursor-pointer group"
@@ -3404,7 +3404,7 @@ export default function Demo({ title }: { title?: string }) {
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-mono text-green-400 truncate text-sm">
+                          <h4 className="font-mono text-purple-400 truncate text-sm">
                             {currentPlayingNFT.name}
                           </h4>
                           <p className="font-mono text-gray-400 truncate text-xs">
@@ -3418,7 +3418,7 @@ export default function Demo({ title }: { title?: string }) {
                 {/* Play/Pause Button */}
                     <button
                       onClick={handlePlayPause}
-                      className="text-green-400 hover:text-green-300"
+                      className="text-purple-400 hover:text-purple-300"
                     >
                       {isPlaying ? (
                         <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
@@ -3434,7 +3434,7 @@ export default function Demo({ title }: { title?: string }) {
                 {/* Expand Button - Only in minimized player */}
                 <button
                   onClick={() => setIsPlayerMinimized(false)}
-                  className="text-green-400 hover:text-green-300"
+                  className="text-purple-400 hover:text-purple-300"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
                     <path d="M480-528 296-344l-56-56 240-240 240 240-56 56-184-184Z"/>
@@ -3453,15 +3453,15 @@ export default function Demo({ title }: { title?: string }) {
           <div className="p-4 flex items-center justify-between border-b border-black">
                   <button
                     onClick={() => setIsPlayerMinimized(true)}
-              className="text-green-400 hover:text-green-300"
+              className="text-purple-400 hover:text-purple-300"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
                 <path d="m336-280-56-56 184-184-184-184 56-56 240 240-240 240Z"/>
                     </svg>
                   </button>
-            <h3 className="font-mono text-green-400">Now Playing</h3>
+            <h3 className="font-mono text-purple-400">Now Playing</h3>
             <div className="w-8"></div>
-                </div>
+          </div>
 
           {/* Main Content */}
           <div className="flex-1 overflow-y-auto">
@@ -3509,7 +3509,7 @@ export default function Demo({ title }: { title?: string }) {
 
               {/* Track Info */}
               <div className="text-center mb-12">
-                <h2 className="font-mono text-green-400 text-xl mb-3">{currentPlayingNFT.name}</h2>
+                <h2 className="font-mono text-purple-400 text-xl mb-3">{currentPlayingNFT.name}</h2>
                 {/* Remove collection name display */}
               </div>
 
@@ -3524,7 +3524,7 @@ export default function Demo({ title }: { title?: string }) {
                   }}
                 >
                   <div 
-                    className="h-full bg-green-400 rounded-full"
+                    className="h-full bg-purple-500 rounded-full"
                     style={{ width: `${(audioProgress / memoizedAudioDurations) * 100}%` }}
                         />
                       </div>
@@ -3558,7 +3558,7 @@ export default function Demo({ title }: { title?: string }) {
                   {/* Play/Pause Button */}
                       <button
                         onClick={handlePlayPause}
-                    className="w-20 h-20 rounded-full bg-green-400 text-black flex items-center justify-center hover:scale-105 transition-transform"
+                    className="w-20 h-20 rounded-full bg-purple-500 text-black flex items-center justify-center hover:scale-105 transition-transform"
                       >
                         {isPlaying ? (
                       <svg xmlns="http://www.w3.org/2000/svg" height="40px" viewBox="0 -960 960 960" width="40px" fill="currentColor">
@@ -3631,7 +3631,7 @@ export default function Demo({ title }: { title?: string }) {
             <button 
               onClick={() => switchPage('isHome')}
               className={`flex flex-col items-center gap-1 transition-colors mb-2 ${
-                currentPage.isHome ? 'text-green-400' : 'text-gray-400 hover:text-green-400'
+                currentPage.isHome ? 'text-purple-400' : 'text-gray-400 hover:text-purple-400'
               }`}
             >
               <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
@@ -3644,7 +3644,7 @@ export default function Demo({ title }: { title?: string }) {
             <button 
               onClick={() => switchPage('isExplore')}
               className={`flex flex-col items-center gap-1 transition-colors mb-2 ${
-                currentPage.isExplore ? 'text-green-400' : 'text-gray-400 hover:text-green-400'
+                currentPage.isExplore ? 'text-purple-400' : 'text-gray-400 hover:text-purple-400'
               }`}
             >
               <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
@@ -3657,7 +3657,7 @@ export default function Demo({ title }: { title?: string }) {
             <button 
               onClick={() => switchPage('isLibrary')}
               className={`flex flex-col items-center gap-1 transition-colors mb-2 ${
-                currentPage.isLibrary ? 'text-green-400' : 'text-gray-400 hover:text-green-400'
+                currentPage.isLibrary ? 'text-purple-400' : 'text-gray-400 hover:text-purple-400'
               }`}
             >
               <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
@@ -3671,7 +3671,7 @@ export default function Demo({ title }: { title?: string }) {
               <button 
                 onClick={() => switchPage('isProfile')}
                 className={`flex flex-col items-center gap-1 transition-colors mb-2 ${
-                  currentPage.isProfile ? 'text-green-400' : 'text-gray-400 hover:text-green-400'
+                  currentPage.isProfile ? 'text-purple-400' : 'text-gray-400 hover:text-purple-400'
                 }`}
               >
                 <div className="relative w-6 h-6 rounded-full overflow-hidden">
