@@ -497,7 +497,7 @@ const processMediaUrl = (url: string): string => {
   // Handle IPFS URLs
   if (url.startsWith('ipfs://')) {
     const ipfsHash = url.replace('ipfs://', '');
-    return `https://ipfs.io/ipfs/${ipfsHash}`;
+    return `${IPFS_GATEWAYS[0]}${ipfsHash}`;
   }
   
   // Handle Arweave URLs
@@ -547,17 +547,15 @@ interface NFTIdentifier {
 
 // Replace the existing generateUniqueNFTKey function
 const generateUniqueNFTKey = (nft: NFT, index: number): string => {
-  // Safely handle potentially undefined values
-  const components = [
-    nft?.contract?.toLowerCase() || 'unknown-contract',
-    nft?.tokenId || 'unknown-token',
-    nft?.name || 'unknown-name',
-    nft?.audio || nft?.metadata?.animation_url || 'no-media',
-    index.toString() // index should always be defined
-  ];
-
-  // Filter out any 'undefined' values and join with delimiter
-  return components.filter(Boolean).join('::');
+  const metadata = nft.metadata || {};
+  const uniqueIdentifiers = [
+    nft.contract,
+    nft.tokenId,
+    nft.audio || metadata.animation_url,
+    nft.name
+  ].filter(Boolean);
+  
+  return uniqueIdentifiers.join('-');
 };
 
 const MediaRenderer = ({ url, alt, className }: MediaRendererProps) => {
@@ -2697,6 +2695,7 @@ export default function Demo({ title }: { title?: string }) {
 
   // Add the hardcoded NFTs
   const FEATURED_NFTS: NFT[] = [
+    // First NFT (Seasoning with Sazón)
     {
       contract: "0x27430c3ef4b04f7d223df7f280ae8fc0b3a407b7",
       tokenId: "1",
@@ -2711,6 +2710,7 @@ export default function Demo({ title }: { title?: string }) {
         animation_url: "https://t2dc6gxkofbsunr7wc3brq2nkld2nf3pi4in5bzpfpltqeh3rwca.arweave.net/noYvGupxQyo2P7C2GMNNUseml29HEN6HLyvXOBD7jYQ"
       }
     },
+    // Second NFT (Isolation)
     {
       contract: "0x79428737e60a8a8db494229638eaa5e52874b6fb",
       tokenId: "2",
@@ -2723,6 +2723,21 @@ export default function Demo({ title }: { title?: string }) {
       metadata: {
         image: "https://nftstorage.link/ipfs/bafybeibjen3vz5bbw7e3u5sj3x65dyg3k5bqznrmq4ctylvxadkazgnkli",
         animation_url: "https://nftstorage.link/ipfs/bafybeibops7cqqf5ssqvueexmsyyrf6q4x6jbeaicymrnnzbg7dx34k2jq"
+      }
+    },
+    // Third NFT (NEON NIGHTS)
+    {
+      contract: "0x260944f3c90c982801dd0caca58314bf0007ebda",
+      tokenId: "3",
+      name: "NEON NIGHTS ft Jadyn Violet  #5",
+      image: "https://arweave.net/EGQzuCvDtPVzuKVOJpu4gt2eh642PyOdrk5m2S1iAYw",
+      audio: "https://arweave.net/kTdSRwNVqTcFBGJ3uqhApAiZMhBOu71UNnoOax-C6YM",
+      hasValidAudio: true,
+      network: "ethereum",
+      playTracked: false,
+      metadata: {
+        image: "https://arweave.net/EGQzuCvDtPVzuKVOJpu4gt2eh642PyOdrk5m2S1iAYw",
+        animation_url: "https://arweave.net/kTdSRwNVqTcFBGJ3uqhApAiZMhBOu71UNnoOax-C6YM"
       }
     }
   ];
@@ -2923,7 +2938,7 @@ export default function Demo({ title }: { title?: string }) {
                     {FEATURED_NFTS.map((nft, index) => (
                       <div 
                         key={generateUniqueNFTKey(nft, index)}
-                        className="flex-shrink-0 w-[160px] group"
+                        className="flex-shrink-0 w-[160px] group"  // Removed any shadow classes
                       >
                         <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-gray-800/20">
                           <NFTImage
@@ -2942,7 +2957,7 @@ export default function Demo({ title }: { title?: string }) {
                               if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
                                 handlePlayPause();
                               } else {
-                                handlePlayAudio(nft);  // Removed source parameter
+                                handlePlayAudio(nft, undefined);
                               }
                             }}
                             className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-green-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
