@@ -1506,6 +1506,9 @@ export default function Demo({ title }: { title?: string }) {
         setIsPlaying(true);
         await playMedia(audio, videoRef.current, nft);
       }
+
+      // Add this line after setting the current playing NFT
+      addToRecentlyPlayed(nft);
     } catch (error) {
       console.error('[handlePlayAudio] Error:', error);
       setError(error instanceof Error ? error.message : 'Failed to play media');
@@ -3821,4 +3824,8 @@ export default function Demo({ title }: { title?: string }) {
 }
 
 
+
+function addToRecentlyPlayed(nft: NFT | GroupedNFT) {
+  throw new Error('Function not implemented.');
+}
 //
