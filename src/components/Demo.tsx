@@ -831,6 +831,7 @@ const NFTCard: React.FC<NFTCardProps> = ({
         <NFTImage
           src={processMediaUrl(nft.image || nft.metadata?.image || '')}
           alt={nft.name || 'NFT'}
+          className="w-full h-full object-cover"
         />
         <button 
           onClick={() => {
