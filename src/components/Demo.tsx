@@ -6,7 +6,7 @@ import { debounce } from 'lodash';
 import { trackUserSearch, getRecentSearches, SearchedUser, getTopPlayedNFTs, fetchNFTDetails, trackNFTPlay, toggleLikeNFT, getLikedNFTs, removeLikedNFT, addLikedNFT, subscribeToRecentPlays } from '../lib/firebase';
 import sdk, { type FrameContext } from "@farcaster/frame-sdk";
 import { db } from '../lib/firebase';
-import { collection, addDoc, serverTimestamp, getDocs, query, where, orderBy, limit, updateDoc, arrayUnion, arrayRemove, doc, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, getDocs, query, where, orderBy, limit, updateDoc, arrayUnion, arrayRemove, doc, deleteDoc, increment } from 'firebase/firestore';
 
 
 interface FarcasterUser {
@@ -831,14 +831,7 @@ const NFTCard: React.FC<NFTCardProps> = ({
         <NFTImage
           src={processMediaUrl(nft.image || nft.metadata?.image || '')}
           alt={nft.name || 'NFT'}
-          className="w-full h-full object-cover"
-          width={160}
-          height={160}
-          priority={true}
         />
-        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-        
-        {/* Play Button */}
         <button 
           onClick={() => {
             if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
@@ -1259,7 +1252,7 @@ export default function Demo({ title }: { title?: string }) {
         await trackNFTPlay(nft, userContext.user.fid);
         nft.playTracked = true; // Mark this play as tracked
         console.log('[playMedia] Play tracked successfully');
-            } else {
+      } else {
         console.log('[playMedia] Skipping play tracking:', {
           mediaStarted,
           hasFid: !!userContext?.user?.fid,
@@ -1446,9 +1439,12 @@ export default function Demo({ title }: { title?: string }) {
       return;
     }
 
+    console.log(`[handlePlayAudio] Playing NFT: ${nft.contract}-${nft.tokenId}, Context: ${context}`);
+
     try {
       const nftId = `${nft.contract}-${nft.tokenId}`;
-      
+      console.log(`[handlePlayAudio] Playing NFT: ${nftId}, Context: ${context}`);
+
       // Set the context when starting playback
       if (context) {
         setCurrentPlayingNFT(nft);
@@ -1492,6 +1488,14 @@ export default function Demo({ title }: { title?: string }) {
         try {
           await logNFTPlay(nft);
           await fetchRecentlyPlayed();
+
+          // Update play count in Firebase
+          if (context === 'top') {
+            const nftRef = doc(db, `nfts/${nftId}`);
+            await updateDoc(nftRef, {
+              playCount: increment(1)
+            });
+          }
         } catch (dbError) {
           console.warn('[handlePlayAudio] Failed to log play:', dbError);
         }
@@ -1688,7 +1692,6 @@ export default function Demo({ title }: { title?: string }) {
   const handleUserSelect = async (user: FarcasterUser) => {
     try {
       await trackUserSearch(user);
-      setIsSearchPage(false);
       console.log('=== START NFT FETCH ===');
       setIsLoadingNFTs(true);
       setError(null);
@@ -3618,10 +3621,16 @@ export default function Demo({ title }: { title?: string }) {
                   onClick={handlePlayPause}
                 >
                   <div className="transform transition-transform duration-300 hover:scale-110">
-                    <svg xmlns="http://www.w3.org/2000/svg" height="64px" viewBox="0 -960 960 960" width="64px" fill="currentColor" className="text-white">
-                      <path d="M320-200v-560h80v560h-80Zm520 0L380-480l360-240v480Z"/>
-                    </svg>
-                      </div>
+                    {isPlaying ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" height="64px" viewBox="0 -960 960 960" width="64px" fill="currentColor" className="text-white">
+                        <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" height="64px" viewBox="0 -960 960 960" width="64px" fill="currentColor" className="text-white">
+                        <path d="M320-200v-560l440 280-440 280Z"/>
+                      </svg>
+                    )}
+                  </div>
                 </div>
                 </div>
 
