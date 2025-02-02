@@ -664,22 +664,15 @@ interface NFTImageProps {
   priority?: boolean;  // Add this prop
 }
 
+// Ensure processMediaUrl returns a valid URL
 const NFTImage = ({ src, alt, className, width, height, priority }: NFTImageProps) => {
   const fallbackSrc = '/images/video-placeholder.png';
   const [isVideo, setIsVideo] = useState(false);
 
-  // Check if URL is likely a video based on extension or metadata
   useEffect(() => {
     const detectVideoContent = (url: string) => {
-      // Check common video extensions
       const videoExtensions = /\.(mp4|webm|ogg|mov)$/i;
-      
-      // Check if URL contains video indicators
-      const isVideoUrl = 
-        videoExtensions.test(url) || 
-        url.includes('animation_url') ||
-        url.includes('/video/');
-
+      const isVideoUrl = videoExtensions.test(url) || url.includes('animation_url') || url.includes('/video/');
       setIsVideo(isVideoUrl);
     };
 
@@ -697,23 +690,15 @@ const NFTImage = ({ src, alt, className, width, height, priority }: NFTImageProp
           className="w-full h-full object-cover"
           preload="metadata"
           playsInline
-          muted // Add muted to allow autoplay preview
-          loop // Optional: loop the preview
-          autoPlay // Optional: autoplay the preview
+          muted
+          loop
+          autoPlay
         >
           <source src={processMediaUrl(src)} type="video/mp4" />
           Your browser does not support the video tag.
         </video>
-        {/* Play icon overlay */}
         <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
-          <svg 
-            xmlns="http://www.w3.org/2000/svg" 
-            height="24px" 
-            viewBox="0 -960 960 960" 
-            width="24px" 
-            fill="currentColor" 
-            className="w-12 h-12 text-white opacity-75"
-          >
+          <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor" className="w-12 h-12 text-white opacity-75">
             <path d="M320-200v-560l440 280-440 280Z"/>
           </svg>
         </div>
@@ -722,14 +707,13 @@ const NFTImage = ({ src, alt, className, width, height, priority }: NFTImageProp
   }
 
   return (
-    <Image
-      src={src || fallbackSrc}
+    <img
+      src={processMediaUrl(src) || fallbackSrc}
       alt={alt}
       className={className}
-      width={width || 500}
-      height={height || 500}
-      priority={priority}
-      unoptimized={true}
+      width={width}
+      height={height}
+      loading={priority ? 'eager' : 'lazy'}
     />
   );
 };
@@ -882,7 +866,7 @@ const NFTCard: React.FC<NFTCardProps> = ({
       {nft.hasValidAudio && (
         <audio
           id={`audio-${nft.contract}-${nft.tokenId}`}
-          src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
+          src={nft.audio || nft.animationUrl ? processMediaUrl(nft.audio || nft.animationUrl) : undefined}
           preload="none"
         />
       )}
@@ -2695,6 +2679,10 @@ export default function Demo({ title }: { title?: string }) {
     }
   };
 
+  function handlePlay(nft: NFT) {
+    throw new Error('Function not implemented.');
+  }
+
   // ... rest of the component code ...
 
   // Add the top played section to the main page
@@ -2802,7 +2790,7 @@ export default function Demo({ title }: { title?: string }) {
                           <h3 className="font-mono text-white text-sm truncate mb-1">{nft.name}</h3>
                           <audio
                             id={`audio-${nft.contract}-${nft.tokenId}`}
-                            src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
+                            src={nft.audio || nft.animationUrl ? processMediaUrl(nft.audio || nft.animationUrl) : undefined}
                             preload="none"
                           />
                         </div>
@@ -2820,62 +2808,75 @@ export default function Demo({ title }: { title?: string }) {
                 <div className="relative">
                   <div className="overflow-x-auto pb-4 hide-scrollbar">
                     <div className="flex gap-4 px-2">
-                  {topPlayedNFTs.map(({nft, count}, index) => (
+                      {topPlayedNFTs.map(({ nft, count }, index) => (
                         <div 
                           key={generateUniqueNFTKey(nft, index)}
-                      className="flex-shrink-0 w-[160px] group"
+                          className="flex-shrink-0 w-[160px] group"
                         >
                           <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-gray-800/20">
                             <NFTImage
                               src={nft.metadata?.image || ''}
                               alt={nft.name}
                               className="w-full h-full object-cover"
-                          width={160}
-                          height={160}
+                              width={160}
+                              height={160}
                               priority={true}
                             />
                             <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                            
+                            {/* Play Count */}
+                            <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded">
+                              {count} Plays
+                            </div>
+
                             {/* Like Button */}
-        <button 
-          onClick={(e) => {
-            e.stopPropagation();
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 handleLikeToggle(nft);
-          }}
-          className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center transition-all duration-200 hover:scale-110 z-10"
-        >
+                              }}
+                              className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center transition-all duration-200 hover:scale-110 z-10"
+                            >
                               {isNFTLiked(nft) ? (
                                 <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor" className="text-red-500">
                                   <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
-            </svg>
-          ) : (
+                                </svg>
+                              ) : (
                                 <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor" className="text-white hover:text-red-500">
                                   <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Zm0-108q96-86 158-147.5t98-107q36-45.5 50-81t14-70.5q0-60-40-100t-100-40q-47 0-87 26.5T518-680h-76q-15-41-55-67.5T300-774q-60 0-100 40t-40 100q0 35 14 70.5t50 81q36 45.5 98 107T480-228Zm0-273Z"/>
                                 </svg>
                               )}
                             </button>
+
                             {/* Play Button */}
                             <button 
-                              onClick={() => handlePlayAudio(nft, 'top')}
-          className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-purple-500 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
-        >
-          {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
-            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-              <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
-            </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-              <path d="M320-200v-560l440 280-440 280Z"/>
-            </svg>
-          )}
-        </button>
-      </div>
-      {/* Only show NFT name */}
-      <h3 className="font-mono text-white text-sm truncate mb-1">{nft.name}</h3>
-      <audio
-        id={`audio-${nft.contract}-${nft.tokenId}`}
-        src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
-        preload="none"
-      />
+                              onClick={() => {
+                                if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
+                                  handlePlayPause();
+                                } else {
+                                  handlePlay(nft);
+                                }
+                              }}
+                              className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-purple-500 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
+                            >
+                              {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
+                                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                                  <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
+                                </svg>
+                              ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                                  <path d="M320-200v-560l440 280-440 280Z"/>
+                                </svg>
+                              )}
+                            </button>
+                          </div>
+                          {/* Only show NFT name */}
+                          <h3 className="font-mono text-white text-sm truncate mb-1">{nft.name}</h3>
+                          <audio
+                            id={`audio-${nft.contract}-${nft.tokenId}`}
+                            src={nft.audio || nft.animationUrl ? processMediaUrl(nft.audio || nft.animationUrl) : undefined}
+                            preload="none"
+                          />
                         </div>
                       ))}
                     </div>
@@ -2883,6 +2884,77 @@ export default function Demo({ title }: { title?: string }) {
                 </div>
               </div>
             )}
+
+            {/* Featured Section */}
+            <div className="mb-8">
+              <h2 className="text-xl font-mono text-green-400 mb-2 px-2">Featured</h2>
+              <div className="relative">
+                <div className="overflow-x-auto pb-4 hide-scrollbar">
+                  <div className="flex gap-4 px-2">
+                    {[
+                      {
+                        name: 'Seasoning with Sazón - COD Zombies Terminus EP1',
+                        image: 'https://arweave.net/RvFQ8lrX3vRnnbbeA7eBoOvVsW5zOeqPXGOtZY_FXbw',
+                        contract: '0x27430c3ef4b04f7d223df7f280ae8fc0b3a407b7',
+                        tokenId: '50dc9fb449e0',
+                        audio: 'https://arweave.net/noYvGupxQyo2P7C2GMNNUseml29HEN6HLyvXOBD7jYQ',
+                        animationUrl: 'https://arweave.net/noYvGupxQyo2P7C2GMNNUseml29HEN6HLyvXOBD7jYQ'
+                      },
+                      {
+                        name: 'NEON NIGHTS ft Jadyn Violet #5',
+                        image: 'https://arweave.net/EGQzuCvDtPVzuKVOJpu4gt2eh642PyOdrk5m2S1iAYw',
+                        contract: '0x260944f3c90c982801dd0caca58314bf0007ebda',
+                        tokenId: '2ecfda1dbf54',
+                        audio: 'https://arweave.net/kTdSRwNVqTcFBGJ3uqhApAiZMhBOu71UNnoOax-C6YM',
+                        animationUrl: 'https://arweave.net/kTdSRwNVqTcFBGJ3uqhApAiZMhBOu71UNnoOax-C6YM'
+                      },
+                      {
+                        name: 'Isolation(2020)',
+                        image: 'https://nftstorage.link/ipfs/bafybeibjen3vz5bbw7e3u5sj3x65dyg3k5bqznrmq4ctylvxadkazgnkli',
+                        contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb',
+                        tokenId: '0x79428737e6',
+                        audio: 'https://nftstorage.link/ipfs/bafybeibops7cqqf5ssqvueexmsyyrf6q4x6jbeaicymrnnzbg7dx34k2jq',
+                        animationUrl: 'https://nftstorage.link/ipfs/bafybeibops7cqqf5ssqvueexmsyyrf6q4x6jbeaicymrnnzbg7dx34k2jq'
+                      }
+                    ].map((nft, index) => (
+                      <div key={`${nft.contract}-${nft.tokenId}`} className="flex-shrink-0 w-[160px] group">
+                        <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-gray-800/20">
+                          <NFTImage
+                            src={nft.image}
+                            alt={nft.name}
+                            className="w-full h-full object-cover"
+                            width={160}
+                            height={160}
+                            priority={true}
+                          />
+                          <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                          <button 
+                            onClick={() => handlePlayAudio(nft)}
+                            className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-purple-500 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                              <path d="M320-200v-560l440 280-440 280Z"/>
+                            </svg>
+                          </button>
+                        </div>
+                        <h3 className="font-mono text-white text-sm truncate mb-1">{nft.name}</h3>
+                        <video
+                          id={`video-${nft.contract}-${nft.tokenId}`}
+                          src={nft.animationUrl}
+                          className="hidden"
+                          preload="none"
+                        />
+                        <audio
+                          id={`audio-${nft.contract}-${nft.tokenId}`}
+                          src={nft.audio}
+                          preload="none"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -3027,7 +3099,7 @@ export default function Demo({ title }: { title?: string }) {
                           <h3 className="font-mono text-white text-sm truncate mb-1">{nft.name}</h3>
       <audio
         id={`audio-${nft.contract}-${nft.tokenId}`}
-        src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
+        src={nft.audio || nft.animationUrl ? processMediaUrl(nft.audio || nft.animationUrl) : undefined}
         preload="none"
       />
                   </div>
@@ -3219,7 +3291,7 @@ export default function Demo({ title }: { title?: string }) {
 
         <audio
           id={`audio-${nft.contract}-${nft.tokenId}`}
-          src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
+          src={nft.audio || nft.animationUrl ? processMediaUrl(nft.audio || nft.animationUrl) : undefined}
           preload="none"
         />
                         </div>
@@ -3369,32 +3441,27 @@ export default function Demo({ title }: { title?: string }) {
                   {currentPlayingNFT.isVideo ? (
                             <video 
                               ref={videoRef}
-                              src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || '')}
-                              className="w-full h-full object-cover"
+                              src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || '') || '/placeholder-video.mp4'}
+                              className="w-full h-auto object-contain rounded-lg transition-transform duration-500"
                               playsInline
-                              loop={false}
+                              loop={currentPlayingNFT.isAnimation}
                               muted={true}
                               controls={false}
-                      onPlay={() => {
-                        if (!isPlaying) setIsPlaying(true);
-                      }}
-                      onPause={() => {
-                        if (isPlaying) setIsPlaying(false);
-                      }}
-                    />
-                  ) : currentPlayingNFT.isAnimation ? (
-                    <Image
-                      src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || currentPlayingNFT.metadata?.image || '')}
-                      alt={currentPlayingNFT.name}
-                      className="w-full h-full object-cover"
-                      width={48}
-                      height={48}
-                      priority={true}
-                      unoptimized={true}
+                              autoPlay={isPlaying}
+                            />
+                          ) : currentPlayingNFT.isAnimation ? (
+                            <Image
+                              src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || currentPlayingNFT.metadata?.image || '')}
+                              alt={currentPlayingNFT.name}
+                              className="w-full h-full object-cover"
+                              width={48}
+                              height={48}
+                              priority={true}
+                              unoptimized={true}
                             />
                           ) : (
-                    <Image
-                      src={processMediaUrl(currentPlayingNFT.metadata?.image || '')}
+                            <Image
+                              src={processMediaUrl(currentPlayingNFT.metadata?.image || '')}
                               alt={currentPlayingNFT.name}
                               className="w-full h-full object-cover"
                               width={48}
@@ -3472,7 +3539,7 @@ export default function Demo({ title }: { title?: string }) {
                   {currentPlayingNFT.isVideo || currentPlayingNFT.metadata?.animation_url ? (
                           <video 
                             ref={videoRef}
-                            src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || '')}
+                            src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || '') || '/placeholder-video.mp4'}
                       className="w-full h-auto object-contain rounded-lg transition-transform duration-500"
                             playsInline
                       loop={currentPlayingNFT.isAnimation}
