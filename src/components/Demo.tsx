@@ -671,8 +671,9 @@ const NFTImage = ({ src, alt, className, width, height, priority }: NFTImageProp
 
   useEffect(() => {
     const detectVideoContent = (url: string) => {
-      const videoExtensions = /\.(mp4|webm|ogg|mov)$/i;
+      const videoExtensions = /\.(mpwebm|ogg|mov)$/i;
       const isVideoUrl = videoExtensions.test(url) || url.includes('animation_url') || url.includes('/video/');
+      console.log(`URL: ${url}, isVideo: ${isVideoUrl}`);
       setIsVideo(isVideoUrl);
     };
 
