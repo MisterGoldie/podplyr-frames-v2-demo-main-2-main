@@ -6,7 +6,7 @@ import { debounce } from 'lodash';
 import { trackUserSearch, getRecentSearches, SearchedUser, getTopPlayedNFTs, fetchNFTDetails, trackNFTPlay, toggleLikeNFT, getLikedNFTs, removeLikedNFT, addLikedNFT, subscribeToRecentPlays } from '../lib/firebase';
 import sdk, { type FrameContext } from "@farcaster/frame-sdk";
 import { db } from '../lib/firebase';
-import { collection, addDoc, serverTimestamp, getDocs, query, where, orderBy, limit, updateDoc, arrayUnion, arrayRemove, doc, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, getDocs, query, where, orderBy, limit, updateDoc, arrayUnion, arrayRemove, doc, deleteDoc, increment } from 'firebase/firestore';
 
 
 interface FarcasterUser {
@@ -491,22 +491,46 @@ const IPFS_GATEWAYS = [
   'https://gateway.ipfs.io/ipfs/'
 ];
 
-const processMediaUrl = (url: string): string => {
+const processMediaUrl = (url: string | undefined): string => {
   if (!url) return '';
+
+  // Trim any whitespace and remove any duplicate URLs that might have been concatenated
+  const trimmedUrl = url.trim();
   
+  // Handle Arweave URLs - check if it's a direct Arweave hash
+  if (trimmedUrl.match(/^[a-zA-Z0-9_-]{43}$/)) {
+    return `https://arweave.net/${trimmedUrl}`;
+  }
+
+  // Handle Arweave URLs with protocol
+  if (trimmedUrl.startsWith('ar://')) {
+    const hash = trimmedUrl.slice(5);
+    return `https://arweave.net/${hash}`;
+  }
+
+  // Handle direct arweave.net URLs that might have been duplicated
+  if (trimmedUrl.includes('arweave.net')) {
+    const match = trimmedUrl.match(/https:\/\/arweave\.net\/([a-zA-Z0-9_-]{43})/);
+    if (match) {
+      return `https://arweave.net/${match[1]}`;
+    }
+  }
+
   // Handle IPFS URLs
-  if (url.startsWith('ipfs://')) {
-    const ipfsHash = url.replace('ipfs://', '');
-    return `${IPFS_GATEWAYS[0]}${ipfsHash}`;
+  if (trimmedUrl.startsWith('ipfs://')) {
+    return `${IPFS_GATEWAYS[0]}${trimmedUrl.slice(7)}`;
   }
-  
-  // Handle Arweave URLs
-  if (url.startsWith('ar://')) {
-    const arweaveHash = url.replace('ar://', '');
-    return `https://arweave.net/${arweaveHash}`;
+
+  // For regular HTTP(S) URLs, ensure no duplication and proper encoding
+  if (trimmedUrl.startsWith('http://') || trimmedUrl.startsWith('https://')) {
+    // Remove any duplicated URLs that might have been concatenated
+    const urlParts = trimmedUrl.split(/https?:\/\//);
+    const lastPart = urlParts[urlParts.length - 1];
+    return `https://${lastPart}`;
   }
-  
-  return url;
+
+  // If it's not a recognized format, return the encoded URL
+  return encodeURI(trimmedUrl);
 };
 
 // Update the MediaRenderer component props interface and implementation
@@ -536,7 +560,7 @@ declare global {
   }
 }
 
-// Add near other interfaces at the top
+// Add this interface to your existing interfaces
 interface NFTIdentifier {
   contract: string;
   tokenId: string;
@@ -547,15 +571,17 @@ interface NFTIdentifier {
 
 // Replace the existing generateUniqueNFTKey function
 const generateUniqueNFTKey = (nft: NFT, index: number): string => {
-  const metadata = nft.metadata || {};
-  const uniqueIdentifiers = [
-    nft.contract,
-    nft.tokenId,
-    nft.audio || metadata.animation_url,
-    nft.name
-  ].filter(Boolean);
-  
-  return uniqueIdentifiers.join('-');
+  // Safely handle potentially undefined values
+  const components = [
+    nft?.contract?.toLowerCase() || 'unknown-contract',
+    nft?.tokenId || 'unknown-token',
+    nft?.name || 'unknown-name',
+    nft?.audio || nft?.metadata?.animation_url || 'no-media',
+    index.toString() // index should always be defined
+  ];
+
+  // Filter out any 'undefined' values and join with delimiter
+  return components.filter(Boolean).join('::');
 };
 
 const MediaRenderer = ({ url, alt, className }: MediaRendererProps) => {
@@ -638,24 +664,57 @@ interface NFTImageProps {
   priority?: boolean;  // Add this prop
 }
 
+// Ensure processMediaUrl returns a valid URL
 const NFTImage = ({ src, alt, className, width, height, priority }: NFTImageProps) => {
-  const [imageUrl, setImageUrl] = useState(processMediaUrl(src));
+  const fallbackSrc = '/images/video-placeholder.png';
+  const [isVideo, setIsVideo] = useState(false);
 
   useEffect(() => {
+    const detectVideoContent = (url: string) => {
+      const videoExtensions = /\.(mpwebm|ogg|mov)$/i;
+      const isVideoUrl = videoExtensions.test(url) || url.includes('animation_url') || url.includes('/video/');
+      console.log(`URL: ${url}, isVideo: ${isVideoUrl}`);
+      setIsVideo(isVideoUrl);
+    };
+
     if (src) {
-      setImageUrl(processMediaUrl(src));
+      const processedUrl = processMediaUrl(src);
+      detectVideoContent(processedUrl);
     }
   }, [src]);
 
+  if (isVideo) {
+    return (
+      <div className={className} style={{ width, height, position: 'relative' }}>
+        <video
+          src={processMediaUrl(src)}
+          className="w-full h-full object-cover"
+          preload="metadata"
+          playsInline
+          muted
+          loop
+          autoPlay
+        >
+          <source src={processMediaUrl(src)} type="video/mp4" />
+          Your browser does not support the video tag.
+        </video>
+        <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
+          <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor" className="w-12 h-12 text-white opacity-75">
+            <path d="M320-200v-560l440 280-440 280Z"/>
+          </svg>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <Image
-      src={imageUrl}
-      alt={alt || ''}
+    <img
+      src={processMediaUrl(src) || fallbackSrc}
+      alt={alt}
       className={className}
-      width={width || 500}
-      height={height || 500}
-      priority={priority}
-      unoptimized={true}
+      width={width}
+      height={height}
+      loading={priority ? 'eager' : 'lazy'}
     />
   );
 };
@@ -771,16 +830,10 @@ const NFTCard: React.FC<NFTCardProps> = ({
     <div className="group relative">
       <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-gray-800/20">
         <NFTImage
-          src={nft.metadata?.image || nft.image || '/images/video-placeholder.png'}
+          src={processMediaUrl(nft.image || nft.metadata?.image || '')}
           alt={nft.name || 'NFT'}
           className="w-full h-full object-cover"
-          width={160}
-          height={160}
-          priority={true}
         />
-        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-        
-        {/* Play Button */}
         <button 
           onClick={() => {
             if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
@@ -789,7 +842,7 @@ const NFTCard: React.FC<NFTCardProps> = ({
               onPlay(nft);
             }
           }}
-          className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-green-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
+          className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-purple-500 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
         >
           {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
             <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
@@ -808,7 +861,7 @@ const NFTCard: React.FC<NFTCardProps> = ({
       {nft.hasValidAudio && (
         <audio
           id={`audio-${nft.contract}-${nft.tokenId}`}
-          src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
+          src={nft.audio || nft.animationUrl ? processMediaUrl(nft.audio || nft.animationUrl) : undefined}
           preload="none"
         />
       )}
@@ -867,7 +920,7 @@ interface UserProfileData {
   };
 }
 
-// Add these interfaces near other Interfaces
+// Add these interfaces near other interfaces
 interface PublicCollection {
   id: string;
   name: string;
@@ -1146,12 +1199,6 @@ export default function Demo({ title }: { title?: string }) {
         throw new Error('No valid media URL found');
       }
       
-      // Test if media is supported before attempting playback
-      const isSupported = await testMediaSupport(mediaUrl);
-      if (!isSupported) {
-        throw new Error('Media format not supported');
-      }
-      
       // Only load video if it's a video NFT and not already loaded
       if (video && nft.metadata?.animation_url && 
           (!video.src || !video.src.includes(nft.metadata.animation_url))) {
@@ -1161,33 +1208,23 @@ export default function Demo({ title }: { title?: string }) {
           video.src = videoUrl;
           video.load();
           
-          // Wait for video to be ready with timeout
-          await Promise.race([
-            new Promise((resolve) => {
-              video.oncanplay = resolve;
-            }),
-            new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Video load timeout')), 5000)
-            )
-          ]);
+          // Wait for video to be ready
+          await new Promise((resolve) => {
+            video.oncanplay = resolve;
+          });
         }
       }
 
-      // Load and play audio with timeout
+      // Load and play audio
       if (!audio.src || audio.src !== mediaUrl) {
         console.log('[playMedia] Loading audio:', mediaUrl);
         audio.src = mediaUrl;
         audio.load();
         
-        // Wait for audio to be ready with timeout
-        await Promise.race([
-          new Promise((resolve) => {
-            audio.oncanplay = resolve;
-          }),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Audio load timeout')), 5000)
-          )
-        ]);
+        // Wait for audio to be ready
+        await new Promise((resolve) => {
+          audio.oncanplay = resolve;
+        });
       }
 
       // Start playback
@@ -1215,65 +1252,20 @@ export default function Demo({ title }: { title?: string }) {
       if (mediaStarted && userContext?.user?.fid && !nft.playTracked) {
         console.log('[playMedia] Tracking play for NFT:', nftId);
         await trackNFTPlay(nft, userContext.user.fid);
-        nft.playTracked = true;
+        nft.playTracked = true; // Mark this play as tracked
         console.log('[playMedia] Play tracked successfully');
+      } else {
+        console.log('[playMedia] Skipping play tracking:', {
+          mediaStarted,
+          hasFid: !!userContext?.user?.fid,
+          alreadyTracked: nft.playTracked
+        });
       }
 
     } catch (error) {
-      console.warn('[playMedia] Playback error:', error);
-      // Reset states and cleanup
+      console.error('[playMedia] Playback error:', error);
       setIsPlaying(false);
-      setCurrentlyPlaying(null);
-      setCurrentPlayingNFT(null);
-      
-      // Clear audio/video sources
-      if (audio) {
-        audio.src = '';
-        audio.load();
-      }
-      if (video) {
-        video.src = '';
-        video.load();
-      }
-      
-      // Only throw if it's not a media support error
-      if (!(error instanceof Error && 
-          (error.message.includes('not supported') || 
-           error.message.includes('NotSupportedError')))) {
-        throw error;
-      }
-    }
-  };
-
-  // Add this utility function to test media support
-  const testMediaSupport = async (url: string): Promise<boolean> => {
-    try {
-      // First try a HEAD request with CORS mode
-      const response = await fetch(url, { 
-        method: 'HEAD',
-        mode: 'cors'
-      });
-      
-      if (response.ok) {
-        const contentType = response.headers.get('content-type');
-        return !!(contentType && (
-          contentType.includes('audio/') || 
-          contentType.includes('video/') || 
-          contentType.includes('application/octet-stream')
-        ));
-      }
-
-      // If CORS fails, try creating an audio element
-      const audio = new Audio();
-      return new Promise((resolve) => {
-        audio.onloadedmetadata = () => resolve(true);
-        audio.onerror = () => resolve(false);
-        audio.src = url;
-      });
-
-    } catch {
-      // If both methods fail, return true and let the audio/video elements handle it
-      return true;
+      throw error;
     }
   };
 
@@ -1449,9 +1441,12 @@ export default function Demo({ title }: { title?: string }) {
       return;
     }
 
+    console.log(`[handlePlayAudio] Playing NFT: ${nft.contract}-${nft.tokenId}, Context: ${context}`);
+
     try {
       const nftId = `${nft.contract}-${nft.tokenId}`;
-      
+      console.log(`[handlePlayAudio] Playing NFT: ${nftId}, Context: ${context}`);
+
       // Set the context when starting playback
       if (context) {
         setCurrentPlayingNFT(nft);
@@ -1495,6 +1490,14 @@ export default function Demo({ title }: { title?: string }) {
         try {
           await logNFTPlay(nft);
           await fetchRecentlyPlayed();
+
+          // Update play count in Firebase
+          if (context === 'top') {
+            const nftRef = doc(db, `nfts/${nftId}`);
+            await updateDoc(nftRef, {
+              playCount: increment(1)
+            });
+          }
         } catch (dbError) {
           console.warn('[handlePlayAudio] Failed to log play:', dbError);
         }
@@ -1505,6 +1508,9 @@ export default function Demo({ title }: { title?: string }) {
         setIsPlaying(true);
         await playMedia(audio, videoRef.current, nft);
       }
+
+      // Add this line after setting the current playing NFT
+      addToRecentlyPlayed(nft);
     } catch (error) {
       console.error('[handlePlayAudio] Error:', error);
       setError(error instanceof Error ? error.message : 'Failed to play media');
@@ -1691,7 +1697,6 @@ export default function Demo({ title }: { title?: string }) {
   const handleUserSelect = async (user: FarcasterUser) => {
     try {
       await trackUserSearch(user);
-      setIsSearchPage(false);
       console.log('=== START NFT FETCH ===');
       setIsLoadingNFTs(true);
       setError(null);
@@ -2682,67 +2687,50 @@ export default function Demo({ title }: { title?: string }) {
     }
   };
 
+  const handlePlay = (nft: NFT) => {
+    try {
+      const nftId = `${nft.contract}-${nft.tokenId}`;
+      
+      // Check if the audio element exists
+      let audio = document.getElementById(`audio-${nftId}`) as HTMLAudioElement;
+      if (!audio) {
+        audio = document.createElement('audio');
+        audio.id = `audio-${nftId}`;
+        audio.src = processMediaUrl(nft.audio || nft.animationUrl || '');
+        document.body.appendChild(audio);
+      }
+
+      // Pause any currently playing audio
+      if (currentPlayingNFT) {
+        const currentAudio = document.getElementById(
+          `audio-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`
+        ) as HTMLAudioElement;
+        if (currentAudio) {
+          currentAudio.pause();
+          currentAudio.currentTime = 0;
+        }
+      }
+
+      // Set the new NFT as the current playing NFT
+      setCurrentlyPlaying(nftId);
+      setCurrentPlayingNFT(nft);
+      setIsPlayerVisible(true);
+      setIsPlayerMinimized(true);
+
+      // Start playback
+      if (nft.hasValidAudio) {
+        setIsPlaying(true);
+        audio.play();
+      }
+    } catch (error) {
+      console.error('[handlePlay] Error:', error);
+      setError(error instanceof Error ? error.message : 'Failed to play media');
+    }
+  };
+
   // ... rest of the component code ...
 
-  // Add near other interface declarations
-  interface FeaturedSection {
-    title: string;
-    nfts: NFT[];
-  }
-
-  // Add with other state declarations in the Demo component
-  const [featuredNFTs, setFeaturedNFTs] = useState<NFT[]>([]);
-
-  // Add the hardcoded NFTs
-  const FEATURED_NFTS: NFT[] = [
-    // First NFT (Seasoning with Sazón)
-    {
-      contract: "0x27430c3ef4b04f7d223df7f280ae8fc0b3a407b7",
-      tokenId: "1",
-      name: "Seasoning with Sazón - COD Zombies Terminus EP1",
-      image: "https://arweave.net/RvFQ8lrX3vRnnbbeA7eBoOvVsW5zOeqPXGOtZY_FXbw",
-      audio: "https://t2dc6gxkofbsunr7wc3brq2nkld2nf3pi4in5bzpfpltqeh3rwca.arweave.net/noYvGupxQyo2P7C2GMNNUseml29HEN6HLyvXOBD7jYQ",
-      hasValidAudio: true,
-      network: "ethereum",
-      playTracked: false,
-      metadata: {
-        image: "https://arweave.net/RvFQ8lrX3vRnnbbeA7eBoOvVsW5zOeqPXGOtZY_FXbw",
-        animation_url: "https://t2dc6gxkofbsunr7wc3brq2nkld2nf3pi4in5bzpfpltqeh3rwca.arweave.net/noYvGupxQyo2P7C2GMNNUseml29HEN6HLyvXOBD7jYQ"
-      }
-    },
-    // Second NFT (Isolation)
-    {
-      contract: "0x79428737e60a8a8db494229638eaa5e52874b6fb",
-      tokenId: "2",
-      name: "Isolation(2020)",
-      image: "https://nftstorage.link/ipfs/bafybeibjen3vz5bbw7e3u5sj3x65dyg3k5bqznrmq4ctylvxadkazgnkli",
-      audio: "https://nftstorage.link/ipfs/bafybeibops7cqqf5ssqvueexmsyyrf6q4x6jbeaicymrnnzbg7dx34k2jq",
-      hasValidAudio: true,
-      network: "ethereum",
-      playTracked: false,
-      metadata: {
-        image: "https://nftstorage.link/ipfs/bafybeibjen3vz5bbw7e3u5sj3x65dyg3k5bqznrmq4ctylvxadkazgnkli",
-        animation_url: "https://nftstorage.link/ipfs/bafybeibops7cqqf5ssqvueexmsyyrf6q4x6jbeaicymrnnzbg7dx34k2jq"
-      }
-    },
-    // Third NFT (NEON NIGHTS)
-    {
-      contract: "0x260944f3c90c982801dd0caca58314bf0007ebda",
-      tokenId: "3",
-      name: "NEON NIGHTS ft Jadyn Violet  #5",
-      image: "https://arweave.net/EGQzuCvDtPVzuKVOJpu4gt2eh642PyOdrk5m2S1iAYw",
-      audio: "https://arweave.net/kTdSRwNVqTcFBGJ3uqhApAiZMhBOu71UNnoOax-C6YM",
-      hasValidAudio: true,
-      network: "ethereum",
-      playTracked: false,
-      metadata: {
-        image: "https://arweave.net/EGQzuCvDtPVzuKVOJpu4gt2eh642PyOdrk5m2S1iAYw",
-        animation_url: "https://arweave.net/kTdSRwNVqTcFBGJ3uqhApAiZMhBOu71UNnoOax-C6YM"
-      }
-    }
-  ];
-
-  // Add to your JSX where you want to display the featured section
+  // Add the top played section to the main page
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900">
       <RetroStyles />
@@ -2830,7 +2818,7 @@ export default function Demo({ title }: { title?: string }) {
                             {/* Play Button */}
                             <button 
                               onClick={() => handlePlayAudio(nft, 'recent')}
-                              className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-green-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
+                              className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-purple-500 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
                             >
                               {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
                                 <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
@@ -2847,7 +2835,7 @@ export default function Demo({ title }: { title?: string }) {
                           <h3 className="font-mono text-white text-sm truncate mb-1">{nft.name}</h3>
                           <audio
                             id={`audio-${nft.contract}-${nft.tokenId}`}
-                            src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
+                            src={nft.audio || nft.animationUrl ? processMediaUrl(nft.audio || nft.animationUrl) : undefined}
                             preload="none"
                           />
                         </div>
@@ -2865,62 +2853,75 @@ export default function Demo({ title }: { title?: string }) {
                 <div className="relative">
                   <div className="overflow-x-auto pb-4 hide-scrollbar">
                     <div className="flex gap-4 px-2">
-                  {topPlayedNFTs.map(({nft, count}, index) => (
+                      {topPlayedNFTs.map(({ nft, count }, index) => (
                         <div 
                           key={generateUniqueNFTKey(nft, index)}
-                      className="flex-shrink-0 w-[160px] group"
+                          className="flex-shrink-0 w-[160px] group"
                         >
                           <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-gray-800/20">
                             <NFTImage
                               src={nft.metadata?.image || ''}
                               alt={nft.name}
                               className="w-full h-full object-cover"
-                          width={160}
-                          height={160}
+                              width={160}
+                              height={160}
                               priority={true}
                             />
                             <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                            
+                            {/* Play Count */}
+                            <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded">
+                              {count} Plays
+                            </div>
+
                             {/* Like Button */}
-        <button 
-          onClick={(e) => {
-            e.stopPropagation();
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 handleLikeToggle(nft);
-          }}
-          className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center transition-all duration-200 hover:scale-110 z-10"
-        >
+                              }}
+                              className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center transition-all duration-200 hover:scale-110 z-10"
+                            >
                               {isNFTLiked(nft) ? (
                                 <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor" className="text-red-500">
                                   <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
-            </svg>
-          ) : (
+                                </svg>
+                              ) : (
                                 <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor" className="text-white hover:text-red-500">
                                   <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Zm0-108q96-86 158-147.5t98-107q36-45.5 50-81t14-70.5q0-60-40-100t-100-40q-47 0-87 26.5T518-680h-76q-15-41-55-67.5T300-774q-60 0-100 40t-40 100q0 35 14 70.5t50 81q36 45.5 98 107T480-228Zm0-273Z"/>
                                 </svg>
                               )}
                             </button>
+
                             {/* Play Button */}
                             <button 
-                              onClick={() => handlePlayAudio(nft, 'top')}
-          className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-green-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
-        >
-          {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
-            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-              <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
-            </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-              <path d="M320-200v-560l440 280-440 280Z"/>
-            </svg>
-          )}
-        </button>
-      </div>
-      {/* Only show NFT name */}
-      <h3 className="font-mono text-white text-sm truncate mb-1">{nft.name}</h3>
-      <audio
-        id={`audio-${nft.contract}-${nft.tokenId}`}
-        src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
-        preload="none"
-      />
+                              onClick={() => {
+                                if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
+                                  handlePlayPause();
+                                } else {
+                                  handlePlay(nft);
+                                }
+                              }}
+                              className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-purple-500 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
+                            >
+                              {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
+                                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                                  <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
+                                </svg>
+                              ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                                  <path d="M320-200v-560l440 280-440 280Z"/>
+                                </svg>
+                              )}
+                            </button>
+                          </div>
+                          {/* Only show NFT name */}
+                          <h3 className="font-mono text-white text-sm truncate mb-1">{nft.name}</h3>
+                          <audio
+                            id={`audio-${nft.contract}-${nft.tokenId}`}
+                            src={nft.audio || nft.animationUrl ? processMediaUrl(nft.audio || nft.animationUrl) : undefined}
+                            preload="none"
+                          />
                         </div>
                       ))}
                     </div>
@@ -2929,20 +2930,42 @@ export default function Demo({ title }: { title?: string }) {
               </div>
             )}
 
-            {/* Featured NFTs Section */}
+            {/* Featured Section */}
             <div className="mb-8">
-              <h2 className="text-xl font-mono text-green-400 mb-2 px-2">Featured NFTs</h2>
+              <h2 className="text-xl font-mono text-green-400 mb-2 px-2">Featured</h2>
               <div className="relative">
                 <div className="overflow-x-auto pb-4 hide-scrollbar">
                   <div className="flex gap-4 px-2">
-                    {FEATURED_NFTS.map((nft, index) => (
-                      <div 
-                        key={generateUniqueNFTKey(nft, index)}
-                        className="flex-shrink-0 w-[160px] group"  // Removed any shadow classes
-                      >
+                    {[
+                      {
+                        name: 'Seasoning with Sazón - COD Zombies Terminus EP1',
+                        image: 'https://arweave.net/RvFQ8lrX3vRnnbbeA7eBoOvVsW5zOeqPXGOtZY_FXbw',
+                        contract: '0x27430c3ef4b04f7d223df7f280ae8fc0b3a407b7',
+                        tokenId: '50dc9fb449e0',
+                        audio: 'https://arweave.net/noYvGupxQyo2P7C2GMNNUseml29HEN6HLyvXOBD7jYQ',
+                        animationUrl: 'https://arweave.net/noYvGupxQyo2P7C2GMNNUseml29HEN6HLyvXOBD7jYQ'
+                      },
+                      {
+                        name: 'NEON NIGHTS ft Jadyn Violet #5',
+                        image: 'https://arweave.net/EGQzuCvDtPVzuKVOJpu4gt2eh642PyOdrk5m2S1iAYw',
+                        contract: '0x260944f3c90c982801dd0caca58314bf0007ebda',
+                        tokenId: '2ecfda1dbf54',
+                        audio: 'https://arweave.net/kTdSRwNVqTcFBGJ3uqhApAiZMhBOu71UNnoOax-C6YM',
+                        animationUrl: 'https://arweave.net/kTdSRwNVqTcFBGJ3uqhApAiZMhBOu71UNnoOax-C6YM'
+                      },
+                      {
+                        name: 'Isolation(2020)',
+                        image: 'https://nftstorage.link/ipfs/bafybeibjen3vz5bbw7e3u5sj3x65dyg3k5bqznrmq4ctylvxadkazgnkli',
+                        contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb',
+                        tokenId: '0x79428737e6',
+                        audio: 'https://nftstorage.link/ipfs/bafybeibops7cqqf5ssqvueexmsyyrf6q4x6jbeaicymrnnzbg7dx34k2jq',
+                        animationUrl: 'https://nftstorage.link/ipfs/bafybeibops7cqqf5ssqvueexmsyyrf6q4x6jbeaicymrnnzbg7dx34k2jq'
+                      }
+                    ].map((nft, index) => (
+                      <div key={`${nft.contract}-${nft.tokenId}`} className="flex-shrink-0 w-[160px] group">
                         <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-gray-800/20">
                           <NFTImage
-                            src={nft.metadata?.image || nft.image || ''}
+                            src={nft.image}
                             alt={nft.name}
                             className="w-full h-full object-cover"
                             width={160}
@@ -2950,32 +2973,41 @@ export default function Demo({ title }: { title?: string }) {
                             priority={true}
                           />
                           <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-                          
-                          {/* Play Button */}
                           <button 
-                            onClick={() => {
-                              if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
-                                handlePlayPause();
-                              } else {
-                                handlePlayAudio(nft, undefined);
-                              }
-                            }}
-                            className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-green-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
+                            onClick={() => handlePlayAudio(nft)}
+                            className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-purple-500 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
                           >
-                            {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
-                              <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                                <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
+                            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                              <path d="M320-200v-560l440 280-440 280Z"/>
+                            </svg>
+                          </button>
+                          <button 
+                            onClick={() => handleLikeToggle(nft)}
+                            className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center transition-all duration-200 hover:scale-110 z-10"
+                          >
+                            {isNFTLiked(nft) ? (
+                              <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor" className="text-red-500">
+                                <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
                               </svg>
                             ) : (
-                              <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                                <path d="M320-200v-560l440 280-440 280Z"/>
+                              <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor" className="text-white hover:text-red-500">
+                                <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Zm0-108q96-86 158-147.5t98-107q36-45.5 50-81t14-70.5q0-60-40-100t-100-40q-47 0-87 26.5T518-680h-76q-15-41-55-67.5T300-774q-60 0-100 40t-40 100q0 35 14 70.5t50 81q36 45.5 98 107T480-228Zm0-273Z"/>
                               </svg>
                             )}
                           </button>
                         </div>
-                        <h3 className="font-mono text-white text-sm truncate">
-                          {nft.name}
-                        </h3>
+                        <h3 className="font-mono text-white text-sm truncate mb-1">{nft.name}</h3>
+                        <video
+                          id={`video-${nft.contract}-${nft.tokenId}`}
+                          src={nft.animationUrl}
+                          className="hidden"
+                          preload="none"
+                        />
+                        <audio
+                          id={`audio-${nft.contract}-${nft.tokenId}`}
+                          src={nft.audio}
+                          preload="none"
+                        />
                       </div>
                     ))}
                   </div>
@@ -3109,7 +3141,7 @@ export default function Demo({ title }: { title?: string }) {
                             {/* Play Button */}
                             <button 
                               onClick={() => handlePlayAudio(nft, 'recent')}
-                              className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-green-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
+                              className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-purple-500 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
                             >
                               {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
                                 <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
@@ -3126,7 +3158,7 @@ export default function Demo({ title }: { title?: string }) {
                           <h3 className="font-mono text-white text-sm truncate mb-1">{nft.name}</h3>
       <audio
         id={`audio-${nft.contract}-${nft.tokenId}`}
-        src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
+        src={nft.audio || nft.animationUrl ? processMediaUrl(nft.audio || nft.animationUrl) : undefined}
         preload="none"
       />
                   </div>
@@ -3221,6 +3253,7 @@ export default function Demo({ title }: { title?: string }) {
                   >
                     <option value="recent">Recently Added</option>
                     <option value="name">Name</option>
+                    <option value="collection">Collection</option>
                   </select>
                 </div>
               </div>
@@ -3317,7 +3350,7 @@ export default function Demo({ title }: { title?: string }) {
 
         <audio
           id={`audio-${nft.contract}-${nft.tokenId}`}
-          src={processMediaUrl(nft.audio || nft.metadata?.animation_url || '')}
+          src={nft.audio || nft.animationUrl ? processMediaUrl(nft.audio || nft.animationUrl) : undefined}
           preload="none"
         />
                         </div>
@@ -3442,7 +3475,7 @@ export default function Demo({ title }: { title?: string }) {
 
       {/* Media Player - Minimized Mode */}
       {currentPlayingNFT && (
-        <div className="fixed bottom-[64px] left-0 right-0 bg-black border-t border-green-400/20 h-20 z-30">
+        <div className="fixed bottom-[64px] left-0 right-0 bg-black border-t border-purple-400/20 h-20 z-30">
           {/* Progress bar */}
               <div 
                 className="absolute top-0 left-0 right-0 h-1 bg-gray-800 cursor-pointer group"
@@ -3467,32 +3500,27 @@ export default function Demo({ title }: { title?: string }) {
                   {currentPlayingNFT.isVideo ? (
                             <video 
                               ref={videoRef}
-                              src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || '')}
-                              className="w-full h-full object-cover"
+                              src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || '') || '/placeholder-video.mp4'}
+                              className="w-full h-auto object-contain rounded-lg transition-transform duration-500"
                               playsInline
-                              loop={false}
+                              loop={currentPlayingNFT.isAnimation}
                               muted={true}
                               controls={false}
-                      onPlay={() => {
-                        if (!isPlaying) setIsPlaying(true);
-                      }}
-                      onPause={() => {
-                        if (isPlaying) setIsPlaying(false);
-                      }}
-                    />
-                  ) : currentPlayingNFT.isAnimation ? (
-                    <Image
-                      src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || currentPlayingNFT.metadata?.image || '')}
-                      alt={currentPlayingNFT.name}
-                      className="w-full h-full object-cover"
-                      width={48}
-                      height={48}
-                      priority={true}
-                      unoptimized={true}
+                              autoPlay={isPlaying}
+                            />
+                          ) : currentPlayingNFT.isAnimation ? (
+                            <Image
+                              src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || currentPlayingNFT.metadata?.image || '')}
+                              alt={currentPlayingNFT.name}
+                              className="w-full h-full object-cover"
+                              width={48}
+                              height={48}
+                              priority={true}
+                              unoptimized={true}
                             />
                           ) : (
-                    <Image
-                      src={processMediaUrl(currentPlayingNFT.metadata?.image || '')}
+                            <Image
+                              src={processMediaUrl(currentPlayingNFT.metadata?.image || '')}
                               alt={currentPlayingNFT.name}
                               className="w-full h-full object-cover"
                               width={48}
@@ -3502,7 +3530,7 @@ export default function Demo({ title }: { title?: string }) {
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-mono text-green-400 truncate text-sm">
+                          <h4 className="font-mono text-purple-400 truncate text-sm">
                             {currentPlayingNFT.name}
                           </h4>
                           <p className="font-mono text-gray-400 truncate text-xs">
@@ -3516,7 +3544,7 @@ export default function Demo({ title }: { title?: string }) {
                 {/* Play/Pause Button */}
                     <button
                       onClick={handlePlayPause}
-                      className="text-green-400 hover:text-green-300"
+                      className="text-purple-400 hover:text-purple-300"
                     >
                       {isPlaying ? (
                         <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
@@ -3532,7 +3560,7 @@ export default function Demo({ title }: { title?: string }) {
                 {/* Expand Button - Only in minimized player */}
                 <button
                   onClick={() => setIsPlayerMinimized(false)}
-                  className="text-green-400 hover:text-green-300"
+                  className="text-purple-400 hover:text-purple-300"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
                     <path d="M480-528 296-344l-56-56 240-240 240 240-56 56-184-184Z"/>
@@ -3551,15 +3579,15 @@ export default function Demo({ title }: { title?: string }) {
           <div className="p-4 flex items-center justify-between border-b border-black">
                   <button
                     onClick={() => setIsPlayerMinimized(true)}
-              className="text-green-400 hover:text-green-300"
+              className="text-purple-400 hover:text-purple-300"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
                 <path d="m336-280-56-56 184-184-184-184 56-56 240 240-240 240Z"/>
                     </svg>
                   </button>
-            <h3 className="font-mono text-green-400">Now Playing</h3>
+            <h3 className="font-mono text-purple-400">Now Playing</h3>
             <div className="w-8"></div>
-                </div>
+          </div>
 
           {/* Main Content */}
           <div className="flex-1 overflow-y-auto">
@@ -3570,7 +3598,7 @@ export default function Demo({ title }: { title?: string }) {
                   {currentPlayingNFT.isVideo || currentPlayingNFT.metadata?.animation_url ? (
                           <video 
                             ref={videoRef}
-                            src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || '')}
+                            src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || '') || '/placeholder-video.mp4'}
                       className="w-full h-auto object-contain rounded-lg transition-transform duration-500"
                             playsInline
                       loop={currentPlayingNFT.isAnimation}
@@ -3598,16 +3626,22 @@ export default function Demo({ title }: { title?: string }) {
                   onClick={handlePlayPause}
                 >
                   <div className="transform transition-transform duration-300 hover:scale-110">
-                    <svg xmlns="http://www.w3.org/2000/svg" height="64px" viewBox="0 -960 960 960" width="64px" fill="currentColor" className="text-white">
-                      <path d="M320-200v-560l440 280-440 280Z"/>
-                    </svg>
-                      </div>
+                    {isPlaying ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" height="64px" viewBox="0 -960 960 960" width="64px" fill="currentColor" className="text-white">
+                        <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" height="64px" viewBox="0 -960 960 960" width="64px" fill="currentColor" className="text-white">
+                        <path d="M320-200v-560l440 280-440 280Z"/>
+                      </svg>
+                    )}
+                  </div>
                 </div>
                 </div>
 
               {/* Track Info */}
               <div className="text-center mb-12">
-                <h2 className="font-mono text-green-400 text-xl mb-3">{currentPlayingNFT.name}</h2>
+                <h2 className="font-mono text-purple-400 text-xl mb-3">{currentPlayingNFT.name}</h2>
                 {/* Remove collection name display */}
               </div>
 
@@ -3622,7 +3656,7 @@ export default function Demo({ title }: { title?: string }) {
                   }}
                 >
                   <div 
-                    className="h-full bg-green-400 rounded-full"
+                    className="h-full bg-purple-500 rounded-full"
                     style={{ width: `${(audioProgress / memoizedAudioDurations) * 100}%` }}
                         />
                       </div>
@@ -3656,7 +3690,7 @@ export default function Demo({ title }: { title?: string }) {
                   {/* Play/Pause Button */}
                       <button
                         onClick={handlePlayPause}
-                    className="w-20 h-20 rounded-full bg-green-400 text-black flex items-center justify-center hover:scale-105 transition-transform"
+                    className="w-20 h-20 rounded-full bg-purple-500 text-black flex items-center justify-center hover:scale-105 transition-transform"
                       >
                         {isPlaying ? (
                       <svg xmlns="http://www.w3.org/2000/svg" height="40px" viewBox="0 -960 960 960" width="40px" fill="currentColor">
@@ -3729,7 +3763,7 @@ export default function Demo({ title }: { title?: string }) {
             <button 
               onClick={() => switchPage('isHome')}
               className={`flex flex-col items-center gap-1 transition-colors mb-2 ${
-                currentPage.isHome ? 'text-green-400' : 'text-gray-400 hover:text-green-400'
+                currentPage.isHome ? 'text-purple-400' : 'text-gray-400 hover:text-purple-400'
               }`}
             >
               <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
@@ -3742,7 +3776,7 @@ export default function Demo({ title }: { title?: string }) {
             <button 
               onClick={() => switchPage('isExplore')}
               className={`flex flex-col items-center gap-1 transition-colors mb-2 ${
-                currentPage.isExplore ? 'text-green-400' : 'text-gray-400 hover:text-green-400'
+                currentPage.isExplore ? 'text-purple-400' : 'text-gray-400 hover:text-purple-400'
               }`}
             >
               <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
@@ -3755,7 +3789,7 @@ export default function Demo({ title }: { title?: string }) {
             <button 
               onClick={() => switchPage('isLibrary')}
               className={`flex flex-col items-center gap-1 transition-colors mb-2 ${
-                currentPage.isLibrary ? 'text-green-400' : 'text-gray-400 hover:text-green-400'
+                currentPage.isLibrary ? 'text-purple-400' : 'text-gray-400 hover:text-purple-400'
               }`}
             >
               <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
@@ -3769,7 +3803,7 @@ export default function Demo({ title }: { title?: string }) {
               <button 
                 onClick={() => switchPage('isProfile')}
                 className={`flex flex-col items-center gap-1 transition-colors mb-2 ${
-                  currentPage.isProfile ? 'text-green-400' : 'text-gray-400 hover:text-green-400'
+                  currentPage.isProfile ? 'text-purple-400' : 'text-gray-400 hover:text-purple-400'
                 }`}
               >
                 <div className="relative w-6 h-6 rounded-full overflow-hidden">
@@ -3792,4 +3826,8 @@ export default function Demo({ title }: { title?: string }) {
 }
 
 
+
+function addToRecentlyPlayed(nft: NFT | GroupedNFT) {
+  throw new Error('Function not implemented.');
+}
 //
