@@ -1306,50 +1306,59 @@ export default function Demo({ title }: { title?: string }) {
   const findAdjacentNFT = (direction: 'next' | 'previous'): NFT | null => {
     if (!currentPlayingNFT) return null;
 
-    // Determine which list of NFTs we're currently playing from
+    // First, determine which list we're currently playing from
     let currentList: NFT[] = [];
     
     // Check which section the current NFT is from
-    if (recentlyPlayedNFTs.some(nft => 
-      nft.contract === currentPlayingNFT.contract && 
-      nft.tokenId === currentPlayingNFT.tokenId
-    )) {
-      currentList = recentlyPlayedNFTs;
-    } else if (topPlayedNFTs.some(item => 
-      item.nft.contract === currentPlayingNFT.contract && 
-      item.nft.tokenId === currentPlayingNFT.tokenId
-    )) {
-      currentList = topPlayedNFTs.map(item => item.nft);
-    } else if (likedNFTs.some(nft => 
-      nft.contract === currentPlayingNFT.contract && 
-      nft.tokenId === currentPlayingNFT.tokenId
-    )) {
+    if (currentPage.isHome) {
+      // Check if the NFT is in top played
+      if (topPlayedNFTs.some(item => 
+        item.nft.contract === currentPlayingNFT.contract && 
+        item.nft.tokenId === currentPlayingNFT.tokenId
+      )) {
+        // Important: map all NFTs from topPlayedNFTs
+        currentList = topPlayedNFTs.map(item => ({
+          ...item.nft,
+          hasValidAudio: true // Ensure this is set for playability
+        }));
+      }
+      // Check if the NFT is in recently played
+      else if (recentlyPlayedNFTs.some(nft => 
+        nft.contract === currentPlayingNFT.contract && 
+        nft.tokenId === currentPlayingNFT.tokenId
+      )) {
+        currentList = recentlyPlayedNFTs;
+      } 
+      // Check if the NFT is in featured
+      else if (nfts.some(nft => 
+        nft.contract === currentPlayingNFT.contract && 
+        nft.tokenId === currentPlayingNFT.tokenId
+      )) {
+        currentList = nfts.filter(nft => nft.hasValidAudio);
+      }
+    } else if (currentPage.isLibrary) {
       currentList = likedNFTs;
-    } else {
+    } else if (currentPage.isExplore) {
       currentList = nfts.filter(nft => nft.hasValidAudio);
     }
 
     if (!currentList.length) return null;
 
-    const currentIndex = currentList.findIndex(
-      nft => nft.contract === currentPlayingNFT.contract && 
-             nft.tokenId === currentPlayingNFT.tokenId
+    const currentIndex = currentList.findIndex(nft => 
+      nft.contract === currentPlayingNFT.contract && 
+      nft.tokenId === currentPlayingNFT.tokenId
     );
 
     if (currentIndex === -1) return null;
 
-    const adjacentIndex = direction === 'next' ? 
-      currentIndex + 1 : 
-      currentIndex - 1;
-
-    // Handle wrapping around the playlist
-    if (adjacentIndex < 0) {
-      return currentList[currentList.length - 1];
-    } else if (adjacentIndex >= currentList.length) {
-      return currentList[0];
+    let nextIndex;
+    if (direction === 'next') {
+      nextIndex = (currentIndex + 1) % currentList.length;
+    } else {
+      nextIndex = (currentIndex - 1 + currentList.length) % currentList.length;
     }
 
-    return currentList[adjacentIndex];
+    return currentList[nextIndex];
   };
 
   // Update the button handlers to use the wrapped navigation
@@ -1388,21 +1397,37 @@ export default function Demo({ title }: { title?: string }) {
     </button></>
 
   // Update handlePlayAudio to ensure audio element exists
-  const handlePlayAudio = async (nft: NFT | GroupedNFT, context?: 'recent' | 'top' | 'liked' | 'profile') => {
+  const handlePlayAudio = async (nft: NFT | GroupedNFT, context?: 'recent' | 'top' | 'liked' | 'profile', keepMaximized?: boolean) => {
     if (!nft) {
       console.warn('No NFT provided to handlePlayAudio');
       return;
     }
 
-    console.log(`[handlePlayAudio] Playing NFT: ${nft.contract}-${nft.tokenId}, Context: ${context}`);
-
     try {
       const nftId = `${nft.contract}-${nft.tokenId}`;
-      console.log(`[handlePlayAudio] Playing NFT: ${nftId}, Context: ${context}`);
+      
+      // Set current playing NFT first to update UI
+      setCurrentPlayingNFT(nft);
+      setCurrentlyPlaying(nftId);
+      setIsPlayerVisible(true);
+      
+      // Only minimize if not explicitly told to keep maximized
+      if (!keepMaximized) {
+        setIsPlayerMinimized(true);
+      }
 
-      // Set the context when starting playback
-      if (context) {
-        setCurrentPlayingNFT(nft);
+      // Track play in Firebase regardless of context
+      if (userContext?.user?.fid) {
+        try {
+          await trackNFTPlay(nft, userContext.user.fid);
+          // Refresh the top played list after tracking the play
+          const updatedTopPlayed = await getTopPlayedNFTs();
+          setTopPlayedNFTs(updatedTopPlayed);
+          // Refresh recently played list
+          await fetchRecentlyPlayed();
+        } catch (dbError) {
+          console.warn('[handlePlayAudio] Failed to log play:', dbError);
+        }
       }
 
       // If clicking the same track that's already playing, just toggle play/pause
@@ -1411,16 +1436,7 @@ export default function Demo({ title }: { title?: string }) {
         return;
       }
 
-      // Create audio element if it doesn't exist
-      let audio = document.getElementById(`audio-${nftId}`) as HTMLAudioElement;
-      if (!audio) {
-        audio = document.createElement('audio');
-        audio.id = `audio-${nftId}`;
-        audio.src = processMediaUrl(nft.audio || nft.metadata?.animation_url || '');
-        document.body.appendChild(audio);
-      }
-
-      // Stop any currently playing audio first
+      // Stop any currently playing audio/video first
       if (currentPlayingNFT) {
         const currentAudio = document.getElementById(
           `audio-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`
@@ -1432,28 +1448,13 @@ export default function Demo({ title }: { title?: string }) {
         }
       }
 
-      // Set new NFT as current
-      setCurrentlyPlaying(nftId);
-      setCurrentPlayingNFT(nft);
-      setIsPlayerVisible(true);
-      setIsPlayerMinimized(true);
-
-      // Track play in database if user is logged in
-      if (userContext?.user?.fid) {
-        try {
-          await logNFTPlay(nft);
-          await fetchRecentlyPlayed();
-
-          // Update play count in Firebase
-          if (context === 'top') {
-            const nftRef = doc(db, `nfts/${nftId}`);
-            await updateDoc(nftRef, {
-              playCount: increment(1)
-            });
-          }
-        } catch (dbError) {
-          console.warn('[handlePlayAudio] Failed to log play:', dbError);
-        }
+      // Create audio element if it doesn't exist
+      let audio = document.getElementById(`audio-${nftId}`) as HTMLAudioElement;
+      if (!audio) {
+        audio = document.createElement('audio');
+        audio.id = `audio-${nftId}`;
+        audio.src = processMediaUrl(nft.audio || nft.metadata?.animation_url || '');
+        document.body.appendChild(audio);
       }
 
       // Start playback
@@ -1462,8 +1463,18 @@ export default function Demo({ title }: { title?: string }) {
         await playMedia(audio, videoRef.current, nft);
       }
 
-      // Add this line after setting the current playing NFT
+      // Add to recently played after successful playback
       addToRecentlyPlayed(nft);
+
+      // Track play in database if user is logged in
+      if (userContext?.user?.fid) {
+        try {
+          await logNFTPlay(nft);
+          await fetchRecentlyPlayed();
+        } catch (dbError) {
+          console.warn('[handlePlayAudio] Failed to log play:', dbError);
+        }
+      }
     } catch (error) {
       console.error('[handlePlayAudio] Error:', error);
       setError(error instanceof Error ? error.message : 'Failed to play media');
@@ -2862,12 +2873,19 @@ export default function Demo({ title }: { title?: string }) {
 
                             {/* Play Button */}
                             <button 
-                              onClick={() => {
-                                if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
-                                  handlePlayPause();
-                                } else {
-                                  handlePlay(nft);
+                              onClick={async () => {
+                                const nftId = `${nft.contract}-${nft.tokenId}`;
+                                
+                                // Only track play if we're not already playing this NFT
+                                if (currentlyPlaying !== nftId || !isPlaying) {
+                                  // Log NFT details before playing
+                                  logNFTDetails(nft, 'top-played-button');
+                                  // Track the play in Firebase
+                                  if (userContext?.user?.fid) {
+                                    await trackNFTPlay(nft, userContext.user.fid);
+                                  }
                                 }
+                                handlePlayAudio(nft, 'top', true);
                               }}
                               className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-purple-500 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
                             >
@@ -3647,10 +3665,17 @@ export default function Demo({ title }: { title?: string }) {
                 <div className="flex justify-center items-center gap-12">
                   {/* Previous Track */}
                       <button
-                    onClick={() => {
+                    onClick={async () => {
                       const previousNFT = findAdjacentNFT('previous');
                       if (previousNFT) {
-                        handlePlayAudio(previousNFT);
+                        setIsPlayerMinimized(false);
+                        // Log NFT details before playing
+                        logNFTDetails(previousNFT, 'previous-button');
+                        // Track the play in Firebase
+                        if (userContext?.user?.fid) {
+                          await trackNFTPlay(previousNFT, userContext.user.fid);
+                        }
+                        handlePlayAudio(previousNFT, 'recent', true);
                       }
                     }}
                     className="text-white hover:scale-110 transition-transform"
@@ -3680,10 +3705,17 @@ export default function Demo({ title }: { title?: string }) {
 
                   {/* Next Track */}
                       <button
-                    onClick={() => {
+                    onClick={async () => {
                       const nextNFT = findAdjacentNFT('next');
                       if (nextNFT) {
-                        handlePlayAudio(nextNFT);
+                        setIsPlayerMinimized(false);
+                        // Log NFT details before playing
+                        logNFTDetails(nextNFT, 'next-button');
+                        // Track the play in Firebase
+                        if (userContext?.user?.fid) {
+                          await trackNFTPlay(nextNFT, userContext.user.fid);
+                        }
+                        handlePlayAudio(nextNFT, 'recent', true);
                       }
                     }}
                     className="text-white hover:scale-110 transition-transform"
@@ -3802,6 +3834,18 @@ export default function Demo({ title }: { title?: string }) {
 
 
 function addToRecentlyPlayed(nft: NFT | GroupedNFT) {
-  throw new Error('Function not implemented.');
+  // Get existing recently played from localStorage
+  const recentlyPlayed = JSON.parse(localStorage.getItem('recentlyPlayed') || '[]');
+  
+  // Add the new NFT to the beginning of the array
+  const updatedRecentlyPlayed = [
+    nft,
+    ...recentlyPlayed.filter((item: NFT) => 
+      item.contract !== nft.contract || item.tokenId !== nft.tokenId
+    )
+  ].slice(0, 10); // Keep only the last 10 items
+  
+  // Save back to localStorage
+  localStorage.setItem('recentlyPlayed', JSON.stringify(updatedRecentlyPlayed));
 }
 //
