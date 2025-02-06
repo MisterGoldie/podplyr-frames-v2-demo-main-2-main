@@ -1406,30 +1406,6 @@ export default function Demo({ title }: { title?: string }) {
     try {
       const nftId = `${nft.contract}-${nft.tokenId}`;
       
-      // Set current playing NFT first to update UI
-      setCurrentPlayingNFT(nft);
-      setCurrentlyPlaying(nftId);
-      setIsPlayerVisible(true);
-      
-      // Only minimize if not explicitly told to keep maximized
-      if (!keepMaximized) {
-        setIsPlayerMinimized(true);
-      }
-
-      // Track play in Firebase regardless of context
-      if (userContext?.user?.fid) {
-        try {
-          await trackNFTPlay(nft, userContext.user.fid);
-          // Refresh the top played list after tracking the play
-          const updatedTopPlayed = await getTopPlayedNFTs();
-          setTopPlayedNFTs(updatedTopPlayed);
-          // Refresh recently played list
-          await fetchRecentlyPlayed();
-        } catch (dbError) {
-          console.warn('[handlePlayAudio] Failed to log play:', dbError);
-        }
-      }
-
       // If clicking the same track that's already playing, just toggle play/pause
       if (currentlyPlaying === nftId) {
         handlePlayPause();
@@ -1448,33 +1424,44 @@ export default function Demo({ title }: { title?: string }) {
         }
       }
 
-      // Create audio element if it doesn't exist
+      // Set current playing NFT first to update UI
+      setCurrentPlayingNFT(nft);
+      setCurrentlyPlaying(nftId);
+      setIsPlayerVisible(true);
+      setIsPlaying(true);
+      
+      // Only minimize if not explicitly told to keep maximized
+      if (!keepMaximized) {
+        setIsPlayerMinimized(true);
+      }
+
+      // Get or create audio element
       let audio = document.getElementById(`audio-${nftId}`) as HTMLAudioElement;
-      if (!audio) {
+      if (!audio && nft.hasValidAudio) {
         audio = document.createElement('audio');
         audio.id = `audio-${nftId}`;
         audio.src = processMediaUrl(nft.audio || nft.metadata?.animation_url || '');
         document.body.appendChild(audio);
       }
 
-      // Start playback
-      if (nft.hasValidAudio) {
-        setIsPlaying(true);
-        await playMedia(audio, videoRef.current, nft);
+      // Play the media
+      if (audio) {
+        audio.currentTime = 0;
+        await audio.play();
       }
 
-      // Add to recently played after successful playback
-      addToRecentlyPlayed(nft);
-
-      // Track play in database if user is logged in
-      if (userContext?.user?.fid) {
+      // Track play in Firebase
+      if (userContext?.user?.fid && context === 'top') {
         try {
-          await logNFTPlay(nft);
+          await trackNFTPlay(nft, userContext.user.fid);
+          const updatedTopPlayed = await getTopPlayedNFTs();
+          setTopPlayedNFTs(updatedTopPlayed);
           await fetchRecentlyPlayed();
         } catch (dbError) {
           console.warn('[handlePlayAudio] Failed to log play:', dbError);
         }
       }
+
     } catch (error) {
       console.error('[handlePlayAudio] Error:', error);
       setError(error instanceof Error ? error.message : 'Failed to play media');
@@ -2873,20 +2860,7 @@ export default function Demo({ title }: { title?: string }) {
 
                             {/* Play Button */}
                             <button 
-                              onClick={async () => {
-                                const nftId = `${nft.contract}-${nft.tokenId}`;
-                                
-                                // Only track play if we're not already playing this NFT
-                                if (currentlyPlaying !== nftId || !isPlaying) {
-                                  // Log NFT details before playing
-                                  logNFTDetails(nft, 'top-played-button');
-                                  // Track the play in Firebase
-                                  if (userContext?.user?.fid) {
-                                    await trackNFTPlay(nft, userContext.user.fid);
-                                  }
-                                }
-                                handlePlayAudio(nft, 'top', true);
-                              }}
+                              onClick={() => handlePlayAudio(nft, 'top', true)}
                               className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-purple-500 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
                             >
                               {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
