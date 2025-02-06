@@ -3,17 +3,9 @@ export interface NFTMetadata {
   description?: string;
   image?: string;
   animation_url?: string;
-  tokenId?: string;
-  uri?: string;
   properties?: {
     files?: NFTFile[];
     category?: string;
-    audio?: string;
-    audio_url?: string;
-    audio_file?: string;
-    soundContent?: {
-      url: string;
-    };
   };
 }
 
@@ -40,9 +32,7 @@ export interface NFT {
     name: string;
     image?: string;
   };
-  metadata: NFTMetadata;
+  metadata?: NFTMetadata;
   network?: 'ethereum' | 'base';
   playTracked?: boolean;
-  quantity?: number;
-  uniqueId?: string;
 } 

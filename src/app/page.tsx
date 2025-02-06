@@ -1,8 +1,8 @@
 import { Metadata } from "next";
 import App from "./app";
 import dynamic from "next/dynamic";
-
-
+import { ErrorBoundary } from '../components/ErrorBoundary';
+import Demo from '../components/Demo';
 
 const appUrl = process.env.NEXT_PUBLIC_URL;
 
@@ -45,5 +45,9 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default function Home() {
-  return (<App />);
+  return (
+    <ErrorBoundary>
+      <Demo />
+    </ErrorBoundary>
+  );
 }
