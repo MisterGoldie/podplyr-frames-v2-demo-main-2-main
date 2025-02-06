@@ -4,9 +4,10 @@ import { PageState } from '../../types/user';
 interface BottomNavProps {
   currentPage: PageState;
   onNavigate: (page: keyof PageState) => void;
+  onReset: () => void;
 }
 
-export const BottomNav: React.FC<BottomNavProps> = ({ currentPage, onNavigate }) => {
+export const BottomNav: React.FC<BottomNavProps> = ({ currentPage, onNavigate, onReset }) => {
   return (
     <nav className="fixed bottom-0 left-0 right-0 h-16 bg-black border-t border-purple-400/30 flex items-center justify-around z-50">
       <button

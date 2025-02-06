@@ -13,6 +13,7 @@ interface HomeViewProps {
   isPlaying: boolean;
   handlePlayPause: () => void;
   isLoading?: boolean;
+  onReset: () => void;
 }
 
 const HomeView: React.FC<HomeViewProps> = ({
@@ -22,19 +23,25 @@ const HomeView: React.FC<HomeViewProps> = ({
   currentlyPlaying,
   isPlaying,
   handlePlayPause,
-  isLoading = false
+  isLoading = false,
+  onReset
 }) => {
   if (isLoading) {
     return (
       <>
         <header className="fixed top-0 left-0 right-0 h-16 bg-black border-b border-black flex items-center justify-center z-50">
-          <Image
-            src="/fontlogo.png"
-            alt="PODPlayr Logo"
-            width={120}
-            height={40}
-            className="object-contain"
-          />
+          <button 
+            onClick={onReset}
+            className="cursor-pointer"
+          >
+            <Image
+              src="/fontlogo.png"
+              alt="PODPlayr Logo"
+              width={120}
+              height={30}
+              priority={true}
+            />
+          </button>
         </header>
         <div className="space-y-8 animate-pulse pt-20">
           <section>
@@ -61,13 +68,18 @@ const HomeView: React.FC<HomeViewProps> = ({
   return (
     <>
       <header className="fixed top-0 left-0 right-0 h-16 bg-black border-b border-black flex items-center justify-center z-50">
-        <Image
-          src="/fontlogo.png"
-          alt="PODPlayr Logo"
-          width={120}
-          height={40}
-          className="object-contain"
-        />
+        <button 
+          onClick={onReset}
+          className="cursor-pointer"
+        >
+          <Image
+            src="/fontlogo.png"
+            alt="PODPlayr Logo"
+            width={120}
+            height={30}
+            priority={true}
+          />
+        </button>
       </header>
       <div className="space-y-8 pt-20">
         {/* Recently Played Section */}

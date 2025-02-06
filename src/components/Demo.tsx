@@ -318,6 +318,19 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
     setError(null);
   };
 
+  const handleReset = () => {
+    setCurrentPage({
+      isHome: true,
+      isExplore: false,
+      isLibrary: false,
+      isProfile: false
+    });
+    setSelectedUser(null);
+    setSearchResults([]);
+    setUserNFTs([]);
+    setError(null);
+  };
+
   const renderCurrentView = () => {
     if (currentPage.isHome) {
       return (
@@ -329,6 +342,7 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
           isPlaying={isPlaying}
           handlePlayPause={handlePlayPause}
           isLoading={isLoading}
+          onReset={handleReset}
         />
       );
     }
@@ -348,8 +362,8 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
           isLoadingNFTs={isLoading}
           onBack={() => setSelectedUser(null)}
           publicCollections={[]}
-          addToPublicCollection={() => {}}
-          removeFromPublicCollection={() => {}}
+          addToPublicCollection={() => { } }
+          removeFromPublicCollection={() => { } }
           recentSearches={recentSearches}
           handleUserSelect={(user) => {
             setSelectedUser(user);
@@ -366,6 +380,7 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
             };
             fetchUserNFTs();
           }}
+          onReset={handleReset}
         />
       );
     }
@@ -378,6 +393,7 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
           currentlyPlaying={currentlyPlaying}
           isPlaying={isPlaying}
           handlePlayPause={handlePlayPause}
+          onReset={handleReset}
         />
       );
     }
@@ -397,6 +413,7 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
           isPlaying={isPlaying}
           currentlyPlaying={currentlyPlaying}
           handlePlayPause={handlePlayPause}
+          onReset={handleReset}
         />
       );
     }
@@ -704,6 +721,18 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
       <BottomNav
         currentPage={currentPage}
         onNavigate={switchPage}
+        onReset={() => {
+          setCurrentPage({
+            isHome: true,
+            isExplore: false,
+            isLibrary: false,
+            isProfile: false
+          });
+          setSelectedUser(null);
+          setSearchResults([]);
+          setUserNFTs([]);
+          setError(null);
+        }}
       />
     </div>
   );
