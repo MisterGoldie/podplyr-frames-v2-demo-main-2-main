@@ -51,18 +51,6 @@ interface PageState {
 }
 
 const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
-  const {
-    isPlaying,
-    currentPlayingNFT,
-    currentlyPlaying,
-    audioProgress,
-    audioDuration,
-    handlePlayAudio,
-    handlePlayPause,
-    handleSeek,
-    audioRef
-  } = useAudioPlayer({ fid });
-
   const [currentPage, setCurrentPage] = useState<PageState>({
     isHome: true,
     isExplore: false,
@@ -85,6 +73,21 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
   const [isLiked, setIsLiked] = useState(false);
   const [userData, setUserData] = useState<FarcasterUser | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  const {
+    isPlaying,
+    currentPlayingNFT,
+    currentlyPlaying,
+    audioProgress,
+    audioDuration,
+    handlePlayAudio,
+    handlePlayPause,
+    handleSeek,
+    audioRef
+  } = useAudioPlayer({ 
+    fid,
+    setRecentlyPlayedNFTs 
+  });
 
   useEffect(() => {
     setIsPlayerMinimized(true);

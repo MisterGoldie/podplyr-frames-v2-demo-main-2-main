@@ -5,6 +5,7 @@ import { processMediaUrl } from '../utils/media';
 
 interface UseAudioPlayerProps {
   fid?: number;
+  setRecentlyPlayedNFTs?: React.Dispatch<React.SetStateAction<NFT[]>>;
 }
 
 type UseAudioPlayerReturn = {
@@ -29,7 +30,7 @@ type AudioPlayerHandles = {
   timeupdate: () => void;
 }
 
-export const useAudioPlayer = ({ fid = 1 }: UseAudioPlayerProps = {}): UseAudioPlayerReturn => {
+export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs }: UseAudioPlayerProps = {}): UseAudioPlayerReturn => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentPlayingNFT, setCurrentPlayingNFT] = useState<NFT | null>(null);
   const [currentlyPlaying, setCurrentlyPlaying] = useState<string | null>(null);
@@ -42,42 +43,47 @@ export const useAudioPlayer = ({ fid = 1 }: UseAudioPlayerProps = {}): UseAudioP
     if (!audio) return;
 
     const updateProgress = () => {
+      if (!audio.duration) return;
       setAudioProgress(audio.currentTime);
+      setAudioDuration(audio.duration);
     };
 
     const handleLoadedMetadata = () => {
+      console.log('Audio metadata loaded:', {
+        duration: audio.duration,
+        currentTime: audio.currentTime
+      });
       setAudioDuration(audio.duration);
+      setAudioProgress(audio.currentTime);
     };
 
     const handleEnded = () => {
       setIsPlaying(false);
+      setAudioProgress(0);
     };
 
     const handlePlay = () => setIsPlaying(true);
     const handlePause = () => setIsPlaying(false);
 
-    const handles: AudioPlayerHandles = {
-      play: handlePlay,
-      pause: handlePause,
-      ended: handleEnded,
-      loadedmetadata: handleLoadedMetadata,
-      timeupdate: updateProgress,
-    };
-
-    Object.keys(handles).forEach((key) => {
-      audio.addEventListener(key, handles[key as keyof AudioPlayerHandles]);
-    });
+    // Add timeupdate event to track progress
+    audio.addEventListener('timeupdate', updateProgress);
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('play', handlePlay);
+    audio.addEventListener('pause', handlePause);
 
     return () => {
-      Object.keys(handles).forEach((key) => {
-        audio.removeEventListener(key, handles[key as keyof AudioPlayerHandles]);
-      });
+      audio.removeEventListener('timeupdate', updateProgress);
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('pause', handlePause);
     };
   }, []);
 
   const handlePlayPause = useCallback(() => {
     if (!audioRef.current) return;
-
+    
     if (isPlaying) {
       audioRef.current.pause();
       // Pause video if it exists
@@ -85,22 +91,19 @@ export const useAudioPlayer = ({ fid = 1 }: UseAudioPlayerProps = {}): UseAudioP
       if (video) {
         video.pause();
       }
-      setIsPlaying(false);  // Ensure state is updated immediately
     } else {
-      const playPromise = audioRef.current.play();
-      if (playPromise !== undefined) {
-        playPromise.then(() => {
-          setIsPlaying(true);  // Only set playing after successful play
-          // Play video if it exists
-          const video = document.querySelector('video');
-          if (video) {
-            video.play();
-          }
-        }).catch(error => {
-          console.error("Error playing audio:", error);
-          setIsPlaying(false);
-        });
-      }
+      audioRef.current.play().catch(error => {
+        console.error("Error in handlePlayPause:", error);
+        setIsPlaying(false);
+      }).then(() => {
+        // Play video if it exists
+        const video = document.querySelector('video');
+        if (video) {
+          video.play().catch(error => {
+            console.error("Error playing video:", error);
+          });
+        }
+      });
     }
   }, [isPlaying]);
 
@@ -141,7 +144,10 @@ export const useAudioPlayer = ({ fid = 1 }: UseAudioPlayerProps = {}): UseAudioP
       console.log('Stopping current audio');
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
+      setAudioProgress(0);
+      setAudioDuration(0);
     }
+
     const video = document.querySelector('video');
     if (video) {
       video.pause();
@@ -155,6 +161,15 @@ export const useAudioPlayer = ({ fid = 1 }: UseAudioPlayerProps = {}): UseAudioP
     if (!nft.playTracked) {
       try {
         await trackNFTPlay(nft, fid);
+        if (setRecentlyPlayedNFTs) {
+          setRecentlyPlayedNFTs((prevNFTs: NFT[]) => {
+            const newNFT: NFT = { ...nft, playTracked: true };
+            const filteredNFTs = prevNFTs.filter(
+              (item: NFT) => !(item.contract === nft.contract && item.tokenId === nft.tokenId)
+            );
+            return [newNFT, ...filteredNFTs].slice(0, 8);
+          });
+        }
       } catch (error) {
         console.error('Error tracking NFT play:', error);
       }
@@ -162,21 +177,45 @@ export const useAudioPlayer = ({ fid = 1 }: UseAudioPlayerProps = {}): UseAudioP
 
     // Start playing both audio and video after they're loaded
     if (audioRef.current) {
-      const playPromise = audioRef.current.play();
-      if (playPromise !== undefined) {
-        playPromise.then(() => {
-          setIsPlaying(true);
-          const video = document.querySelector('video');
-          if (video) {
-            video.play();
-          }
-        }).catch(error => {
-          console.error("Error playing audio:", error);
-          setIsPlaying(false);
+      // Create a new audio element for this NFT
+      const audio = new Audio(processMediaUrl(audioUrl));
+      
+      // Set up event listeners before loading
+      audio.addEventListener('loadedmetadata', () => {
+        console.log('Audio metadata loaded:', {
+          duration: audio.duration,
+          currentTime: audio.currentTime
         });
+        setAudioDuration(audio.duration);
+      });
+
+      audio.addEventListener('timeupdate', () => {
+        setAudioProgress(audio.currentTime);
+      });
+
+      audio.addEventListener('play', () => setIsPlaying(true));
+      audio.addEventListener('pause', () => setIsPlaying(false));
+      audio.addEventListener('ended', () => {
+        setIsPlaying(false);
+        setAudioProgress(0);
+      });
+
+      // Replace the current audio reference
+      audioRef.current = audio;
+
+      try {
+        await audio.play();
+        setIsPlaying(true);
+        const video = document.querySelector('video');
+        if (video) {
+          video.play();
+        }
+      } catch (error) {
+        console.error("Error playing audio:", error);
+        setIsPlaying(false);
       }
     }
-  }, [currentlyPlaying, handlePlayPause, fid]);
+  }, [currentlyPlaying, handlePlayPause, fid, setRecentlyPlayedNFTs]);
 
   return {
     isPlaying,
