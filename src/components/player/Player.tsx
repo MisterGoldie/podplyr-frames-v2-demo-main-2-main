@@ -224,7 +224,7 @@ export const Player: React.FC<PlayerProps> = ({
               {onLikeToggle && (
                 <button 
                   onClick={() => onLikeToggle(nft)}
-                  className="text-purple-400 hover:text-purple-300"
+                  className={`${isLiked ? 'text-red-500' : 'text-purple-400'} hover:text-purple-300`}
                 >
                   {isLiked ? (
                     <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
@@ -242,8 +242,8 @@ export const Player: React.FC<PlayerProps> = ({
                 onClick={handleMinimizeToggle}
                 className="text-purple-400 hover:text-purple-300"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                  <path d="M480-528 296-344l-56-56 240-240 240 240-56 56-184-184Z"/>
+                <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                  <path d="M480-600 240-360l56 56 184-184 184 184 56-56-240-240Z"/>
                 </svg>
               </button>
             </div>
@@ -261,8 +261,8 @@ export const Player: React.FC<PlayerProps> = ({
           onClick={handleMinimizeToggle}
           className="text-purple-400 hover:text-purple-300"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-            <path d="m336-280-56-56 184-184-184-184 56-56 240 240-240 240Z"/>
+          <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+            <path d="M480-360 240-600l56-56 184 184 184-184 56 56-240 240Z"/>
           </svg>
         </button>
         <h3 className="font-mono text-purple-400">Now Playing</h3>
