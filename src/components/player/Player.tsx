@@ -384,14 +384,14 @@ export const Player: React.FC<PlayerProps> = ({
                 </button>
               )}
 
-              {/* PiP Button */}
-              {onPictureInPicture && (
-                <button 
+              {/* PiP Mode Button */}
+              {document.pictureInPictureEnabled && (
+                <button
                   onClick={onPictureInPicture}
                   className="text-white hover:scale-110 transition-transform"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
-                    <path d="M560-528 296-344l-56-56 240-240 240 240-56 56-184-184Z"/>
+                  <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                    <path d="M280-400v-160l-80 80 80 80Zm200 120 80-80H400l80 80Zm-80-320h160l-80-80-80 80Zm280 200 80-80-80-80v160ZM160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Zm0-80h640v-480H160v480Zm0 0v-480 480Z"/>
                   </svg>
                 </button>
               )}
