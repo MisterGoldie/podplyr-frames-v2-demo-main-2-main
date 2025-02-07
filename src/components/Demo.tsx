@@ -17,8 +17,7 @@ import {
   fetchNFTDetails,
   getLikedNFTs,
   searchUsers,
-  addLikedNFT,
-  removeLikedNFT,
+  toggleLikeNFT,
   fetchUserNFTs
 } from '../lib/firebase';
 import { fetchUserNFTsFromAlchemy } from '../lib/alchemy';
@@ -463,33 +462,19 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
   };
 
   const handleLikeToggle = async (nft: NFT) => {
-    if (!fid) {
-      console.log('No user logged in');
-      return;
-    }
-
     try {
-      const isCurrentlyLiked = isNFTLiked(nft);
-      console.log('Toggling like for NFT:', {
-        contract: nft.contract,
-        tokenId: nft.tokenId,
-        currentlyLiked: isCurrentlyLiked
-      });
-
-      if (isCurrentlyLiked) {
-        // Remove from likes
-        await removeLikedNFT(fid, nft);
+      const wasLiked = await toggleLikeNFT(nft, fid);
+      
+      if (wasLiked) {
+        setLikedNFTs(prev => [...prev, nft]);
+        console.log('NFT added to likes');
+      } else {
         setLikedNFTs(prev => prev.filter(
           likedNFT => 
             !(likedNFT.contract.toLowerCase() === nft.contract.toLowerCase() && 
             likedNFT.tokenId === nft.tokenId)
         ));
         console.log('NFT removed from likes');
-      } else {
-        // Add to likes
-        await addLikedNFT(fid, nft);
-        setLikedNFTs(prev => [...prev, nft]);
-        console.log('NFT added to likes');
       }
     } catch (error) {
       console.error('Error toggling like:', error);
@@ -801,18 +786,7 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
       <BottomNav
         currentPage={currentPage}
         onNavigate={switchPage}
-        onReset={() => {
-          setCurrentPage({
-            isHome: true,
-            isExplore: false,
-            isLibrary: false,
-            isProfile: false
-          });
-          setSelectedUser(null);
-          setSearchResults([]);
-          setUserNFTs([]);
-          setError(null);
-        }}
+        className={isPlayerMinimized ? '' : 'hidden'}
       />
     </div>
   );
