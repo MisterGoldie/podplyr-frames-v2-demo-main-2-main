@@ -21,6 +21,7 @@ import {
   removeLikedNFT,
   fetchUserNFTs
 } from '../lib/firebase';
+import { fetchUserNFTsFromAlchemy } from '../lib/alchemy';
 import type { NFT, FarcasterUser, SearchedUser, UserContext, LibraryViewProps, ProfileViewProps } from '../types/user';
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
 
@@ -120,13 +121,35 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
   useEffect(() => {
     const fetchUserData = async () => {
       try {
-        // Use the existing trackUserSearch function for Neynar API
+        // Get Farcaster user data
         const user = await trackUserSearch('goldie', fid);
         setUserData(user);
 
-        // Fetch NFTs using Alchemy API
-        const userNFTs = await fetchUserNFTs(fid);
-        setUserNFTs(userNFTs);
+        // Get user's wallet address - first try custody address, then verified addresses
+        const walletAddress = user.custody_address || user.verified_addresses?.eth_addresses?.[0];
+        
+        if (!walletAddress) {
+          console.error('No wallet address found for user');
+          return;
+        }
+
+        // Fetch NFTs from Alchemy
+        console.log('Fetching NFTs from Alchemy for address:', walletAddress);
+        const ownedNFTs = await fetchUserNFTsFromAlchemy(walletAddress);
+        console.log('Fetched NFTs:', ownedNFTs);
+
+        // Also fetch played NFTs from Firebase
+        const playedNFTs = await fetchUserNFTs(fid);
+
+        // Combine and deduplicate NFTs
+        const allNFTs = [...ownedNFTs, ...playedNFTs];
+        const uniqueNFTs = allNFTs.filter((nft, index, self) =>
+          index === self.findIndex((t) => (
+            t.contract === nft.contract && t.tokenId === nft.tokenId
+          ))
+        );
+
+        setUserNFTs(uniqueNFTs);
       } catch (error) {
         console.error('Error fetching user data:', error);
       }

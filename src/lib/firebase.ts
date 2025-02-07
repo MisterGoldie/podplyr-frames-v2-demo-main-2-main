@@ -38,7 +38,8 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
     const neynarKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
     if (!neynarKey) throw new Error('Neynar API key not found');
 
-    const response = await fetch(
+    // First search for the user to get their FID
+    const searchResponse = await fetch(
       `https://api.neynar.com/v2/farcaster/user/search?q=${encodeURIComponent(username)}`,
       {
         headers: {
@@ -48,9 +49,24 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
       }
     );
 
-    const data = await response.json();
-    const user = data.result?.users[0];
-    if (!user) throw new Error('User not found');
+    const searchData = await searchResponse.json();
+    const searchedUser = searchData.result?.users[0];
+    if (!searchedUser) throw new Error('User not found');
+
+    // Then fetch their full profile data including verified addresses
+    const profileResponse = await fetch(
+      `https://api.neynar.com/v2/farcaster/user/bulk?fids=${searchedUser.fid}`,
+      {
+        headers: {
+          'accept': 'application/json',
+          'api_key': neynarKey
+        }
+      }
+    );
+
+    const profileData = await profileResponse.json();
+    const user = profileData.users?.[0];
+    if (!user) throw new Error('User profile not found');
 
     // Save search to Firebase
     await addDoc(collection(db, 'user_searches'), {
@@ -62,7 +78,17 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
       timestamp: serverTimestamp()
     });
 
-    return user;
+    // Return the full user profile with both custody and verified addresses
+    return {
+      ...user,
+      custody_address: user.custody_address,
+      verifiedAddresses: [
+        // Include custody address if it exists
+        ...(user.custody_address ? [user.custody_address] : []),
+        // Include any verified eth addresses
+        ...(user.verified_addresses?.eth_addresses || [])
+      ]
+    };
   } catch (error) {
     console.error('Error tracking user search:', error);
     throw error;

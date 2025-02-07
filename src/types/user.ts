@@ -9,6 +9,10 @@ export interface FarcasterUser {
     bio?: string;
     location?: string;
   };
+  custody_address?: string;
+  verified_addresses?: {
+    eth_addresses?: string[];
+  };
   verifiedAddresses?: string[];
 }
 
