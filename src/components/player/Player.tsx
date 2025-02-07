@@ -207,8 +207,8 @@ export const Player: React.FC<PlayerProps> = ({
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-screen-sm mx-auto px-4 py-8">
+      <div className="flex-1 overflow-y-auto pb-safe">
+        <div className="max-w-screen-sm mx-auto px-4 py-8 pb-24">
           {/* NFT Image/Video Container */}
           <div className="relative w-full mb-8">
             <div className={`transition-all duration-500 ease-in-out transform ${isPlaying ? 'scale-100' : 'scale-90'}`}>
