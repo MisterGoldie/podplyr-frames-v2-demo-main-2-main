@@ -58,6 +58,8 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
   });
 
   const [isPlayerMinimized, setIsPlayerMinimized] = useState(true);
+  const [isInitialPlay, setIsInitialPlay] = useState(false);
+
   const [recentlyPlayedNFTs, setRecentlyPlayedNFTs] = useState<NFT[]>([]);
   const [topPlayedNFTs, setTopPlayedNFTs] = useState<{ nft: NFT; count: number }[]>([]);
   const [searchResults, setSearchResults] = useState<FarcasterUser[]>([]);
@@ -364,6 +366,13 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
     };
   }, [isPlaying, currentPlayingNFT, audioProgress]);
 
+  useEffect(() => {
+    if (isInitialPlay) {
+      console.log('Minimizing player due to initial play');
+      setIsPlayerMinimized(true);
+    }
+  }, [isInitialPlay]);
+
   const handleSearch = async (username: string) => {
     setIsSearching(true);
     setError(null);
@@ -518,6 +527,21 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
     setError(null);
   };
 
+  const handlePlayFromLibrary = async (nft: NFT) => {
+    console.log('handlePlayFromLibrary called');
+    setIsInitialPlay(true);
+    await handlePlayAudio(nft);
+    setIsInitialPlay(false);
+  };
+
+  const handleMinimizeToggle = () => {
+    console.log('Demo: handleMinimizeToggle called. Current state:', isPlayerMinimized);
+    if (!isInitialPlay) {
+      setIsPlayerMinimized(!isPlayerMinimized);
+      console.log('Demo: New state will be:', !isPlayerMinimized);
+    }
+  };
+
   const renderCurrentView = () => {
     if (currentPage.isHome) {
       return (
@@ -576,26 +600,26 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
       return (
         <LibraryView
           likedNFTs={likedNFTs}
-          handlePlayAudio={handlePlayAudio}
+          handlePlayAudio={handlePlayFromLibrary}
           currentlyPlaying={currentlyPlaying}
           currentPlayingNFT={currentPlayingNFT}
           isPlaying={isPlaying}
           handlePlayPause={handlePlayPause}
           onReset={handleReset}
           userContext={{
-            user: {
+            user: userData ? {
               fid: fid,
-              username: userData?.username,
-              displayName: userData?.display_name,
-              pfpUrl: userData?.pfp_url,
-              custody_address: userData?.custody_address,
+              username: userData.username,
+              displayName: userData.display_name,
+              pfpUrl: userData.pfp_url,
+              custody_address: userData.custody_address,
               verified_addresses: {
-                eth_addresses: userData?.verified_addresses?.eth_addresses
+                eth_addresses: userData.verified_addresses?.eth_addresses
               }
-            }
+            } : undefined
           }}
           setIsLiked={setIsLiked}
-          setIsPlayerVisible={(visible: boolean) => {}}
+          setIsPlayerVisible={() => {}}
           setIsPlayerMinimized={setIsPlayerMinimized}
           onLikeToggle={handleLikeToggle}
         />
@@ -773,7 +797,7 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
           onNext={handlePlayNext}
           onPrevious={handlePlayPrevious}
           isMinimized={isPlayerMinimized}
-          onMinimizeToggle={() => setIsPlayerMinimized(!isPlayerMinimized)}
+          onMinimizeToggle={handleMinimizeToggle}
           progress={audioProgress}
           duration={audioDuration}
           onSeek={handleSeek}

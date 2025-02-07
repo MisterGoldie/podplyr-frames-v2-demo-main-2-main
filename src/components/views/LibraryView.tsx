@@ -114,16 +114,6 @@ const LibraryView: React.FC<LibraryViewProps> = ({
     }
   }, [currentPlayingNFT, likedNFTs, userContext?.user?.fid, setIsLiked]);
 
-  // Initialize player state
-  useEffect(() => {
-    if (typeof setIsPlayerVisible === 'function') {
-      setIsPlayerVisible(false);
-    }
-    if (typeof setIsPlayerMinimized === 'function') {
-      setIsPlayerMinimized(true);
-    }
-  }, [setIsPlayerVisible, setIsPlayerMinimized]);
-
   const filteredNFTs = likedNFTs
     .filter(nft => 
       nft.name.toLowerCase().includes(searchFilter.toLowerCase()) ||

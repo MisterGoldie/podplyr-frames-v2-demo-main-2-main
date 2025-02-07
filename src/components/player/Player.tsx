@@ -4,6 +4,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import Image from 'next/image';
 import { PlayerControls } from './PlayerControls';
 import type { NFT } from '../../types/user';
+import { processMediaUrl } from '../../utils/media';
 
 interface PlayerProps {
   nft?: NFT | null;
@@ -66,7 +67,9 @@ export const Player: React.FC<PlayerProps> = ({
 
   // Save video time before minimizing/maximizing
   useEffect(() => {
+    console.log('isMinimized changed:', isMinimized);
     if (videoRef.current) {
+      console.log('Saving video time:', videoRef.current.currentTime);
       setVideoTime(videoRef.current.currentTime);
     }
   }, [isMinimized]);
@@ -74,16 +77,23 @@ export const Player: React.FC<PlayerProps> = ({
   // Restore video time after minimizing/maximizing
   useEffect(() => {
     if (videoRef.current && videoTime > 0) {
+      console.log('Restoring video time:', videoTime);
       videoRef.current.currentTime = videoTime;
     }
   }, [videoTime]);
 
   if (!nft) return null;
 
+  const handleMinimizeToggle = () => {
+    console.log('Minimize toggle clicked. Current state:', isMinimized);
+    onMinimizeToggle();
+    console.log('After toggle called. New state will be:', !isMinimized);
+  };
+
   const renderVideo = () => (
     <video 
       ref={videoRef}
-      src={nft.metadata?.animation_url || '/placeholder-video.mp4'}
+      src={processMediaUrl(nft.metadata?.animation_url || '', '/placeholder-video.mp4')}
       className={`w-full h-auto object-contain rounded-lg transition-transform duration-500 ${
         isMinimized ? '' : 'transform transition-all duration-500 ease-in-out ' + (isPlaying ? 'scale-100' : 'scale-90')
       }`}
@@ -92,6 +102,7 @@ export const Player: React.FC<PlayerProps> = ({
       muted={true}
       controls={false}
       autoPlay={isPlaying}
+      crossOrigin="anonymous"
     />
   );
 
@@ -176,7 +187,7 @@ export const Player: React.FC<PlayerProps> = ({
               </button>
 
               <button
-                onClick={onMinimizeToggle}
+                onClick={handleMinimizeToggle}
                 className="text-purple-400 hover:text-purple-300"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
@@ -195,7 +206,7 @@ export const Player: React.FC<PlayerProps> = ({
       {/* Header */}
       <div className="p-4 flex items-center justify-between border-b border-black">
         <button
-          onClick={onMinimizeToggle}
+          onClick={handleMinimizeToggle}
           className="text-purple-400 hover:text-purple-300"
         >
           <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
