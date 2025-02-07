@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import Image from 'next/image';
 import { PlayerControls } from './PlayerControls';
 import type { NFT } from '../../types/user';
@@ -37,8 +37,63 @@ export const Player: React.FC<PlayerProps> = ({
   onPictureInPicture
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [videoTime, setVideoTime] = useState(0);
+
+  // Sync video with audio progress
+  useEffect(() => {
+    if (videoRef.current && progress > 0) {
+      // Only update if the difference is significant to avoid constant tiny adjustments
+      if (Math.abs(videoRef.current.currentTime - progress) > 0.5) {
+        videoRef.current.currentTime = progress;
+      }
+    }
+  }, [progress, isMinimized]);
+
+  useEffect(() => {
+    if (videoRef.current) {
+      if (isPlaying) {
+        const playPromise = videoRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(error => {
+            console.error("Error playing video:", error);
+          });
+        }
+      } else {
+        videoRef.current.pause();
+      }
+    }
+  }, [isPlaying]);
+
+  // Save video time before minimizing/maximizing
+  useEffect(() => {
+    if (videoRef.current) {
+      setVideoTime(videoRef.current.currentTime);
+    }
+  }, [isMinimized]);
+
+  // Restore video time after minimizing/maximizing
+  useEffect(() => {
+    if (videoRef.current && videoTime > 0) {
+      videoRef.current.currentTime = videoTime;
+    }
+  }, [videoTime]);
 
   if (!nft) return null;
+
+  const renderVideo = () => (
+    <video 
+      ref={videoRef}
+      src={nft.metadata?.animation_url || '/placeholder-video.mp4'}
+      className={`w-full h-auto object-contain rounded-lg transition-transform duration-500 ${
+        isMinimized ? '' : 'transform transition-all duration-500 ease-in-out ' + (isPlaying ? 'scale-100' : 'scale-90')
+      }`}
+      playsInline
+      loop={nft.isAnimation}
+      muted={true}
+      controls={false}
+      autoPlay={isPlaying}
+    />
+  );
 
   const formatTime = (time: number): string => {
     const minutes = Math.floor(time / 60);
@@ -71,16 +126,7 @@ export const Player: React.FC<PlayerProps> = ({
             <div className="flex items-center gap-4 flex-1 min-w-0">
               <div className="w-12 h-12 flex-shrink-0 relative rounded overflow-hidden">
                 {nft.isVideo ? (
-                  <video 
-                    ref={videoRef}
-                    src={nft.metadata?.animation_url || '/placeholder-video.mp4'}
-                    className="w-full h-auto object-contain rounded-lg transition-transform duration-500"
-                    playsInline
-                    loop={nft.isAnimation}
-                    muted={true}
-                    controls={false}
-                    autoPlay={isPlaying}
-                  />
+                  renderVideo()
                 ) : nft.isAnimation ? (
                   <Image
                     src={nft.metadata?.animation_url || nft.metadata?.image || ''}
@@ -167,16 +213,7 @@ export const Player: React.FC<PlayerProps> = ({
           <div className="relative w-full mb-8">
             <div className={`transition-all duration-500 ease-in-out transform ${isPlaying ? 'scale-100' : 'scale-90'}`}>
               {nft.isVideo || nft.metadata?.animation_url ? (
-                <video 
-                  ref={videoRef}
-                  src={nft.metadata?.animation_url || '/placeholder-video.mp4'}
-                  className="w-full h-auto object-contain rounded-lg transition-transform duration-500"
-                  playsInline
-                  loop={nft.isAnimation}
-                  muted={true}
-                  controls={false}
-                  autoPlay={isPlaying}
-                />
+                renderVideo()
               ) : (
                 <Image
                   src={nft.metadata?.image || ''}

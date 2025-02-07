@@ -148,8 +148,9 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs }: UseAudioPlaye
       setAudioDuration(0);
     }
 
+    // Only reset video if we're switching to a different NFT
     const video = document.querySelector('video');
-    if (video) {
+    if (video && currentlyPlaying !== `${nft.contract}-${nft.tokenId}`) {
       video.pause();
       video.currentTime = 0;
     }
@@ -206,9 +207,11 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs }: UseAudioPlaye
       try {
         await audio.play();
         setIsPlaying(true);
-        const video = document.querySelector('video');
-        if (video) {
-          video.play();
+        // Only start video if we're switching to a different NFT
+        if (video && currentlyPlaying !== `${nft.contract}-${nft.tokenId}`) {
+          video.play().catch(error => {
+            console.error("Error playing video:", error);
+          });
         }
       } catch (error) {
         console.error("Error playing audio:", error);
