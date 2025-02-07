@@ -172,12 +172,12 @@ export const Player: React.FC<PlayerProps> = ({
             {/* Controls */}
             <div className="flex items-center gap-4">
               <button 
-                onClick={onPrevious}
+                onClick={onNext}
                 className="text-purple-400 hover:text-purple-300"
-                disabled={!onPrevious}
+                disabled={!onNext}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
-                  <path d="M220-240v-480h80v480h-80Zm520-240L400-720v480l340-240Z"/>
+                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                  <path d="M220-240v-480h80v480h-80Zm520 0L380-480l360-240v480Zm-80-240Zm0 90v-180l-136 90 136 90Z"/>
                 </svg>
               </button>
 
@@ -197,12 +197,12 @@ export const Player: React.FC<PlayerProps> = ({
               </button>
 
               <button 
-                onClick={onNext}
+                onClick={onPrevious}
                 className="text-purple-400 hover:text-purple-300"
-                disabled={!onNext}
+                disabled={!onPrevious}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
-                  <path d="M660-240v-480h80v480h-80ZM220-480l340-240v480L220-480Z"/>
+                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                  <path d="M660-240v-480h80v480h-80Zm-440 0v-480l360 240-360 240Zm80-240Zm0 90 136-90-136-90v180Z"/>
                 </svg>
               </button>
 
@@ -330,9 +330,10 @@ export const Player: React.FC<PlayerProps> = ({
               <button
                 onClick={onPrevious}
                 className="text-white hover:scale-110 transition-transform"
+                disabled={!onPrevious}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px" fill="currentColor">
-                  <path d="M220-240v-480h80v480h-80Zm520 0L380-480l360-240v480Z"/>
+                  <path d="M220-240v-480h80v480h-80Zm440 0v-480l-360 240 360 240Z"/>
                 </svg>
               </button>
 
