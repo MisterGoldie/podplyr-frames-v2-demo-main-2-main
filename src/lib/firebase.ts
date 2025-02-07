@@ -38,6 +38,7 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
     const neynarKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
     if (!neynarKey) throw new Error('Neynar API key not found');
 
+    console.log('Searching for user:', username);
     // First search for the user to get their FID
     const searchResponse = await fetch(
       `https://api.neynar.com/v2/farcaster/user/search?q=${encodeURIComponent(username)}`,
@@ -50,9 +51,11 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
     );
 
     const searchData = await searchResponse.json();
+    console.log('Search response:', searchData);
     const searchedUser = searchData.result?.users[0];
     if (!searchedUser) throw new Error('User not found');
 
+    console.log('Found user, fetching full profile for FID:', searchedUser.fid);
     // Then fetch their full profile data including verified addresses
     const profileResponse = await fetch(
       `https://api.neynar.com/v2/farcaster/user/bulk?fids=${searchedUser.fid}`,
@@ -65,6 +68,7 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
     );
 
     const profileData = await profileResponse.json();
+    console.log('Profile response:', profileData);
     const user = profileData.users?.[0];
     if (!user) throw new Error('User profile not found');
 
@@ -78,16 +82,16 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
       timestamp: serverTimestamp()
     });
 
+    console.log('Returning user data with addresses:', {
+      custody_address: user.custody_address,
+      verified_addresses: user.verified_addresses
+    });
+
     // Return the full user profile with both custody and verified addresses
     return {
       ...user,
       custody_address: user.custody_address,
-      verifiedAddresses: [
-        // Include custody address if it exists
-        ...(user.custody_address ? [user.custody_address] : []),
-        // Include any verified eth addresses
-        ...(user.verified_addresses?.eth_addresses || [])
-      ]
+      verified_addresses: user.verified_addresses || { eth_addresses: [] }
     };
   } catch (error) {
     console.error('Error tracking user search:', error);

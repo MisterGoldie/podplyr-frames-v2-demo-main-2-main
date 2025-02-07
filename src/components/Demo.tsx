@@ -22,8 +22,11 @@ import {
   fetchUserNFTs
 } from '../lib/firebase';
 import { fetchUserNFTsFromAlchemy } from '../lib/alchemy';
-import type { NFT, FarcasterUser, SearchedUser, UserContext, LibraryViewProps, ProfileViewProps } from '../types/user';
+import type { NFT, FarcasterUser, SearchedUser, UserContext, LibraryViewProps, ProfileViewProps, NFTFile } from '../types/user';
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
+
+const NFT_CACHE_KEY = 'podplayr_nft_cache_';
+const TWO_HOURS = 2 * 60 * 60 * 1000;
 
 interface DemoProps {
   fid?: number;
@@ -65,6 +68,7 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
   const [searchResults, setSearchResults] = useState<FarcasterUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<FarcasterUser | null>(null);
   const [userNFTs, setUserNFTs] = useState<NFT[]>([]);
+  const [filteredNFTs, setFilteredNFTs] = useState<NFT[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -121,54 +125,177 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
   useEffect(() => {
     const fetchUserData = async () => {
       try {
+        console.log('Fetching user data for FID:', fid);
         // Get Farcaster user data
         const user = await trackUserSearch('goldie', fid);
+        console.log('Received user data:', user);
         setUserData(user);
 
-        // Get user's wallet address - first try custody address, then verified addresses
-        const walletAddress = user.custody_address || user.verified_addresses?.eth_addresses?.[0];
-        
-        if (!walletAddress) {
-          console.error('No wallet address found for user');
+        // Get both custody and verified addresses
+        const addresses = [
+          user.custody_address,
+          ...(user.verified_addresses?.eth_addresses || [])
+        ].filter(Boolean) as string[];
+
+        console.log('Found addresses:', addresses);
+
+        if (addresses.length === 0) {
+          console.error('No wallet addresses found for user');
           return;
         }
 
-        // Fetch NFTs from Alchemy
-        console.log('Fetching NFTs from Alchemy for address:', walletAddress);
-        const ownedNFTs = await fetchUserNFTsFromAlchemy(walletAddress);
-        console.log('Fetched NFTs:', ownedNFTs);
+        // Try to get cached NFTs first
+        const cachedNFTs = getCachedNFTs(fid);
+        if (cachedNFTs) {
+          console.log('Using cached NFTs:', cachedNFTs.length);
+          // Inspect the cached NFTs
+          console.log('Sample of cached NFTs:', cachedNFTs.slice(0, 5).map(nft => ({
+            name: nft.name,
+            contract: nft.contract,
+            tokenId: nft.tokenId,
+            hasValidAudio: nft.hasValidAudio,
+            isVideo: nft.isVideo,
+            audio: nft.audio,
+            animation_url: nft.metadata?.animation_url,
+            properties: nft.metadata?.properties
+          })));
+          
+          // Clear cache if NFTs don't have the right structure
+          const hasValidStructure = cachedNFTs.every(nft => 
+            typeof nft.contract === 'string' && 
+            typeof nft.tokenId === 'string' &&
+            typeof nft.metadata === 'object'
+          );
+          
+          if (!hasValidStructure) {
+            console.log('Cached NFTs have invalid structure, clearing cache...');
+            localStorage.removeItem(`${NFT_CACHE_KEY}${fid}`);
+          } else {
+            setUserNFTs(cachedNFTs);
+            return;
+          }
+        }
 
-        // Also fetch played NFTs from Firebase
-        const playedNFTs = await fetchUserNFTs(fid);
-
-        // Combine and deduplicate NFTs
-        const allNFTs = [...ownedNFTs, ...playedNFTs];
-        const uniqueNFTs = allNFTs.filter((nft, index, self) =>
-          index === self.findIndex((t) => (
-            t.contract === nft.contract && t.tokenId === nft.tokenId
-          ))
+        // Fetch NFTs from all addresses
+        console.log('Fetching NFTs from addresses:', addresses);
+        const nftPromises = addresses.map(address => 
+          fetchUserNFTsFromAlchemy(address)
         );
 
-        setUserNFTs(uniqueNFTs);
+        const nftResults = await Promise.all(nftPromises);
+        console.log('NFT results from each address:', nftResults.map(nfts => nfts.length));
+        
+        // Combine all NFTs and remove duplicates by contract+tokenId
+        const allNFTs = nftResults.flat();
+        console.log('Total NFTs before deduplication:', allNFTs.length);
+
+        const uniqueNFTs = allNFTs.reduce((acc, nft) => {
+          const key = `${nft.contract}-${nft.tokenId}`;
+          if (!acc[key]) {
+            acc[key] = nft;
+          }
+          return acc;
+        }, {} as Record<string, NFT>);
+
+        const combinedNFTs = Object.values(uniqueNFTs);
+        console.log('Final unique NFTs:', combinedNFTs.length);
+        console.log('Sample of fetched NFTs:', combinedNFTs.slice(0, 5).map(nft => ({
+          name: nft.name,
+          contract: nft.contract,
+          tokenId: nft.tokenId,
+          hasValidAudio: nft.hasValidAudio,
+          isVideo: nft.isVideo,
+          audio: nft.audio,
+          animation_url: nft.metadata?.animation_url,
+          properties: nft.metadata?.properties
+        })));
+
+        // Cache the NFTs
+        cacheNFTs(fid, combinedNFTs);
+        
+        // Set the NFTs in state
+        setUserNFTs(combinedNFTs);
+
       } catch (error) {
         console.error('Error fetching user data:', error);
+        setError('Failed to fetch user data');
       }
     };
 
     if (fid) {
+      console.log('Starting fetchUserData with FID:', fid);
       fetchUserData();
     }
   }, [fid]);
 
   useEffect(() => {
-    if (currentPlayingNFT && fid) {
-      const isLiked = likedNFTs.some(
-        nft => nft.contract.toLowerCase() === currentPlayingNFT.contract.toLowerCase() && 
-               nft.tokenId === currentPlayingNFT.tokenId
-      );
-      setIsLiked(isLiked);
-    }
-  }, [currentPlayingNFT, likedNFTs, fid]);
+    const filterMediaNFTs = userNFTs.filter(nft => {
+      console.log('Checking NFT for media:', {
+        name: nft.name,
+        audio: nft.audio,
+        animation_url: nft.metadata?.animation_url,
+        hasValidAudio: nft.hasValidAudio,
+        isVideo: nft.isVideo
+      });
+
+      // Check for audio in metadata
+      const hasAudio = nft.hasValidAudio || 
+        nft.audio || 
+        (nft.metadata?.animation_url && (
+          nft.metadata.animation_url.toLowerCase().endsWith('.mp3') ||
+          nft.metadata.animation_url.toLowerCase().endsWith('.wav') ||
+          nft.metadata.animation_url.toLowerCase().endsWith('.m4a') ||
+          // Check for common audio content types
+          nft.metadata.animation_url.toLowerCase().includes('audio/') ||
+          // Some NFTs store audio in IPFS
+          nft.metadata.animation_url.toLowerCase().includes('ipfs')
+        ));
+
+      // Check for video in metadata
+      const hasVideo = nft.isVideo || 
+        (nft.metadata?.animation_url && (
+          nft.metadata.animation_url.toLowerCase().endsWith('.mp4') ||
+          nft.metadata.animation_url.toLowerCase().endsWith('.webm') ||
+          nft.metadata.animation_url.toLowerCase().endsWith('.mov') ||
+          // Check for common video content types
+          nft.metadata.animation_url.toLowerCase().includes('video/')
+        ));
+
+      // Also check properties.files if they exist
+      const hasMediaInProperties = nft.metadata?.properties?.files?.some((file: NFTFile) => {
+        if (!file) return false;
+        const fileUrl = (file.uri || file.url || '').toLowerCase();
+        const fileType = (file.type || file.mimeType || '').toLowerCase();
+        
+        return fileUrl.endsWith('.mp3') || 
+               fileUrl.endsWith('.wav') || 
+               fileUrl.endsWith('.m4a') ||
+               fileUrl.endsWith('.mp4') || 
+               fileUrl.endsWith('.webm') || 
+               fileUrl.endsWith('.mov') ||
+               fileType.includes('audio/') ||
+               fileType.includes('video/');
+      }) ?? false;
+
+      const hasMedia = hasAudio || hasVideo || hasMediaInProperties;
+      
+      if (hasMedia) {
+        console.log('Found media NFT:', { 
+          name: nft.name, 
+          hasAudio, 
+          hasVideo,
+          hasMediaInProperties,
+          animation_url: nft.metadata?.animation_url,
+          files: nft.metadata?.properties?.files
+        });
+      }
+
+      return hasMedia;
+    });
+
+    console.log(`Found ${filterMediaNFTs.length} media NFTs out of ${userNFTs.length} total NFTs`);
+    setFilteredNFTs(filterMediaNFTs);
+  }, [userNFTs]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -274,7 +401,7 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
         break;
       case false:
         if (currentPage.isExplore) {
-          nftList = userNFTs;
+          nftList = filteredNFTs;
         } else if (currentPage.isLibrary) {
           nftList = likedNFTs;
         }
@@ -401,7 +528,7 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
           currentlyPlaying={currentlyPlaying}
           isPlaying={isPlaying}
           searchResults={searchResults}
-          nfts={userNFTs}
+          nfts={filteredNFTs}
           isSearching={isSearching}
           handlePlayPause={handlePlayPause}
           isLoadingNFTs={isLoading}
@@ -453,7 +580,7 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
             avatar: userData?.pfp_url || '',
             isAuthenticated: true
           }}
-          nfts={userNFTs}
+          nfts={filteredNFTs}
           handlePlayAudio={handlePlayAudio}
           isPlaying={isPlaying}
           currentlyPlaying={currentlyPlaying}
@@ -466,6 +593,24 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
     return null;
   };
 
+  const getCachedNFTs = (userId: number): NFT[] | null => {
+    const cached = localStorage.getItem(`${NFT_CACHE_KEY}${userId}`);
+    if (cached) {
+      const { data, timestamp } = JSON.parse(cached);
+      if (Date.now() - timestamp < TWO_HOURS) {
+        return data;
+      }
+    }
+    return null;
+  };
+
+  const cacheNFTs = (userId: number, nfts: NFT[]) => {
+    localStorage.setItem(
+      `${NFT_CACHE_KEY}${userId}`,
+      JSON.stringify({ data: nfts, timestamp: Date.now() })
+    );
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       <div className="flex-1 container mx-auto px-4 py-6 pb-32">
@@ -476,7 +621,7 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
       {currentPlayingNFT && (
         <audio
           ref={audioRef}
-          src={processMediaUrl(currentPlayingNFT.audio || currentPlayingNFT.metadata?.animation_url || '')}
+          src={processMediaUrl(currentPlayingNFT.audio || currentPlayingNFT.metadata?.animation_url || '', '')}
         />
       )}
 
@@ -507,7 +652,7 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
                   {currentPlayingNFT.isVideo ? (
                     <video 
                       ref={videoRef}
-                      src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || '') || '/placeholder-video.mp4'}
+                      src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || '', '/placeholder-video.mp4')}
                       className="w-full h-auto object-contain rounded-lg transition-transform duration-500"
                       playsInline
                       loop={currentPlayingNFT.isAnimation}
@@ -607,7 +752,7 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
                   {currentPlayingNFT.isVideo || currentPlayingNFT.metadata?.animation_url ? (
                     <video 
                       ref={videoRef}
-                      src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || '') || '/placeholder-video.mp4'}
+                      src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || '', '/placeholder-video.mp4')}
                       className="w-full h-auto object-contain rounded-lg transition-transform duration-500"
                       playsInline
                       loop={currentPlayingNFT.isAnimation}

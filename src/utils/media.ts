@@ -1,14 +1,55 @@
-import { IPFS_GATEWAYS } from './constants';
 import { useState } from 'react';
 import { NFT } from '../types/user';
 
-// Function to process media URLs to ensure they're properly formatted
-export const processMediaUrl = (url: string): string => {
-  if (!url) return '';
+// List of reliable IPFS gateways in order of preference
+const IPFS_GATEWAYS = [
+  'https://ipfs.io/ipfs/',
+  'https://nftstorage.link/ipfs/',
+  'https://cloudflare-ipfs.com/ipfs/',
+  'https://gateway.pinata.cloud/ipfs/'
+];
 
-  // Handle IPFS URLs
+// Helper function to extract CID from various IPFS URL formats
+const extractIPFSHash = (url: string): string | null => {
+  // Handle ipfs:// protocol
   if (url.startsWith('ipfs://')) {
-    return url.replace('ipfs://', 'https://ipfs.io/ipfs/');
+    return url.replace('ipfs://', '');
+  }
+
+  // Handle .ipfs.dweb.link format
+  const dwebMatch = url.match(/([a-zA-Z0-9]+)\.ipfs\.dweb\.link/);
+  if (dwebMatch) {
+    return dwebMatch[1];
+  }
+
+  // Handle /ipfs/ path format
+  const ipfsMatch = url.match(/\/ipfs\/([a-zA-Z0-9]+)/);
+  if (ipfsMatch) {
+    return ipfsMatch[1];
+  }
+
+  // Handle direct CID
+  if (/^[a-zA-Z0-9]+$/.test(url)) {
+    return url;
+  }
+
+  return null;
+};
+
+// Function to process media URLs to ensure they're properly formatted
+export const processMediaUrl = (url: string, fallbackUrl: string = '/default-nft.png'): string => {
+  if (!url) return fallbackUrl;
+
+  // If it's already a working dweb.link URL, return it as is
+  if (url.includes('.ipfs.dweb.link')) {
+    return url;
+  }
+
+  // Try to extract IPFS hash
+  const ipfsHash = extractIPFSHash(url);
+  if (ipfsHash) {
+    // Use the first gateway by default
+    return `${IPFS_GATEWAYS[0]}${ipfsHash}`;
   }
 
   // Handle Arweave URLs
@@ -16,7 +57,24 @@ export const processMediaUrl = (url: string): string => {
     return url.replace('ar://', 'https://arweave.net/');
   }
 
-  return url;
+  return url || fallbackUrl;
+};
+
+// Export the list of gateways so components can try alternatives if needed
+export const getAlternativeIPFSUrl = (url: string): string | null => {
+  const ipfsHash = extractIPFSHash(url);
+  if (!ipfsHash) return null;
+
+  // Find current gateway index
+  const currentGatewayIndex = IPFS_GATEWAYS.findIndex(gateway => url.includes(gateway));
+  
+  // If we're not using any known gateway or we're at the last one, return null
+  if (currentGatewayIndex === -1 || currentGatewayIndex === IPFS_GATEWAYS.length - 1) {
+    return null;
+  }
+
+  // Return URL with next gateway
+  return `${IPFS_GATEWAYS[currentGatewayIndex + 1]}${ipfsHash}`;
 };
 
 // Function to check if a URL is a video file

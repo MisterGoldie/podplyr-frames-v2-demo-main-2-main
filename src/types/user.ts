@@ -30,11 +30,40 @@ export interface NFTMetadata {
   name?: string;
   description?: string;
   image?: string;
+  image_url?: string;
   animation_url?: string;
+  audio?: string;
+  audio_url?: string;
   uri?: string;
+  mimeType?: string;
+  mime_type?: string;
+  attributes?: Array<{
+    trait_type: string;
+    value: string | number;
+  }>;
   properties?: {
     files?: NFTFile[];
     category?: string;
+    audio?: string;
+    audio_url?: string;
+    audio_file?: string;
+    image?: string;
+    animation_url?: string;
+    video?: string;
+    mimeType?: string;
+    soundContent?: {
+      url?: string;
+    };
+    visual?: {
+      url?: string;
+    };
+    [key: string]: any;
+  };
+  content?: {
+    mime?: string;
+  };
+  animation_details?: {
+    format?: string;
   };
 }
 
@@ -70,26 +99,17 @@ export interface NFT {
   tokenId: string;
   name: string;
   description?: string;
-  audio?: string;
-  isVideo?: boolean;
-  isAnimation?: boolean;
-  hasValidAudio?: boolean;
   image: string;
-  metadata?: {
-    name?: string;
-    description?: string;
-    image?: string;
-    animation_url?: string;
-    attributes?: Array<{
-      trait_type: string;
-      value: string | number;
-    }>;
-  };
+  audio?: string;
+  metadata?: NFTMetadata;
   collection?: {
     name: string;
     image?: string;
   };
   network?: 'ethereum' | 'base';
+  hasValidAudio?: boolean;
+  isVideo?: boolean;
+  isAnimation?: boolean;
   playTracked?: boolean;
   quantity?: number;
 }
