@@ -80,8 +80,27 @@ export const useAudioPlayer = ({ fid = 1 }: UseAudioPlayerProps = {}): UseAudioP
 
     if (isPlaying) {
       audioRef.current.pause();
+      // Pause video if it exists
+      const video = document.querySelector('video');
+      if (video) {
+        video.pause();
+      }
+      setIsPlaying(false);  // Ensure state is updated immediately
     } else {
-      audioRef.current.play();
+      const playPromise = audioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          setIsPlaying(true);  // Only set playing after successful play
+          // Play video if it exists
+          const video = document.querySelector('video');
+          if (video) {
+            video.play();
+          }
+        }).catch(error => {
+          console.error("Error playing audio:", error);
+          setIsPlaying(false);
+        });
+      }
     }
   }, [isPlaying]);
 
@@ -102,23 +121,35 @@ export const useAudioPlayer = ({ fid = 1 }: UseAudioPlayerProps = {}): UseAudioP
   }, []);
 
   const handlePlayAudio = useCallback(async (nft: NFT) => {
-    if (!nft.audio && !nft.metadata?.animation_url) return;
+    console.log('handlePlayAudio called with NFT:', nft);
+
+    const audioUrl = nft.metadata?.animation_url || nft.audio;
+    if (!audioUrl) {
+      console.error('No audio URL found for NFT');
+      return;
+    }
 
     // If same NFT is clicked, toggle play/pause
     if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
+      console.log('Same NFT clicked, toggling play/pause');
       handlePlayPause();
       return;
     }
 
-    // Stop current audio if playing
+    // Stop current audio and video if playing
     if (audioRef.current) {
+      console.log('Stopping current audio');
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
+    }
+    const video = document.querySelector('video');
+    if (video) {
+      video.pause();
+      video.currentTime = 0;
     }
 
     setCurrentPlayingNFT(nft);
     setCurrentlyPlaying(`${nft.contract}-${nft.tokenId}`);
-    setIsPlaying(true);
 
     // Track play in Firebase
     if (!nft.playTracked) {
@@ -126,6 +157,23 @@ export const useAudioPlayer = ({ fid = 1 }: UseAudioPlayerProps = {}): UseAudioP
         await trackNFTPlay(nft, fid);
       } catch (error) {
         console.error('Error tracking NFT play:', error);
+      }
+    }
+
+    // Start playing both audio and video after they're loaded
+    if (audioRef.current) {
+      const playPromise = audioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          setIsPlaying(true);
+          const video = document.querySelector('video');
+          if (video) {
+            video.play();
+          }
+        }).catch(error => {
+          console.error("Error playing audio:", error);
+          setIsPlaying(false);
+        });
       }
     }
   }, [currentlyPlaying, handlePlayPause, fid]);

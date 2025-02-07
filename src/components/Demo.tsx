@@ -62,7 +62,6 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
   });
 
   const [isPlayerMinimized, setIsPlayerMinimized] = useState(true);
-  const [memoizedAudioDurations, setMemoizedAudioDurations] = useState(0);
   const [recentlyPlayedNFTs, setRecentlyPlayedNFTs] = useState<NFT[]>([]);
   const [topPlayedNFTs, setTopPlayedNFTs] = useState<{ nft: NFT; count: number }[]>([]);
   const [searchResults, setSearchResults] = useState<FarcasterUser[]>([]);
@@ -621,291 +620,26 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
       {currentPlayingNFT && (
         <audio
           ref={audioRef}
-          src={processMediaUrl(currentPlayingNFT.audio || currentPlayingNFT.metadata?.animation_url || '', '')}
+          src={processMediaUrl(currentPlayingNFT.audio || currentPlayingNFT.metadata?.animation_url || '')}
         />
       )}
 
-      {/* Media Player - Minimized Mode */}
       {currentPlayingNFT && (
-        <div className="fixed bottom-[64px] left-0 right-0 bg-black border-t border-purple-400/20 h-20 z-30">
-          {/* Progress bar */}
-          <div 
-            className="absolute top-0 left-0 right-0 h-1 bg-gray-800 cursor-pointer group"
-            onClick={(e) => {
-              const rect = e.currentTarget.getBoundingClientRect();
-              const percent = (e.clientX - rect.left) / rect.width;
-              handleSeek(memoizedAudioDurations * percent);
-            }}
-          >
-            <div 
-              className="absolute top-0 left-0 h-0.5 bg-red-500 transition-all duration-100 group-hover:h-1"
-              style={{ width: `${(audioProgress / memoizedAudioDurations) * 100}%` }}
-            />
-          </div>
-          
-          {/* Player content */}
-          <div className="container mx-auto h-full pt-2">
-            <div className="flex items-center justify-between h-[calc(100%-8px)] px-4 gap-4">
-              {/* Thumbnail and title */}
-              <div className="flex items-center gap-4 flex-1 min-w-0">
-                <div className="w-12 h-12 flex-shrink-0 relative rounded overflow-hidden">
-                  {currentPlayingNFT.isVideo ? (
-                    <video 
-                      ref={videoRef}
-                      src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || '', '/placeholder-video.mp4')}
-                      className="w-full h-auto object-contain rounded-lg transition-transform duration-500"
-                      playsInline
-                      loop={currentPlayingNFT.isAnimation}
-                      muted={true}
-                      controls={false}
-                      autoPlay={isPlaying}
-                    />
-                  ) : currentPlayingNFT.isAnimation ? (
-                    <Image
-                      src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || currentPlayingNFT.metadata?.image || '')}
-                      alt={currentPlayingNFT.name}
-                      className="w-full h-full object-cover"
-                      width={48}
-                      height={48}
-                      priority={true}
-                      unoptimized={true}
-                    />
-                  ) : (
-                    <Image
-                      src={processMediaUrl(currentPlayingNFT.metadata?.image || '')}
-                      alt={currentPlayingNFT.name}
-                      className="w-full h-full object-cover"
-                      width={48}
-                      height={48}
-                      priority={true}
-                    />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-mono text-purple-400 truncate text-sm">
-                    {currentPlayingNFT.name}
-                  </h4>
-                  <p className="font-mono text-gray-400 truncate text-xs">
-                    {currentPlayingNFT.collection?.name}
-                  </p>
-                </div>
-              </div>
-
-              {/* Controls */}
-              <div className="flex items-center gap-4">
-                {/* Play/Pause Button */}
-                <button
-                  onClick={handlePlayPause}
-                  className="text-purple-400 hover:text-purple-300"
-                >
-                  {isPlaying ? (
-                    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                      <path d="M560-200v-560h80v560H560Zm-320 0v-560h80v560H240Z"/>
-                    </svg>
-                  ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                        <path d="M320-640v320l440 280-440 280Z"/>
-                      </svg>
-                    </svg>
-                  )}
-                </button>
-
-                {/* Expand Button */}
-                <button
-                  onClick={() => setIsPlayerMinimized(false)}
-                  className="text-purple-400 hover:text-purple-300"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                    <path d="M480-528 296-344l-56-56 240-240 240 240-56 56-184-184Z"/>
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Full Screen Player */}
-      {currentPlayingNFT && !isPlayerMinimized && (
-        <div className="fixed inset-0 bg-black backdrop-blur-md z-50 flex flex-col">
-          {/* Header */}
-          <div className="p-4 flex items-center justify-between border-b border-black">
-            <button
-              onClick={() => setIsPlayerMinimized(true)}
-              className="text-purple-400 hover:text-purple-300"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                <path d="m336-280-56-56 184-184-184-184 56-56 240 240-240 240Z"/>
-              </svg>
-            </button>
-            <h3 className="font-mono text-purple-400">Now Playing</h3>
-            <div className="w-8"></div>
-          </div>
-
-          {/* Main Content */}
-          <div className="flex-1 overflow-y-auto">
-            <div className="max-w-screen-sm mx-auto px-4 py-8">
-              {/* NFT Image/Video Container */}
-              <div className="relative w-full mb-8">
-                <div className={`transition-all duration-500 ease-in-out transform ${isPlaying ? 'scale-100' : 'scale-90'}`}>
-                  {currentPlayingNFT.isVideo || currentPlayingNFT.metadata?.animation_url ? (
-                    <video 
-                      ref={videoRef}
-                      src={processMediaUrl(currentPlayingNFT.metadata?.animation_url || '', '/placeholder-video.mp4')}
-                      className="w-full h-auto object-contain rounded-lg transition-transform duration-500"
-                      playsInline
-                      loop={currentPlayingNFT.isAnimation}
-                      muted={true}
-                      controls={false}
-                      autoPlay={isPlaying}
-                    />
-                  ) : (
-                    <Image
-                      src={processMediaUrl(currentPlayingNFT.metadata?.image || '')}
-                      alt={currentPlayingNFT.name}
-                      className="w-full h-auto object-contain rounded-lg transition-transform duration-500"
-                      width={500}
-                      height={500}
-                      priority={true}
-                    />
-                  )}
-                </div>
-
-                {/* Play/Pause Overlay */}
-                <div 
-                  className={`absolute inset-0 flex items-center justify-center bg-black/40 transition-opacity duration-300 ${
-                    isPlaying ? 'opacity-0' : 'opacity-100'
-                  }`}
-                  onClick={handlePlayPause}
-                >
-                  <div className="transform transition-transform duration-300 hover:scale-110">
-                    {isPlaying ? (
-                      <svg xmlns="http://www.w3.org/2000/svg" height="64px" viewBox="0 -960 960 960" width="64px" fill="currentColor" className="text-white">
-                        <path d="M560-200v-560h80v560H560Zm-320 0v-560h80v560H240Z"/>
-                      </svg>
-                    ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" height="64px" viewBox="0 -960 960 960" width="64px" fill="currentColor" className="text-white">
-                        <path d="M320-200v-560l440 280-440 280Z"/>
-                      </svg>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Track Info */}
-              <div className="text-center mb-12">
-                <h2 className="font-mono text-purple-400 text-xl mb-3">{currentPlayingNFT.name}</h2>
-              </div>
-
-              {/* Progress Bar */}
-              <div className="mb-12">
-                <div 
-                  className="h-1.5 bg-gray-800 rounded-full cursor-pointer"
-                  onClick={(e) => {
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const percent = (e.clientX - rect.left) / rect.width;
-                    handleSeek(memoizedAudioDurations * percent);
-                  }}
-                >
-                  <div 
-                    className="h-full bg-purple-200 rounded-full"
-                    style={{ width: `${(audioProgress / memoizedAudioDurations) * 100}%` }}
-                  />
-                </div>
-                <div className="flex justify-between mt-3 font-mono text-gray-400 text-sm">
-                  <span>{formatTime(audioProgress)}</span>
-                  <span>{formatTime(memoizedAudioDurations)}</span>
-                </div>
-              </div>
-
-              {/* Controls */}
-              <div className="flex flex-col gap-8">
-                {/* Main Controls */}
-                <div className="flex justify-center items-center gap-12">
-                  {/* Previous Track */}
-                  <button
-                    onClick={() => {
-                      const previousNFT = findAdjacentNFT('previous');
-                      if (previousNFT) {
-                        handlePlayAudio(previousNFT);
-                      }
-                    }}
-                    className="text-white hover:scale-110 transition-transform"
-                    disabled={!findAdjacentNFT('previous')}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px" 
-                      fill={findAdjacentNFT('previous') ? 'currentColor' : '#666666'}>
-                      <path d="M220-240v-480h80v480h-80Zm520 0L380-480l360-240v480Z"/>
-                    </svg>
-                  </button>
-
-                  {/* Play/Pause Button */}
-                  <button
-                    onClick={handlePlayPause}
-                    className="w-20 h-20 rounded-full bg-purple-200 text-black flex items-center justify-center hover:scale-105 transition-transform"
-                  >
-                    {isPlaying ? (
-                      <svg xmlns="http://www.w3.org/2000/svg" height="40px" viewBox="0 -960 960 960" width="40px" fill="currentColor">
-                        <path d="M560-200v-560h80v560H560Zm-320 0v-560h80v560H240Z"/>
-                      </svg>
-                    ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" height="40px" viewBox="0 -960 960 960" width="40px" fill="currentColor">
-                        <path d="M320-200v-560l440 280-440 280Z"/>
-                      </svg>
-                    )}
-                  </button>
-
-                  {/* Next Track */}
-                  <button
-                    onClick={() => {
-                      const nextNFT = findAdjacentNFT('next');
-                      if (nextNFT) {
-                        handlePlayAudio(nextNFT);
-                      }
-                    }}
-                    className="text-white hover:scale-110 transition-transform"
-                    disabled={!findAdjacentNFT('next')}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px"
-                      fill={findAdjacentNFT('next') ? 'currentColor' : '#666666'}>
-                      <path d="M660-240v-480h80v480h-80ZM220-240v-480l360 240-360 240Z"/>
-                    </svg>
-                  </button>
-                </div>
-
-                {/* Secondary Controls */}
-                <div className="flex justify-center items-center gap-8">
-                  {/* Like Button */}
-                  <button 
-                    onClick={() => handleLikeToggle(currentPlayingNFT)}
-                    className="text-white hover:scale-110 transition-transform"
-                  >
-                    {isLiked ? (
-                      <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor" className="text-red-500">
-                        <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
-                      </svg>
-                    ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
-                        <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Zm0-108q96-86 158-147.5t98-107q36-45.5 50-81t14-70.5q0-60-40-100t-100-40q-47 0-87 26.5T518-680h-76q-15-41-55-67.5T300-774q-60 0-100 40t-40 100q0 35 14 70.5t50 81q36 45.5 98 107T480-228Zm0-273Z"/>
-                      </svg>
-                    )}
-                  </button>
-
-                  {/* PiP Button */}
-                  <button 
-                    onClick={togglePictureInPicture}
-                    className="text-white hover:scale-110 transition-transform"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
-                      <path d="M560-120v-80h280v-280h80v360H560Zm-520 0v-360h80v280h280v80H40Zm520-520v-280h280v80H640v200h-80ZM120-640v-200h280v-80H40v280h80Z"/>
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <Player
+          nft={currentPlayingNFT}
+          isPlaying={isPlaying}
+          onPlayPause={handlePlayPause}
+          onNext={handlePlayNext}
+          onPrevious={handlePlayPrevious}
+          isMinimized={isPlayerMinimized}
+          onMinimizeToggle={() => setIsPlayerMinimized(!isPlayerMinimized)}
+          progress={audioProgress}
+          duration={audioDuration}
+          onSeek={handleSeek}
+          onLikeToggle={handleLikeToggle}
+          isLiked={isNFTLiked(currentPlayingNFT)}
+          onPictureInPicture={togglePictureInPicture}
+        />
       )}
 
       <BottomNav

@@ -139,19 +139,29 @@ export const getRecentSearches = async (fid?: number): Promise<SearchedUser[]> =
 // Track NFT play and update play count
 export const trackNFTPlay = async (nft: NFT, fid: number) => {
   try {
+    // Get the audio URL from either source
+    const audioUrl = nft.metadata?.animation_url || nft.audio;
+    if (!audioUrl) return;
+
+    // Store play data with default values for undefined fields
     const playData = {
+      fid,
       nftContract: nft.contract,
       tokenId: nft.tokenId,
       name: nft.name || 'Untitled',
       description: nft.description || '',
-      image: nft.metadata?.image || '',
-      audioUrl: nft.audio || nft.metadata?.animation_url || '',
+      image: nft.image || nft.metadata?.image || '',
+      audioUrl: audioUrl,
       collection: nft.collection?.name || 'Unknown Collection',
       network: nft.network || 'ethereum',
       timestamp: serverTimestamp(),
-      playCount: 1 // Initialize with 1 instead of increment(1)
+      playCount: 1
     };
 
+    // Add to global nft_plays collection
+    await addDoc(collection(db, 'nft_plays'), playData);
+
+    // Add to user's play history
     const userRef = doc(db, 'users', fid.toString());
     const playHistoryRef = collection(userRef, 'playHistory');
 
@@ -206,7 +216,6 @@ export async function getTopPlayedNFTs(): Promise<{ nft: NFT; count: number }[]>
           name: data.name,
           description: data.description,
           image: data.image,
-          audio: data.audioUrl,
           hasValidAudio: true,
           metadata: {
             name: data.name,

@@ -31,6 +31,24 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   const [showCollectionMenu, setShowCollectionMenu] = useState(false);
   const isCurrentTrack = currentlyPlaying === `${nft.contract}-${nft.tokenId}`;
 
+  const handlePlay = () => {
+    console.log('Play button clicked for NFT:', {
+      contract: nft.contract,
+      tokenId: nft.tokenId,
+      name: nft.name,
+      audio: nft.audio,
+      animation_url: nft.metadata?.animation_url
+    });
+
+    if (isCurrentTrack) {
+      console.log('Current track, toggling play/pause');
+      handlePlayPause();
+    } else {
+      console.log('New track, calling onPlay');
+      onPlay(nft);
+    }
+  };
+
   if (viewMode === 'list') {
     return (
       <div className="group flex items-center gap-4 bg-gray-800/20 p-3 rounded-lg hover:bg-gray-800/40 transition-colors">
@@ -54,13 +72,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
           <p className="text-gray-400 text-xs truncate">{nft.description}</p>
         </div>
         <button 
-          onClick={() => {
-            if (isCurrentTrack) {
-              handlePlayPause();
-            } else {
-              onPlay(nft);
-            }
-          }}
+          onClick={handlePlay}
           className="text-green-400 hover:text-green-300 transition-colors"
         >
           {isCurrentTrack && isPlaying ? (
@@ -100,13 +112,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
           </div>
         </div>
         <button 
-          onClick={() => {
-            if (isCurrentTrack) {
-              handlePlayPause();
-            } else {
-              onPlay(nft);
-            }
-          }}
+          onClick={handlePlay}
           className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-green-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-green-300"
         >
           {isCurrentTrack && isPlaying ? (
