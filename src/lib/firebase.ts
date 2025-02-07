@@ -576,13 +576,59 @@ export const fetchUserNFTs = async (fid: number): Promise<NFT[]> => {
   }
 };
 
-export const searchUsers = async (username: string): Promise<any[]> => {
+// Search users by FID or username
+export const searchUsers = async (query: string): Promise<FarcasterUser[]> => {
   try {
-    // Implement your user search logic here
-    // This is a placeholder implementation
-    return [];
+    const neynarKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
+    if (!neynarKey) throw new Error('Neynar API key not found');
+
+    // If query is a number, treat it as FID
+    const isFid = !isNaN(Number(query));
+    const endpoint = isFid 
+      ? `https://api.neynar.com/v2/farcaster/user/bulk?fids=${query}`
+      : `https://api.neynar.com/v2/farcaster/user/search?q=${encodeURIComponent(query)}`;
+
+    const response = await fetch(endpoint, {
+      headers: {
+        'accept': 'application/json',
+        'api_key': neynarKey
+      }
+    });
+
+    const data = await response.json();
+    
+    // Handle different response structures for search vs bulk lookup
+    let users = isFid ? data.users : data.result?.users || [];
+    
+    // If we got users from search, fetch their full profiles
+    if (!isFid && users.length > 0) {
+      const fids = users.map((u: any) => u.fid).join(',');
+      const profileResponse = await fetch(
+        `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fids}`,
+        {
+          headers: {
+            'accept': 'application/json',
+            'api_key': neynarKey
+          }
+        }
+      );
+      const profileData = await profileResponse.json();
+      users = profileData.users;
+    }
+
+    // Map and clean up user data
+    return users.map((user: any) => ({
+      fid: user.fid,
+      username: user.username,
+      display_name: user.display_name || user.username,
+      pfp_url: user.pfp_url || `https://avatar.vercel.sh/${user.username}`,
+      follower_count: user.follower_count || 0,
+      following_count: user.following_count || 0,
+      custody_address: user.custody_address,
+      verified_addresses: user.verified_addresses || { eth_addresses: [] }
+    }));
   } catch (error) {
     console.error('Error searching users:', error);
-    throw error;
+    return [];
   }
 };

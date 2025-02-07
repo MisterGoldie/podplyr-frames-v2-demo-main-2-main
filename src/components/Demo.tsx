@@ -138,96 +138,71 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
     const fetchUserData = async () => {
       try {
         console.log('Fetching user data for FID:', fid);
-        // Get Farcaster user data
-        const user = await trackUserSearch('goldie', fid);
-        console.log('Received user data:', user);
-        setUserData(user);
+        // Get Farcaster user data by FID only
+        const users = await searchUsers(fid.toString());
+        if (users && users.length > 0) {
+          const user = users[0];
+          console.log('Received user data:', user);
+          setUserData(user);
 
-        // Get both custody and verified addresses
-        const addresses = [
-          user.custody_address,
-          ...(user.verified_addresses?.eth_addresses || [])
-        ].filter(Boolean) as string[];
+          // Get both custody and verified addresses
+          const addresses = [
+            user.custody_address,
+            ...(user.verified_addresses?.eth_addresses || [])
+          ].filter(Boolean) as string[];
 
-        console.log('Found addresses:', addresses);
+          console.log('Found addresses:', addresses);
 
-        if (addresses.length === 0) {
-          console.error('No wallet addresses found for user');
-          return;
-        }
-
-        // Try to get cached NFTs first
-        const cachedNFTs = getCachedNFTs(fid);
-        if (cachedNFTs) {
-          console.log('Using cached NFTs:', cachedNFTs.length);
-          // Inspect the cached NFTs
-          console.log('Sample of cached NFTs:', cachedNFTs.slice(0, 5).map(nft => ({
-            name: nft.name,
-            contract: nft.contract,
-            tokenId: nft.tokenId,
-            hasValidAudio: nft.hasValidAudio,
-            isVideo: nft.isVideo,
-            audio: nft.audio,
-            animation_url: nft.metadata?.animation_url,
-            properties: nft.metadata?.properties
-          })));
-          
-          // Clear cache if NFTs don't have the right structure
-          const hasValidStructure = cachedNFTs.every(nft => 
-            typeof nft.contract === 'string' && 
-            typeof nft.tokenId === 'string' &&
-            typeof nft.metadata === 'object'
-          );
-          
-          if (!hasValidStructure) {
-            console.log('Cached NFTs have invalid structure, clearing cache...');
-            localStorage.removeItem(`${NFT_CACHE_KEY}${fid}`);
-          } else {
-            setUserNFTs(cachedNFTs);
+          if (addresses.length === 0) {
+            console.error('No wallet addresses found for user');
             return;
           }
-        }
 
-        // Fetch NFTs from all addresses
-        console.log('Fetching NFTs from addresses:', addresses);
-        const nftPromises = addresses.map(address => 
-          fetchUserNFTsFromAlchemy(address)
-        );
+          // Try to get cached NFTs first
+          const cachedNFTs = getCachedNFTs(fid);
+          if (cachedNFTs) {
+            console.log('Using cached NFTs:', cachedNFTs.length);
+            // Inspect the cached NFTs
+            console.log('Sample of cached NFTs:', cachedNFTs.slice(0, 5).map(nft => ({
+              name: nft.name,
+              contract: nft.contract,
+              tokenId: nft.tokenId,
+              hasValidAudio: nft.hasValidAudio,
+              isVideo: nft.isVideo,
+              audio: nft.audio,
+              animation_url: nft.metadata?.animation_url,
+              properties: nft.metadata?.properties
+            })));
+            
+            // Clear cache if NFTs don't have the right structure
+            const hasValidStructure = cachedNFTs.every(nft => 
+              nft.hasOwnProperty('contract') && 
+              nft.hasOwnProperty('tokenId') && 
+              nft.hasOwnProperty('metadata')
+            );
 
-        const nftResults = await Promise.all(nftPromises);
-        console.log('NFT results from each address:', nftResults.map(nfts => nfts.length));
-        
-        // Combine all NFTs and remove duplicates by contract+tokenId
-        const allNFTs = nftResults.flat();
-        console.log('Total NFTs before deduplication:', allNFTs.length);
-
-        const uniqueNFTs = allNFTs.reduce((acc, nft) => {
-          const key = `${nft.contract}-${nft.tokenId}`;
-          if (!acc[key]) {
-            acc[key] = nft;
+            if (hasValidStructure) {
+              setUserNFTs(cachedNFTs);
+              return;
+            } else {
+              console.log('Cached NFTs have invalid structure, fetching fresh data');
+              localStorage.removeItem(`${NFT_CACHE_KEY}${fid}`);
+            }
           }
-          return acc;
-        }, {} as Record<string, NFT>);
 
-        const combinedNFTs = Object.values(uniqueNFTs);
-        console.log('Final unique NFTs:', combinedNFTs.length);
-        console.log('Sample of fetched NFTs:', combinedNFTs.slice(0, 5).map(nft => ({
-          name: nft.name,
-          contract: nft.contract,
-          tokenId: nft.tokenId,
-          hasValidAudio: nft.hasValidAudio,
-          isVideo: nft.isVideo,
-          audio: nft.audio,
-          animation_url: nft.metadata?.animation_url,
-          properties: nft.metadata?.properties
-        })));
+          // Fetch NFTs for each address
+          const nftPromises = addresses.map(address => fetchUserNFTsFromAlchemy(address));
+          const nftResults = await Promise.all(nftPromises);
+          const allNFTs = nftResults.flat();
 
-        // Cache the NFTs
-        cacheNFTs(fid, combinedNFTs);
-        
-        // Set the NFTs in state
-        setUserNFTs(combinedNFTs);
+          // Cache the NFTs
+          localStorage.setItem(`${NFT_CACHE_KEY}${fid}`, JSON.stringify({
+            nfts: allNFTs,
+            timestamp: Date.now()
+          }));
 
+          setUserNFTs(allNFTs);
+        }
       } catch (error) {
         console.error('Error fetching user data:', error);
         setError('Failed to fetch user data');
@@ -235,78 +210,87 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
     };
 
     if (fid) {
-      console.log('Starting fetchUserData with FID:', fid);
       fetchUserData();
     }
   }, [fid]);
 
   useEffect(() => {
-    const filterMediaNFTs = userNFTs.filter(nft => {
-      console.log('Checking NFT for media:', {
-        name: nft.name,
-        audio: nft.audio,
-        animation_url: nft.metadata?.animation_url,
-        hasValidAudio: nft.hasValidAudio,
-        isVideo: nft.isVideo
+    const filterMediaNFTs = () => {
+      const filtered = userNFTs.filter((nft) => {
+        console.log('Checking NFT for media:', {
+          name: nft.name,
+          audio: nft.audio,
+          animation_url: nft.metadata?.animation_url,
+          hasValidAudio: nft.hasValidAudio,
+          isVideo: nft.isVideo
+        });
+
+        let hasMedia = false;
+        
+        try {
+          // Check for audio in metadata
+          const hasAudio = Boolean(nft.hasValidAudio || 
+            nft.audio || 
+            (nft.metadata?.animation_url && (
+              nft.metadata.animation_url.toLowerCase().endsWith('.mp3') ||
+              nft.metadata.animation_url.toLowerCase().endsWith('.wav') ||
+              nft.metadata.animation_url.toLowerCase().endsWith('.m4a') ||
+              // Check for common audio content types
+              nft.metadata.animation_url.toLowerCase().includes('audio/') ||
+              // Some NFTs store audio in IPFS
+              nft.metadata.animation_url.toLowerCase().includes('ipfs')
+            )));
+
+          // Check for video in metadata
+          const hasVideo = Boolean(nft.isVideo || 
+            (nft.metadata?.animation_url && (
+              nft.metadata.animation_url.toLowerCase().endsWith('.mp4') ||
+              nft.metadata.animation_url.toLowerCase().endsWith('.webm') ||
+              nft.metadata.animation_url.toLowerCase().endsWith('.mov') ||
+              // Check for common video content types
+              nft.metadata.animation_url.toLowerCase().includes('video/')
+            )));
+
+          // Also check properties.files if they exist
+          const hasMediaInProperties = nft.metadata?.properties?.files?.some((file: NFTFile) => {
+            if (!file) return false;
+            const fileUrl = (file.uri || file.url || '').toLowerCase();
+            const fileType = (file.type || file.mimeType || '').toLowerCase();
+            
+            return fileUrl.endsWith('.mp3') || 
+                  fileUrl.endsWith('.wav') || 
+                  fileUrl.endsWith('.m4a') ||
+                  fileUrl.endsWith('.mp4') || 
+                  fileUrl.endsWith('.webm') || 
+                  fileUrl.endsWith('.mov') ||
+                  fileType.includes('audio/') ||
+                  fileType.includes('video/');
+          }) ?? false;
+
+          hasMedia = hasAudio || hasVideo || hasMediaInProperties;
+          
+          if (hasMedia) {
+            console.log('Found media NFT:', { 
+              name: nft.name, 
+              hasAudio, 
+              hasVideo,
+              hasMediaInProperties,
+              animation_url: nft.metadata?.animation_url,
+              files: nft.metadata?.properties?.files
+            });
+          }
+        } catch (error) {
+          console.error('Error checking media types:', error);
+        }
+
+        return hasMedia;
       });
 
-      // Check for audio in metadata
-      const hasAudio = nft.hasValidAudio || 
-        nft.audio || 
-        (nft.metadata?.animation_url && (
-          nft.metadata.animation_url.toLowerCase().endsWith('.mp3') ||
-          nft.metadata.animation_url.toLowerCase().endsWith('.wav') ||
-          nft.metadata.animation_url.toLowerCase().endsWith('.m4a') ||
-          // Check for common audio content types
-          nft.metadata.animation_url.toLowerCase().includes('audio/') ||
-          // Some NFTs store audio in IPFS
-          nft.metadata.animation_url.toLowerCase().includes('ipfs')
-        ));
+      console.log(`Found ${filtered.length} media NFTs out of ${userNFTs.length} total NFTs`);
+      setFilteredNFTs(filtered);
+    };
 
-      // Check for video in metadata
-      const hasVideo = nft.isVideo || 
-        (nft.metadata?.animation_url && (
-          nft.metadata.animation_url.toLowerCase().endsWith('.mp4') ||
-          nft.metadata.animation_url.toLowerCase().endsWith('.webm') ||
-          nft.metadata.animation_url.toLowerCase().endsWith('.mov') ||
-          // Check for common video content types
-          nft.metadata.animation_url.toLowerCase().includes('video/')
-        ));
-
-      // Also check properties.files if they exist
-      const hasMediaInProperties = nft.metadata?.properties?.files?.some((file: NFTFile) => {
-        if (!file) return false;
-        const fileUrl = (file.uri || file.url || '').toLowerCase();
-        const fileType = (file.type || file.mimeType || '').toLowerCase();
-        
-        return fileUrl.endsWith('.mp3') || 
-               fileUrl.endsWith('.wav') || 
-               fileUrl.endsWith('.m4a') ||
-               fileUrl.endsWith('.mp4') || 
-               fileUrl.endsWith('.webm') || 
-               fileUrl.endsWith('.mov') ||
-               fileType.includes('audio/') ||
-               fileType.includes('video/');
-      }) ?? false;
-
-      const hasMedia = hasAudio || hasVideo || hasMediaInProperties;
-      
-      if (hasMedia) {
-        console.log('Found media NFT:', { 
-          name: nft.name, 
-          hasAudio, 
-          hasVideo,
-          hasMediaInProperties,
-          animation_url: nft.metadata?.animation_url,
-          files: nft.metadata?.properties?.files
-        });
-      }
-
-      return hasMedia;
-    });
-
-    console.log(`Found ${filterMediaNFTs.length} media NFTs out of ${userNFTs.length} total NFTs`);
-    setFilteredNFTs(filterMediaNFTs);
+    filterMediaNFTs();
   }, [userNFTs]);
 
   useEffect(() => {
