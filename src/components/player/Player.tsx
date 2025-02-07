@@ -133,9 +133,9 @@ export const Player: React.FC<PlayerProps> = ({
         {/* Player content */}
         <div className="container mx-auto h-full pt-2">
           <div className="flex items-center justify-between h-[calc(100%-8px)] px-4 gap-4">
-            {/* Thumbnail and title */}
+            {/* NFT Image and Info */}
             <div className="flex items-center gap-4 flex-1 min-w-0">
-              <div className="w-12 h-12 flex-shrink-0 relative rounded overflow-hidden">
+              <div className="relative w-12 h-12 flex-shrink-0">
                 {nft.isVideo ? (
                   renderVideo()
                 ) : nft.isAnimation ? (
@@ -160,31 +160,68 @@ export const Player: React.FC<PlayerProps> = ({
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <h4 className="font-mono text-purple-400 truncate text-sm">
-                  {nft.name}
-                </h4>
-                <p className="font-mono text-gray-400 truncate text-xs">
-                  {nft.collection?.name}
-                </p>
+                <h3 className="text-purple-400 font-mono text-sm truncate">{nft.name}</h3>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-400 text-xs">{formatTime(progress)}</span>
+                  <span className="text-gray-600 text-xs">/</span>
+                  <span className="text-gray-400 text-xs">{formatTime(duration)}</span>
+                </div>
               </div>
             </div>
 
             {/* Controls */}
             <div className="flex items-center gap-4">
-              <button
+              <button 
+                onClick={onPrevious}
+                className="text-purple-400 hover:text-purple-300"
+                disabled={!onPrevious}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                  <path d="M220-240v-480h80v480h-80Zm520-240L400-720v480l340-240Z"/>
+                </svg>
+              </button>
+
+              <button 
                 onClick={onPlayPause}
                 className="text-purple-400 hover:text-purple-300"
               >
                 {isPlaying ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                    <path d="M560-200v-560h80v560H560Zm-320 0v-560h80v560H240Z"/>
+                  <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                    <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
                   </svg>
                 ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                  <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
                     <path d="M320-200v-560l440 280-440 280Z"/>
                   </svg>
                 )}
               </button>
+
+              <button 
+                onClick={onNext}
+                className="text-purple-400 hover:text-purple-300"
+                disabled={!onNext}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                  <path d="M660-240v-480h80v480h-80ZM220-480l340-240v480L220-480Z"/>
+                </svg>
+              </button>
+
+              {onLikeToggle && (
+                <button 
+                  onClick={() => onLikeToggle(nft)}
+                  className="text-purple-400 hover:text-purple-300"
+                >
+                  {isLiked ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                      <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                      <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Zm0-108q96-86 158-147.5t98-107q36-45.5 50-81t14-70.5q0-60-40-100t-100-40q-47 0-87 26.5T518-680h-76q-15-41-55-67.5T300-774q-60 0-100 40t-40 100q0 35 14 70.5t50 81q36 45.5 98 107T480-228Zm0-273Z"/>
+                    </svg>
+                  )}
+                </button>
+              )}
 
               <button
                 onClick={handleMinimizeToggle}
@@ -261,6 +298,7 @@ export const Player: React.FC<PlayerProps> = ({
           {/* Track Info */}
           <div className="text-center mb-12">
             <h2 className="font-mono text-purple-400 text-xl mb-3">{nft.name}</h2>
+            <p className="font-mono text-gray-400 text-sm">{nft.collection?.name}</p>
           </div>
 
           {/* Progress Bar */}
@@ -352,7 +390,7 @@ export const Player: React.FC<PlayerProps> = ({
                   className="text-white hover:scale-110 transition-transform"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
-                    <path d="M560-120v-80h280v-280h80v360H560Zm-520 0v-360h80v280h280v80H40Zm520-520v-280h280v80H640v200h-80ZM120-640v-200h280v-80H40v280h80Z"/>
+                    <path d="M560-528 296-344l-56-56 240-240 240 240-56 56-184-184Z"/>
                   </svg>
                 </button>
               )}

@@ -37,7 +37,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
   onLikeToggle
 }) => {
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('grid');
-  const [filterSort, setFilterSort] = useState<'recent' | 'name' | 'collection'>('recent');
+  const [filterSort, setFilterSort] = useState<'recent' | 'name'>('recent');
   const [searchFilter, setSearchFilter] = useState('');
   const [likedNFTs, setLikedNFTs] = useState<NFT[]>(initialLikedNFTs);
 
@@ -116,15 +116,12 @@ const LibraryView: React.FC<LibraryViewProps> = ({
 
   const filteredNFTs = likedNFTs
     .filter(nft => 
-      nft.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
-      nft.collection?.name?.toLowerCase().includes(searchFilter.toLowerCase())
+      nft.name.toLowerCase().includes(searchFilter.toLowerCase())
     )
     .sort((a, b) => {
       switch (filterSort) {
         case 'name':
           return a.name.localeCompare(b.name);
-        case 'collection':
-          return (a.collection?.name || '').localeCompare(b.collection?.name || '');
         default:
           return 0;
       }
@@ -182,7 +179,6 @@ const LibraryView: React.FC<LibraryViewProps> = ({
             >
               <option value="recent">Recently Added</option>
               <option value="name">Name</option>
-              <option value="collection">Collection</option>
             </select>
           </div>
         </div>
