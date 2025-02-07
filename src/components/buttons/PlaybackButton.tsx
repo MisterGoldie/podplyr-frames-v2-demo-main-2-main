@@ -22,7 +22,7 @@ export const PlaybackButton: React.FC<PlaybackButtonProps> = ({
   return (
     <button
       onClick={onClick}
-      className={`rounded-full bg-purple-500 hover:bg-purple-600 active:bg-purple-700 transition-colors flex items-center justify-center ${sizeClasses[size]} ${className}`}
+      className={`rounded-full bg-purple-400 hover:bg-purple-500 active:bg-purple-600 transition-colors flex items-center justify-center ${sizeClasses[size]} ${className}`}
       aria-label={isPlaying ? 'Pause' : 'Play'}
     >
       {isPlaying ? (

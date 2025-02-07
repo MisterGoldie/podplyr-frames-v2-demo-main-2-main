@@ -18,7 +18,8 @@ import {
   getLikedNFTs,
   searchUsers,
   addLikedNFT,
-  removeLikedNFT
+  removeLikedNFT,
+  fetchUserNFTs
 } from '../lib/firebase';
 import type { NFT, FarcasterUser, SearchedUser, UserContext, LibraryViewProps, ProfileViewProps } from '../types/user';
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
@@ -69,6 +70,7 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
   const [likedNFTs, setLikedNFTs] = useState<NFT[]>([]);
   const [recentSearches, setRecentSearches] = useState<SearchedUser[]>([]);
   const [isLiked, setIsLiked] = useState(false);
+  const [userData, setUserData] = useState<FarcasterUser | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -113,6 +115,26 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
     };
 
     loadLikedNFTs();
+  }, [fid]);
+
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        // Use the existing trackUserSearch function for Neynar API
+        const user = await trackUserSearch('goldie', fid);
+        setUserData(user);
+
+        // Fetch NFTs using Alchemy API
+        const userNFTs = await fetchUserNFTs(fid);
+        setUserNFTs(userNFTs);
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+      }
+    };
+
+    if (fid) {
+      fetchUserData();
+    }
   }, [fid]);
 
   useEffect(() => {
@@ -403,9 +425,9 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
         <ProfileView
           userContext={{
             fid,
-            username: 'user',
-            displayName: 'User',
-            avatar: '',
+            username: userData?.username || 'user',
+            displayName: userData?.display_name || 'User',
+            avatar: userData?.pfp_url || '',
             isAuthenticated: true
           }}
           nfts={userNFTs}
@@ -515,7 +537,7 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
                   ) : (
                     <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
                       <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                        <path d="M320-200v-560l440 280-440 280Z"/>
+                        <path d="M320-640v320l440 280-440 280Z"/>
                       </svg>
                     </svg>
                   )}
@@ -592,7 +614,7 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
                   <div className="transform transition-transform duration-300 hover:scale-110">
                     {isPlaying ? (
                       <svg xmlns="http://www.w3.org/2000/svg" height="64px" viewBox="0 -960 960 960" width="64px" fill="currentColor" className="text-white">
-                        <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
+                        <path d="M560-200v-560h80v560H560Zm-320 0v-560h80v560H240Z"/>
                       </svg>
                     ) : (
                       <svg xmlns="http://www.w3.org/2000/svg" height="64px" viewBox="0 -960 960 960" width="64px" fill="currentColor" className="text-white">
@@ -619,7 +641,7 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
                   }}
                 >
                   <div 
-                    className="h-full bg-purple-500 rounded-full"
+                    className="h-full bg-purple-200 rounded-full"
                     style={{ width: `${(audioProgress / memoizedAudioDurations) * 100}%` }}
                   />
                 </div>
@@ -653,7 +675,7 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
                   {/* Play/Pause Button */}
                   <button
                     onClick={handlePlayPause}
-                    className="w-20 h-20 rounded-full bg-purple-500 text-black flex items-center justify-center hover:scale-105 transition-transform"
+                    className="w-20 h-20 rounded-full bg-purple-200 text-black flex items-center justify-center hover:scale-105 transition-transform"
                   >
                     {isPlaying ? (
                       <svg xmlns="http://www.w3.org/2000/svg" height="40px" viewBox="0 -960 960 960" width="40px" fill="currentColor">

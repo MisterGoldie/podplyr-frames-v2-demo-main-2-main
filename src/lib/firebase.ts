@@ -433,23 +433,28 @@ export const removeLikedNFT = async (fid: number, nft: NFT): Promise<void> => {
 // Fetch NFTs for a specific user by their fid
 export const fetchUserNFTs = async (fid: number): Promise<NFT[]> => {
   try {
-    const userNFTsRef = collection(db, 'user_nfts');
-    const q = query(userNFTsRef, where('fid', '==', fid), orderBy('timestamp', 'desc'));
+    const userNFTsRef = collection(db, 'nft_plays');
+    const q = query(
+      userNFTsRef,
+      where('playedBy', '==', fid),
+      orderBy('timestamp', 'desc')
+    );
+    
     const snapshot = await getDocs(q);
     
     return snapshot.docs.map(doc => {
       const data = doc.data();
       return {
-        contract: data.contract,
+        contract: data.nftContract,
         tokenId: data.tokenId,
         name: data.name || 'Untitled',
         description: data.description,
-        audio: data.audio,
+        audio: data.audioUrl,
         image: data.image,
         metadata: data.metadata,
         collection: data.collection,
         network: data.network,
-        playTracked: data.playTracked || false
+        playTracked: true
       };
     });
   } catch (error) {

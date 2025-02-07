@@ -12,6 +12,12 @@
   }
 }
 
+@layer components {
+  .logo-image {
+    @apply h-[30px] w-auto;
+  }
+}
+
 /* Add styles for logo image */
 .logo-image {
   width: auto;

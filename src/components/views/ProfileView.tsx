@@ -36,6 +36,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
             alt="PODPlayr Logo"
             width={120}
             height={30}
+            className="logo-image"
             priority={true}
           />
         </button>

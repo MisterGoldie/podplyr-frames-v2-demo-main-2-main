@@ -85,7 +85,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
         </span>
         <div className="relative flex-1 h-1 bg-gray-700 rounded cursor-pointer group">
           <div
-            className="absolute h-full bg-purple-500 rounded"
+            className="absolute h-full bg-purple-400 rounded"
             style={{ width: `${(currentTime / duration) * 100}%` }}
           />
           <input
@@ -96,7 +96,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
             onChange={(e) => handleSeek(Number(e.target.value))}
             className="absolute w-full h-full opacity-0 cursor-pointer"
           />
-          <div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-purple-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+          <div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-purple-400 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
             style={{ left: `${(currentTime / duration) * 100}%` }}
           />
         </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { Frame } from '~/components/frame/Frame';
 
 const WagmiProvider = dynamic(
   () => import("~/components/providers/WagmiProvider"),
@@ -10,5 +11,15 @@ const WagmiProvider = dynamic(
 );
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  return <WagmiProvider>{children}</WagmiProvider>;
+  return (
+    <WagmiProvider>
+      <Frame 
+        onContextUpdate={(context) => {
+          console.log('Farcaster context:', context);
+          // Handle context updates here
+        }}
+      />
+      {children}
+    </WagmiProvider>
+  );
 }

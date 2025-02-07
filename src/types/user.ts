@@ -144,3 +144,42 @@ export interface PageState {
   isLibrary: boolean;
   isProfile: boolean;
 }
+
+export type FrameContext = {
+  user: {
+    fid: number;
+    username?: string;
+    displayName?: string;
+    pfpUrl?: string;
+  };
+  location?: {
+    type: string;
+    embed: string;
+    cast?: {
+      fid: number;
+      hash: string;
+    };
+  };
+  client: {
+    clientFid: number;
+    added: boolean;
+    safeAreaInsets?: {
+      top: number;
+      left: number;
+      right: number;
+      bottom: number;
+    };
+    notificationDetails?: {
+      type: string;
+      id: string;
+    };
+  };
+};
+
+// Rename unused type with underscore prefix
+export type _SearchResults = {
+  users: FarcasterUser[];
+  next?: {
+    cursor?: string;
+  };
+};

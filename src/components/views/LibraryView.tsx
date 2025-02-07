@@ -33,6 +33,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
             alt="PODPlayr Logo"
             width={120}
             height={30}
+            className="logo-image"
             priority={true}
           />
         </button>

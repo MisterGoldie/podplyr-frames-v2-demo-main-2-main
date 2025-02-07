@@ -39,6 +39,7 @@ const HomeView: React.FC<HomeViewProps> = ({
               alt="PODPlayr Logo"
               width={120}
               height={30}
+              className="w-[120px] h-[30px]"
               priority={true}
             />
           </button>
@@ -72,13 +73,14 @@ const HomeView: React.FC<HomeViewProps> = ({
           onClick={onReset}
           className="cursor-pointer"
         >
-          <Image
-            src="/fontlogo.png"
-            alt="PODPlayr Logo"
-            width={120}
-            height={30}
-            priority={true}
-          />
+            <Image
+              src="/fontlogo.png"
+              alt="PODPlayr Logo"
+              width={120}
+              height={30}
+              className="logo-image"
+              priority={true}
+            />
         </button>
       </header>
       <div className="space-y-8 pt-20">
