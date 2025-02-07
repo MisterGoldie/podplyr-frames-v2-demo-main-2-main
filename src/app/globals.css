@@ -2,22 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --foreground-rgb: 0, 0, 0;
-  --background-rgb: 255, 255, 255;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-rgb: 0, 0, 0;
+@layer base {
+  html {
+    @apply min-h-screen;
+  }
+  
+  body {
+    @apply min-h-screen bg-gradient-to-br from-[#190F23] to-[#0A050F];
   }
 }
 
-body {
-  color: rgb(var(--foreground-rgb));
-  background: rgb(var(--background-rgb));
-  min-height: 100vh;
+@layer components {
+  .logo-image {
+    @apply h-[30px] w-auto;
+  }
 }
 
 /* Add styles for logo image */
@@ -32,5 +30,5 @@ body {
 }
 
 *::-webkit-scrollbar {
-  display: none;
+  display: none; /* Chrome, Safari, Opera */
 }
