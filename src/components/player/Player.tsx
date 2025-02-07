@@ -40,6 +40,21 @@ export const Player: React.FC<PlayerProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoTime, setVideoTime] = useState(0);
 
+  // Handle Picture-in-Picture mode
+  const handlePictureInPicture = async () => {
+    if (!videoRef.current) return;
+    
+    try {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+      } else {
+        await videoRef.current.requestPictureInPicture();
+      }
+    } catch (error) {
+      console.error('Error toggling Picture-in-Picture mode:', error);
+    }
+  };
+
   // Sync video with audio progress
   useEffect(() => {
     if (videoRef.current && progress > 0) {
@@ -387,7 +402,7 @@ export const Player: React.FC<PlayerProps> = ({
               {/* PiP Mode Button */}
               {document.pictureInPictureEnabled && (
                 <button
-                  onClick={onPictureInPicture}
+                  onClick={handlePictureInPicture}
                   className="text-white hover:scale-110 transition-transform"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
