@@ -114,6 +114,10 @@ export interface NFT {
   quantity?: number;
 }
 
+export interface GroupedNFT extends Omit<NFT, 'quantity'> {
+  quantity: number;
+}
+
 export interface ExtendedFrameContext {
   user?: {
     fid: number;
@@ -154,12 +158,16 @@ export interface ProfileViewProps {
 }
 
 export interface UserContext {
-  fid?: number;
-  username?: string;
-  address?: string;
-  displayName?: string;
-  avatar?: string;
-  isAuthenticated?: boolean;
+  user?: {
+    fid: number;
+    username?: string;
+    displayName?: string;
+    pfpUrl?: string;
+    custody_address?: string;
+    verified_addresses?: {
+      eth_addresses?: string[];
+    };
+  };
 }
 
 export interface PageState {

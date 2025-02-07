@@ -5,10 +5,12 @@ import { processMediaUrl } from '../../utils/media';
 
 interface NFTCardProps {
   nft: NFT;
-  onPlay: (nft: NFT) => void;
+  onPlay: () => Promise<void>;
   isPlaying: boolean;
   currentlyPlaying: string | null;
   handlePlayPause: () => void;
+  onLikeToggle?: () => Promise<void>;
+  isLiked?: boolean;
   publicCollections?: string[];
   onAddToCollection?: (nft: NFT, collectionId: string) => void;
   onRemoveFromCollection?: (nft: NFT, collectionId: string) => void;
@@ -22,6 +24,8 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   isPlaying, 
   currentlyPlaying, 
   handlePlayPause,
+  onLikeToggle,
+  isLiked,
   publicCollections,
   onAddToCollection,
   onRemoveFromCollection,
@@ -45,7 +49,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
       handlePlayPause();
     } else {
       console.log('New track, calling onPlay');
-      onPlay(nft);
+      onPlay();
     }
   };
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Player } from './player/Player';
 import { BottomNav } from './navigation/BottomNav';
 import HomeView from './views/HomeView';
@@ -22,8 +22,19 @@ import {
   fetchUserNFTs
 } from '../lib/firebase';
 import { fetchUserNFTsFromAlchemy } from '../lib/alchemy';
-import type { NFT, FarcasterUser, SearchedUser, UserContext, LibraryViewProps, ProfileViewProps, NFTFile } from '../types/user';
+import type { NFT, FarcasterUser, SearchedUser, UserContext, LibraryViewProps, ProfileViewProps, NFTFile, NFTPlayData, GroupedNFT } from '../types/user';
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
+import {
+  collection,
+  query,
+  where,
+  orderBy,
+  limit,
+  getDocs,
+  DocumentData,
+  QueryDocumentSnapshot
+} from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 const NFT_CACHE_KEY = 'podplayr_nft_cache_';
 const TWO_HOURS = 2 * 60 * 60 * 1000;
@@ -48,8 +59,6 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
     audioDuration,
     handlePlayAudio,
     handlePlayPause,
-    handlePlayNext,
-    handlePlayPrevious,
     handleSeek,
     audioRef
   } = useAudioPlayer({ fid });
@@ -392,31 +401,50 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
   const findAdjacentNFT = (direction: 'next' | 'previous'): NFT | null => {
     if (!currentPlayingNFT) return null;
     
-    // Get the current list of NFTs based on the view
-    let nftList: NFT[] = [];
-    switch (currentPage.isHome) {
-      case true:
-        nftList = recentlyPlayedNFTs;
-        break;
-      case false:
-        if (currentPage.isExplore) {
-          nftList = filteredNFTs;
-        } else if (currentPage.isLibrary) {
-          nftList = likedNFTs;
-        }
-        break;
-      default:
-        return null;
+    // Determine which list of NFTs we're currently playing from
+    let currentList: NFT[] = [];
+    
+    // Check which section the current NFT is from
+    if (recentlyPlayedNFTs.some(nft => 
+      nft.contract === currentPlayingNFT.contract && 
+      nft.tokenId === currentPlayingNFT.tokenId
+    )) {
+      currentList = recentlyPlayedNFTs;
+    } else if (topPlayedNFTs.some(item => 
+      item.nft.contract === currentPlayingNFT.contract && 
+      item.nft.tokenId === currentPlayingNFT.tokenId
+    )) {
+      currentList = topPlayedNFTs.map(item => item.nft);
+    } else if (likedNFTs.some(nft => 
+      nft.contract === currentPlayingNFT.contract && 
+      nft.tokenId === currentPlayingNFT.tokenId
+    )) {
+      currentList = likedNFTs;
+    } else {
+      currentList = userNFTs.filter(nft => nft.hasValidAudio);
     }
 
-    const currentIndex = nftList.findIndex(
-      nft => `${nft.contract}-${nft.tokenId}` === `${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`
+    if (!currentList.length) return null;
+
+    const currentIndex = currentList.findIndex(
+      nft => nft.contract === currentPlayingNFT.contract && 
+             nft.tokenId === currentPlayingNFT.tokenId
     );
 
     if (currentIndex === -1) return null;
 
-    const nextIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
-    return nftList[nextIndex] || null;
+    const adjacentIndex = direction === 'next' ? 
+      currentIndex + 1 : 
+      currentIndex - 1;
+
+    // Handle wrapping around the playlist
+    if (adjacentIndex < 0) {
+      return currentList[currentList.length - 1];
+    } else if (adjacentIndex >= currentList.length) {
+      return currentList[0];
+    }
+
+    return currentList[adjacentIndex];
   };
 
   const togglePictureInPicture = async () => {
@@ -562,9 +590,26 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
           likedNFTs={likedNFTs}
           handlePlayAudio={handlePlayAudio}
           currentlyPlaying={currentlyPlaying}
+          currentPlayingNFT={currentPlayingNFT}
           isPlaying={isPlaying}
           handlePlayPause={handlePlayPause}
           onReset={handleReset}
+          userContext={{
+            user: {
+              fid: fid,
+              username: userData?.username,
+              displayName: userData?.display_name,
+              pfpUrl: userData?.pfp_url,
+              custody_address: userData?.custody_address,
+              verified_addresses: {
+                eth_addresses: userData?.verified_addresses?.eth_addresses
+              }
+            }
+          }}
+          setIsLiked={setIsLiked}
+          setIsPlayerVisible={(visible: boolean) => {}}
+          setIsPlayerMinimized={setIsPlayerMinimized}
+          onLikeToggle={handleLikeToggle}
         />
       );
     }
@@ -573,13 +618,18 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
       return (
         <ProfileView
           userContext={{
-            fid,
-            username: userData?.username || 'user',
-            displayName: userData?.display_name || 'User',
-            avatar: userData?.pfp_url || '',
-            isAuthenticated: true
+            user: {
+              fid: fid,
+              username: userData?.username,
+              displayName: userData?.display_name,
+              pfpUrl: userData?.pfp_url,
+              custody_address: userData?.custody_address,
+              verified_addresses: {
+                eth_addresses: userData?.verified_addresses?.eth_addresses
+              }
+            }
           }}
-          nfts={filteredNFTs}
+          nfts={userNFTs}
           handlePlayAudio={handlePlayAudio}
           isPlaying={isPlaying}
           currentlyPlaying={currentlyPlaying}
@@ -608,6 +658,109 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
       `${NFT_CACHE_KEY}${userId}`,
       JSON.stringify({ data: nfts, timestamp: Date.now() })
     );
+  };
+
+  const fetchRecentlyPlayed = useCallback(async () => {
+    if (!fid) return;
+
+    try {
+      const recentlyPlayedCollection = collection(db, 'nft_plays');
+      const q = query(
+        recentlyPlayedCollection,
+        where('fid', '==', fid),
+        orderBy('timestamp', 'desc'),
+        limit(12) // Fetch more to account for duplicates
+      );
+
+      const querySnapshot = await getDocs(q);
+      const seenNFTs = new Set<string>();
+      const recentPlays = querySnapshot.docs.reduce((acc: NFT[], doc: QueryDocumentSnapshot<DocumentData>) => {
+        const data = doc.data() as NFTPlayData;
+        const nftKey = `${data.nftContract}-${data.tokenId}`;
+        
+        // Only add NFT if we haven't seen it before
+        if (!seenNFTs.has(nftKey)) {
+          seenNFTs.add(nftKey);
+          acc.push({
+            contract: data.nftContract || '',
+            tokenId: data.tokenId || '',
+            name: data.name || '',
+            image: data.image || '',
+            audio: data.audioUrl || '',
+            hasValidAudio: true,
+            network: data.network || 'ethereum',
+            metadata: {
+              image: data.image || '',
+              animation_url: data.audioUrl || ''
+            }
+          } as NFT);
+        }
+        return acc;
+      }, []).slice(0, 8); // Only keep first 8 unique NFTs
+
+      setRecentlyPlayedNFTs(recentPlays);
+    } catch (error) {
+      console.error('Error fetching recently played:', error);
+      // If index error occurs, try fetching without ordering
+      if (error instanceof Error && error.toString().includes('index')) {
+        try {
+          const recentlyPlayedCollection = collection(db, 'nft_plays');
+          const fallbackQuery = query(
+            recentlyPlayedCollection,
+            where('fid', '==', fid),
+            limit(12)
+          );
+          
+          const fallbackSnapshot = await getDocs(fallbackQuery);
+          const seenNFTs = new Set<string>();
+          const fallbackPlays = fallbackSnapshot.docs.reduce((acc: NFT[], doc: QueryDocumentSnapshot<DocumentData>) => {
+            const data = doc.data() as NFTPlayData;
+            const nftKey = `${data.nftContract}-${data.tokenId}`;
+            
+            // Only add NFT if we haven't seen it before
+            if (!seenNFTs.has(nftKey)) {
+              seenNFTs.add(nftKey);
+              acc.push({
+                contract: data.nftContract || '',
+                tokenId: data.tokenId || '',
+                name: data.name || '',
+                image: data.image || '',
+                audio: data.audioUrl || '',
+                hasValidAudio: true,
+                network: data.network || 'ethereum',
+                metadata: {
+                  image: data.image || '',
+                  animation_url: data.audioUrl || ''
+                }
+              } as NFT);
+            }
+            return acc;
+          }, []).slice(0, 8); // Only keep first 8 unique NFTs
+          
+          setRecentlyPlayedNFTs(fallbackPlays);
+        } catch (fallbackError) {
+          console.error('Error with fallback query:', fallbackError);
+        }
+      }
+    }
+  }, [fid]);
+
+  useEffect(() => {
+    fetchRecentlyPlayed();
+  }, [fetchRecentlyPlayed]);
+
+  const handlePlayNext = async () => {
+    const nextNFT = findAdjacentNFT('next');
+    if (nextNFT) {
+      await handlePlayAudio(nextNFT);
+    }
+  };
+
+  const handlePlayPrevious = async () => {
+    const previousNFT = findAdjacentNFT('previous');
+    if (previousNFT) {
+      await handlePlayAudio(previousNFT);
+    }
   };
 
   return (

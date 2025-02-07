@@ -86,44 +86,60 @@ const HomeView: React.FC<HomeViewProps> = ({
       <div className="space-y-8 pt-20">
         {/* Recently Played Section */}
         <section>
-          <h2 className="text-2xl font-bold text-green-400 mb-4">Recently Played</h2>
-          {recentlyPlayedNFTs.length > 0 ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {recentlyPlayedNFTs.map((nft) => (
-                <NFTCard
-                  key={`${nft.contract}-${nft.tokenId}`}
-                  nft={nft}
-                  onPlay={() => onPlayNFT(nft)}
-                  isPlaying={isPlaying && currentlyPlaying === `${nft.contract}-${nft.tokenId}`}
-                  currentlyPlaying={currentlyPlaying}
-                  handlePlayPause={handlePlayPause}
-                />
-              ))}
+          {recentlyPlayedNFTs.length > 0 && (
+            <div className="mb-8">
+              <h2 className="text-xl font-mono text-green-400 mb-6">Recently Played</h2>
+              <div className="relative">
+                <div className="overflow-x-auto pb-4 hide-scrollbar">
+                  <div className="flex gap-4">
+                    {recentlyPlayedNFTs.map((nft, index) => (
+                      <div key={`recently-played-${nft.contract}-${nft.tokenId}-${index}`} className="flex-shrink-0 w-[140px]">
+                        <NFTCard
+                          nft={nft}
+                          onPlay={() => {
+                            onPlayNFT(nft);
+                            return Promise.resolve();
+                          }}
+                          isPlaying={isPlaying && currentlyPlaying === `${nft.contract}-${nft.tokenId}`}
+                          currentlyPlaying={currentlyPlaying}
+                          handlePlayPause={handlePlayPause}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
-          ) : (
-            <p className="text-gray-400 text-center py-8">No recently played tracks</p>
           )}
         </section>
 
         {/* Top Played Section */}
         <section>
-          <h2 className="text-2xl font-bold text-green-400 mb-4">Top Played</h2>
-          {topPlayedNFTs.length > 0 ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {topPlayedNFTs.map(({ nft, count }) => (
-                <NFTCard
-                  key={`${nft.contract}-${nft.tokenId}`}
-                  nft={nft}
-                  onPlay={() => onPlayNFT(nft)}
-                  isPlaying={isPlaying && currentlyPlaying === `${nft.contract}-${nft.tokenId}`}
-                  currentlyPlaying={currentlyPlaying}
-                  handlePlayPause={handlePlayPause}
-                  badge={`${count} plays`}
-                />
-              ))}
+          {topPlayedNFTs.length > 0 && (
+            <div className="mb-8">
+              <h2 className="text-xl font-mono text-green-400 mb-6">Top Played</h2>
+              <div className="relative">
+                <div className="overflow-x-auto pb-4 hide-scrollbar">
+                  <div className="flex gap-4">
+                    {topPlayedNFTs.map(({ nft, count }, index) => (
+                      <div key={`top-played-${nft.contract}-${nft.tokenId}-${index}`} className="flex-shrink-0 w-[140px]">
+                        <NFTCard
+                          nft={nft}
+                          onPlay={() => {
+                            onPlayNFT(nft);
+                            return Promise.resolve();
+                          }}
+                          isPlaying={isPlaying && currentlyPlaying === `${nft.contract}-${nft.tokenId}`}
+                          currentlyPlaying={currentlyPlaying}
+                          handlePlayPause={handlePlayPause}
+                          badge={`${count} plays`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
-          ) : (
-            <p className="text-gray-400 text-center py-8">No top played tracks yet</p>
           )}
         </section>
       </div>

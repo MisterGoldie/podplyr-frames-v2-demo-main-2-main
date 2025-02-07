@@ -45,15 +45,15 @@ const ProfileView: React.FC<ProfileViewProps> = ({
         {/* Profile Header */}
         <div className="flex items-center p-4 space-x-4">
           <Image
-            src={userContext.avatar || '/default-avatar.png'}
-            alt={userContext.displayName || 'User'}
+            src={userContext.user?.pfpUrl || '/default-avatar.png'}
+            alt={userContext.user?.displayName || 'User'}
             width={64}
             height={64}
             className="rounded-full"
           />
           <div>
-            <h2 className="text-xl font-bold">{userContext.displayName || 'User'}</h2>
-            <p className="text-gray-500">@{userContext.username || 'user'}</p>
+            <h2 className="text-xl font-bold">{userContext.user?.displayName || 'User'}</h2>
+            <p className="text-gray-500">@{userContext.user?.username || 'user'}</p>
           </div>
         </div>
 
