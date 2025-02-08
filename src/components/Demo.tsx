@@ -193,7 +193,7 @@ const Demo: React.FC = () => {
               return;
             } else {
               console.log('Cached NFTs have invalid structure, fetching fresh data');
-              localStorage.removeItem(`${NFT_CACHE_KEY}${fid}`);
+              localStorage.removeItem(`${NFT_CACHE_KEY}${userFid}`);
             }
           }
 
@@ -746,20 +746,11 @@ const Demo: React.FC = () => {
         }
       }
     }
-  }, [fid]);
+  }, [userFid]);
 
   useEffect(() => {
     fetchRecentlyPlayed();
   }, [fetchRecentlyPlayed]);
-
-  // Early return if no FID available
-  if (!fid) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-[#190F23] to-[#0A050F]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
-      </div>
-    );
-  }
 
   const handlePlayNext = async () => {
     const nextNFT = findAdjacentNFT('next');
