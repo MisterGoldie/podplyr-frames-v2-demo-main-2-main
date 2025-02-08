@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useContext } from 'react';
+import { FarcasterContext } from '~/app/providers';
 import { Player } from './player/Player';
 import { BottomNav } from './navigation/BottomNav';
 import HomeView from './views/HomeView';
@@ -49,7 +50,17 @@ interface PageState {
   isProfile: boolean;
 }
 
-const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
+const Demo: React.FC = () => {
+  const { fid } = useContext(FarcasterContext);
+
+  // If no FID is available, show loading state
+  if (!fid) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-[#190F23] to-[#0A050F]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+      </div>
+    );
+  }
   const [currentPage, setCurrentPage] = useState<PageState>({
     isHome: true,
     isExplore: false,

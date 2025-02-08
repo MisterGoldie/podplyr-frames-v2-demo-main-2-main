@@ -2,7 +2,6 @@
 
 import dynamic from "next/dynamic";
 import { PlayerProvider } from "../contexts/PlayerContext";
-import { useSession } from "next-auth/react";
 
 const Demo = dynamic(() => import("../components/Demo"), {
   ssr: false,
@@ -14,21 +13,10 @@ const Demo = dynamic(() => import("../components/Demo"), {
 });
 
 export default function App() {
-  const { data: session } = useSession();
-  const userFid = session?.user?.fid;
-
-  if (!userFid) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-[#190F23] to-[#0A050F]">
-        <div>Please sign in with Farcaster to continue</div>
-      </div>
-    );
-  }
-
   return (
     <PlayerProvider>
       <main className="min-h-screen flex flex-col bg-gradient-to-br from-[#190F23] to-[#0A050F]">
-        <Demo fid={userFid} />
+        <Demo />
       </main>
     </PlayerProvider>
   );
