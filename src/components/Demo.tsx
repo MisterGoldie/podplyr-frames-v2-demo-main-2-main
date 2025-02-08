@@ -51,16 +51,12 @@ interface PageState {
 }
 
 const Demo: React.FC = () => {
+  // 1. Context Hooks
   const { fid } = useContext(FarcasterContext);
+  // Assert fid type for TypeScript
+  const userFid = fid as number;
 
-  // If no FID is available, show loading state
-  if (!fid) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-[#190F23] to-[#0A050F]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
-      </div>
-    );
-  }
+  // 2. State Hooks
   const [currentPage, setCurrentPage] = useState<PageState>({
     isHome: true,
     isExplore: false,
@@ -97,7 +93,7 @@ const Demo: React.FC = () => {
     handleSeek,
     audioRef
   } = useAudioPlayer({ 
-    fid,
+    fid: userFid,
     setRecentlyPlayedNFTs 
   });
 
@@ -125,7 +121,7 @@ const Demo: React.FC = () => {
     };
 
     loadInitialData();
-  }, [fid]);
+  }, [userFid]);
 
   useEffect(() => {
     const loadLikedNFTs = async () => {
@@ -143,14 +139,14 @@ const Demo: React.FC = () => {
     };
 
     loadLikedNFTs();
-  }, [fid]);
+  }, [userFid]);
 
   useEffect(() => {
     const fetchUserData = async () => {
       try {
-        console.log('Fetching user data for FID:', fid);
+        console.log('Fetching user data for FID:', userFid);
         // Get Farcaster user data by FID only
-        const users = await searchUsers(fid.toString());
+        const users = await searchUsers(userFid.toString());
         if (users && users.length > 0) {
           const user = users[0];
           console.log('Received user data:', user);
@@ -170,7 +166,7 @@ const Demo: React.FC = () => {
           }
 
           // Try to get cached NFTs first
-          const cachedNFTs = getCachedNFTs(fid);
+          const cachedNFTs = getCachedNFTs(userFid);
           if (cachedNFTs) {
             console.log('Using cached NFTs:', cachedNFTs.length);
             // Inspect the cached NFTs
@@ -220,10 +216,10 @@ const Demo: React.FC = () => {
       }
     };
 
-    if (fid) {
+    if (userFid) {
       fetchUserData();
     }
-  }, [fid]);
+  }, [userFid]);
 
   useEffect(() => {
     const filterMediaNFTs = () => {
@@ -385,10 +381,10 @@ const Demo: React.FC = () => {
         }
       }));
       setSearchResults(formattedResults);
-      await trackUserSearch(username, fid);
+      await trackUserSearch(username, userFid);
       
       // Update recent searches after successful search
-      const updatedSearches = await getRecentSearches(fid);
+      const updatedSearches = await getRecentSearches(userFid);
       setRecentSearches(updatedSearches || []);
     } catch (error) {
       console.error('Search error:', error);
@@ -467,7 +463,7 @@ const Demo: React.FC = () => {
 
   const handleLikeToggle = async (nft: NFT) => {
     try {
-      const wasLiked = await toggleLikeNFT(nft, fid);
+      const wasLiked = await toggleLikeNFT(nft, userFid);
       
       if (wasLiked) {
         setLikedNFTs(prev => [...prev, nft]);
@@ -603,7 +599,7 @@ const Demo: React.FC = () => {
           onReset={handleReset}
           userContext={{
             user: userData ? {
-              fid: fid,
+              fid: userFid,
               username: userData.username,
               displayName: userData.display_name,
               pfpUrl: userData.pfp_url,
@@ -626,7 +622,7 @@ const Demo: React.FC = () => {
         <ProfileView
           userContext={{
             user: {
-              fid: fid,
+              fid: userFid,
               username: userData?.username,
               displayName: userData?.display_name,
               pfpUrl: userData?.pfp_url,
@@ -668,13 +664,13 @@ const Demo: React.FC = () => {
   };
 
   const fetchRecentlyPlayed = useCallback(async () => {
-    if (!fid) return;
+    if (!userFid) return;
 
     try {
       const recentlyPlayedCollection = collection(db, 'nft_plays');
       const q = query(
         recentlyPlayedCollection,
-        where('fid', '==', fid),
+        where('fid', '==', userFid),
         orderBy('timestamp', 'desc'),
         limit(12) // Fetch more to account for duplicates
       );
@@ -714,7 +710,7 @@ const Demo: React.FC = () => {
           const recentlyPlayedCollection = collection(db, 'nft_plays');
           const fallbackQuery = query(
             recentlyPlayedCollection,
-            where('fid', '==', fid),
+            where('fid', '==', userFid),
             limit(12)
           );
           
@@ -755,6 +751,15 @@ const Demo: React.FC = () => {
   useEffect(() => {
     fetchRecentlyPlayed();
   }, [fetchRecentlyPlayed]);
+
+  // Early return if no FID available
+  if (!fid) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-[#190F23] to-[#0A050F]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+      </div>
+    );
+  }
 
   const handlePlayNext = async () => {
     const nextNFT = findAdjacentNFT('next');
