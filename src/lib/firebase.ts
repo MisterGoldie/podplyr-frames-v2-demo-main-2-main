@@ -15,7 +15,10 @@ import {
   increment,
   onSnapshot,
   setDoc,
-  getDoc
+  getDoc,
+  deleteDoc,
+  documentId,
+  serverTimestamp
 } from 'firebase/firestore';
 import type { NFT, FarcasterUser, SearchedUser, NFTPlayData } from '../types/user';
 
@@ -251,68 +254,45 @@ export async function getTopPlayedNFTs(): Promise<{ nft: NFT; count: number }[]>
 export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
   try {
     console.log('Getting liked NFTs for FID:', fid);
-    const userLikesRef = doc(db, 'user_likes', fid.toString());
-    const docSnap = await getDoc(userLikesRef);
+    const userLikesRef = collection(db, 'user_likes');
+    const q = query(userLikesRef, where(documentId(), '>=', `${fid}-`), where(documentId(), '<', `${fid + 1}-`));
+    const querySnapshot = await getDocs(q);
     
-    if (!docSnap.exists()) {
-      console.log('No liked NFTs document found for user:', fid);
+    if (querySnapshot.empty) {
+      console.log('No liked NFTs found for user:', fid);
       return [];
     }
 
-    const data = docSnap.data();
-    console.log('Raw user_likes data:', data);
-
-    // Handle both old format (likedNFTs array) and new format (nfts array)
-    if (data.nfts && data.nfts.length > 0) {
-      // Convert the stored NFT data directly to NFT objects
-      const nfts = data.nfts.map((nftData: any) => ({
-        fid: nftData.fid,
-        contract: nftData.nftContract,
-        tokenId: nftData.tokenId,
-        name: nftData.name || 'Untitled',
-        image: nftData.image || '',
-        audio: nftData.audioUrl || '',
-        hasValidAudio: Boolean(nftData.audioUrl),
-        metadata: {
-          name: nftData.name || 'Untitled',
-          description: nftData.description || '',
-          image: nftData.image || '',
-          animation_url: nftData.audioUrl || ''
-        },
-        timestamp: nftData.timestamp,
-        collection: {
-          name: nftData.collection || 'Unknown Collection'
-        }
-      }));
-
-      console.log('Converted NFTs:', nfts);
-      return nfts;
-    } else if (data.likedNFTs && data.likedNFTs.length > 0) {
-      // Handle old format where we only stored contract-tokenId pairs
-      const nftIds = data.likedNFTs;
-      console.log('Found old format NFT IDs:', nftIds);
+    const likedNFTs: NFT[] = [];
+    
+    for (const doc of querySnapshot.docs) {
+      const data = doc.data();
+      const [docFid, contract, tokenId] = doc.id.split('-');
       
-      const nfts = await Promise.all(nftIds.map(async (nftId: string) => {
-        const [contract, tokenId] = nftId.split('-');
-        const cleanTokenId = tokenId.replace(/^0x/, '');
-        try {
-          console.log('Fetching NFT details for:', { contract, tokenId: cleanTokenId });
-          const nftDetails = await fetchNFTDetails(contract, cleanTokenId);
-          if (!nftDetails) {
-            console.log(`No details found for NFT: ${contract}-${cleanTokenId}`);
-            return null;
+      if (contract && tokenId) {
+        likedNFTs.push({
+          contract,
+          tokenId,
+          name: data.name || 'Untitled',
+          description: data.description || '',
+          image: data.image || '',
+          audio: data.audioUrl || '',
+          hasValidAudio: Boolean(data.audioUrl),
+          metadata: {
+            name: data.name || 'Untitled',
+            description: data.description || '',
+            image: data.image || '',
+            animation_url: data.audioUrl || ''
+          },
+          collection: {
+            name: data.collection || 'Unknown Collection'
           }
-          return nftDetails;
-        } catch (error) {
-          console.error(`Error fetching details for NFT ${contract}-${cleanTokenId}:`, error);
-          return null;
-        }
-      }));
-      
-      return nfts.filter((nft): nft is NFT => nft !== null);
+        });
+      }
     }
 
-    return [];
+    console.log('Processed liked NFTs:', likedNFTs);
+    return likedNFTs;
   } catch (error) {
     console.error('Error getting liked NFTs:', error);
     return [];
@@ -322,57 +302,24 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
 // Toggle NFT like status
 export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => {
   try {
-    const userLikesRef = doc(db, 'user_likes', fid.toString());
+    const docId = `${fid}-${nft.contract}-${nft.tokenId}`;
+    const userLikesRef = doc(db, 'user_likes', docId);
     const docSnap = await getDoc(userLikesRef);
     
-    console.log('Toggling NFT:', nft);
+    console.log('Toggling NFT:', { fid, docId });
     
-    // Format the NFT data to match the existing structure, with fallbacks for all fields
-    const nftData = {
-      fid: fid,
-      nftContract: nft.contract || '',
-      tokenId: nft.tokenId || '',
-      name: nft.metadata?.name || nft.name || 'Untitled',
-      description: nft.metadata?.description || nft.description || '',
-      image: nft.metadata?.image || nft.image || '',
-      audioUrl: nft.metadata?.animation_url || nft.audio || '',
-      collection: nft.collection?.name || '',
-      timestamp: new Date().toISOString()
-    };
-    
-    console.log('Formatted NFT data:', nftData);
-
-    if (!docSnap.exists()) {
-      console.log('Creating new user_likes document');
-      await setDoc(userLikesRef, {
-        nfts: [nftData]
-      });
-      return true;
-    }
-
-    const currentNfts = docSnap.data().nfts || [];
-    console.log('Current NFTs:', currentNfts);
-
-    const isLiked = currentNfts.some((existingNft: any) => 
-      existingNft.nftContract === nft.contract && 
-      existingNft.tokenId === nft.tokenId
-    );
-
-    if (isLiked) {
-      console.log('Removing NFT from likes');
-      const updatedNfts = currentNfts.filter((existingNft: any) => 
-        !(existingNft.nftContract === nft.contract && 
-          existingNft.tokenId === nft.tokenId)
-      );
-      await updateDoc(userLikesRef, {
-        nfts: updatedNfts
-      });
+    if (docSnap.exists()) {
+      await deleteDoc(userLikesRef);
       return false;
     } else {
-      console.log('Adding NFT to likes');
-      const updatedNfts = [...currentNfts, nftData];
-      await updateDoc(userLikesRef, {
-        nfts: updatedNfts
+      await setDoc(userLikesRef, {
+        name: nft.name || 'Untitled',
+        description: nft.description || '',
+        image: nft.image || nft.metadata?.image || '',
+        audioUrl: nft.audio || nft.metadata?.animation_url || '',
+        collection: nft.collection?.name || 'Unknown Collection',
+        network: nft.network || 'ethereum',
+        timestamp: serverTimestamp()
       });
       return true;
     }
@@ -508,14 +455,19 @@ export const fetchNFTDetails = async (contractAddress: string, tokenId: string):
 // Add NFT to user's liked collection
 export const addLikedNFT = async (fid: number, nft: NFT): Promise<void> => {
   try {
-    const userLikesRef = doc(db, 'user_likes', fid.toString());
-    const nftId = `${nft.contract}-${nft.tokenId}`;
+    const docId = `${fid}-${nft.contract}-${nft.tokenId}`;
+    const userLikesRef = doc(db, 'user_likes', docId);
     
-    console.log('Adding NFT to likes:', { fid, nftId });
+    console.log('Adding NFT to likes:', { fid, docId });
     
-    // Update the document by adding just the NFT ID to the array
-    await updateDoc(userLikesRef, {
-      likedNFTs: arrayUnion(nftId)
+    await setDoc(userLikesRef, {
+      name: nft.name || 'Untitled',
+      description: nft.description || '',
+      image: nft.image || nft.metadata?.image || '',
+      audioUrl: nft.audio || nft.metadata?.animation_url || '',
+      collection: nft.collection?.name || 'Unknown Collection',
+      network: nft.network || 'ethereum',
+      timestamp: serverTimestamp()
     });
   } catch (error) {
     console.error('Error adding liked NFT:', error);
@@ -526,18 +478,13 @@ export const addLikedNFT = async (fid: number, nft: NFT): Promise<void> => {
 // Remove NFT from user's liked collection
 export const removeLikedNFT = async (fid: number, nft: NFT): Promise<void> => {
   try {
-    const userLikesRef = doc(db, 'user_likes', fid.toString());
-    const nftId = `${nft.contract}-${nft.tokenId}`;
-
-    await updateDoc(userLikesRef, {
-      likedNFTs: arrayRemove(nftId)
-    });
-
-    // Also update the NFT's likedBy array
-    const nftRef = doc(db, 'nft_details', nftId);
-    await updateDoc(nftRef, {
-      likedBy: arrayRemove(fid)
-    });
+    const docId = `${fid}-${nft.contract}-${nft.tokenId}`;
+    const userLikesRef = doc(db, 'user_likes', docId);
+    
+    // Delete the document for this liked NFT
+    await deleteDoc(userLikesRef);
+    
+    console.log('Removed NFT from likes:', { fid, docId });
   } catch (error) {
     console.error('Error removing liked NFT:', error);
   }
