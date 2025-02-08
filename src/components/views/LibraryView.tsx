@@ -240,21 +240,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
                   {/* Track Info */}
                   <div className="flex-grow min-w-0">
                     <h3 className="font-mono text-purple-400 truncate">{nft.name}</h3>
-                    {nft.collection?.name && (
-                      <p className="font-mono text-gray-400 text-sm truncate">
-                        {nft.collection.name}
-                      </p>
-                    )}
                   </div>
-
-                  {/* Like Button - Always filled since NFTs in library are liked */}
-                  <button 
-                    className="text-purple-400 hover:scale-110 transition-transform"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
-                      <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Zm0 400v-320h320v320H520Zm0 400v-320h320v320H520ZM200-600h160v-160H200v160Zm400 0h160v-160H600v160Zm0 400h160v-160H600v160Zm-400 0h160v-160H200v160Z"/>
-                    </svg>
-                  </button>
 
                   {/* Play Button */}
                   <button 
