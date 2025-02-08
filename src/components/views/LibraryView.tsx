@@ -114,7 +114,18 @@ const LibraryView: React.FC<LibraryViewProps> = ({
     }
   }, [currentPlayingNFT, likedNFTs, userContext?.user?.fid, setIsLiked]);
 
-  const filteredNFTs = likedNFTs
+  // Deduplicate NFTs based on contract and tokenId
+  const uniqueNFTs = likedNFTs.reduce((acc: NFT[], current) => {
+    const isDuplicate = acc.some(nft => 
+      nft.contract === current.contract && nft.tokenId === current.tokenId
+    );
+    if (!isDuplicate) {
+      acc.push(current);
+    }
+    return acc;
+  }, []);
+
+  const filteredNFTs = uniqueNFTs
     .filter(nft => 
       nft.name.toLowerCase().includes(searchFilter.toLowerCase())
     )
@@ -122,6 +133,8 @@ const LibraryView: React.FC<LibraryViewProps> = ({
       switch (filterSort) {
         case 'name':
           return a.name.localeCompare(b.name);
+        case 'recent':
+          return -1; // Keep most recent first
         default:
           return 0;
       }
