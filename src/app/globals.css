@@ -8,7 +8,7 @@
   }
   
   body {
-    @apply min-h-screen bg-gradient-to-br from-[#2D1B3D] to-[#151515] text-white antialiased;
+    @apply min-h-screen bg-gradient-to-b from-[#1E1525] via-[#2D1B69] to-[#4B0082] text-white antialiased;
   }
 
   h1, h2, h3, h4, h5, h6 {
