@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { processMediaUrl } from '../../utils/media';
 import Image from 'next/image';
+import type { SyntheticEvent } from 'react';
 
 const IPFS_GATEWAYS = ['https://ipfs.io', 'https://cloudflare-ipfs.com', 'https://gateway.pinata.cloud'];
 
@@ -63,13 +64,11 @@ export const NFTImage: React.FC<NFTImageProps> = ({
     // For video NFTs, check both animation_url and the processed version
     if (nft?.metadata?.animation_url) {
       const rawUrl = nft.metadata.animation_url;
-      // For nftstorage.link URLs, use them directly as they handle video well
-      const processedUrl = rawUrl.includes('nftstorage.link') ? rawUrl : processMediaUrl(rawUrl, fallbackSrc);
-      
-      if (detectVideoContent(rawUrl) || detectVideoContent(processedUrl)) {
-        console.log('Video content detected:', { rawUrl, processedUrl });
+      if (detectVideoContent(rawUrl)) {
+        console.log('Video content detected, using image as thumbnail');
         setIsVideo(true);
-        setImgSrc(processedUrl);
+        // Use the NFT's image as thumbnail
+        setImgSrc(processMediaUrl(nft?.metadata?.image || nft?.image || fallbackSrc));
         return;
       }
     }
@@ -86,10 +85,11 @@ export const NFTImage: React.FC<NFTImageProps> = ({
     }
   }, [src, nft]);
 
-  const handleError = () => {
+  const handleError = (error: SyntheticEvent<HTMLVideoElement | HTMLImageElement>) => {
     console.error('Media failed to load:', { 
-      src: imgSrc, 
+      src: error.currentTarget.src || imgSrc,
       isVideo, 
+      currentSrc: error.currentTarget.currentSrc,
       nftMetadata: nft?.metadata,
       rawAnimationUrl: nft?.metadata?.animation_url 
     });
@@ -117,19 +117,15 @@ export const NFTImage: React.FC<NFTImageProps> = ({
 
   if (isVideo) {
     return (
-      <video
+      <Image
         src={imgSrc}
+        alt={alt}
         className={className}
-        width={width}
-        height={height}
-        controls
-        playsInline
+        width={width || 300}
+        height={height || 300}
+        priority={priority}
         onError={handleError}
-      >
-        <source src={imgSrc} type="video/mp4" />
-        <source src={imgSrc} type="video/webm" />
-        Your browser does not support the video tag.
-      </video>
+      />
     );
   }
 
