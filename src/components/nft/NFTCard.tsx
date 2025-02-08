@@ -55,7 +55,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
 
   if (viewMode === 'list') {
     return (
-      <div className="group flex items-center gap-4 bg-gray-800/20 p-3 rounded-lg hover:bg-gray-800/40 transition-colors">
+      <div className="group flex items-center gap-4 bg-gray-800/20 p-3 rounded-lg active:bg-gray-800/60 hover:bg-gray-800/40 transition-colors touch-manipulation">
         <div className="relative w-16 h-16 flex-shrink-0">
           <NFTImage
             nft={nft}
@@ -80,11 +80,11 @@ export const NFTCard: React.FC<NFTCardProps> = ({
           className="text-green-400 hover:text-green-300 transition-colors"
         >
           {isCurrentTrack && isPlaying ? (
-            <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" height="32" viewBox="0 -960 960 960" width="32" fill="currentColor">
               <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
             </svg>
           ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" height="32" viewBox="0 -960 960 960" width="32" fill="currentColor">
               <path d="M320-200v-560l440 280-440 280Z"/>
             </svg>
           )}
@@ -94,7 +94,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   }
 
   return (
-    <div className="group relative bg-gray-800/20 rounded-lg overflow-hidden hover:bg-gray-800/40 transition-colors">
+    <div className="group relative bg-gray-800/20 rounded-lg overflow-hidden hover:bg-gray-800/40 active:bg-gray-800/60 transition-colors touch-manipulation">
       <div className="aspect-square relative">
         <NFTImage
           nft={nft}
@@ -117,14 +117,14 @@ export const NFTCard: React.FC<NFTCardProps> = ({
         </div>
         <button 
           onClick={handlePlay}
-          className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-green-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-green-300"
+          className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-green-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 active:opacity-100 transition-opacity hover:bg-green-300 active:bg-green-500"
         >
           {isCurrentTrack && isPlaying ? (
-            <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" height="32" viewBox="0 -960 960 960" width="32" fill="currentColor">
               <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
             </svg>
           ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" height="32" viewBox="0 -960 960 960" width="32" fill="currentColor">
               <path d="M320-200v-560l440 280-440 280Z"/>
             </svg>
           )}

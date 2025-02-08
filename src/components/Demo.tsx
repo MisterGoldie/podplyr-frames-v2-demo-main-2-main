@@ -35,6 +35,8 @@ import {
   QueryDocumentSnapshot
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { UserDataLoader } from './data/UserDataLoader';
+import { VideoSyncManager } from './media/VideoSyncManager';
 
 const NFT_CACHE_KEY = 'podplayr_nft_cache_';
 const TWO_HOURS = 2 * 60 * 60 * 1000;
@@ -123,103 +125,7 @@ const Demo: React.FC = () => {
     loadInitialData();
   }, [userFid]);
 
-  useEffect(() => {
-    const loadLikedNFTs = async () => {
-      if (fid) {
-        try {
-          console.log('Loading liked NFTs for user:', fid);
-          const liked = await getLikedNFTs(fid);
-          console.log('Loaded liked NFTs:', liked);
-          setLikedNFTs(liked);
-        } catch (error) {
-          console.error('Error loading liked NFTs:', error);
-          setError('Failed to load liked NFTs');
-        }
-      }
-    };
-
-    loadLikedNFTs();
-  }, [userFid]);
-
-  useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        console.log('Fetching user data for FID:', userFid);
-        // Get Farcaster user data by FID only
-        const users = await searchUsers(userFid.toString());
-        if (users && users.length > 0) {
-          const user = users[0];
-          console.log('Received user data:', user);
-          setUserData(user);
-
-          // Get both custody and verified addresses
-          const addresses = [
-            user.custody_address,
-            ...(user.verified_addresses?.eth_addresses || [])
-          ].filter(Boolean) as string[];
-
-          console.log('Found addresses:', addresses);
-
-          if (addresses.length === 0) {
-            console.error('No wallet addresses found for user');
-            return;
-          }
-
-          // Try to get cached NFTs first
-          const cachedNFTs = getCachedNFTs(userFid);
-          if (cachedNFTs) {
-            console.log('Using cached NFTs:', cachedNFTs.length);
-            // Inspect the cached NFTs
-            console.log('Sample of cached NFTs:', cachedNFTs.slice(0, 5).map(nft => ({
-              name: nft.name,
-              contract: nft.contract,
-              tokenId: nft.tokenId,
-              hasValidAudio: nft.hasValidAudio,
-              isVideo: nft.isVideo,
-              audio: nft.audio,
-              animation_url: nft.metadata?.animation_url,
-              properties: nft.metadata?.properties
-            })));
-            
-            // Clear cache if NFTs don't have the right structure
-            const hasValidStructure = cachedNFTs.every(nft => 
-              nft.hasOwnProperty('contract') && 
-              nft.hasOwnProperty('tokenId') && 
-              nft.hasOwnProperty('metadata')
-            );
-
-            if (hasValidStructure) {
-              setUserNFTs(cachedNFTs);
-              return;
-            } else {
-              console.log('Cached NFTs have invalid structure, fetching fresh data');
-              localStorage.removeItem(`${NFT_CACHE_KEY}${userFid}`);
-            }
-          }
-
-          // Fetch NFTs for each address
-          const nftPromises = addresses.map(address => fetchUserNFTsFromAlchemy(address));
-          const nftResults = await Promise.all(nftPromises);
-          const allNFTs = nftResults.flat();
-
-          // Cache the NFTs
-          localStorage.setItem(`${NFT_CACHE_KEY}${fid}`, JSON.stringify({
-            nfts: allNFTs,
-            timestamp: Date.now()
-          }));
-
-          setUserNFTs(allNFTs);
-        }
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-        setError('Failed to fetch user data');
-      }
-    };
-
-    if (userFid) {
-      fetchUserData();
-    }
-  }, [userFid]);
+  // User data loading is now handled by UserDataLoader component
 
   useEffect(() => {
     const filterMediaNFTs = () => {
@@ -300,62 +206,7 @@ const Demo: React.FC = () => {
     filterMediaNFTs();
   }, [userNFTs]);
 
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !currentPlayingNFT?.isVideo) return;
-
-    const syncVideo = () => {
-      if (isPlaying) {
-        video.play().catch(console.error);
-      } else {
-        video.pause();
-      }
-    };
-
-    syncVideo();
-
-    // Add event listeners to handle video state
-    const handlePlay = () => {
-      if (!isPlaying) handlePlayPause();
-    };
-    const handlePause = () => {
-      if (isPlaying) handlePlayPause();
-    };
-
-    video.addEventListener('play', handlePlay);
-    video.addEventListener('pause', handlePause);
-
-    return () => {
-      video.removeEventListener('play', handlePlay);
-      video.removeEventListener('pause', handlePause);
-    };
-  }, [isPlaying, currentPlayingNFT]);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !currentPlayingNFT?.isVideo) return;
-
-    const syncVideo = () => {
-      if (isPlaying) {
-        video.play().catch(console.error);
-      } else {
-        video.pause();
-      }
-    };
-
-    syncVideo();
-
-    // Keep video in sync with audio progress
-    const syncInterval = setInterval(() => {
-      if (video && Math.abs(video.currentTime - audioProgress) > 0.5) {
-        video.currentTime = audioProgress;
-      }
-    }, 1000);
-
-    return () => {
-      clearInterval(syncInterval);
-    };
-  }, [isPlaying, currentPlayingNFT, audioProgress]);
+  // Video synchronization is now handled by VideoSyncManager component
 
   useEffect(() => {
     if (isInitialPlay) {
@@ -767,8 +618,26 @@ const Demo: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <div className="flex-1 container mx-auto px-4 py-6 pb-32">
+    <div className="min-h-screen flex flex-col no-select">
+      {userFid && (
+        <UserDataLoader
+          userFid={userFid}
+          onUserDataLoaded={setUserData}
+          onNFTsLoaded={setUserNFTs}
+          onLikedNFTsLoaded={setLikedNFTs}
+          onError={setError}
+        />
+      )}
+      {videoRef.current && currentPlayingNFT?.isVideo && (
+        <VideoSyncManager
+          videoRef={videoRef}
+          currentPlayingNFT={currentPlayingNFT}
+          isPlaying={isPlaying}
+          audioProgress={audioProgress}
+          onPlayPause={handlePlayPause}
+        />
+      )}
+      <div className="flex-1 container mx-auto px-4 py-6 pb-40">
         {renderCurrentView()}
       </div>
 
