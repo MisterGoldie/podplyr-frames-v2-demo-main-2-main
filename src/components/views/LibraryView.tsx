@@ -95,7 +95,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
       } else {
         // Add to likes
         await addLikedNFT(userContext.user.fid, nft);
-        setLikedNFTs(prev => [...prev, nft]);
+        // Let the useEffect handle updating the state
         console.log('NFT added to likes');
       }
     } catch (error) {
