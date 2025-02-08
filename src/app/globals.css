@@ -8,7 +8,15 @@
   }
   
   body {
-    @apply min-h-screen bg-gradient-to-br from-[#2D1B3D] to-[#151515];
+    @apply min-h-screen bg-gradient-to-br from-[#2D1B3D] to-[#151515] text-white antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-medium tracking-tight;
+  }
+
+  .font-mono {
+    font-family: inherit !important;
   }
 }
 

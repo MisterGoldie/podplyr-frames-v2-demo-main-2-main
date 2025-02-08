@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import "~/app/globals.css";
 import { Providers } from "~/app/providers";
-import Script from 'next/script'
+import Script from 'next/script';
+import { Space_Grotesk } from 'next/font/google';
 
 export const metadata: Metadata = {
   title: "POD Playr",
@@ -14,13 +15,18 @@ export const metadata: Metadata = {
   }
 };
 
+const spaceGrotesk = Space_Grotesk({
+  subsets: ['latin'],
+  display: 'swap',
+});
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className={spaceGrotesk.className}>
       <head>
         <Script src="https://cdn.farcaster.xyz/frames/sdk.js" strategy="beforeInteractive" />
       </head>
