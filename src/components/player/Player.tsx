@@ -263,19 +263,15 @@ export const Player: React.FC<PlayerProps> = ({
           {/* NFT Image/Video Container */}
           <div className="relative w-full mb-8">
             <div className={`transition-all duration-500 ease-in-out transform ${isPlaying ? 'scale-100' : 'scale-90'}`}>
-              {nft.isVideo || nft.metadata?.animation_url ? (
-                renderVideo()
-              ) : (
-                <NFTImage
-                  src={nft.metadata?.image || ''}
-                  alt={nft.name}
-                  className="w-full h-auto object-contain rounded-lg transition-transform duration-500"
-                  width={500}
-                  height={500}
-                  priority={true}
-                  nft={nft}
-                />
-              )}
+              <NFTImage
+                src={nft.metadata?.image || ''}
+                alt={nft.name}
+                className="w-full h-auto object-contain rounded-lg transition-transform duration-500"
+                width={500}
+                height={500}
+                priority={true}
+                nft={nft}
+              />
             </div>
 
             {/* Play/Pause Overlay */}
