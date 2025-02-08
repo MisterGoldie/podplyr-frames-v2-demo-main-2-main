@@ -8,7 +8,7 @@
   }
   
   body {
-    @apply min-h-screen bg-gradient-to-br from-[#190F23] to-[#0A050F];
+    @apply min-h-screen bg-gradient-to-br from-[#2D1B3D] to-[#151515];
   }
 }
 

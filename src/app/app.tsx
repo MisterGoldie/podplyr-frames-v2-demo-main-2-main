@@ -6,7 +6,7 @@ import { PlayerProvider } from "../contexts/PlayerContext";
 const Demo = dynamic(() => import("../components/Demo"), {
   ssr: false,
   loading: () => (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-[#190F23] to-[#0A050F]">
+    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-[#2D1B3D] to-[#151515]">
       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
     </div>
   ),
@@ -15,7 +15,7 @@ const Demo = dynamic(() => import("../components/Demo"), {
 export default function App() {
   return (
     <PlayerProvider>
-      <main className="min-h-screen flex flex-col bg-gradient-to-br from-[#190F23] to-[#0A050F]">
+      <main className="min-h-screen flex flex-col bg-gradient-to-br from-[#2D1B3D] to-[#151515]">
         <Demo />
       </main>
     </PlayerProvider>
