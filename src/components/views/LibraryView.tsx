@@ -234,6 +234,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
                       width={48}
                       height={48}
                       priority={true}
+                      nft={nft}
                     />
                   </div>
 

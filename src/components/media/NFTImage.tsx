@@ -61,16 +61,12 @@ export const NFTImage: React.FC<NFTImageProps> = ({
     setError(false);
     setRetryCount(0);
 
-    // For video NFTs, check both animation_url and the processed version
-    if (nft?.metadata?.animation_url) {
-      const rawUrl = nft.metadata.animation_url;
-      if (detectVideoContent(rawUrl)) {
-        console.log('Video content detected, using image as thumbnail');
-        setIsVideo(true);
-        // Use the NFT's image as thumbnail
-        setImgSrc(processMediaUrl(nft?.metadata?.image || nft?.image || fallbackSrc));
-        return;
-      }
+    // Always use the NFT's image as thumbnail, regardless of content type
+    if (nft?.metadata?.image || nft?.image) {
+      setIsVideo(false);
+      const thumbnailUrl = nft.metadata?.image || nft.image;
+      setImgSrc(processMediaUrl(thumbnailUrl, fallbackSrc));
+      return;
     }
 
     // For NFTs with image
