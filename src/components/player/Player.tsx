@@ -1,11 +1,10 @@
 'use client';
 
 import React, { useRef, useState, useEffect } from 'react';
+import Image from 'next/image';
 import { PlayerControls } from './PlayerControls';
 import type { NFT } from '../../types/user';
 import { processMediaUrl } from '../../utils/media';
-import { NFTImage } from '../media/NFTImage';
-import Image from 'next/image';
 
 interface PlayerProps {
   nft?: NFT | null;
@@ -151,16 +150,29 @@ export const Player: React.FC<PlayerProps> = ({
           <div className="flex items-center justify-between h-[calc(100%-8px)] px-4 gap-4">
             {/* NFT Image and Info */}
             <div className="flex items-center gap-4 flex-1 min-w-0">
-              <div className="relative w-12 h-12 flex-shrink-0 rounded-md overflow-hidden">
-                <NFTImage
-                  src={nft.metadata?.image || ''}
-                  alt={nft.name}
-                  className="w-full h-full object-cover"
-                  width={48}
-                  height={48}
-                  priority={true}
-                  nft={nft}
-                />
+              <div className="relative w-12 h-12 flex-shrink-0">
+                {nft.isVideo ? (
+                  renderVideo()
+                ) : nft.isAnimation ? (
+                  <Image
+                    src={nft.metadata?.animation_url || nft.metadata?.image || ''}
+                    alt={nft.name}
+                    className="w-full h-full object-cover"
+                    width={48}
+                    height={48}
+                    priority={true}
+                    unoptimized={true}
+                  />
+                ) : (
+                  <Image
+                    src={nft.metadata?.image || ''}
+                    alt={nft.name}
+                    className="w-full h-full object-cover"
+                    width={48}
+                    height={48}
+                    priority={true}
+                  />
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="text-purple-400 font-mono text-sm truncate">{nft.name}</h3>
@@ -263,15 +275,18 @@ export const Player: React.FC<PlayerProps> = ({
           {/* NFT Image/Video Container */}
           <div className="relative w-full mb-8">
             <div className={`transition-all duration-500 ease-in-out transform ${isPlaying ? 'scale-100' : 'scale-90'}`}>
-              <NFTImage
-                src={nft.metadata?.image || ''}
-                alt={nft.name}
-                className="w-full h-auto object-contain rounded-lg transition-transform duration-500"
-                width={500}
-                height={500}
-                priority={true}
-                nft={nft}
-              />
+              {nft.isVideo || nft.metadata?.animation_url ? (
+                renderVideo()
+              ) : (
+                <Image
+                  src={nft.metadata?.image || ''}
+                  alt={nft.name}
+                  className="w-full h-auto object-contain rounded-lg transition-transform duration-500"
+                  width={500}
+                  height={500}
+                  priority={true}
+                />
+              )}
             </div>
 
             {/* Play/Pause Overlay */}
