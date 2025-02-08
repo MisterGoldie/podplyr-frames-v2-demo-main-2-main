@@ -129,7 +129,7 @@ export const Player: React.FC<PlayerProps> = ({
 
   if (isMinimized) {
     return (
-      <div className="fixed bottom-[64px] left-0 right-0 bg-black border-t border-purple-400/20 h-20 z-30">
+      <div className="fixed bottom-20 left-0 right-0 bg-black border-t border-purple-400/20 h-20 z-30">
         {/* Progress bar */}
         <div 
           className="absolute top-0 left-0 right-0 h-1 bg-gray-800 cursor-pointer group"
