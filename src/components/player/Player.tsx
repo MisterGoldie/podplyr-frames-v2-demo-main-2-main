@@ -40,6 +40,51 @@ export const Player: React.FC<PlayerProps> = ({
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoTime, setVideoTime] = useState(0);
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  const [swipeDistance, setSwipeDistance] = useState(0);
+  
+  // Minimum distance for swipe (100px)
+  const minSwipeDistance = 100;
+  
+  // Maximum allowed swipe distance for visual feedback
+  const maxSwipeDistance = 250;
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientY);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    const currentY = e.targetTouches[0].clientY;
+    setTouchEnd(currentY);
+    
+    if (touchStart) {
+      const distance = touchStart - currentY;
+      setSwipeDistance(distance);
+    }
+  };
+
+  const onTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+
+    // Calculate distance
+    const distance = touchStart - touchEnd;
+    const isUpSwipe = distance > minSwipeDistance;
+    const isDownSwipe = distance < -minSwipeDistance;
+
+    // Handle swipe
+    if (isMinimized && isUpSwipe) {
+      onMinimizeToggle(); // Maximize
+    } else if (!isMinimized && isDownSwipe) {
+      onMinimizeToggle(); // Minimize
+    }
+
+    // Reset values
+    setTouchStart(null);
+    setTouchEnd(null);
+    setSwipeDistance(0);
+  };
 
   // Handle Picture-in-Picture mode
   const handlePictureInPicture = async () => {
@@ -130,7 +175,17 @@ export const Player: React.FC<PlayerProps> = ({
 
   if (isMinimized) {
     return (
-      <div className="fixed bottom-20 left-0 right-0 bg-black border-t border-purple-400/20 h-20 z-30">
+      <div 
+        className="fixed bottom-20 left-0 right-0 bg-black border-t border-purple-400/20 h-20 z-30 will-change-transform"
+        style={{
+          transform: `translateY(${Math.min(0, Math.max(swipeDistance, -maxSwipeDistance))}px)`,
+          transition: swipeDistance === 0 ? 'transform 500ms cubic-bezier(0.4, 0, 0.2, 1)' : 'none'
+        }}
+
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
         {/* Progress bar */}
         <div 
           className="absolute top-0 left-0 right-0 h-1 bg-gray-800 cursor-pointer group"
@@ -242,7 +297,17 @@ export const Player: React.FC<PlayerProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 bg-black backdrop-blur-md z-50 flex flex-col">
+    <div 
+      className="fixed inset-0 bg-black backdrop-blur-md z-50 flex flex-col will-change-transform"
+      style={{
+        transform: `translateY(${Math.max(0, Math.min(swipeDistance, maxSwipeDistance))}px)`,
+        transition: swipeDistance === 0 ? 'transform 500ms cubic-bezier(0.4, 0, 0.2, 1)' : 'none'
+      }}
+
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+    >
       {/* Header */}
       <div className="p-4 flex items-center justify-between border-b border-black">
         <button
