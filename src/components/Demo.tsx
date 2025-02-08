@@ -354,6 +354,17 @@ const Demo: React.FC = () => {
     setSelectedUser(null);
     setSearchResults([]);
     setError(null);
+
+    // Update the NFT list for the new page
+    if (page === 'isHome') {
+      window.nftList = [...recentlyPlayedNFTs, ...topPlayedNFTs.map(item => item.nft)];
+    } else if (page === 'isLibrary') {
+      window.nftList = likedNFTs;
+    } else if (page === 'isProfile') {
+      window.nftList = userNFTs;
+    } else if (page === 'isExplore') {
+      window.nftList = filteredNFTs;
+    }
   };
 
   const handleReset = () => {
@@ -367,11 +378,24 @@ const Demo: React.FC = () => {
     setSearchResults([]);
     setUserNFTs([]);
     setError(null);
+    
+    // Reset NFT list to home view
+    window.nftList = [...recentlyPlayedNFTs, ...topPlayedNFTs.map(item => item.nft)];
   };
 
   const handlePlayFromLibrary = async (nft: NFT) => {
     console.log('handlePlayFromLibrary called');
     setIsInitialPlay(true);
+    // Set the current list based on the active view
+    if (currentPage.isExplore) {
+      window.nftList = filteredNFTs;
+    } else if (currentPage.isLibrary) {
+      window.nftList = likedNFTs;
+    } else if (currentPage.isProfile) {
+      window.nftList = userNFTs;
+    } else if (currentPage.isHome) {
+      window.nftList = [...recentlyPlayedNFTs, ...topPlayedNFTs.map(item => item.nft)];
+    }
     await handlePlayAudio(nft);
     setIsInitialPlay(false);
   };

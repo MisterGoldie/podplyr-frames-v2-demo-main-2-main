@@ -3,6 +3,13 @@ import { NFT } from '../types/user';
 import { trackNFTPlay } from '../lib/firebase';
 import { processMediaUrl } from '../utils/media';
 
+// Extend Window interface to include our custom property
+declare global {
+  interface Window {
+    nftList: NFT[];
+  }
+}
+
 interface UseAudioPlayerProps {
   fid?: number;
   setRecentlyPlayedNFTs?: React.Dispatch<React.SetStateAction<NFT[]>>;
@@ -107,15 +114,35 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs }: UseAudioPlaye
     }
   }, [isPlaying]);
 
-  const handlePlayNext = useCallback(() => {
-    // Implementation for playing next track
-    // This would need to be connected to your NFT list
-  }, []);
+  const handlePlayNext = useCallback(async () => {
+    if (!currentPlayingNFT || !window.nftList || window.nftList.length === 0) return;
 
-  const handlePlayPrevious = useCallback(() => {
-    // Implementation for playing previous track
-    // This would need to be connected to your NFT list
-  }, []);
+    const currentIndex = window.nftList.findIndex(
+      (nft: NFT) => nft.contract === currentPlayingNFT.contract && nft.tokenId === currentPlayingNFT.tokenId
+    );
+
+    if (currentIndex === -1) return;
+
+    const nextIndex = (currentIndex + 1) % window.nftList.length;
+    const nextNFT = window.nftList[nextIndex];
+
+    if (nextNFT) await handlePlayAudio(nextNFT);
+  }, [currentPlayingNFT]);
+
+  const handlePlayPrevious = useCallback(async () => {
+    if (!currentPlayingNFT || !window.nftList || window.nftList.length === 0) return;
+
+    const currentIndex = window.nftList.findIndex(
+      (nft: NFT) => nft.contract === currentPlayingNFT.contract && nft.tokenId === currentPlayingNFT.tokenId
+    );
+
+    if (currentIndex === -1) return;
+
+    const prevIndex = (currentIndex - 1 + window.nftList.length) % window.nftList.length;
+    const prevNFT = window.nftList[prevIndex];
+
+    if (prevNFT) await handlePlayAudio(prevNFT);
+  }, [currentPlayingNFT]);
 
   const handleSeek = useCallback((time: number) => {
     if (!audioRef.current) return;
