@@ -51,7 +51,7 @@ export const Player: React.FC<PlayerProps> = ({
   const maxSwipeDistance = 250;
 
   // Spring animation configuration
-  const springTransition = `transform 450ms cubic-bezier(0.16, 1.1, 0.3, 1.3)`;
+  const springTransition = `transform 400ms cubic-bezier(0.17, 0.89, 0.24, 1.11)`;
 
   const onTouchStart = (e: React.TouchEvent) => {
     setTouchEnd(null);
@@ -74,13 +74,10 @@ export const Player: React.FC<PlayerProps> = ({
     // Calculate distance
     const distance = touchStart - touchEnd;
     const isUpSwipe = distance > minSwipeDistance;
-    const isDownSwipe = distance < -minSwipeDistance;
 
-    // Handle swipe
+    // Only handle swipe up to maximize
     if (isMinimized && isUpSwipe) {
       onMinimizeToggle(); // Maximize
-    } else if (!isMinimized && isDownSwipe) {
-      onMinimizeToggle(); // Minimize
     }
 
     // Reset values
@@ -179,7 +176,7 @@ export const Player: React.FC<PlayerProps> = ({
   if (isMinimized) {
     return (
       <div 
-        className="fixed bottom-20 left-0 right-0 bg-black border-t border-purple-400/20 h-20 z-30 will-change-transform"
+        className="fixed bottom-20 left-0 right-0 bg-black border-t border-purple-400/20 h-20 z-[100] will-change-transform overflow-hidden"
         style={{
           transform: `translateY(${Math.min(0, Math.max(swipeDistance, -maxSwipeDistance))}px)`,
           transition: swipeDistance === 0 ? springTransition : 'none',
@@ -302,16 +299,7 @@ export const Player: React.FC<PlayerProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 bg-black backdrop-blur-md z-50 flex flex-col will-change-transform"
-      style={{
-        transform: `translateY(${Math.max(0, Math.min(swipeDistance, maxSwipeDistance))}px)`,
-        transition: swipeDistance === 0 ? springTransition : 'none',
-        touchAction: 'none'
-      }}
-
-      onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
-      onTouchEnd={onTouchEnd}
+      className="fixed inset-0 bg-black backdrop-blur-md z-[100] flex flex-col will-change-transform overflow-hidden"
     >
       {/* Header */}
       <div className="p-4 flex items-center justify-between border-b border-black">

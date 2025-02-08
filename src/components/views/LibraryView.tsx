@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { NFTCard } from '../nft/NFTCard';
 import { NFTImage } from '../media/NFTImage';
 import type { NFT, UserContext } from '../../types/user';
@@ -40,6 +40,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
   const [filterSort, setFilterSort] = useState<'recent' | 'name'>('recent');
   const [searchFilter, setSearchFilter] = useState('');
   const [likedNFTs, setLikedNFTs] = useState<NFT[]>(initialLikedNFTs);
+
 
   // Load liked NFTs when user changes
   useEffect(() => {
@@ -155,7 +156,14 @@ const LibraryView: React.FC<LibraryViewProps> = ({
         </button>
       </header>
 
-      <div className="space-y-8 pt-20">
+      <div 
+        className="space-y-8 pt-20 h-screen overflow-y-auto overscroll-y-contain"
+        style={{
+          WebkitOverflowScrolling: 'touch',
+          scrollBehavior: 'smooth',
+          overscrollBehavior: 'contain'
+        }}
+      >
         {/* Header and Filters */}
         <div className="flex justify-between items-center px-4">
           <h2 className="text-base font-semibold text-purple-400">Your Library</h2>
@@ -220,7 +228,9 @@ const LibraryView: React.FC<LibraryViewProps> = ({
             </p>
           </div>
         ) : (
-          <div className={`px-4 pb-24 ${viewMode === 'grid' ? 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4' : 'space-y-4'}`}>
+          <div 
+            className={`px-4 pb-40 ${viewMode === 'grid' ? 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4' : 'space-y-4'}`}
+          >
             {filteredNFTs.map((nft) => (
               viewMode === 'grid' ? (
                 <NFTCard
