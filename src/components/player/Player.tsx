@@ -50,6 +50,9 @@ export const Player: React.FC<PlayerProps> = ({
   // Maximum allowed swipe distance for visual feedback
   const maxSwipeDistance = 250;
 
+  // Spring animation configuration
+  const springTransition = `transform 450ms cubic-bezier(0.16, 1.1, 0.3, 1.3)`;
+
   const onTouchStart = (e: React.TouchEvent) => {
     setTouchEnd(null);
     setTouchStart(e.targetTouches[0].clientY);
@@ -179,7 +182,8 @@ export const Player: React.FC<PlayerProps> = ({
         className="fixed bottom-20 left-0 right-0 bg-black border-t border-purple-400/20 h-20 z-30 will-change-transform"
         style={{
           transform: `translateY(${Math.min(0, Math.max(swipeDistance, -maxSwipeDistance))}px)`,
-          transition: swipeDistance === 0 ? 'transform 500ms cubic-bezier(0.4, 0, 0.2, 1)' : 'none'
+          transition: swipeDistance === 0 ? springTransition : 'none',
+          touchAction: 'none'
         }}
 
         onTouchStart={onTouchStart}
@@ -301,7 +305,8 @@ export const Player: React.FC<PlayerProps> = ({
       className="fixed inset-0 bg-black backdrop-blur-md z-50 flex flex-col will-change-transform"
       style={{
         transform: `translateY(${Math.max(0, Math.min(swipeDistance, maxSwipeDistance))}px)`,
-        transition: swipeDistance === 0 ? 'transform 500ms cubic-bezier(0.4, 0, 0.2, 1)' : 'none'
+        transition: swipeDistance === 0 ? springTransition : 'none',
+        touchAction: 'none'
       }}
 
       onTouchStart={onTouchStart}
