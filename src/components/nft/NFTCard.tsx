@@ -68,7 +68,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
             height={64}
           />
           {badge && (
-            <div className="absolute top-1 right-1 bg-green-400 text-black text-xs px-1.5 py-0.5 rounded-full">
+            <div className="absolute top-1 right-1 bg-purple-400 text-white text-xs px-1.5 py-0.5 rounded-full font-medium">
               {badge}
             </div>
           )}
@@ -107,7 +107,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
           height={300}
         />
         {badge && (
-          <div className="absolute top-2 left-2 bg-green-400 text-black text-xs px-2 py-1 rounded-full">
+          <div className="absolute top-2 left-2 bg-purple-400 text-white text-xs px-2 py-1 rounded-full font-medium">
             {badge}
           </div>
         )}
