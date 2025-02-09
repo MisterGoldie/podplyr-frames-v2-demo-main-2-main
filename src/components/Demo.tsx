@@ -349,9 +349,9 @@ const Demo: React.FC = () => {
     }
   };
 
-  const isNFTLiked = (nft: NFT): boolean => {
-    // If the NFT is in the library view, it must be liked
-    if (currentPage.isLibrary) return true;
+  const isNFTLiked = (nft: NFT, ignoreCurrentPage: boolean = false): boolean => {
+    // If we're in library view and not ignoring current page, all NFTs are liked
+    if (currentPage.isLibrary && !ignoreCurrentPage) return true;
 
     // Otherwise check if it's in the likedNFTs array
     return likedNFTs.some(item => 
@@ -710,7 +710,7 @@ const Demo: React.FC = () => {
           duration={audioDuration}
           onSeek={handleSeek}
           onLikeToggle={handleLikeToggle}
-          isLiked={isNFTLiked(currentPlayingNFT)}
+          isLiked={isNFTLiked(currentPlayingNFT, true)} // Always check actual liked state for Player
           onPictureInPicture={togglePictureInPicture}
         />
       )}
