@@ -89,9 +89,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({
       </header>
       <div className="space-y-8 pt-20 pb-48 overflow-y-auto h-screen overscroll-y-contain">
         {/* Profile Header */}
-        <div className="relative flex flex-col items-center text-center p-8 space-y-6 bg-gradient-to-b from-purple-900/20 to-purple-800/5 rounded-3xl mx-4 backdrop-blur-lg w-[340px] h-[280px] mx-auto border border-purple-400/10 shadow-lg shadow-purple-900/20 overflow-hidden">
+        <div className="relative flex flex-col items-center text-center p-8 space-y-6 bg-gradient-to-br from-blue-600/40 via-purple-600/30 to-pink-600/40 rounded-3xl mx-4 backdrop-blur-lg w-[340px] h-[280px] mx-auto border border-purple-400/20 shadow-xl shadow-purple-900/30 overflow-hidden hover:border-indigo-400/30 transition-all duration-300">
           {/* Glow effect */}
-          <div className="absolute inset-0 bg-purple-400/5 blur-3xl rounded-full -z-10 animate-pulse"></div>
+          <div className="absolute inset-0 bg-gradient-to-tr from-blue-500/20 via-purple-500/15 to-pink-500/20 blur-2xl rounded-full -z-10 animate-pulse"></div>
           {/* Floating music notes */}
           <div className="absolute inset-0 overflow-hidden">
             <div className="absolute text-2xl text-purple-400/30 animate-float-slow top-12 left-8">
