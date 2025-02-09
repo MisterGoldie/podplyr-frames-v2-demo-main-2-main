@@ -157,11 +157,16 @@ const LibraryView: React.FC<LibraryViewProps> = ({
       </header>
 
       <div 
-        className="space-y-8 pt-20 h-screen overflow-y-auto overscroll-y-contain"
+        className="space-y-8 pt-20 pb-12 min-h-screen overflow-y-auto"
         style={{
           WebkitOverflowScrolling: 'touch',
-          scrollBehavior: 'smooth',
-          overscrollBehavior: 'contain'
+          height: 'calc(100vh - 4rem)', // Subtract header height
+          overscrollBehavior: 'none',
+          position: 'fixed',
+          top: '0',
+          left: '0',
+          right: '0',
+          bottom: '0'
         }}
       >
         {/* Header and Filters */}
@@ -241,7 +246,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
                   currentlyPlaying={currentlyPlaying}
                   handlePlayPause={handlePlayPause}
                   onLikeToggle={() => handleLikeToggle(nft)}
-                  isLiked={isNFTLiked(nft)}
+                  isLiked={true} // All NFTs in library are liked by definition
                 />
               ) : (
                 <div 
@@ -266,11 +271,23 @@ const LibraryView: React.FC<LibraryViewProps> = ({
                     <h3 className="font-mono text-purple-400 truncate">{nft.name}</h3>
                   </div>
 
-                  {/* Play Button */}
-                  <button 
-                    onClick={() => handlePlayAudio(nft)}
-                    className="text-purple-400 hover:scale-110 transition-transform"
-                  >
+                  {/* Controls */}
+                  <div className="flex items-center gap-2">
+                    {/* Like Button */}
+                    <button 
+                      onClick={() => handleLikeToggle(nft)}
+                      className="text-red-500 hover:scale-110 transition-transform"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                        <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
+                      </svg>
+                    </button>
+
+                    {/* Play Button */}
+                    <button 
+                      onClick={() => handlePlayAudio(nft)}
+                      className="text-purple-400 hover:scale-110 transition-transform"
+                    >
                     {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
                       <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
                         <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
@@ -281,6 +298,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
                       </svg>
                     )}
                   </button>
+                  </div>
                 </div>
               )
             ))}

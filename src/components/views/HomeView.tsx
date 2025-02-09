@@ -14,6 +14,8 @@ interface HomeViewProps {
   handlePlayPause: () => void;
   isLoading?: boolean;
   onReset: () => void;
+  onLikeToggle: (nft: NFT) => Promise<void>;
+  likedNFTs: NFT[];
 }
 
 const HomeView: React.FC<HomeViewProps> = ({
@@ -24,8 +26,16 @@ const HomeView: React.FC<HomeViewProps> = ({
   isPlaying,
   handlePlayPause,
   isLoading = false,
-  onReset
+  onReset,
+  onLikeToggle,
+  likedNFTs
 }) => {
+  const isNFTLiked = (nft: NFT): boolean => {
+    return likedNFTs.some(item => 
+      item.contract.toLowerCase() === nft.contract.toLowerCase() && 
+      item.tokenId === nft.tokenId
+    );
+  };
   if (isLoading) {
     return (
       <>
@@ -103,6 +113,8 @@ const HomeView: React.FC<HomeViewProps> = ({
                           isPlaying={isPlaying && currentlyPlaying === `${nft.contract}-${nft.tokenId}`}
                           currentlyPlaying={currentlyPlaying}
                           handlePlayPause={handlePlayPause}
+                          onLikeToggle={() => onLikeToggle(nft)}
+                          isLiked={isNFTLiked(nft)}
                         />
                       </div>
                     ))}
@@ -132,6 +144,8 @@ const HomeView: React.FC<HomeViewProps> = ({
                           isPlaying={isPlaying && currentlyPlaying === `${nft.contract}-${nft.tokenId}`}
                           currentlyPlaying={currentlyPlaying}
                           handlePlayPause={handlePlayPause}
+                          onLikeToggle={() => onLikeToggle(nft)}
+                          isLiked={isNFTLiked(nft)}
                           badge={`${count} plays`}
                         />
                       </div>

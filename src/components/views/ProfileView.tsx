@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { NFTCard } from '../nft/NFTCard';
 import type { NFT, UserContext } from '../../types/user';
+import { getLikedNFTs } from '../../lib/firebase';
 import { fetchUserNFTs } from '../../lib/nft';
 
 interface ProfileViewProps {
@@ -15,6 +16,7 @@ interface ProfileViewProps {
   handlePlayPause: () => void;
   onReset: () => void;
   onNFTsLoaded: (nfts: NFT[]) => void;
+  onLikeToggle: (nft: NFT) => Promise<void>;
 }
 
 const ProfileView: React.FC<ProfileViewProps> = ({
@@ -25,8 +27,26 @@ const ProfileView: React.FC<ProfileViewProps> = ({
   currentlyPlaying,
   handlePlayPause,
   onReset,
-  onNFTsLoaded
+  onNFTsLoaded,
+  onLikeToggle
 }) => {
+  const [likedNFTs, setLikedNFTs] = useState<NFT[]>([]);
+
+  // Load liked NFTs when user changes
+  useEffect(() => {
+    const loadLikedNFTs = async () => {
+      if (userContext?.user?.fid) {
+        try {
+          const liked = await getLikedNFTs(userContext.user.fid);
+          setLikedNFTs(liked);
+        } catch (error) {
+          console.error('Error loading liked NFTs:', error);
+        }
+      }
+    };
+
+    loadLikedNFTs();
+  }, [userContext?.user?.fid]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -67,7 +87,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
           />
         </button>
       </header>
-      <div className="space-y-8 pt-20">
+      <div className="space-y-8 pt-20 pb-12">
         {/* Profile Header */}
         <div className="flex items-center p-4 space-x-4">
           <Image
@@ -111,6 +131,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                     isPlaying={isPlaying && currentlyPlaying === nftKey}
                     currentlyPlaying={currentlyPlaying}
                     handlePlayPause={handlePlayPause}
+                    onLikeToggle={() => onLikeToggle(nft)}
+                    isLiked={likedNFTs.some(likedNft => 
+                      likedNft.contract === nft.contract && likedNft.tokenId === nft.tokenId
+                    )}
                   />
                 );
               })}

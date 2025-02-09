@@ -82,31 +82,31 @@ export const NFTImage: React.FC<NFTImageProps> = ({
   }, [src, nft]);
 
   const handleError = (error: SyntheticEvent<HTMLVideoElement | HTMLImageElement>) => {
-    console.error('Media failed to load:', { 
-      src: error.currentTarget.src || imgSrc,
-      isVideo, 
-      currentSrc: error.currentTarget.currentSrc,
-      nftMetadata: nft?.metadata,
-      rawAnimationUrl: nft?.metadata?.animation_url 
-    });
-    
-    // For nftstorage.link URLs that fail, try using them directly
-    if (nft?.metadata?.animation_url?.includes('nftstorage.link') && retryCount === 0) {
-      setImgSrc(nft.metadata.animation_url);
-      setRetryCount(prev => prev + 1);
-      return;
-    }
-    
-    // Try alternative IPFS gateway if available
-    const alternativeUrl = getAlternativeIPFSUrl(imgSrc);
-    if (alternativeUrl && retryCount < IPFS_GATEWAYS.length) {
-      console.log('Trying alternative IPFS gateway:', alternativeUrl);
-      setImgSrc(alternativeUrl);
-      setRetryCount(prev => prev + 1);
+    // If we've already tried once, silently use fallback
+    if (retryCount > 0) {
+      setError(true);
+      setImgSrc(fallbackSrc);
       return;
     }
 
-    // If we've exhausted all retries or it's not an IPFS URL, use fallback
+    // Only log error and try alternative on first attempt
+    console.error('Media failed to load:', { 
+      src: error.currentTarget.src || imgSrc,
+      isVideo,
+      currentSrc: error.currentTarget.currentSrc
+    });
+
+    // Try alternative gateway once
+    if (imgSrc.includes('ipfs')) {
+      const altUrl = getAlternativeIPFSUrl(imgSrc);
+      if (altUrl) {
+        setImgSrc(altUrl);
+        setRetryCount(1);
+        return;
+      }
+    }
+
+    // If no alternative available, use fallback
     setError(true);
     setImgSrc(fallbackSrc);
   };

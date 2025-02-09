@@ -84,6 +84,22 @@ const Demo: React.FC = () => {
   const [userData, setUserData] = useState<FarcasterUser | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  // Load liked NFTs when user changes
+  useEffect(() => {
+    const loadLikedNFTs = async () => {
+      if (userFid) {
+        try {
+          const liked = await getLikedNFTs(userFid);
+          setLikedNFTs(liked);
+        } catch (error) {
+          console.error('Error loading liked NFTs:', error);
+        }
+      }
+    };
+
+    loadLikedNFTs();
+  }, [userFid]);
+
   const {
     isPlaying,
     currentPlayingNFT,
@@ -334,6 +350,10 @@ const Demo: React.FC = () => {
   };
 
   const isNFTLiked = (nft: NFT): boolean => {
+    // If the NFT is in the library view, it must be liked
+    if (currentPage.isLibrary) return true;
+
+    // Otherwise check if it's in the likedNFTs array
     return likedNFTs.some(item => 
       item.contract.toLowerCase() === nft.contract.toLowerCase() && 
       item.tokenId === nft.tokenId
@@ -420,6 +440,8 @@ const Demo: React.FC = () => {
           handlePlayPause={handlePlayPause}
           isLoading={isLoading}
           onReset={handleReset}
+          onLikeToggle={handleLikeToggle}
+          likedNFTs={likedNFTs}
         />
       );
     }
@@ -514,6 +536,7 @@ const Demo: React.FC = () => {
           handlePlayPause={handlePlayPause}
           onReset={handleReset}
           onNFTsLoaded={setUserNFTs}
+          onLikeToggle={handleLikeToggle}
         />
       );
     }
