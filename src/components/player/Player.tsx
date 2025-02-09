@@ -370,8 +370,7 @@ export const Player: React.FC<PlayerProps> = ({
 
           {/* Track Info */}
           <div className="text-center mb-12">
-            <h2 className="font-mono text-purple-400 text-xl mb-3">{nft.name}</h2>
-            <p className="font-mono text-gray-400 text-sm">{nft.collection?.name}</p>
+            <h2 className="font-mono text-purple-400 text-xl">{nft.name}</h2>
           </div>
 
           {/* Progress Bar */}

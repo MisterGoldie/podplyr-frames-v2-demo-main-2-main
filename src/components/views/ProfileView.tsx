@@ -89,17 +89,19 @@ const ProfileView: React.FC<ProfileViewProps> = ({
       </header>
       <div className="space-y-8 pt-20 pb-48 overflow-y-auto h-screen overscroll-y-contain">
         {/* Profile Header */}
-        <div className="flex items-center p-4 space-x-4">
-          <Image
-            src={userContext.user?.pfpUrl || '/default-avatar.png'}
-            alt={userContext.user?.displayName || 'User'}
-            width={64}
-            height={64}
-            className="rounded-full"
-          />
-          <div>
-            <h2 className="text-xl font-bold">{userContext.user?.displayName || 'User'}</h2>
-            <p className="text-gray-500">@{userContext.user?.username || 'user'}</p>
+        <div className="flex flex-col items-center text-center p-8 space-y-6 bg-purple-900/10 rounded-3xl mx-4 backdrop-blur-sm">
+          <div className="relative">
+            <Image
+              src={userContext.user?.pfpUrl || '/default-avatar.png'}
+              alt={userContext.user?.displayName || 'User'}
+              width={120}
+              height={120}
+              className="rounded-full ring-4 ring-purple-400/20"
+            />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-mono text-purple-400 font-bold">{userContext.user?.displayName || 'User'}</h2>
+            <p className="text-lg text-purple-300/60">@{userContext.user?.username || 'user'}</p>
           </div>
         </div>
 
