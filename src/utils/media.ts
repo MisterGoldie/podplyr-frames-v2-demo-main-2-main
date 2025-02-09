@@ -3,9 +3,9 @@ import { NFT } from '../types/user';
 
 // List of reliable IPFS gateways in order of preference
 const IPFS_GATEWAYS = [
+  'https://cloudflare-ipfs.com/ipfs/',
   'https://ipfs.io/ipfs/',
   'https://nftstorage.link/ipfs/',
-  'https://cloudflare-ipfs.com/ipfs/',
   'https://gateway.pinata.cloud/ipfs/'
 ];
 
@@ -39,6 +39,14 @@ const extractIPFSHash = (url: string): string | null => {
 // Function to process media URLs to ensure they're properly formatted
 export const processMediaUrl = (url: string, fallbackUrl: string = '/default-nft.png'): string => {
   if (!url) return fallbackUrl;
+
+  // If it's an nftstorage.link URL, try using Cloudflare IPFS gateway instead
+  if (url.includes('nftstorage.link/ipfs/')) {
+    const ipfsHash = url.split('/ipfs/')[1];
+    if (ipfsHash) {
+      return `${IPFS_GATEWAYS[0]}${ipfsHash}`;
+    }
+  }
 
   // If it's already a working dweb.link URL, return it as is
   if (url.includes('.ipfs.dweb.link')) {

@@ -3,7 +3,7 @@ import { processMediaUrl } from '../../utils/media';
 import Image from 'next/image';
 import type { SyntheticEvent } from 'react';
 
-const IPFS_GATEWAYS = ['https://ipfs.io', 'https://cloudflare-ipfs.com', 'https://gateway.pinata.cloud'];
+const IPFS_GATEWAYS = ['https://cloudflare-ipfs.com', 'https://ipfs.io', 'https://gateway.pinata.cloud'];
 
 interface NFTImageProps {
   src: string;
@@ -72,7 +72,12 @@ export const NFTImage: React.FC<NFTImageProps> = ({
     // For NFTs with image
     if (src) {
       setIsVideo(false);
-      setImgSrc(src.includes('.ipfs.dweb.link') || src.includes('nftstorage.link') ? src : processMediaUrl(src, fallbackSrc));
+      // If it's an IPFS URL, use direct URL without Next.js image optimization
+      if (src.includes('ipfs') || src.includes('nftstorage.link')) {
+        setImgSrc(processMediaUrl(src, fallbackSrc));
+      } else {
+        setImgSrc(src);
+      }
     }
     // Fallback
     else {
@@ -111,10 +116,14 @@ export const NFTImage: React.FC<NFTImageProps> = ({
     setImgSrc(fallbackSrc);
   };
 
-  if (isVideo) {
+  // Use regular img tag for IPFS content to bypass Next.js image optimization
+  const isIPFS = imgSrc.includes('ipfs') || imgSrc.includes('nftstorage.link');
+  const finalSrc = error ? fallbackSrc : imgSrc;
+  
+  if (isVideo || !isIPFS) {
     return (
       <Image
-        src={imgSrc}
+        src={finalSrc}
         alt={alt}
         className={className}
         width={width || 300}
@@ -126,14 +135,14 @@ export const NFTImage: React.FC<NFTImageProps> = ({
   }
 
   return (
-    <Image
-      src={error ? fallbackSrc : imgSrc}
+    <img
+      src={finalSrc}
       alt={alt}
       className={className}
       width={width || 300}
       height={height || 300}
-      priority={priority}
       onError={handleError}
+      loading={priority ? 'eager' : 'lazy'}
     />
   );
 };
