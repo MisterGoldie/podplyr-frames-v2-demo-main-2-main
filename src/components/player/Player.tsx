@@ -313,7 +313,7 @@ export const Player: React.FC<PlayerProps> = ({
       className="fixed inset-0 bg-black backdrop-blur-md z-[100] flex flex-col will-change-transform overflow-hidden"
     >
       {/* Header */}
-      <div className="p-4 flex items-center justify-between border-b border-black">
+      <div className="p-2 flex items-center justify-between border-b border-black">
         <div className="w-8"></div>
         <h3 className="font-mono text-purple-400">Now Playing</h3>
         <button
@@ -328,7 +328,7 @@ export const Player: React.FC<PlayerProps> = ({
 
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto pb-safe">
-        <div className="max-w-screen-sm mx-auto px-4 py-8 pb-24">
+        <div className="max-w-screen-sm mx-auto px-4 py-4 mt-8 pb-24">
           {/* NFT Image/Video Container */}
           <div className="relative w-full mb-8">
             <div className={`transition-all duration-500 ease-in-out transform ${isPlaying ? 'scale-100' : 'scale-90'}`}>
