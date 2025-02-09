@@ -40,13 +40,36 @@ const FEATURED_NFTS: NFT[] = [
 ];
 
 interface FeaturedSectionProps {
-  onPlayNFT: (nft: NFT) => void;
+  onPlayNFT: (nft: NFT, context?: { queue?: NFT[], queueType?: string }) => void;
   handlePlayPause: () => void;
   currentlyPlaying: string | null;
   isPlaying: boolean;
   onLikeToggle: (nft: NFT) => Promise<void>;
   isNFTLiked: (nft: NFT) => boolean;
 }
+
+const preloadAudio = async (url: string, nftName: string): Promise<void> => {
+  try {
+    const audio = new Audio();
+    audio.preload = 'auto';
+    
+    // Create a promise that resolves when the audio is loaded
+    const loadPromise = new Promise((resolve, reject) => {
+      audio.addEventListener('canplaythrough', () => resolve(true), { once: true });
+      audio.addEventListener('error', (e) => reject(e), { once: true });
+    });
+
+    // Start loading
+    audio.src = url;
+    audio.load(); // Explicitly call load()
+    
+    // Wait for load to complete
+    await loadPromise;
+    console.log(`✅ Featured NFT preloaded successfully: ${nftName}`);
+  } catch (error) {
+    console.error(`❌ Error preloading featured NFT ${nftName}:`, error);
+  }
+};
 
 const FeaturedSection: React.FC<FeaturedSectionProps> = ({
   onPlayNFT,
@@ -56,6 +79,26 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({
   onLikeToggle,
   isNFTLiked
 }) => {
+  // Preload audio for featured NFTs on mount
+  React.useEffect(() => {
+    const preloadFeaturedContent = async () => {
+      console.log('🎵 Starting to preload featured NFTs...');
+      // Load all featured NFTs in parallel
+      await Promise.all(
+        FEATURED_NFTS.map(nft => {
+          const audioUrl = nft.audio || nft.metadata?.animation_url;
+          if (audioUrl) {
+            return preloadAudio(audioUrl, nft.name);
+          }
+          return Promise.resolve();
+        })
+      );
+      console.log('✨ All featured NFTs preloaded!');
+    };
+
+    preloadFeaturedContent();
+  }, []); // Empty dependency array means this runs once on mount
+
   return (
     <div className="mb-8">
       <h2 className="text-xl font-mono text-green-400 mb-6">Featured</h2>
@@ -75,7 +118,10 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({
                   />
                   <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
                   <button 
-                    onClick={() => onPlayNFT(nft)}
+                    onClick={() => onPlayNFT(nft, { 
+                      queue: FEATURED_NFTS,
+                      queueType: 'featured'
+                    })}
                     className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-purple-500 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">

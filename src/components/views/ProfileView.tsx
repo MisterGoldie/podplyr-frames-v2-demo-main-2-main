@@ -87,7 +87,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
           />
         </button>
       </header>
-      <div className="space-y-8 pt-20 pb-12">
+      <div className="space-y-8 pt-20 pb-48 overflow-y-auto h-screen overscroll-y-contain">
         {/* Profile Header */}
         <div className="flex items-center p-4 space-x-4">
           <Image

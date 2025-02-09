@@ -9,7 +9,7 @@ import FeaturedSection from '../sections/FeaturedSection';
 interface HomeViewProps {
   recentlyPlayedNFTs: NFT[];
   topPlayedNFTs: { nft: NFT; count: number }[];
-  onPlayNFT: (nft: NFT) => void;
+  onPlayNFT: (nft: NFT, context?: { queue?: NFT[], queueType?: string }) => void;
   currentlyPlaying: string | null;
   isPlaying: boolean;
   handlePlayPause: () => void;
@@ -94,7 +94,7 @@ const HomeView: React.FC<HomeViewProps> = ({
             />
         </button>
       </header>
-      <div className="space-y-8 pt-20">
+      <div className="space-y-8 pt-20 pb-48 overflow-y-auto h-screen overscroll-y-contain">
         {/* Recently Played Section */}
         <section>
           {recentlyPlayedNFTs.length > 0 && (
