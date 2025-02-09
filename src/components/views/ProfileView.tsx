@@ -92,10 +92,23 @@ const ProfileView: React.FC<ProfileViewProps> = ({
         <div className="relative flex flex-col items-center text-center p-8 space-y-6 bg-gradient-to-b from-purple-900/20 to-purple-800/5 rounded-3xl mx-4 backdrop-blur-lg w-[340px] h-[280px] mx-auto border border-purple-400/10 shadow-lg shadow-purple-900/20 overflow-hidden">
           {/* Glow effect */}
           <div className="absolute inset-0 bg-purple-400/5 blur-3xl rounded-full -z-10 animate-pulse"></div>
-          {/* Geometric pattern */}
-          <div className="absolute inset-0 opacity-20">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_transparent_2px,_rgba(139,92,246,0.1)_2px)] bg-[length:24px_24px] rotate-45 animate-[spin_60s_linear_infinite]"></div>
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_transparent_2px,_rgba(139,92,246,0.05)_2px)] bg-[length:16px_16px] -rotate-45 animate-[spin_40s_linear_infinite]"></div>
+          {/* Floating music notes */}
+          <div className="absolute inset-0 overflow-hidden">
+            <div className="absolute text-2xl text-purple-400/30 animate-float-slow top-12 left-8">
+              ♪
+            </div>
+            <div className="absolute text-3xl text-purple-400/25 animate-float-slower top-32 right-12">
+              ♫
+            </div>
+            <div className="absolute text-2xl text-purple-400/20 animate-float-medium top-48 left-16">
+              ♩
+            </div>
+            <div className="absolute text-2xl text-purple-400/35 animate-float-fast right-8 top-24">
+              ♪
+            </div>
+            <div className="absolute text-3xl text-purple-400/15 animate-float-slowest left-24 top-6">
+              ♫
+            </div>
           </div>
           <div className="relative">
             <Image
