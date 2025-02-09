@@ -248,6 +248,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
                   onLikeToggle={() => handleLikeToggle(nft)}
                   isLiked={true} // All NFTs in library are liked by definition
                   showTitleOverlay={true}
+                  useCenteredPlay={true}
                 />
               ) : (
                 <div 

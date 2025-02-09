@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { NFT } from '../../types/user';
 import { NFTImage } from '../media/NFTImage';
 import { processMediaUrl } from '../../utils/media';
@@ -17,6 +17,7 @@ interface NFTCardProps {
   viewMode?: 'list' | 'grid';
   badge?: string;
   showTitleOverlay?: boolean;
+  useCenteredPlay?: boolean;
 }
 
 export const NFTCard: React.FC<NFTCardProps> = ({ 
@@ -32,10 +33,35 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   onRemoveFromCollection,
   viewMode = 'grid',
   badge,
-  showTitleOverlay = false
+  showTitleOverlay = false,
+  useCenteredPlay = false
 }) => {
   const [showCollectionMenu, setShowCollectionMenu] = useState(false);
+  const [showOverlay, setShowOverlay] = useState(false);
+  const overlayTimeoutRef = useRef<NodeJS.Timeout>();
   const isCurrentTrack = currentlyPlaying === `${nft.contract}-${nft.tokenId}`;
+
+  const startOverlayTimer = () => {
+    // Clear any existing timeout
+    if (overlayTimeoutRef.current) {
+      clearTimeout(overlayTimeoutRef.current);
+    }
+    // Show the overlay
+    setShowOverlay(true);
+    // Set new timeout to hide overlay after 5 seconds
+    overlayTimeoutRef.current = setTimeout(() => {
+      setShowOverlay(false);
+    }, 5000);
+  };
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (overlayTimeoutRef.current) {
+        clearTimeout(overlayTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handlePlay = () => {
     console.log('Play button clicked for NFT:', {
@@ -96,7 +122,11 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   }
 
   return (
-    <div className="group relative bg-gray-800/20 rounded-lg overflow-hidden hover:bg-gray-800/40 active:bg-gray-800/60 transition-colors touch-manipulation">
+    <div 
+      className="group relative bg-gray-800/20 rounded-lg overflow-hidden hover:bg-gray-800/40 active:bg-gray-800/60 transition-all duration-500 ease-in-out touch-manipulation"
+      onMouseEnter={() => useCenteredPlay && startOverlayTimer()}
+      onTouchStart={() => useCenteredPlay && startOverlayTimer()}
+    >
       <div className="aspect-square relative">
         <NFTImage
           nft={nft}
@@ -111,16 +141,18 @@ export const NFTCard: React.FC<NFTCardProps> = ({
             {badge}
           </div>
         )}
-        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity" />
-        {showTitleOverlay && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-            <h3 className="text-white font-mono text-sm text-center px-4 truncate max-w-[90%]">{nft.name}</h3>
-          </div>
-        )}
+        <div className={useCenteredPlay ? 
+          `absolute inset-0 bg-black/20 transition-all duration-1000 ease-in-out ${showOverlay ? 'opacity-100' : 'opacity-0'}` : 
+          'absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200'
+        } />
         {onLikeToggle && (
           <button 
-            onClick={onLikeToggle}
-            className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center transition-all duration-200 hover:scale-110 z-10"
+            onClick={(e) => {
+              e.stopPropagation();
+              onLikeToggle();
+              startOverlayTimer();
+            }}
+            className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center transition-all duration-300 hover:scale-110 z-10"
           >
             {isLiked ? (
               <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor" className="text-red-500">
@@ -133,20 +165,50 @@ export const NFTCard: React.FC<NFTCardProps> = ({
             )}
           </button>
         )}
-        <button 
-          onClick={handlePlay}
-          className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-purple-500 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
-        >
-          {isCurrentTrack && isPlaying ? (
-            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-              <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
-            </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-              <path d="M320-200v-560l440 280-440 280Z"/>
-            </svg>
-          )}
-        </button>
+        {useCenteredPlay ? (
+          <div className={`absolute inset-0 flex flex-col items-center justify-center transition-all duration-1000 ease-in-out delay-75 z-20 ${showOverlay ? 'opacity-100' : 'opacity-0'}`}>
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                handlePlay();
+                startOverlayTimer();
+              }}
+              className="w-16 h-16 rounded-full bg-purple-500 text-black flex items-center justify-center mb-3 hover:scale-105 transform transition-all duration-300 ease-out active:scale-95"
+            >
+              {isCurrentTrack && isPlaying ? (
+                <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px" fill="currentColor">
+                  <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px" fill="currentColor">
+                  <path d="M320-200v-560l440 280-440 280Z"/>
+                </svg>
+              )}
+            </button>
+            {showTitleOverlay && (
+              <h3 className="text-white font-mono text-sm text-center px-4 truncate w-[90%] bg-black/50 py-2 rounded">{nft.name}</h3>
+            )}
+          </div>
+        ) : (
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              handlePlay();
+              startOverlayTimer();
+            }}
+            className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-purple-500 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
+          >
+            {isCurrentTrack && isPlaying ? (
+              <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                <path d="M320-200v-560l440 280-440 280Z"/>
+              </svg>
+            )}
+          </button>
+        )}
       </div>
     </div>
   );

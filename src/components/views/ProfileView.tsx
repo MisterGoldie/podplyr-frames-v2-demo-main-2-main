@@ -136,6 +136,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                       likedNft.contract === nft.contract && likedNft.tokenId === nft.tokenId
                     )}
                     showTitleOverlay={true}
+                    useCenteredPlay={true}
                   />
                 );
               })}
