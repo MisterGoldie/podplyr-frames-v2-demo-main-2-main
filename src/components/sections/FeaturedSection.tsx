@@ -3,6 +3,7 @@
 import React from 'react';
 import { NFTImage } from '../media/NFTImage';
 import type { NFT } from '../../types/user';
+import { processMediaUrl } from '../../utils/media';
 
 // Hardcoded featured NFTs
 const FEATURED_NFTS: NFT[] = [
@@ -99,13 +100,16 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({
                 <h3 className="font-mono text-white text-sm truncate mb-1">{nft.name}</h3>
                 <video
                   id={`video-${nft.contract}-${nft.tokenId}`}
-                  src={nft.metadata?.animation_url}
+                  src={nft.metadata?.animation_url ? processMediaUrl(nft.metadata.animation_url) : undefined}
                   className="hidden"
                   preload="none"
+                  playsInline
+                  muted
+                  loop
                 />
                 <audio
                   id={`audio-${nft.contract}-${nft.tokenId}`}
-                  src={nft.audio}
+                  src={nft.audio ? processMediaUrl(nft.audio) : undefined}
                   preload="none"
                 />
               </div>

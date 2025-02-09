@@ -22,14 +22,20 @@ const extractIPFSHash = (url: string): string | null => {
     return dwebMatch[1];
   }
 
-  // Handle /ipfs/ path format
-  const ipfsMatch = url.match(/\/ipfs\/([a-zA-Z0-9]+)/);
+  // Handle /ipfs/ path format with bafybeib... format
+  const ipfsMatch = url.match(/\/ipfs\/(bafybeib[a-zA-Z0-9]+)/);
   if (ipfsMatch) {
     return ipfsMatch[1];
   }
 
-  // Handle direct CID
-  if (/^[a-zA-Z0-9]+$/.test(url)) {
+  // Handle /ipfs/ path format with Qm... format
+  const legacyIpfsMatch = url.match(/\/ipfs\/([a-zA-Z0-9]+)/);
+  if (legacyIpfsMatch) {
+    return legacyIpfsMatch[1];
+  }
+
+  // Handle direct CID (both bafybeib... and Qm... formats)
+  if (/^(bafybeib|Qm)[a-zA-Z0-9]+$/.test(url)) {
     return url;
   }
 

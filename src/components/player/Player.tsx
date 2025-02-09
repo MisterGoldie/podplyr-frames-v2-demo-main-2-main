@@ -151,21 +151,32 @@ export const Player: React.FC<PlayerProps> = ({
     console.log('After toggle called. New state will be:', !isMinimized);
   };
 
-  const renderVideo = () => (
-    <video 
-      ref={videoRef}
-      src={processMediaUrl(nft.metadata?.animation_url || '', '/placeholder-video.mp4')}
-      className={`w-full h-auto object-contain rounded-lg transition-transform duration-500 ${
-        isMinimized ? '' : 'transform transition-all duration-500 ease-in-out ' + (isPlaying ? 'scale-100' : 'scale-90')
-      }`}
-      playsInline
-      loop={nft.isAnimation}
-      muted={true}
-      controls={false}
-      autoPlay={isPlaying}
-      crossOrigin="anonymous"
-    />
-  );
+  const renderVideo = () => {
+    // Get video URL from NFT metadata
+    const videoUrl = nft.metadata?.animation_url || nft.audio || '';
+    
+    // Process the URL through our IPFS gateway system
+    const processedUrl = processMediaUrl(videoUrl, '/placeholder-video.mp4');
+    
+    console.log('Video URL:', { original: videoUrl, processed: processedUrl });
+    
+    return (
+      <video 
+        ref={videoRef}
+        src={processedUrl}
+        className={`w-full h-auto object-contain rounded-lg transition-transform duration-500 ${
+          isMinimized ? '' : 'transform transition-all duration-500 ease-in-out ' + (isPlaying ? 'scale-100' : 'scale-90')
+        }`}
+        playsInline
+        loop={nft.isAnimation}
+        muted={true}
+        controls={false}
+        autoPlay={isPlaying}
+        crossOrigin="anonymous"
+        onError={(e) => console.error('Video error:', e)}
+      />
+    );
+  };
 
   const formatTime = (time: number): string => {
     const minutes = Math.floor(time / 60);
