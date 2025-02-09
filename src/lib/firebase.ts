@@ -523,26 +523,56 @@ export const fetchUserNFTs = async (fid: number): Promise<NFT[]> => {
   }
 };
 
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const fetchWithRetry = async (url: string, options: RequestInit, maxRetries = 3): Promise<Response> => {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const response = await fetch(url, options);
+      if (response.status === 429) { // Rate limit
+        const waitTime = Math.pow(2, i) * 1000; // Exponential backoff
+        console.log(`Rate limited, waiting ${waitTime}ms before retry ${i + 1}/${maxRetries}`);
+        await delay(waitTime);
+        continue;
+      }
+      return response;
+    } catch (error) {
+      if (i === maxRetries - 1) throw error;
+      console.error(`Fetch attempt ${i + 1} failed:`, error);
+      await delay(1000); // Wait 1s between retries
+    }
+  }
+  throw new Error(`Failed after ${maxRetries} retries`);
+};
+
 // Search users by FID or username
 export const searchUsers = async (query: string): Promise<FarcasterUser[]> => {
   try {
     const neynarKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
     if (!neynarKey) throw new Error('Neynar API key not found');
 
+    console.log('=== START USER SEARCH ===');
     // If query is a number, treat it as FID
     const isFid = !isNaN(Number(query));
     const endpoint = isFid 
       ? `https://api.neynar.com/v2/farcaster/user/bulk?fids=${query}`
       : `https://api.neynar.com/v2/farcaster/user/search?q=${encodeURIComponent(query)}`;
 
-    const response = await fetch(endpoint, {
+    console.log('Fetching from endpoint:', endpoint);
+    const response = await fetchWithRetry(endpoint, {
       headers: {
         'accept': 'application/json',
         'api_key': neynarKey
       }
     });
 
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to fetch user data: ${errorText}`);
+    }
+
     const data = await response.json();
+    console.log('Initial API response:', data);
     
     // Handle different response structures for search vs bulk lookup
     let users = isFid ? data.users : data.result?.users || [];
@@ -550,7 +580,9 @@ export const searchUsers = async (query: string): Promise<FarcasterUser[]> => {
     // If we got users from search, fetch their full profiles
     if (!isFid && users.length > 0) {
       const fids = users.map((u: any) => u.fid).join(',');
-      const profileResponse = await fetch(
+      console.log('Fetching full profiles for FIDs:', fids);
+      
+      const profileResponse = await fetchWithRetry(
         `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fids}`,
         {
           headers: {
@@ -559,21 +591,55 @@ export const searchUsers = async (query: string): Promise<FarcasterUser[]> => {
           }
         }
       );
+
+      if (!profileResponse.ok) {
+        const errorText = await profileResponse.text();
+        throw new Error(`Failed to fetch user profiles: ${errorText}`);
+      }
+
       const profileData = await profileResponse.json();
+      console.log('Profile data response:', profileData);
       users = profileData.users;
     }
 
     // Map and clean up user data
-    return users.map((user: any) => ({
-      fid: user.fid,
-      username: user.username,
-      display_name: user.display_name || user.username,
-      pfp_url: user.pfp_url || `https://avatar.vercel.sh/${user.username}`,
-      follower_count: user.follower_count || 0,
-      following_count: user.following_count || 0,
-      custody_address: user.custody_address,
-      verified_addresses: user.verified_addresses || { eth_addresses: [] }
-    }));
+    return users.map((user: any) => {
+      let allAddresses: string[] = [];
+
+      // Get verified addresses
+      if (user.verifications) {
+        allAddresses = [...user.verifications];
+      }
+
+      // Get custody address
+      if (user.custody_address) {
+        allAddresses.push(user.custody_address);
+      }
+
+      // Filter addresses
+      allAddresses = [...new Set(allAddresses)].filter(addr => 
+        addr && addr.startsWith('0x') && addr.length === 42
+      );
+
+      console.log('Processed addresses for user:', {
+        fid: user.fid,
+        username: user.username,
+        addresses: allAddresses
+      });
+
+      return {
+        fid: user.fid,
+        username: user.username,
+        display_name: user.display_name || user.username,
+        pfp_url: user.pfp_url || `https://avatar.vercel.sh/${user.username}`,
+        follower_count: user.follower_count || 0,
+        following_count: user.following_count || 0,
+        custody_address: user.custody_address,
+        verified_addresses: {
+          eth_addresses: allAddresses
+        }
+      };
+    });
   } catch (error) {
     console.error('Error searching users:', error);
     return [];

@@ -29,8 +29,8 @@ export const NFTImage: React.FC<NFTImageProps> = ({
   src, 
   alt, 
   className, 
-  width, 
-  height, 
+  width = 300, 
+  height = 300, 
   priority,
   nft 
 }) => {

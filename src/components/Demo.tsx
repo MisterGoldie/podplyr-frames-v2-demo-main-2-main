@@ -513,6 +513,7 @@ const Demo: React.FC = () => {
           currentlyPlaying={currentlyPlaying}
           handlePlayPause={handlePlayPause}
           onReset={handleReset}
+          onNFTsLoaded={setUserNFTs}
         />
       );
     }

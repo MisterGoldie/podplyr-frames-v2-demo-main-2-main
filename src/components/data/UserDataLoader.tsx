@@ -37,30 +37,45 @@ export const UserDataLoader: React.FC<UserDataLoaderProps> = ({
   useEffect(() => {
     const loadUserData = async () => {
       try {
+        console.log('Starting user data load for FID:', userFid);
+        
         // Get Farcaster user data
+        console.log('Fetching Farcaster user data...');
         const users = await searchUsers(userFid.toString());
         if (!users?.length) {
+          console.error('No user found for FID:', userFid);
           onError('User not found');
           return;
         }
 
         const userData = users[0];
+        console.log('User data loaded:', {
+          fid: userData.fid,
+          username: userData.username,
+          custody_address: userData.custody_address,
+          verified_addresses: userData.verified_addresses
+        });
         onUserDataLoaded(userData);
 
         // Get addresses
+        console.log('Extracting wallet addresses...');
         const addresses = [
           userData.custody_address,
           ...(userData.verified_addresses?.eth_addresses || [])
         ].filter(Boolean) as string[];
 
+        console.log('Found wallet addresses:', addresses);
         if (!addresses.length) {
+          console.error('No wallet addresses found for user:', userData.username);
           onError('No wallet addresses found');
           return;
         }
 
         // Try cached NFTs first
+        console.log('Checking NFT cache...');
         const cachedNFTs = getCachedNFTs(userFid);
         if (cachedNFTs) {
+          console.log('Found cached NFTs, validating structure...');
           const hasValidStructure = cachedNFTs.every(nft => 
             nft.hasOwnProperty('contract') && 
             nft.hasOwnProperty('tokenId') && 
@@ -68,18 +83,26 @@ export const UserDataLoader: React.FC<UserDataLoaderProps> = ({
           );
 
           if (hasValidStructure) {
+            console.log('Using cached NFTs:', cachedNFTs.length);
             onNFTsLoaded(cachedNFTs);
             return;
           }
+          console.log('Invalid cache structure, removing cache');
           localStorage.removeItem(`${NFT_CACHE_KEY}${userFid}`);
         }
 
         // Fetch fresh NFTs
-        const nftPromises = addresses.map(address => fetchUserNFTsFromAlchemy(address));
+        console.log('Fetching fresh NFTs from Alchemy...');
+        const nftPromises = addresses.map(address => {
+          console.log('Fetching NFTs for address:', address);
+          return fetchUserNFTsFromAlchemy(address);
+        });
         const nftResults = await Promise.all(nftPromises);
         const allNFTs = nftResults.flat();
+        console.log('Total NFTs found:', allNFTs.length);
 
         // Cache NFTs
+        console.log('Caching NFTs...');
         localStorage.setItem(`${NFT_CACHE_KEY}${userFid}`, JSON.stringify({
           nfts: allNFTs,
           timestamp: Date.now()
@@ -88,7 +111,9 @@ export const UserDataLoader: React.FC<UserDataLoaderProps> = ({
         onNFTsLoaded(allNFTs);
 
         // Load liked NFTs
+        console.log('Loading liked NFTs...');
         const likedNFTs = await getLikedNFTs(userFid);
+        console.log('Liked NFTs loaded:', likedNFTs.length);
         onLikedNFTsLoaded(likedNFTs);
 
       } catch (error) {
