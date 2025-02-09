@@ -3,9 +3,9 @@ import { NFT } from '../types/user';
 
 // List of reliable IPFS gateways in order of preference
 const IPFS_GATEWAYS = [
-  'https://cloudflare-ipfs.com/ipfs/',
   'https://ipfs.io/ipfs/',
   'https://nftstorage.link/ipfs/',
+  'https://cloudflare-ipfs.com/ipfs/',
   'https://gateway.pinata.cloud/ipfs/'
 ];
 
@@ -22,20 +22,14 @@ const extractIPFSHash = (url: string): string | null => {
     return dwebMatch[1];
   }
 
-  // Handle /ipfs/ path format with bafybeib... format
-  const ipfsMatch = url.match(/\/ipfs\/(bafybeib[a-zA-Z0-9]+)/);
+  // Handle /ipfs/ path format
+  const ipfsMatch = url.match(/\/ipfs\/([a-zA-Z0-9]+)/);
   if (ipfsMatch) {
     return ipfsMatch[1];
   }
 
-  // Handle /ipfs/ path format with Qm... format
-  const legacyIpfsMatch = url.match(/\/ipfs\/([a-zA-Z0-9]+)/);
-  if (legacyIpfsMatch) {
-    return legacyIpfsMatch[1];
-  }
-
-  // Handle direct CID (both bafybeib... and Qm... formats)
-  if (/^(bafybeib|Qm)[a-zA-Z0-9]+$/.test(url)) {
+  // Handle direct CID
+  if (/^[a-zA-Z0-9]+$/.test(url)) {
     return url;
   }
 
@@ -45,14 +39,6 @@ const extractIPFSHash = (url: string): string | null => {
 // Function to process media URLs to ensure they're properly formatted
 export const processMediaUrl = (url: string, fallbackUrl: string = '/default-nft.png'): string => {
   if (!url) return fallbackUrl;
-
-  // If it's an nftstorage.link URL, try using Cloudflare IPFS gateway instead
-  if (url.includes('nftstorage.link/ipfs/')) {
-    const ipfsHash = url.split('/ipfs/')[1];
-    if (ipfsHash) {
-      return `${IPFS_GATEWAYS[0]}${ipfsHash}`;
-    }
-  }
 
   // If it's already a working dweb.link URL, return it as is
   if (url.includes('.ipfs.dweb.link')) {

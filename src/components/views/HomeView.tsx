@@ -150,6 +150,7 @@ const HomeView: React.FC<HomeViewProps> = ({
                           isLiked={isNFTLiked(nft)}
                           badge={`${count} plays`}
                         />
+                        <h3 className="font-mono text-white text-sm truncate mt-3">{nft.name}</h3>
                       </div>
                     ))}
                   </div>
