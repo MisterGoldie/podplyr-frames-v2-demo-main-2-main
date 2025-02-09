@@ -111,9 +111,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({
             </div>
           ) : (
             <div className="text-center py-12">
-              <h3 className="text-xl text-green-400 mb-2">No Music NFTs Found</h3>
+              <h3 className="text-xl text-red-500 mb-2">No Media NFTs Found</h3>
               <p className="text-gray-400">
-                No music NFTs found in your connected wallets. Start exploring to find some!
+                No media NFTs found in your connected wallets
               </p>
             </div>
           )}
