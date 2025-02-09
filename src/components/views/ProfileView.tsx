@@ -98,16 +98,22 @@ const ProfileView: React.FC<ProfileViewProps> = ({
             </div>
           ) : nfts.length > 0 ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {nfts.filter(nft => nft.hasValidAudio).map((nft) => (
-                <NFTCard
-                  key={`${nft.contract}-${nft.tokenId}`}
-                  nft={nft}
-                  onPlay={() => handlePlayAudio(nft)}
-                  isPlaying={isPlaying && currentlyPlaying === `${nft.contract}-${nft.tokenId}`}
-                  currentlyPlaying={currentlyPlaying}
-                  handlePlayPause={handlePlayPause}
-                />
-              ))}
+              {nfts.map((nft, index) => {
+                const nftKey = nft.contract && nft.tokenId ? 
+                  `${nft.contract}-${nft.tokenId}` : 
+                  `nft-${index}-${nft.name}`;
+                
+                return (
+                  <NFTCard
+                    key={nftKey}
+                    nft={nft}
+                    onPlay={() => handlePlayAudio(nft)}
+                    isPlaying={isPlaying && currentlyPlaying === nftKey}
+                    currentlyPlaying={currentlyPlaying}
+                    handlePlayPause={handlePlayPause}
+                  />
+                );
+              })}
             </div>
           ) : (
             <div className="text-center py-12">
