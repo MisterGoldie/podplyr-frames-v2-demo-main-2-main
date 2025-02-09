@@ -4,6 +4,7 @@ import React from 'react';
 import { NFTCard } from '../nft/NFTCard';
 import type { NFT } from '../../types/user';
 import Image from 'next/image';
+import FeaturedSection from '../sections/FeaturedSection';
 
 interface HomeViewProps {
   recentlyPlayedNFTs: NFT[];
@@ -155,6 +156,18 @@ const HomeView: React.FC<HomeViewProps> = ({
               </div>
             </div>
           )}
+        </section>
+
+        {/* Featured Section */}
+        <section>
+          <FeaturedSection
+            onPlayNFT={onPlayNFT}
+            handlePlayPause={handlePlayPause}
+            currentlyPlaying={currentlyPlaying}
+            isPlaying={isPlaying}
+            onLikeToggle={onLikeToggle}
+            isNFTLiked={isNFTLiked}
+          />
         </section>
       </div>
     </>
