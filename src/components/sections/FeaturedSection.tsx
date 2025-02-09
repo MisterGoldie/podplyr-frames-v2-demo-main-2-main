@@ -60,16 +60,16 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({
       <h2 className="text-xl font-mono text-green-400 mb-2 px-2">Featured</h2>
       <div className="relative">
         <div className="overflow-x-auto pb-4 hide-scrollbar">
-          <div className="flex gap-4 px-2">
+          <div className="flex gap-6 px-2">
             {FEATURED_NFTS.map((nft) => (
-              <div key={`${nft.contract}-${nft.tokenId}`} className="flex-shrink-0 w-[160px] group">
+              <div key={`${nft.contract}-${nft.tokenId}`} className="flex-shrink-0 w-[200px] group">
                 <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-gray-800/20">
                   <NFTImage
                     src={nft.image}
                     alt={nft.name}
                     className="w-full h-full object-cover"
-                    width={160}
-                    height={160}
+                    width={200}
+                    height={200}
                     priority={true}
                   />
                   <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />

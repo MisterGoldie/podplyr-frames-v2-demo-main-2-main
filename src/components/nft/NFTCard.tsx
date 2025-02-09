@@ -80,11 +80,11 @@ export const NFTCard: React.FC<NFTCardProps> = ({
           className="text-green-400 hover:text-green-300 transition-colors"
         >
           {isCurrentTrack && isPlaying ? (
-            <svg xmlns="http://www.w3.org/2000/svg" height="32" viewBox="0 -960 960 960" width="32" fill="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
               <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
             </svg>
           ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" height="32" viewBox="0 -960 960 960" width="32" fill="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
               <path d="M320-200v-560l440 280-440 280Z"/>
             </svg>
           )}
@@ -105,26 +105,37 @@ export const NFTCard: React.FC<NFTCardProps> = ({
           height={300}
         />
         {badge && (
-          <div className="absolute top-2 right-2 bg-green-400 text-black text-xs px-2 py-1 rounded-full">
+          <div className="absolute top-2 left-2 bg-green-400 text-black text-xs px-2 py-1 rounded-full">
             {badge}
           </div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-          <div className="absolute bottom-0 left-0 right-0 p-4">
-            <h3 className="text-green-400 font-mono text-sm truncate mb-1">{nft.name}</h3>
-            <p className="text-gray-400 text-xs truncate">{nft.description}</p>
-          </div>
-        </div>
+        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+        {onLikeToggle && (
+          <button 
+            onClick={onLikeToggle}
+            className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center transition-all duration-200 hover:scale-110 z-10"
+          >
+            {isLiked ? (
+              <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor" className="text-red-500">
+                <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor" className="text-white hover:text-red-500">
+                <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Zm0-108q96-86 158-147.5t98-107q36-45.5 50-81t14-70.5q0-60-40-100t-100-40q-47 0-87 26.5T518-680h-76q-15-41-55-67.5T300-774q-60 0-100 40t-40 100q0 35 14 70.5t50 81q36 45.5 98 107T480-228Zm0-273Z"/>
+              </svg>
+            )}
+          </button>
+        )}
         <button 
           onClick={handlePlay}
-          className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-green-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 active:opacity-100 transition-opacity hover:bg-green-300 active:bg-green-500"
+          className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-purple-500 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
         >
           {isCurrentTrack && isPlaying ? (
-            <svg xmlns="http://www.w3.org/2000/svg" height="32" viewBox="0 -960 960 960" width="32" fill="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
               <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
             </svg>
           ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" height="32" viewBox="0 -960 960 960" width="32" fill="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
               <path d="M320-200v-560l440 280-440 280Z"/>
             </svg>
           )}

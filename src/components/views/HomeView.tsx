@@ -117,6 +117,7 @@ const HomeView: React.FC<HomeViewProps> = ({
                           onLikeToggle={() => onLikeToggle(nft)}
                           isLiked={isNFTLiked(nft)}
                         />
+                        <h3 className="font-mono text-white text-sm truncate mt-3">{nft.name}</h3>
                       </div>
                     ))}
                   </div>
