@@ -314,6 +314,8 @@ export const Player: React.FC<PlayerProps> = ({
     >
       {/* Header */}
       <div className="p-4 flex items-center justify-between border-b border-black">
+        <div className="w-8"></div>
+        <h3 className="font-mono text-purple-400">Now Playing</h3>
         <button
           onClick={handleMinimizeToggle}
           className="text-purple-400 hover:text-purple-300"
@@ -322,8 +324,6 @@ export const Player: React.FC<PlayerProps> = ({
             <path d="M480-360 240-600l56-56 184 184 184-184 56 56-240 240Z"/>
           </svg>
         </button>
-        <h3 className="font-mono text-purple-400">Now Playing</h3>
-        <div className="w-8"></div>
       </div>
 
       {/* Main Content */}
