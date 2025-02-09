@@ -247,6 +247,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
                   handlePlayPause={handlePlayPause}
                   onLikeToggle={() => handleLikeToggle(nft)}
                   isLiked={true} // All NFTs in library are liked by definition
+                  showTitleOverlay={true}
                 />
               ) : (
                 <div 

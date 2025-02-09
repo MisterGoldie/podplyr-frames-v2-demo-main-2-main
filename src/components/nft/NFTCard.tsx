@@ -16,6 +16,7 @@ interface NFTCardProps {
   onRemoveFromCollection?: (nft: NFT, collectionId: string) => void;
   viewMode?: 'list' | 'grid';
   badge?: string;
+  showTitleOverlay?: boolean;
 }
 
 export const NFTCard: React.FC<NFTCardProps> = ({ 
@@ -30,7 +31,8 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   onAddToCollection,
   onRemoveFromCollection,
   viewMode = 'grid',
-  badge
+  badge,
+  showTitleOverlay = false
 }) => {
   const [showCollectionMenu, setShowCollectionMenu] = useState(false);
   const isCurrentTrack = currentlyPlaying === `${nft.contract}-${nft.tokenId}`;
@@ -110,6 +112,11 @@ export const NFTCard: React.FC<NFTCardProps> = ({
           </div>
         )}
         <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+        {showTitleOverlay && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+            <h3 className="text-white font-mono text-sm text-center px-4 truncate max-w-[90%]">{nft.name}</h3>
+          </div>
+        )}
         {onLikeToggle && (
           <button 
             onClick={onLikeToggle}

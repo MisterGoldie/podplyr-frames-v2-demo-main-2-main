@@ -58,10 +58,10 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({
 }) => {
   return (
     <div className="mb-8">
-      <h2 className="text-xl font-mono text-green-400 mb-2 px-2">Featured</h2>
+      <h2 className="text-xl font-mono text-green-400 mb-6 px-4">Featured</h2>
       <div className="relative">
         <div className="overflow-x-auto pb-4 hide-scrollbar">
-          <div className="flex gap-6 px-2">
+          <div className="flex gap-6 px-4">
             {FEATURED_NFTS.map((nft) => (
               <div key={`${nft.contract}-${nft.tokenId}`} className="flex-shrink-0 w-[200px] group">
                 <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-gray-800/20">
