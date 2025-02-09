@@ -89,7 +89,14 @@ const ProfileView: React.FC<ProfileViewProps> = ({
       </header>
       <div className="space-y-8 pt-20 pb-48 overflow-y-auto h-screen overscroll-y-contain">
         {/* Profile Header */}
-        <div className="flex flex-col items-center text-center p-8 space-y-6 bg-purple-900/10 rounded-3xl mx-4 backdrop-blur-sm">
+        <div className="relative flex flex-col items-center text-center p-8 space-y-6 bg-gradient-to-b from-purple-900/20 to-purple-800/5 rounded-3xl mx-4 backdrop-blur-lg w-[340px] h-[280px] mx-auto border border-purple-400/10 shadow-lg shadow-purple-900/20 overflow-hidden">
+          {/* Glow effect */}
+          <div className="absolute inset-0 bg-purple-400/5 blur-3xl rounded-full -z-10 animate-pulse"></div>
+          {/* Geometric pattern */}
+          <div className="absolute inset-0 opacity-20">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_transparent_2px,_rgba(139,92,246,0.1)_2px)] bg-[length:24px_24px] rotate-45 animate-[spin_60s_linear_infinite]"></div>
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_transparent_2px,_rgba(139,92,246,0.05)_2px)] bg-[length:16px_16px] -rotate-45 animate-[spin_40s_linear_infinite]"></div>
+          </div>
           <div className="relative">
             <Image
               src={userContext.user?.pfpUrl || '/default-avatar.png'}
