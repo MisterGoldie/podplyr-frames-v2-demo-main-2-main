@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cert, getApps, initializeApp } from 'firebase-admin/app';
-import { getStorage } from 'firebase-admin/storage';
-import { getFirestore } from 'firebase-admin/firestore';
+import * as admin from 'firebase-admin';
 
 // Initialize Firebase Admin
-if (!getApps().length) {
+if (!admin.apps.length) {
   try {
-    initializeApp({
-      credential: cert({
+    admin.initializeApp({
+      credential: admin.credential.cert({
         projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID!,
         clientEmail: process.env.NEXT_PUBLIC_FIREBASE_CLIENT_EMAIL!,
         privateKey: process.env.NEXT_PUBLIC_FIREBASE_PRIVATE_KEY!,
@@ -33,18 +31,6 @@ export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
 }
 
-// Initialize Firebase Admin
-if (!getApps().length) {
-  initializeApp({
-    credential: cert({
-      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-      clientEmail: process.env.NEXT_PUBLIC_FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.NEXT_PUBLIC_FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n')
-    }),
-    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
-  });
-}
-
 export async function POST(request: NextRequest) {
   const headers = { ...corsHeaders, 'Content-Type': 'application/json' };
   
@@ -63,7 +49,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Upload file to Firebase Storage
-    const bucket = getStorage().bucket();
+    const bucket = admin.storage().bucket();
     if (!bucket) {
       console.error('Firebase Storage bucket not initialized');
       return NextResponse.json(
@@ -92,7 +78,7 @@ export async function POST(request: NextRequest) {
 
     console.log('Updating user document...');
     // Update user doc with new background URL
-    await getFirestore().collection('users').doc(fid.toString()).set({
+    await admin.firestore().collection('users').doc(fid.toString()).set({
       backgroundImage: url
     }, { merge: true });
 
