@@ -70,6 +70,18 @@ const ProfileView: React.FC<ProfileViewProps> = ({
 
     loadNFTs();
   }, [userContext.user?.fid, onNFTsLoaded]);
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 space-y-6">
+        <div className="relative">
+          <div className="w-16 h-16 border-4 border-gray-800/30 rounded-full"></div>
+          <div className="absolute top-0 w-16 h-16 border-4 border-t-green-400 border-r-green-400 rounded-full animate-spin"></div>
+        </div>
+        <div className="text-xl font-mono text-green-400 animate-pulse">Loading your NFTs...</div>
+      </div>
+    );
+  }
+
   return (
     <>
       <header className="fixed top-0 left-0 right-0 h-16 bg-black border-b border-black flex items-center justify-center z-50">
