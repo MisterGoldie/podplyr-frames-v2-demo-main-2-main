@@ -1,16 +1,14 @@
 import { useState, useEffect } from 'react';
-import { processMediaUrl } from '../../utils/media';
+import { processMediaUrl, IPFS_GATEWAYS } from '../../utils/media';
 import Image from 'next/image';
 import type { SyntheticEvent } from 'react';
 
-const IPFS_GATEWAYS = [
-  'https://cloudflare-ipfs.com',
-  'https://ipfs.io',
-  'https://gateway.pinata.cloud',
-  'https://nftstorage.link',
-  'https://ipfs.fleek.co',
-  'https://cf-ipfs.com'
-];
+// Helper function to clean IPFS URLs
+const getCleanIPFSUrl = (url: string): string => {
+  if (!url) return url;
+  // Remove any duplicate 'ipfs' in the path
+  return url.replace(/\/ipfs\/ipfs\//g, '/ipfs/');
+};
 
 interface NFTImageProps {
   src: string;
@@ -33,12 +31,20 @@ const extractIPFSHash = (url: string): string | null => {
 };
 
 const getNextIPFSUrl = (url: string, currentIndex: number): { url: string; nextIndex: number } | null => {
-  const hash = extractIPFSHash(url);
-  if (!hash) return null;
+  // Clean the URL first
+  url = getCleanIPFSUrl(url);
+  
+  // Try to find which gateway we're currently using
+  const currentGateway = IPFS_GATEWAYS.find(gateway => url.includes(gateway));
+  if (!currentGateway) return null;
+  
+  // Get the path after the gateway
+  const path = url.split(currentGateway)[1];
+  if (!path) return null;
   
   const nextIndex = (currentIndex + 1) % IPFS_GATEWAYS.length;
   return {
-    url: `${IPFS_GATEWAYS[nextIndex]}/ipfs/${hash}`,
+    url: `${IPFS_GATEWAYS[nextIndex]}${path}`,
     nextIndex
   };
 };
@@ -92,9 +98,10 @@ export const NFTImage: React.FC<NFTImageProps> = ({
     // For NFTs with image
     if (src) {
       setIsVideo(false);
-      // If it's an IPFS URL, use direct URL without Next.js image optimization
+      // Clean and process the URL
       if (src.includes('ipfs') || src.includes('nftstorage.link')) {
-        setImgSrc(processMediaUrl(src, fallbackSrc));
+        const cleanedUrl = getCleanIPFSUrl(src);
+        setImgSrc(processMediaUrl(cleanedUrl, fallbackSrc));
       } else {
         setImgSrc(src);
       }

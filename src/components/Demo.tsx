@@ -331,9 +331,11 @@ const Demo: React.FC = () => {
 
   const togglePictureInPicture = async () => {
     try {
-      if (document.pictureInPictureElement) {
-        await document.exitPictureInPicture();
-      } else if (videoRef.current) {
+      if ('pictureInPictureElement' in document && document.pictureInPictureElement) {
+        if ('exitPictureInPicture' in document) {
+          await document.exitPictureInPicture();
+        }
+      } else if (videoRef.current && 'requestPictureInPicture' in videoRef.current) {
         await videoRef.current.requestPictureInPicture();
       }
     } catch (error) {

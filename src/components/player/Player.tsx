@@ -7,6 +7,19 @@ import { processMediaUrl } from '../../utils/media';
 import { NFTImage } from '../media/NFTImage';
 import Image from 'next/image';
 
+// Augment the Document interface with Picture-in-Picture properties
+interface PictureInPictureWindow {}
+
+interface Document {
+  pictureInPictureEnabled: boolean;
+  pictureInPictureElement: Element | null;
+  exitPictureInPicture(): Promise<void>;
+}
+
+interface HTMLVideoElement {
+  requestPictureInPicture(): Promise<PictureInPictureWindow>;
+}
+
 interface PlayerProps {
   nft?: NFT | null;
   isPlaying: boolean;
@@ -41,6 +54,7 @@ export const Player: React.FC<PlayerProps> = ({
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
   const [swipeDistance, setSwipeDistance] = useState(0);
+  const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
   
   // Minimum distance for swipe (100px)
   const minSwipeDistance = 100;
@@ -86,13 +100,15 @@ export const Player: React.FC<PlayerProps> = ({
 
   // Handle Picture-in-Picture mode
   const handlePictureInPicture = async () => {
-    if (!videoRef.current) return;
+    if (!videoElement) return;
     
     try {
       if (document.pictureInPictureElement) {
-        await document.exitPictureInPicture();
-      } else {
-        await videoRef.current.requestPictureInPicture();
+        if (document.exitPictureInPicture) {
+          await document.exitPictureInPicture();
+        }
+      } else if (videoElement.requestPictureInPicture) {
+        await videoElement.requestPictureInPicture();
       }
     } catch (error) {
       console.error('Error toggling Picture-in-Picture mode:', error);
@@ -112,14 +128,17 @@ export const Player: React.FC<PlayerProps> = ({
   const renderVideo = () => {
     // For video NFTs, use the static image instead of loading video content
     const imageUrl = nft.image || nft.metadata?.image || '/placeholder-image.jpg';
+    const videoUrl = nft.metadata?.animation_url;
     
-    // Process the URL through our IPFS gateway system
-    const processedUrl = processMediaUrl(imageUrl, '/placeholder-image.jpg');
+    // Process both URLs through our IPFS gateway system
+    const processedImageUrl = processMediaUrl(imageUrl, '/placeholder-image.jpg');
+    const processedVideoUrl = videoUrl ? processMediaUrl(videoUrl) : null;
     
     return (
       <div className="relative w-full h-auto aspect-square">
+        {/* Always show the image */}
         <Image
-          src={processedUrl}
+          src={processedImageUrl}
           alt={nft.name || 'NFT Image'}
           className={`w-full h-auto object-contain rounded-lg transition-transform duration-500 ${
             isMinimized ? '' : 'transform transition-all duration-500 ease-in-out ' + (isPlaying ? 'scale-100' : 'scale-90')
@@ -128,6 +147,16 @@ export const Player: React.FC<PlayerProps> = ({
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
           priority={true}
         />
+        
+        {/* Hidden video element for Picture-in-Picture */}
+        {processedVideoUrl && (
+          <video
+            ref={setVideoElement}
+            src={processedVideoUrl}
+            className="hidden"
+            playsInline
+          />
+        )}
       </div>
     );
   };
@@ -411,7 +440,7 @@ export const Player: React.FC<PlayerProps> = ({
               )}
 
               {/* PiP Mode Button */}
-              {document.pictureInPictureEnabled && (
+              {typeof document !== 'undefined' && document.pictureInPictureEnabled && (
                 <button
                   onClick={handlePictureInPicture}
                   className="text-white hover:scale-110 transition-transform"
