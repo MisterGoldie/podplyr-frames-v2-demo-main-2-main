@@ -12,7 +12,7 @@ const IPFS_GATEWAYS = [
 export { IPFS_GATEWAYS };
 
 // Helper function to extract CID from various IPFS URL formats
-const extractIPFSHash = (url: string): string | null => {
+export const extractIPFSHash = (url: string): string | null => {
   if (!url) return null;
 
   // Remove any duplicate 'ipfs' in the path
