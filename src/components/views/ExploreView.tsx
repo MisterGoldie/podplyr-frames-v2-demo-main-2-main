@@ -29,6 +29,8 @@ interface ExploreViewProps {
 }
 
 const ExploreView: React.FC<ExploreViewProps> = ({
+  // Props
+
   onSearch,
   selectedUser,
   onPlayNFT,
@@ -49,6 +51,10 @@ const ExploreView: React.FC<ExploreViewProps> = ({
 }) => {
   const generateUniqueNFTKey = (nft: NFT, index: number) => {
     return `${nft.contract}-${nft.tokenId}-${index}`;
+  };
+
+  const clearSearch = () => {
+    onSearch(""); // Clear the search query
   };
 
   if (isSearching) {
@@ -87,6 +93,15 @@ const ExploreView: React.FC<ExploreViewProps> = ({
             {/* Search Results */}
             {searchResults.length > 0 && (
               <div className="px-4">
+                <button 
+                  onClick={clearSearch}
+                  className="mb-6 flex items-center gap-3 text-green-400 hover:text-green-300 transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor">
+                    <path d="M400-80 0-480l400-400 56 57-343 343 343 343-56 57Z"/>
+                  </svg>
+                  <span className="font-mono text-sm">Back to Search</span>
+                </button>
                 <h2 className="text-xl font-mono text-green-400 mb-6 flex items-center gap-3">
                   <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
                     <path d="M480-480q-66 0-113-47t-47-113q0-66 47-113t113-47q66 0 113 47t47 113q0 66-47 113t-113 47ZM160-240v-32q0-34 17.5-62.5T224-378q62-31 126-46.5T480-440q66 0 130 15.5T736-378q29 15 46.5 43.5T800-272v32q0 33-23.5 56.5T720-160H240q-33 0-56.5-23.5T160-240Zm80 0h480v-32q0-11-5.5-20T700-306q-54-27-109-40.5T480-360q-56 0-111 13.5T260-306q-9 5-14.5 14t-5.5 20v32Zm240-320q33 0 56.5-23.5T560-640q0-33-23.5-56.5T480-720q-33 0-56.5 23.5T400-640q0 33 23.5 56.5T480-560Zm0-80Zm0 400Z"/>
