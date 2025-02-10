@@ -198,7 +198,7 @@ const ExploreView: React.FC<ExploreViewProps> = ({
                   </div>
                   <div className="space-y-2 text-center">
                     <p className="text-xl font-mono text-green-400">Searching wallet</p>
-                    <p className="font-mono text-gray-400 text-sm">Looking for music NFTs...</p>
+                    <p className="font-mono text-gray-400 text-sm">Looking for media NFTs...</p>
                   </div>
                 </div>
               ) : nfts.length === 0 ? (
