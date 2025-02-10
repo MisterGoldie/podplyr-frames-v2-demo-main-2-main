@@ -95,19 +95,19 @@ const ExploreView: React.FC<ExploreViewProps> = ({
                         handleUserSelect(user);
                       }}
                     >
-                      <div className="flex items-center gap-3">
-                        {user.pfp_url && (
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 relative">
                           <Image
-                            src={user.pfp_url}
+                            src={user.pfp_url || `https://avatar.vercel.sh/${user.username}`}
                             alt={user.display_name || user.username}
-                            width={48}
-                            height={48}
-                            className="rounded-full"
+                            className="object-cover"
+                            fill
+                            sizes="48px"
                           />
-                        )}
+                        </div>
                         <div>
-                          <h3 className="font-medium text-green-400">{user.display_name || user.username}</h3>
-                          <p className="text-sm text-gray-400">@{user.username}</p>
+                          <h3 className="font-mono text-green-400 truncate max-w-[200px]">{user.display_name || user.username}</h3>
+                          <p className="font-mono text-gray-400 truncate max-w-[200px]">@{user.username}</p>
                         </div>
                       </div>
                     </div>
@@ -151,7 +151,7 @@ const ExploreView: React.FC<ExploreViewProps> = ({
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 relative">
                           <Image
-                            src={user.pfp_url || `https://avatar.vercel.sh/${user.username}`}
+                            src={user.pfp_url || '/default-nft.png'}
                             alt={user.display_name || user.username}
                             className="object-cover"
                             fill
@@ -177,12 +177,12 @@ const ExploreView: React.FC<ExploreViewProps> = ({
           <div>
             <button 
               onClick={onBack}
-              className="mb-6 flex items-center gap-2 text-green-400 hover:text-green-300 transition-colors"
+              className="mb-6 flex items-center gap-3 text-green-400 hover:text-green-300 transition-all px-4 py-2 rounded-lg bg-gray-800/20 hover:bg-gray-800/40 active:bg-gray-800/60"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor">
                 <path d="M400-80 0-480l400-400 56 57-343 343 343 343-56 57Z"/>
               </svg>
-              <span className="font-mono">Back to Search</span>
+              <span className="font-mono text-sm tracking-wide">Back to Search</span>
             </button>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">

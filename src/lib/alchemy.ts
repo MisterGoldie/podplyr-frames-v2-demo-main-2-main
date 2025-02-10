@@ -106,7 +106,7 @@ const isMediaNFT = (metadata: NFTMetadata, animationUrl?: string): { hasAudio: b
   ].filter(Boolean) as string[];
 
   // Check for media in attributes
-  const hasMediaAttributes = metadata.attributes?.some(attr => 
+  const hasMediaAttributes = Array.isArray(metadata.attributes) && metadata.attributes.some(attr => 
     attr.trait_type?.toLowerCase().includes('audio') ||
     attr.trait_type?.toLowerCase().includes('video') ||
     attr.trait_type?.toLowerCase().includes('media') ||
