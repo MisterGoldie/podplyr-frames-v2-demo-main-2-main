@@ -58,22 +58,52 @@ export const Player: React.FC<PlayerProps> = ({
   
   // Sync video playback with isPlaying state and progress
   useEffect(() => {
-    if (videoElement instanceof HTMLVideoElement) {
-      // Sync time
-      if (Math.abs(videoElement.currentTime - progress) > 0.1) {
-        videoElement.currentTime = progress;
-      }
+    if (!(videoElement instanceof HTMLVideoElement)) return;
 
-      // Sync play/pause state
-      if (isPlaying) {
-        const playPromise = videoElement.play();
-        if (playPromise !== undefined) {
-          playPromise.catch((error: Error) => console.error('Error playing video:', error));
+    let isVideoSwitching = false;
+    let playAttemptTimeout: NodeJS.Timeout;
+
+    const syncVideoPlayback = async () => {
+      if (isVideoSwitching) return;
+
+      try {
+        // Sync time if needed
+        if (Math.abs(videoElement.currentTime - progress) > 0.1) {
+          videoElement.currentTime = progress;
         }
-      } else {
-        videoElement.pause();
+
+        // Handle play/pause state
+        if (isPlaying) {
+          isVideoSwitching = true;
+          clearTimeout(playAttemptTimeout);
+
+          // Add a small delay to handle rapid switches
+          playAttemptTimeout = setTimeout(async () => {
+            try {
+              await videoElement.play();
+            } catch (err) {
+              // Ignore AbortError during quick switches
+              if (err instanceof Error && err.name !== 'AbortError') {
+                console.warn('Non-critical video playback warning:', err);
+              }
+            } finally {
+              isVideoSwitching = false;
+            }
+          }, 100);
+        } else {
+          videoElement.pause();
+        }
+      } catch (err) {
+        // Ignore errors during switching
+        isVideoSwitching = false;
       }
-    }
+    };
+
+    syncVideoPlayback();
+
+    return () => {
+      clearTimeout(playAttemptTimeout);
+    };
   }, [isPlaying, videoElement, progress]);
   
   // Minimum distance for swipe (100px)
