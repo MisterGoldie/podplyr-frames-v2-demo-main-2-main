@@ -53,8 +53,12 @@ const ExploreView: React.FC<ExploreViewProps> = ({
 
   if (isSearching) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-400"></div>
+      <div className="flex flex-col items-center justify-center py-16 space-y-6">
+        <div className="relative">
+          <div className="w-16 h-16 border-4 border-gray-800/30 rounded-full"></div>
+          <div className="absolute top-0 w-16 h-16 border-4 border-t-green-400 border-r-green-400 rounded-full animate-spin"></div>
+        </div>
+        <div className="text-xl font-mono text-green-400 animate-pulse">Searching...</div>
       </div>
     );
   }
@@ -187,9 +191,15 @@ const ExploreView: React.FC<ExploreViewProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
               {isLoadingNFTs ? (
-                <div className="col-span-full text-center py-12">
-                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-400"></div>
-                  <p className="mt-4 font-mono text-green-400">Loading NFTs...</p>
+                <div className="col-span-full flex flex-col items-center justify-center py-16 space-y-6">
+                  <div className="relative">
+                    <div className="w-16 h-16 border-4 border-gray-800/30 rounded-full"></div>
+                    <div className="absolute top-0 w-16 h-16 border-4 border-t-green-400 border-r-green-400 rounded-full animate-spin"></div>
+                  </div>
+                  <div className="space-y-2 text-center">
+                    <p className="text-xl font-mono text-green-400">Searching wallet</p>
+                    <p className="font-mono text-gray-400 text-sm">Looking for music NFTs...</p>
+                  </div>
                 </div>
               ) : nfts.length === 0 ? (
                 <div className="col-span-full text-center py-12">
