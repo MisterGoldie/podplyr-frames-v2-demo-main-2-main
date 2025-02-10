@@ -38,8 +38,6 @@ export const Player: React.FC<PlayerProps> = ({
   isLiked,
   onPictureInPicture
 }) => {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [videoTime, setVideoTime] = useState(0);
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
   const [swipeDistance, setSwipeDistance] = useState(0);
@@ -101,47 +99,7 @@ export const Player: React.FC<PlayerProps> = ({
     }
   };
 
-  // Sync video with audio progress
-  useEffect(() => {
-    if (videoRef.current && progress > 0) {
-      // Only update if the difference is significant to avoid constant tiny adjustments
-      if (Math.abs(videoRef.current.currentTime - progress) > 0.5) {
-        videoRef.current.currentTime = progress;
-      }
-    }
-  }, [progress, isMinimized]);
 
-  useEffect(() => {
-    if (videoRef.current) {
-      if (isPlaying) {
-        const playPromise = videoRef.current.play();
-        if (playPromise !== undefined) {
-          playPromise.catch(error => {
-            console.error("Error playing video:", error);
-          });
-        }
-      } else {
-        videoRef.current.pause();
-      }
-    }
-  }, [isPlaying]);
-
-  // Save video time before minimizing/maximizing
-  useEffect(() => {
-    console.log('isMinimized changed:', isMinimized);
-    if (videoRef.current) {
-      console.log('Saving video time:', videoRef.current.currentTime);
-      setVideoTime(videoRef.current.currentTime);
-    }
-  }, [isMinimized]);
-
-  // Restore video time after minimizing/maximizing
-  useEffect(() => {
-    if (videoRef.current && videoTime > 0) {
-      console.log('Restoring video time:', videoTime);
-      videoRef.current.currentTime = videoTime;
-    }
-  }, [videoTime]);
 
   if (!nft) return null;
 
@@ -152,29 +110,25 @@ export const Player: React.FC<PlayerProps> = ({
   };
 
   const renderVideo = () => {
-    // Get video URL from NFT metadata
-    const videoUrl = nft.metadata?.animation_url || nft.audio || '';
+    // For video NFTs, use the static image instead of loading video content
+    const imageUrl = nft.image || nft.metadata?.image || '/placeholder-image.jpg';
     
     // Process the URL through our IPFS gateway system
-    const processedUrl = processMediaUrl(videoUrl, '/placeholder-video.mp4');
-    
-    console.log('Video URL:', { original: videoUrl, processed: processedUrl });
+    const processedUrl = processMediaUrl(imageUrl, '/placeholder-image.jpg');
     
     return (
-      <video 
-        ref={videoRef}
-        src={processedUrl}
-        className={`w-full h-auto object-contain rounded-lg transition-transform duration-500 ${
-          isMinimized ? '' : 'transform transition-all duration-500 ease-in-out ' + (isPlaying ? 'scale-100' : 'scale-90')
-        }`}
-        playsInline
-        loop={nft.isAnimation}
-        muted={true}
-        controls={false}
-        autoPlay={isPlaying}
-        crossOrigin="anonymous"
-        onError={(e) => console.error('Video error:', e)}
-      />
+      <div className="relative w-full h-auto aspect-square">
+        <Image
+          src={processedUrl}
+          alt={nft.name || 'NFT Image'}
+          className={`w-full h-auto object-contain rounded-lg transition-transform duration-500 ${
+            isMinimized ? '' : 'transform transition-all duration-500 ease-in-out ' + (isPlaying ? 'scale-100' : 'scale-90')
+          }`}
+          fill
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+          priority={true}
+        />
+      </div>
     );
   };
 

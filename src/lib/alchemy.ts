@@ -255,7 +255,8 @@ const fetchFromNetwork = async (address: string, client: Alchemy, network: strin
             animationUrl.toLowerCase().endsWith('.wav') ||
             animationUrl.toLowerCase().endsWith('.m4a') ||
             animationUrl.toLowerCase().includes('audio/') ||
-            animationUrl.toLowerCase().includes('ipfs')
+            animationUrl.toLowerCase().includes('ipfs') ||
+            rawAnimationUrl.toLowerCase().startsWith('ipfs://')
           )));
 
         // Check for video in metadata
@@ -282,8 +283,23 @@ const fetchFromNetwork = async (address: string, client: Alchemy, network: strin
                 fileType.includes('video/');
         }) ?? false;
 
-        // Only include if it has media
-        if (!hasAudio && !isVideo && !hasMediaInProperties) {
+        // Check if it has any media indicators in metadata
+        const { hasAudio: metadataHasAudio } = isMediaNFT(metadata.raw.metadata || {}, animationUrl);
+        
+        console.log(`[${network.toUpperCase()}] Media detection for NFT:`, {
+          contract: metadata.contract.address,
+          tokenId: metadata.tokenId,
+          name: metadata.name || metadata.tokenId,
+          hasAudio,
+          isVideo,
+          hasMediaInProperties,
+          metadataHasAudio,
+          rawAnimationUrl,
+          animationUrl
+        });
+
+        // Include if it has any media indicators
+        if (!hasAudio && !isVideo && !hasMediaInProperties && !metadataHasAudio) {
           return null;
         }
 

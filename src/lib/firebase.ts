@@ -176,7 +176,7 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
     const finalAddresses = Array.from(addresses);
     console.log('Final addresses:', finalAddresses);
 
-    // Store user data in searchedusers collection with previous structure
+    // Store user data in searchedusers collection for NFT retrieval
     const searchedUserRef = doc(db, 'searchedusers', searchedUser.fid.toString());
     const searchedUserDoc = await getDoc(searchedUserRef);
     const existingSearchData = searchedUserDoc.exists() ? searchedUserDoc.data() : {};
@@ -186,7 +186,7 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
       username: user.username,
       display_name: user.display_name,
       pfp_url: user.pfp_url,
-      custody_address: finalAddresses[0] || null, // Use first address or null
+      custody_address: finalAddresses[0] || null,
       verifiedAddresses: finalAddresses,
       follower_count: user.follower_count,
       following_count: user.following_count,
@@ -197,12 +197,12 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
 
     await setDoc(searchedUserRef, searchedUserData);
 
-    // Cache the first available address
+    // Cache the first available address for NFT retrieval
     if (finalAddresses.length > 0) {
       await cacheUserWallet(user.fid, finalAddresses[0]);
     }
 
-    // Track the search in user_searches collection
+    // Track the search in user_searches collection for recent searches
     const searchRef = collection(db, 'user_searches');
     await addDoc(searchRef, {
       fid,
@@ -210,6 +210,8 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
       searchedUsername: user.username,
       searchedDisplayName: user.display_name,
       searchedPfpUrl: user.pfp_url,
+      searchedFollowerCount: user.follower_count,
+      searchedFollowingCount: user.following_count,
       timestamp: serverTimestamp()
     });
 
@@ -227,32 +229,41 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
 // Get recent searches with optional FID filter
 export const getRecentSearches = async (fid?: number): Promise<SearchedUser[]> => {
   try {
-    const searchedUsersRef = collection(db, 'searchedusers');
+    const searchesRef = collection(db, 'user_searches');
     const q = fid
-      ? query(searchedUsersRef, where('fid', '==', fid), orderBy('lastSearched', 'desc'), limit(8))
-      : query(searchedUsersRef, orderBy('lastSearched', 'desc'), limit(8));
+      ? query(searchesRef, where('fid', '==', fid), orderBy('timestamp', 'desc'), limit(20)) 
+      : query(searchesRef, orderBy('timestamp', 'desc'), limit(20));
 
     const snapshot = await getDocs(q);
-    const searches: SearchedUser[] = [];
-
+    
+    // Use a Map to keep only the most recent search for each searchedFid
+    const uniqueSearches = new Map<number, SearchedUser>();
+    
     snapshot.docs.forEach(doc => {
       const data = doc.data();
-      searches.push({
-        fid: data.fid,
-        username: data.username,
-        display_name: data.display_name,
-        pfp_url: data.pfp_url,
-        follower_count: data.follower_count,
-        following_count: data.following_count,
-        custody_address: data.custody_address,
-        verifiedAddresses: data.verifiedAddresses,
-        searchCount: data.searchCount || 0,
-        lastSearched: data.lastSearched,
-        timestamp: data.timestamp
-      });
+      const searchedFid = data.searchedFid;
+      
+      // Only add if this fid hasn't been seen yet or if this is a more recent search
+      const existingSearch = uniqueSearches.get(searchedFid);
+      if (!existingSearch || data.timestamp > existingSearch.timestamp) {
+        uniqueSearches.set(searchedFid, {
+          fid: searchedFid,
+          username: data.searchedUsername,
+          display_name: data.searchedDisplayName,
+          pfp_url: data.searchedPfpUrl,
+          follower_count: data.searchedFollowerCount || 0,
+          following_count: data.searchedFollowingCount || 0,
+          searchCount: 1,
+          timestamp: data.timestamp,
+          lastSearched: data.timestamp
+        });
+      }
     });
 
-    return searches;
+    // Convert Map values to array and take only the first 8 unique users
+    return Array.from(uniqueSearches.values())
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, 8);
   } catch (error) {
     console.error('Error getting recent searches:', error);
     return [];
@@ -703,9 +714,9 @@ export const fetchUserNFTs = async (fid: number): Promise<NFT[]> => {
           uniqueAddresses.push(user.custody_address);
           await cacheUserWallet(fid, user.custody_address);
         }
-        if (user.verified_addresses) {
-          console.log('Found verified addresses from Neynar:', user.verified_addresses);
-          user.verified_addresses.forEach((addr: string) => uniqueAddresses.push(addr));
+        if (user.verified_addresses?.eth_addresses) {
+          console.log('Found verified addresses from Neynar:', user.verified_addresses.eth_addresses);
+          user.verified_addresses.eth_addresses.forEach((addr: string) => uniqueAddresses.push(addr));
         }
       }
     }
