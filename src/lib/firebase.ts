@@ -21,6 +21,7 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import type { NFT, FarcasterUser, SearchedUser, NFTPlayData } from '../types/user';
+import { fetchUserNFTsFromAlchemy } from './alchemy';
 
 // Initialize Firebase with your config
 const firebaseConfig = {
@@ -36,6 +37,35 @@ const app = initializeApp(firebaseConfig);
 export { app };
 export const db = getFirestore(app);
 
+// Cache user's wallet address
+export const cacheUserWallet = async (fid: number, address: string): Promise<void> => {
+  try {
+    const cacheRef = doc(db, 'wallet_cache', fid.toString());
+    await setDoc(cacheRef, {
+      address,
+      timestamp: serverTimestamp()
+    });
+    console.log('Cached wallet address for FID:', fid, address);
+  } catch (error) {
+    console.error('Error caching wallet:', error);
+  }
+};
+
+// Get cached wallet address
+export const getCachedWallet = async (fid: number): Promise<string | null> => {
+  try {
+    const cacheRef = doc(db, 'wallet_cache', fid.toString());
+    const cacheDoc = await getDoc(cacheRef);
+    if (cacheDoc.exists()) {
+      return cacheDoc.data().address;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error getting cached wallet:', error);
+    return null;
+  }
+};
+
 // Track user search and return Farcaster user data
 export const trackUserSearch = async (username: string, fid: number): Promise<FarcasterUser> => {
   try {
@@ -44,7 +74,7 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
 
     console.log('Searching for user:', username);
     // First search for the user to get their FID
-    const searchResponse = await fetch(
+    const searchResponse = await fetchWithRetry(
       `https://api.neynar.com/v2/farcaster/user/search?q=${encodeURIComponent(username)}`,
       {
         headers: {
@@ -61,7 +91,7 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
 
     console.log('Found user, fetching full profile for FID:', searchedUser.fid);
     // Then fetch their full profile data including verified addresses
-    const profileResponse = await fetch(
+    const profileResponse = await fetchWithRetry(
       `https://api.neynar.com/v2/farcaster/user/bulk?fids=${searchedUser.fid}`,
       {
         headers: {
@@ -76,26 +106,117 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
     const user = profileData.users?.[0];
     if (!user) throw new Error('User profile not found');
 
-    // Save search to Firebase
-    await addDoc(collection(db, 'user_searches'), {
+    // Extract addresses from user profile data
+    const addresses = new Set<string>();
+    
+    // Try to get custody address from user profile
+    if (user.custody_address) {
+      console.log('Found custody address in profile:', user.custody_address);
+      addresses.add(user.custody_address);
+    }
+    
+    // Try to get verified addresses from user profile
+    if (user.verified_addresses) {
+      if (Array.isArray(user.verified_addresses)) {
+        console.log('Found verified addresses (array):', user.verified_addresses);
+        user.verified_addresses.forEach((addr: string) => addresses.add(addr));
+      } else if (user.verified_addresses.eth_addresses) {
+        console.log('Found verified addresses (object):', user.verified_addresses.eth_addresses);
+        user.verified_addresses.eth_addresses.forEach((addr: string) => addresses.add(addr));
+      }
+    }
+
+    // Try to get additional addresses from v1 API endpoints if needed
+    if (addresses.size === 0) {
+      try {
+        // Try custody address endpoint
+        const custodyResponse = await fetchWithRetry(
+          `https://api.neynar.com/v2/farcaster/user/custody-address?fid=${searchedUser.fid}`,
+          {
+            headers: {
+              'accept': 'application/json',
+              'api_key': neynarKey
+            }
+          }
+        );
+
+        const custodyData = await custodyResponse.json();
+        if (custodyData.result?.custody_address) {
+          console.log('Found custody address from v2 API:', custodyData.result.custody_address);
+          addresses.add(custodyData.result.custody_address);
+        }
+      } catch (error) {
+        console.warn('Failed to fetch custody address:', error);
+      }
+
+      try {
+        // Try verified addresses endpoint
+        const verifiedResponse = await fetchWithRetry(
+          `https://api.neynar.com/v2/farcaster/user/verified-addresses?fid=${searchedUser.fid}`,
+          {
+            headers: {
+              'accept': 'application/json',
+              'api_key': neynarKey
+            }
+          }
+        );
+
+        const verifiedData = await verifiedResponse.json();
+        const verifiedAddresses = verifiedData.result?.verified_addresses || [];
+        if (verifiedAddresses.length > 0) {
+          console.log('Found verified addresses from v2 API:', verifiedAddresses);
+          verifiedAddresses.forEach((addr: string) => addresses.add(addr));
+        }
+      } catch (error) {
+        console.warn('Failed to fetch verified addresses:', error);
+      }
+    }
+
+    // Convert to array
+    const finalAddresses = Array.from(addresses);
+    console.log('Final addresses:', finalAddresses);
+
+    // Store user data in searchedusers collection with previous structure
+    const searchedUserRef = doc(db, 'searchedusers', searchedUser.fid.toString());
+    const searchedUserDoc = await getDoc(searchedUserRef);
+    const existingSearchData = searchedUserDoc.exists() ? searchedUserDoc.data() : {};
+    
+    const searchedUserData = {
+      fid: user.fid,
+      username: user.username,
+      display_name: user.display_name,
+      pfp_url: user.pfp_url,
+      custody_address: finalAddresses[0] || null, // Use first address or null
+      verifiedAddresses: finalAddresses,
+      follower_count: user.follower_count,
+      following_count: user.following_count,
+      searchCount: (existingSearchData.searchCount || 0) + 1,
+      lastSearched: serverTimestamp(),
+      timestamp: existingSearchData.timestamp || serverTimestamp()
+    };
+
+    await setDoc(searchedUserRef, searchedUserData);
+
+    // Cache the first available address
+    if (finalAddresses.length > 0) {
+      await cacheUserWallet(user.fid, finalAddresses[0]);
+    }
+
+    // Track the search in user_searches collection
+    const searchRef = collection(db, 'user_searches');
+    await addDoc(searchRef, {
       fid,
-      searchedUsername: username,
       searchedFid: user.fid,
+      searchedUsername: user.username,
       searchedDisplayName: user.display_name,
       searchedPfpUrl: user.pfp_url,
-      timestamp: new Date().toISOString()
+      timestamp: serverTimestamp()
     });
 
-    console.log('Returning user data with addresses:', {
-      custody_address: user.custody_address,
-      verified_addresses: user.verified_addresses
-    });
-
-    // Return the full user profile with both custody and verified addresses
     return {
       ...user,
-      custody_address: user.custody_address,
-      verified_addresses: user.verified_addresses || { eth_addresses: [] }
+      custody_address: finalAddresses[0] || null,
+      verifiedAddresses: finalAddresses
     };
   } catch (error) {
     console.error('Error tracking user search:', error);
@@ -106,34 +227,32 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
 // Get recent searches with optional FID filter
 export const getRecentSearches = async (fid?: number): Promise<SearchedUser[]> => {
   try {
-    const searchesRef = collection(db, 'user_searches');
+    const searchedUsersRef = collection(db, 'searchedusers');
     const q = fid
-      ? query(searchesRef, where('fid', '==', fid), orderBy('timestamp', 'desc'), limit(20)) 
-      : query(searchesRef, orderBy('timestamp', 'desc'), limit(20));
+      ? query(searchedUsersRef, where('fid', '==', fid), orderBy('lastSearched', 'desc'), limit(8))
+      : query(searchedUsersRef, orderBy('lastSearched', 'desc'), limit(8));
 
     const snapshot = await getDocs(q);
-    
-    // Use a Map to keep only the most recent search for each searchedFid
-    const uniqueSearches = new Map<number, SearchedUser>();
-    
+    const searches: SearchedUser[] = [];
+
     snapshot.docs.forEach(doc => {
       const data = doc.data();
-      const searchedFid = data.searchedFid;
-      
-      // Only add if this fid hasn't been seen yet
-      if (!uniqueSearches.has(searchedFid)) {
-        uniqueSearches.set(searchedFid, {
-          fid: searchedFid,
-          username: data.searchedUsername,
-          display_name: data.searchedDisplayName,
-          pfp_url: data.searchedPfpUrl,
-          timestamp: data.timestamp
-        });
-      }
+      searches.push({
+        fid: data.fid,
+        username: data.username,
+        display_name: data.display_name,
+        pfp_url: data.pfp_url,
+        follower_count: data.follower_count,
+        following_count: data.following_count,
+        custody_address: data.custody_address,
+        verifiedAddresses: data.verifiedAddresses,
+        searchCount: data.searchCount || 0,
+        lastSearched: data.lastSearched,
+        timestamp: data.timestamp
+      });
     });
 
-    // Convert Map values to array and take only the first 8 unique users
-    return Array.from(uniqueSearches.values()).slice(0, 8);
+    return searches;
   } catch (error) {
     console.error('Error getting recent searches:', error);
     return [];
@@ -494,30 +613,135 @@ export const removeLikedNFT = async (fid: number, nft: NFT): Promise<void> => {
 // Fetch NFTs for a specific user by their fid
 export const fetchUserNFTs = async (fid: number): Promise<NFT[]> => {
   try {
-    const userNFTsRef = collection(db, 'nft_plays');
-    const q = query(
-      userNFTsRef,
-      where('playedBy', '==', fid),
-      orderBy('timestamp', 'desc')
-    );
+    console.log('=== START NFT FETCH for FID:', fid, ' ===');
     
-    const snapshot = await getDocs(q);
+    // First check for cached wallet
+    const cachedAddress = await getCachedWallet(fid);
+    let addresses = new Set<string>();
     
-    return snapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        contract: data.nftContract,
-        tokenId: data.tokenId,
-        name: data.name || 'Untitled',
-        description: data.description,
-        audio: data.audioUrl,
-        image: data.image,
-        metadata: data.metadata,
-        collection: data.collection,
-        network: data.network,
-        playTracked: true
-      };
+    if (cachedAddress) {
+      console.log('Found cached wallet address:', cachedAddress);
+      addresses.add(cachedAddress);
+    }
+
+    // If no cached wallet, get the user's addresses from searchedusers collection
+    console.log('No cached wallet, fetching user data from searchedusers collection...');
+    const userDoc = await getDoc(doc(db, 'searchedusers', fid.toString()));
+    if (!userDoc.exists()) {
+      console.error('User not found in searchedusers collection');
+      return [];
+    }
+
+    const userData = userDoc.data();
+    console.log('User data from searchedusers:', userData);
+    
+    // Add addresses from user data
+    
+    // Add custody address if it exists
+    if (userData.custody_address) {
+      console.log('Found custody address:', userData.custody_address);
+      addresses.add(userData.custody_address);
+      // Cache this address for future use
+      await cacheUserWallet(fid, userData.custody_address);
+    }
+    
+    // Handle both old and new data structures for verified addresses
+    if (userData.verifiedAddresses) {
+      if (Array.isArray(userData.verifiedAddresses)) {
+        // New structure - flat array
+        console.log('Found verified addresses (new format):', userData.verifiedAddresses);
+        userData.verifiedAddresses.forEach((addr: string) => addresses.add(addr));
+      } else if (typeof userData.verifiedAddresses === 'object' && 
+                 userData.verifiedAddresses !== null && 
+                 'eth_addresses' in userData.verifiedAddresses && 
+                 Array.isArray(userData.verifiedAddresses.eth_addresses)) {
+        // Old structure - nested eth_addresses
+        console.log('Found verified addresses (old format):', userData.verifiedAddresses.eth_addresses);
+        userData.verifiedAddresses.eth_addresses.forEach((addr: string) => addresses.add(addr));
+      }
+    }
+
+    // Convert Set to Array
+    const uniqueAddresses = Array.from(addresses);
+
+    if (uniqueAddresses.length === 0) {
+      console.log('No addresses found for user');
+      return [];
+    }
+
+    // Cache first address if no custody address was cached
+    if (!userData.custody_address && uniqueAddresses.length > 0) {
+      await cacheUserWallet(fid, uniqueAddresses[0]);
+    }
+
+    console.log('Total unique addresses to check:', uniqueAddresses.length);
+    console.log('Addresses:', uniqueAddresses);
+
+    // If we found no addresses in searchedusers, try getting them from Neynar
+    if (uniqueAddresses.length === 0) {
+      console.log('No addresses found in searchedusers, fetching from Neynar...');
+      const neynarKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
+      if (!neynarKey) throw new Error('Neynar API key not found');
+
+      const profileResponse = await fetchWithRetry(
+        `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`,
+        {
+          headers: {
+            'accept': 'application/json',
+            'api_key': neynarKey
+          }
+        }
+      );
+
+      const profileData = await profileResponse.json();
+      console.log('Neynar profile response:', profileData);
+
+      if (profileData.users?.[0]) {
+        const user = profileData.users[0];
+        if (user.custody_address) {
+          console.log('Found custody address from Neynar:', user.custody_address);
+          uniqueAddresses.push(user.custody_address);
+          await cacheUserWallet(fid, user.custody_address);
+        }
+        if (user.verified_addresses) {
+          console.log('Found verified addresses from Neynar:', user.verified_addresses);
+          user.verified_addresses.forEach((addr: string) => uniqueAddresses.push(addr));
+        }
+      }
+    }
+
+    if (uniqueAddresses.length === 0) {
+      console.log('No addresses found for user after all attempts');
+      return [];
+    }
+
+    // Fetch NFTs from Alchemy for all addresses
+    console.log('Fetching NFTs from Alchemy...');
+    const { fetchUserNFTsFromAlchemy } = await import('./alchemy');
+    const alchemyPromises = uniqueAddresses.map(address => {
+      console.log('Fetching NFTs for address:', address);
+      return fetchUserNFTsFromAlchemy(address);
     });
+    
+    const alchemyResults = await Promise.all(alchemyPromises);
+    console.log('Alchemy results by address:', alchemyResults.map((nfts, i) => ({
+      address: uniqueAddresses[i],
+      nftCount: nfts.length
+    })));
+    
+    // Deduplicate NFTs by contract+tokenId
+    const nftMap = new Map<string, NFT>();
+    alchemyResults.flat().forEach(nft => {
+      const key = `${nft.contract}-${nft.tokenId}`;
+      if (!nftMap.has(key)) {
+        nftMap.set(key, nft);
+      }
+    });
+
+    const uniqueNFTs = Array.from(nftMap.values());
+    console.log('=== NFT FETCH COMPLETE ===');
+    console.log('Total unique NFTs found:', uniqueNFTs.length);
+    return uniqueNFTs;
   } catch (error) {
     console.error('Error fetching user NFTs:', error);
     return [];

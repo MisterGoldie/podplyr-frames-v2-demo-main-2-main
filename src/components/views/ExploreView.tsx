@@ -5,6 +5,8 @@ import { SearchBar } from '../search/SearchBar';
 import { NFTCard } from '../nft/NFTCard';
 import Image from 'next/image';
 import { NFT, FarcasterUser, SearchedUser } from '../../types/user';
+import { getDoc, doc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 
 interface ExploreViewProps {
   onSearch: (query: string) => void;
@@ -87,7 +89,11 @@ const ExploreView: React.FC<ExploreViewProps> = ({
                     <div
                       key={user.fid}
                       className="bg-gray-800/20 p-4 rounded-lg hover:bg-gray-800/40 transition-colors cursor-pointer"
-                      onClick={() => handleUserSelect(user)}
+                      onClick={() => {
+                        console.log('=== EXPLORE: User selected from search results ===');
+                        console.log('Selected user:', user);
+                        handleUserSelect(user);
+                      }}
                     >
                       <div className="flex items-center gap-3">
                         {user.pfp_url && (
@@ -118,15 +124,26 @@ const ExploreView: React.FC<ExploreViewProps> = ({
                   {recentSearches.map((user) => (
                     <button
                       key={`recent-search-${user.fid}-${user.username}`}
-                      onClick={() => {
+                      onClick={async () => {
+                        // Get the full user data from searchedusers collection
+                        console.log('=== EXPLORE: User selected from recent searches ===');
+                        console.log('Getting full user data for FID:', user.fid);
+                        
+                        const userDoc = await getDoc(doc(db, 'searchedusers', user.fid.toString()));
+                        const userData = userDoc.data();
+                        
                         const farcasterUser: FarcasterUser = {
                           fid: user.fid,
                           username: user.username,
                           display_name: user.display_name || user.username,
                           pfp_url: user.pfp_url || `https://avatar.vercel.sh/${user.username}`,
                           follower_count: 0,
-                          following_count: 0
+                          following_count: 0,
+                          custody_address: userData?.custody_address,
+                          verified_addresses: userData?.verified_addresses
                         };
+                        
+                        console.log('Selected user with addresses:', farcasterUser);
                         handleUserSelect(farcasterUser);
                       }}
                       className="bg-gray-800/30 backdrop-blur-sm p-4 rounded-lg text-left hover:bg-gray-800/50 transition-colors"

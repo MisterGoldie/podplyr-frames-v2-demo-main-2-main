@@ -32,7 +32,9 @@ import {
   limit,
   getDocs,
   DocumentData,
-  QueryDocumentSnapshot
+  QueryDocumentSnapshot,
+  doc,
+  setDoc
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { UserDataLoader } from './data/UserDataLoader';
@@ -232,10 +234,15 @@ const Demo: React.FC = () => {
   }, [isInitialPlay]);
 
   const handleSearch = async (username: string) => {
+    console.log('=== EXPLORE: Starting user search ===');
+    console.log('Search query:', username);
     setIsSearching(true);
     setError(null);
     try {
+      console.log('Calling searchUsers...');
       const results = await searchUsers(username);
+      console.log('Search results:', results);
+      
       const formattedResults: FarcasterUser[] = results.map((user: any) => ({
         fid: user.fid || 0,
         username: user.username,
@@ -247,17 +254,23 @@ const Demo: React.FC = () => {
           bio: user.bio
         }
       }));
+      console.log('Formatted results:', formattedResults);
       setSearchResults(formattedResults);
+      
+      console.log('Tracking user search...');
       await trackUserSearch(username, userFid);
       
       // Update recent searches after successful search
+      console.log('Updating recent searches...');
       const updatedSearches = await getRecentSearches(userFid);
+      console.log('New recent searches:', updatedSearches);
       setRecentSearches(updatedSearches || []);
     } catch (error) {
       console.error('Search error:', error);
       setError('Failed to search for users. Please try again.');
     } finally {
       setIsSearching(false);
+      console.log('=== EXPLORE: Search completed ===');
     }
   };
 
@@ -464,20 +477,40 @@ const Demo: React.FC = () => {
           addToPublicCollection={() => { } }
           removeFromPublicCollection={() => { } }
           recentSearches={recentSearches}
-          handleUserSelect={(user) => {
+          handleUserSelect={async (user) => {
             setSelectedUser(user);
-            const fetchUserNFTs = async () => {
-              setIsLoading(true);
-              try {
-                setUserNFTs([]);
-              } catch (error) {
-                console.error('Error fetching user NFTs:', error);
-                setError('Failed to fetch user NFTs');
-              } finally {
+            setIsLoading(true);
+            try {
+              // First try to get cached NFTs
+              const cachedNFTs = getCachedNFTs(user.fid);
+              
+              // Track the user search using existing function
+              await trackUserSearch(user.username, user.fid);
+
+              if (cachedNFTs && Array.isArray(cachedNFTs)) {
+                setUserNFTs(cachedNFTs);
                 setIsLoading(false);
+                return;
               }
-            };
-            fetchUserNFTs();
+
+              // If no cache, fetch NFTs from API
+              const nfts = await fetchUserNFTs(user.fid);
+              if (!nfts) {
+                throw new Error('No NFTs returned');
+              }
+              
+              // Cache the NFTs for future use
+              cacheNFTs(user.fid, nfts);
+              
+              // Update state with fetched NFTs
+              setUserNFTs(nfts);
+            } catch (error) {
+              console.error('Error fetching user NFTs:', error);
+              setError('Failed to fetch user NFTs');
+              setUserNFTs([]); // Set empty array on error
+            } finally {
+              setIsLoading(false);
+            }
           }}
           onReset={handleReset}
         />
