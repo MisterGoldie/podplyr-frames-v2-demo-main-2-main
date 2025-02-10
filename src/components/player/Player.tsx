@@ -126,9 +126,9 @@ export const Player: React.FC<PlayerProps> = ({
   };
 
   const renderVideo = () => {
-    // For video NFTs, use the static image instead of loading video content
+    // Get the video URL from metadata.animation_url or audio
+    const videoUrl = nft.metadata?.animation_url || nft.audio;
     const imageUrl = nft.image || nft.metadata?.image || '/placeholder-image.jpg';
-    const videoUrl = nft.metadata?.animation_url;
     
     // Process both URLs through our IPFS gateway system
     const processedImageUrl = processMediaUrl(imageUrl, '/placeholder-image.jpg');
@@ -136,25 +136,33 @@ export const Player: React.FC<PlayerProps> = ({
     
     return (
       <div className="relative w-full h-auto aspect-square">
-        {/* Always show the image */}
-        <Image
-          src={processedImageUrl}
-          alt={nft.name || 'NFT Image'}
-          className={`w-full h-auto object-contain rounded-lg transition-transform duration-500 ${
-            isMinimized ? '' : 'transform transition-all duration-500 ease-in-out ' + (isPlaying ? 'scale-100' : 'scale-90')
-          }`}
-          fill
-          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-          priority={true}
-        />
-        
-        {/* Hidden video element for Picture-in-Picture */}
-        {processedVideoUrl && (
-          <video
-            ref={setVideoElement}
-            src={processedVideoUrl}
-            className="hidden"
-            playsInline
+        {processedVideoUrl ? (
+          // Show video if available
+          <div className="relative w-full h-full">
+            <video
+              ref={setVideoElement}
+              src={processedVideoUrl}
+              className={`w-full h-full object-contain rounded-lg transition-transform duration-500 ${
+                isMinimized ? '' : 'transform transition-all duration-500 ease-in-out ' + (isPlaying ? 'scale-100' : 'scale-90')
+              }`}
+              playsInline
+              autoPlay={isPlaying}
+              loop
+              muted={true}
+              controls={false}
+            />
+          </div>
+        ) : (
+          // Fallback to image
+          <Image
+            src={processedImageUrl}
+            alt={nft.name || 'NFT Image'}
+            className={`w-full h-auto object-contain rounded-lg transition-transform duration-500 ${
+              isMinimized ? '' : 'transform transition-all duration-500 ease-in-out ' + (isPlaying ? 'scale-100' : 'scale-90')
+            }`}
+            fill
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            priority={true}
           />
         )}
       </div>
