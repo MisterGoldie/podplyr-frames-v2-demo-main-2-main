@@ -29,6 +29,7 @@
     "alchemy-sdk": "^3.5.1",
     "ethers": "6",
     "firebase": "11.2.0",
+    "firebase-admin": "^13.1.0",
     "lodash": "^4.17.21",
     "next": "15.0.3",
     "next-auth": "^4.24.11",
