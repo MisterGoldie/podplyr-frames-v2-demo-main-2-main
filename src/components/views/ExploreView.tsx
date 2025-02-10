@@ -86,32 +86,37 @@ const ExploreView: React.FC<ExploreViewProps> = ({
 
             {/* Search Results */}
             {searchResults.length > 0 && (
-              <div>
-                <h2 className="text-2xl font-bold text-green-400 mb-4">Search Results</h2>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              <div className="px-4">
+                <h2 className="text-xl font-mono text-green-400 mb-6 flex items-center gap-3">
+                  <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                    <path d="M480-480q-66 0-113-47t-47-113q0-66 47-113t113-47q66 0 113 47t47 113q0 66-47 113t-113 47ZM160-240v-32q0-34 17.5-62.5T224-378q62-31 126-46.5T480-440q66 0 130 15.5T736-378q29 15 46.5 43.5T800-272v32q0 33-23.5 56.5T720-160H240q-33 0-56.5-23.5T160-240Zm80 0h480v-32q0-11-5.5-20T700-306q-54-27-109-40.5T480-360q-56 0-111 13.5T260-306q-9 5-14.5 14t-5.5 20v32Zm240-320q33 0 56.5-23.5T560-640q0-33-23.5-56.5T480-720q-33 0-56.5 23.5T400-640q0 33 23.5 56.5T480-560Zm0-80Zm0 400Z"/>
+                  </svg>
+                  Search Results
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {searchResults.map((user) => (
                     <div
                       key={user.fid}
-                      className="bg-gray-800/20 p-4 rounded-lg hover:bg-gray-800/40 transition-colors cursor-pointer"
                       onClick={() => {
                         console.log('=== EXPLORE: User selected from search results ===');
                         console.log('Selected user:', user);
                         handleUserSelect(user);
                       }}
+                      className="group relative bg-gray-800/20 backdrop-blur-sm rounded-xl p-4 hover:bg-gray-800/40 transition-all cursor-pointer border border-gray-800/40 hover:border-green-400/40"
                     >
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 relative">
+                        <div className="w-14 h-14 rounded-full overflow-hidden flex-shrink-0 relative ring-2 ring-gray-800/60 group-hover:ring-green-400/40 transition-all">
                           <Image
                             src={user.pfp_url || `https://avatar.vercel.sh/${user.username}`}
                             alt={user.display_name || user.username}
                             className="object-cover"
                             fill
-                            sizes="48px"
+                            sizes="56px"
                           />
                         </div>
-                        <div>
-                          <h3 className="font-mono text-green-400 truncate max-w-[200px]">{user.display_name || user.username}</h3>
-                          <p className="font-mono text-gray-400 truncate max-w-[200px]">@{user.username}</p>
+                        <div className="space-y-1 flex-1 min-w-0">
+                          <h3 className="font-mono text-green-400 truncate group-hover:text-green-300 transition-colors">{user.display_name || user.username}</h3>
+                          <p className="font-mono text-gray-400 text-sm truncate">@{user.username}</p>
                         </div>
                       </div>
                     </div>
