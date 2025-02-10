@@ -247,7 +247,7 @@ const Demo: React.FC = () => {
         fid: user.fid || 0,
         username: user.username,
         display_name: user.display_name,
-        pfp_url: user.pfp,
+        pfp_url: user.pfp_url || user.pfp,
         follower_count: 0,
         following_count: 0,
         profile: {
