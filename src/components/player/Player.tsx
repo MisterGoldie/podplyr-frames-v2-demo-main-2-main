@@ -323,23 +323,23 @@ export const Player: React.FC<PlayerProps> = ({
     <div 
       className="fixed inset-0 bg-black backdrop-blur-md z-[100] flex flex-col will-change-transform overflow-hidden"
     >
-      {/* Header */}
-      <div className="p-2 flex items-center justify-between border-b border-black">
-        <div className="w-8"></div>
-        <h3 className="font-mono text-purple-400">Now Playing</h3>
-        <button
-          onClick={handleMinimizeToggle}
-          className="text-purple-400 hover:text-purple-300"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
-            <path d="M480-360 240-600l56-56 184 184 184-184 56 56-240 240Z"/>
-          </svg>
-        </button>
-      </div>
-
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto pb-safe">
-        <div className="max-w-screen-sm mx-auto px-4 py-4 mt-8 pb-24">
+        <div className="max-w-screen-sm mx-auto px-4 py-4 pb-24">
+          {/* Title Bar */}
+          <div className="fixed bottom-0 left-0 right-0 bg-black/80 backdrop-blur-sm border-t border-purple-400/20">
+            <div className="container mx-auto flex items-center justify-between px-4 py-3">
+              <h3 className="font-mono text-purple-400 text-sm truncate flex-1 min-w-0">{nft.name}</h3>
+              <button 
+                onClick={handleMinimizeToggle}
+                className="text-purple-400 hover:text-purple-300 p-1 transition-colors ml-4"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor">
+                  <path d="M480-345 240-585l56-56 184 184 184-184 56 56-240 240Z"/>
+                </svg>
+              </button>
+            </div>
+          </div>
           {/* NFT Image/Video Container */}
           <div className="relative w-full mb-8">
             <div className={`transition-all duration-500 ease-in-out transform ${isPlaying ? 'scale-100' : 'scale-90'}`}>
@@ -379,10 +379,7 @@ export const Player: React.FC<PlayerProps> = ({
             </div>
           </div>
 
-          {/* Track Info */}
-          <div className="text-center mb-12">
-            <h2 className="font-mono text-purple-400 text-xl">{nft.name}</h2>
-          </div>
+
 
           {/* Progress Bar */}
           <div className="mb-12">
@@ -408,7 +405,7 @@ export const Player: React.FC<PlayerProps> = ({
           {/* Controls */}
           <div className="flex flex-col gap-8">
             {/* Main Controls */}
-            <div className="flex justify-center items-center gap-12">
+            <div className="flex justify-center items-center gap-12 mb-8">
               {/* Previous Track */}
               <button
                 onClick={onPrevious}
@@ -479,7 +476,23 @@ export const Player: React.FC<PlayerProps> = ({
                 </button>
               )}
             </div>
+
+
           </div>
+        </div>
+      </div>
+      {/* Now Playing Bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-black/80 backdrop-blur-sm border-t border-purple-400/20">
+        <div className="container mx-auto flex items-center justify-between px-4 py-3">
+          <span className="text-sm font-mono text-purple-400 truncate">{nft.name}</span>
+          <button 
+            onClick={handleMinimizeToggle}
+            className="text-purple-400 hover:text-purple-300 p-1 transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor">
+              <path d="M480-345 240-585l56-56 184 184 184-184 56 56-240 240Z"/>
+            </svg>
+          </button>
         </div>
       </div>
     </div>
