@@ -55,6 +55,8 @@ export const Player: React.FC<PlayerProps> = ({
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
   const [swipeDistance, setSwipeDistance] = useState(0);
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
+  const [showControls, setShowControls] = useState(true);
+  const hideControlsTimer = useRef<NodeJS.Timeout | undefined>(undefined);
   
   // Sync video playback with isPlaying state and progress
   useEffect(() => {
@@ -371,9 +373,24 @@ export const Player: React.FC<PlayerProps> = ({
             </div>
           </div>
           {/* NFT Image/Video Container */}
-          <div className="relative w-full max-w-2xl mx-auto">
+          <div 
+            className="relative w-full max-w-2xl mx-auto group"
+            onMouseEnter={() => {
+              // Reset the timer on mouse enter
+              if (hideControlsTimer.current) {
+                clearTimeout(hideControlsTimer.current);
+              }
+              setShowControls(true);
+            }}
+            onMouseLeave={() => {
+              // Start the timer to hide controls
+              hideControlsTimer.current = setTimeout(() => {
+                setShowControls(false);
+              }, 3000); // Hide after 3 seconds
+            }}
+          >
             {/* Action Icons Overlay */}
-            <div className="absolute top-4 left-4 right-4 flex justify-between z-10">
+            <div className={`absolute top-4 left-4 right-4 flex justify-between z-10 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
               {onLikeToggle && (
                 <button 
                   onClick={() => onLikeToggle(nft)}
@@ -393,10 +410,10 @@ export const Player: React.FC<PlayerProps> = ({
               {(nft.isVideo || nft.metadata?.animation_url) && (
                 <button
                   onClick={handlePictureInPicture}
-                  className="text-purple-400 hover:text-purple-300 p-2 bg-black/40 rounded-full backdrop-blur-sm"
+                  className="text-white hover:text-white/80 p-2 bg-black/40 rounded-full backdrop-blur-sm"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                    <path d="M200-200v-240h80v160h160v80H200Zm480-320v-160H520v-80h240v240h-80Z"/>
+                    <path d="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Zm0-80h640v-480H160v480Zm0 0v-480 480Zm280-200h320v-240H440v240Zm80-80v-80h160v80H520Z"/>
                   </svg>
                 </button>
               )}
@@ -532,7 +549,7 @@ export const Player: React.FC<PlayerProps> = ({
                   onClick={handlePictureInPicture}
                   className="text-white hover:scale-110 transition-transform"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                  <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#fffff">
                     <path d="M280-400v-160l-80 80 80 80Zm200 120 80-80H400l80 80Zm-80-320h160l-80-80-80 80Zm280 200 80-80-80-80v160ZM160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Zm0-80h640v-480H160v480Zm0 0v-480 480Z"/>
                   </svg>
                 </button>

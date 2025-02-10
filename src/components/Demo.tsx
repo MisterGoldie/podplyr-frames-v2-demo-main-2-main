@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useContext } from 'react';
 import { FarcasterContext } from '~/app/providers';
-import { Player } from './player/Player';
+import { PlayerWithAds } from './player/PlayerWithAds';
 import { BottomNav } from './navigation/BottomNav';
 import HomeView from './views/HomeView';
 import ExploreView from './views/ExploreView';
@@ -733,7 +733,7 @@ const Demo: React.FC = () => {
       )}
 
       {currentPlayingNFT && (
-        <Player
+        <PlayerWithAds
           nft={currentPlayingNFT}
           isPlaying={isPlaying}
           onPlayPause={handlePlayPause}

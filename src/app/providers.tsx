@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { createContext, useContext, useState } from 'react';
 import { Frame } from '~/components/frame/Frame';
 import type { FrameContext } from '@farcaster/frame-core';
+import { VideoPlayProvider } from '../contexts/VideoPlayContext';
 
 const WagmiProvider = dynamic(
   () => import("~/components/providers/WagmiProvider"),
@@ -20,15 +21,17 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <WagmiProvider>
       <FarcasterContext.Provider value={{ fid }}>
-        <Frame 
-          onContextUpdate={(context) => {
-            console.log('Farcaster context:', context);
-            if (context?.user?.fid && context.user.fid !== 1) {
-              setFid(context.user.fid);
-            }
-          }}
-        />
-        {children}
+        <VideoPlayProvider>
+          <Frame 
+            onContextUpdate={(context) => {
+              console.log('Farcaster context:', context);
+              if (context?.user?.fid && context.user.fid !== 1) {
+                setFid(context.user.fid);
+              }
+            }}
+          />
+          {children}
+        </VideoPlayProvider>
       </FarcasterContext.Provider>
     </WagmiProvider>
   );
