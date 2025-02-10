@@ -360,14 +360,16 @@ export const Player: React.FC<PlayerProps> = ({
                   )}
                 </button>
               )}
-              <button
-                onClick={onMinimizeToggle}
-                className="text-purple-400 hover:text-purple-300 p-2 bg-black/40 rounded-full backdrop-blur-sm"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                  <path d="M200-200v-240h80v160h160v80H200Zm480-320v-160H520v-80h240v240h-80Z"/>
-                </svg>
-              </button>
+              {(nft.isVideo || nft.metadata?.animation_url) && (
+                <button
+                  onClick={handlePictureInPicture}
+                  className="text-purple-400 hover:text-purple-300 p-2 bg-black/40 rounded-full backdrop-blur-sm"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                    <path d="M200-200v-240h80v160h160v80H200Zm480-320v-160H520v-80h240v240h-80Z"/>
+                  </svg>
+                </button>
+              )}
             </div>
             <div className={`transition-all duration-500 ease-in-out transform ${isPlaying ? 'scale-100' : 'scale-90'}`}>
               {nft.isVideo || nft.metadata?.animation_url ? (
