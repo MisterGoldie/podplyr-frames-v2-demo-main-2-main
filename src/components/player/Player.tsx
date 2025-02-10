@@ -56,6 +56,26 @@ export const Player: React.FC<PlayerProps> = ({
   const [swipeDistance, setSwipeDistance] = useState(0);
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
   
+  // Sync video playback with isPlaying state and progress
+  useEffect(() => {
+    if (videoElement instanceof HTMLVideoElement) {
+      // Sync time
+      if (Math.abs(videoElement.currentTime - progress) > 0.1) {
+        videoElement.currentTime = progress;
+      }
+
+      // Sync play/pause state
+      if (isPlaying) {
+        const playPromise = videoElement.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((error: Error) => console.error('Error playing video:', error));
+        }
+      } else {
+        videoElement.pause();
+      }
+    }
+  }, [isPlaying, videoElement, progress]);
+  
   // Minimum distance for swipe (100px)
   const minSwipeDistance = 100;
   
