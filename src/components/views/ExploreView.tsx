@@ -200,7 +200,9 @@ const ExploreView: React.FC<ExploreViewProps> = ({
                   <NFTCard
                     key={generateUniqueNFTKey(nft, index)}
                     nft={nft}
-                    onPlay={() => Promise.resolve(onPlayNFT(nft))}
+                    onPlay={async (nft) => {
+                      await onPlayNFT(nft);
+                    }}
                     isPlaying={isPlaying}
                     currentlyPlaying={currentlyPlaying}
                     handlePlayPause={handlePlayPause}

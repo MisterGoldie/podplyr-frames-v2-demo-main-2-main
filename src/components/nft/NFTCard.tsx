@@ -5,11 +5,11 @@ import { processMediaUrl } from '../../utils/media';
 
 interface NFTCardProps {
   nft: NFT;
-  onPlay: () => Promise<void>;
+  onPlay: (nft: NFT) => Promise<void>;
   isPlaying: boolean;
   currentlyPlaying: string | null;
   handlePlayPause: () => void;
-  onLikeToggle?: () => Promise<void>;
+  onLikeToggle?: (nft: NFT) => Promise<void>;
   isLiked?: boolean;
   publicCollections?: string[];
   onAddToCollection?: (nft: NFT, collectionId: string) => void;
@@ -38,10 +38,10 @@ export const NFTCard: React.FC<NFTCardProps> = ({
 }) => {
   const [showCollectionMenu, setShowCollectionMenu] = useState(false);
   const [showOverlay, setShowOverlay] = useState(false);
-  const overlayTimeoutRef = useRef<NodeJS.Timeout>();
+  const overlayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isCurrentTrack = currentlyPlaying === `${nft.contract}-${nft.tokenId}`;
 
-  const startOverlayTimer = () => {
+  const startOverlayTimer = (e: React.MouseEvent | React.TouchEvent) => {
     // Clear any existing timeout
     if (overlayTimeoutRef.current) {
       clearTimeout(overlayTimeoutRef.current);
@@ -63,7 +63,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
     };
   }, []);
 
-  const handlePlay = () => {
+  const handlePlay = async (e: React.MouseEvent | React.TouchEvent) => {
     console.log('Play button clicked for NFT:', {
       contract: nft.contract,
       tokenId: nft.tokenId,
@@ -77,7 +77,8 @@ export const NFTCard: React.FC<NFTCardProps> = ({
       handlePlayPause();
     } else {
       console.log('New track, calling onPlay');
-      onPlay();
+      await onPlay(nft);
+      if (e) startOverlayTimer(e);
     }
   };
 
@@ -104,7 +105,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
           <p className="text-gray-400 text-xs truncate">{nft.description}</p>
         </div>
         <button 
-          onClick={handlePlay}
+          onClick={(e) => handlePlay(e)}
           className="text-green-400 hover:text-green-300 transition-colors"
         >
           {isCurrentTrack && isPlaying ? (
@@ -124,8 +125,12 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   return (
     <div 
       className="group relative bg-gray-800/20 rounded-lg overflow-hidden hover:bg-gray-800/40 active:bg-gray-800/60 transition-all duration-500 ease-in-out touch-manipulation"
-      onMouseEnter={() => useCenteredPlay && startOverlayTimer()}
-      onTouchStart={() => useCenteredPlay && startOverlayTimer()}
+      onMouseEnter={(e) => {
+        if (useCenteredPlay && e) startOverlayTimer(e);
+      }}
+      onTouchStart={(e) => {
+        if (useCenteredPlay && e) startOverlayTimer(e);
+      }}
     >
       <div className="aspect-square relative">
         <NFTImage
@@ -147,10 +152,10 @@ export const NFTCard: React.FC<NFTCardProps> = ({
         } />
         {onLikeToggle && (
           <button 
-            onClick={(e) => {
+            onClick={async (e) => {
               e.stopPropagation();
-              onLikeToggle();
-              startOverlayTimer();
+              await onLikeToggle(nft);
+              if (e) startOverlayTimer(e);
             }}
             className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center transition-all duration-300 hover:scale-110 z-10"
           >
@@ -168,10 +173,10 @@ export const NFTCard: React.FC<NFTCardProps> = ({
         {useCenteredPlay ? (
           <div className={`absolute inset-0 flex flex-col items-center justify-center transition-all duration-1000 ease-in-out delay-75 z-20 ${showOverlay ? 'opacity-100' : 'opacity-0'}`}>
             <button 
-              onClick={(e) => {
+              onClick={async (e) => {
                 e.stopPropagation();
-                handlePlay();
-                startOverlayTimer();
+                await handlePlay(e);
+                if (e) startOverlayTimer(e);
               }}
               className="w-16 h-16 rounded-full bg-purple-500 text-black flex items-center justify-center mb-3 hover:scale-105 transform transition-all duration-300 ease-out active:scale-95"
             >
@@ -191,10 +196,10 @@ export const NFTCard: React.FC<NFTCardProps> = ({
           </div>
         ) : (
           <button 
-            onClick={(e) => {
+            onClick={async (e) => {
               e.stopPropagation();
-              handlePlay();
-              startOverlayTimer();
+              await handlePlay(e);
+              if (e) startOverlayTimer(e);
             }}
             className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-purple-500 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
           >

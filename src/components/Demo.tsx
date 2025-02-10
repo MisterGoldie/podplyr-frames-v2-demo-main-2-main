@@ -84,7 +84,7 @@ const Demo: React.FC = () => {
   const [recentSearches, setRecentSearches] = useState<SearchedUser[]>([]);
   const [isLiked, setIsLiked] = useState(false);
   const [userData, setUserData] = useState<FarcasterUser | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(document.createElement('video'));
 
   // Load liked NFTs when user changes
   useEffect(() => {
@@ -711,7 +711,7 @@ const Demo: React.FC = () => {
           onError={setError}
         />
       )}
-      {videoRef.current && currentPlayingNFT?.isVideo && (
+      {currentPlayingNFT?.isVideo && (
         <VideoSyncManager
           videoRef={videoRef}
           currentPlayingNFT={currentPlayingNFT}

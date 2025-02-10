@@ -241,7 +241,9 @@ const LibraryView: React.FC<LibraryViewProps> = ({
                 <NFTCard
                   key={`${nft.contract}-${nft.tokenId}`}
                   nft={nft}
-                  onPlay={() => handlePlayAudio(nft)}
+                  onPlay={async (nft) => {
+                    await handlePlayAudio(nft);
+                  }}
                   isPlaying={isPlaying && currentlyPlaying === `${nft.contract}-${nft.tokenId}`}
                   currentlyPlaying={currentlyPlaying}
                   handlePlayPause={handlePlayPause}

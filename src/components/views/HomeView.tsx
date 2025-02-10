@@ -107,9 +107,8 @@ const HomeView: React.FC<HomeViewProps> = ({
                       <div key={`recently-played-${nft.contract}-${nft.tokenId}-${index}`} className="flex-shrink-0 w-[140px]">
                         <NFTCard
                           nft={nft}
-                          onPlay={() => {
-                            onPlayNFT(nft);
-                            return Promise.resolve();
+                          onPlay={async (nft) => {
+                            await onPlayNFT(nft);
                           }}
                           isPlaying={isPlaying && currentlyPlaying === `${nft.contract}-${nft.tokenId}`}
                           currentlyPlaying={currentlyPlaying}
@@ -139,9 +138,8 @@ const HomeView: React.FC<HomeViewProps> = ({
                       <div key={`top-played-${nft.contract}-${nft.tokenId}-${index}`} className="flex-shrink-0 w-[200px]">
                         <NFTCard
                           nft={nft}
-                          onPlay={() => {
-                            onPlayNFT(nft);
-                            return Promise.resolve();
+                          onPlay={async (nft) => {
+                            await onPlayNFT(nft);
                           }}
                           isPlaying={isPlaying && currentlyPlaying === `${nft.contract}-${nft.tokenId}`}
                           currentlyPlaying={currentlyPlaying}
