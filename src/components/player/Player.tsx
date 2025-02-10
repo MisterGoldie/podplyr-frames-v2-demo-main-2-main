@@ -324,8 +324,8 @@ export const Player: React.FC<PlayerProps> = ({
       className="fixed inset-0 bg-black backdrop-blur-md z-[100] flex flex-col will-change-transform overflow-hidden"
     >
       {/* Main Content */}
-      <div className="flex-1 overflow-y-auto pb-safe">
-        <div className="max-w-screen-sm mx-auto px-4 py-4 pb-24">
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex items-center justify-center max-h-[70vh] px-4 py-4">
           {/* Title Bar */}
           <div className="fixed bottom-0 left-0 right-0 bg-black/80 backdrop-blur-sm border-t border-purple-400/20">
             <div className="container mx-auto flex items-center justify-between px-4 py-3">
@@ -341,7 +341,34 @@ export const Player: React.FC<PlayerProps> = ({
             </div>
           </div>
           {/* NFT Image/Video Container */}
-          <div className="relative w-full mb-8">
+          <div className="relative w-full max-w-2xl mx-auto">
+            {/* Action Icons Overlay */}
+            <div className="absolute top-4 left-4 right-4 flex justify-between z-10">
+              {onLikeToggle && (
+                <button 
+                  onClick={() => onLikeToggle(nft)}
+                  className={`${isLiked ? 'text-red-500' : 'text-purple-400'} hover:text-purple-300 p-2 bg-black/40 rounded-full backdrop-blur-sm`}
+                >
+                  {isLiked ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                      <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                      <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Zm0-108q96-86 158-147.5t98-107q36-45.5 50-81t14-70.5q0-60-40-100t-100-40q-47 0-87 26.5T518-680h-76q-15-41-55-67.5T300-774q-60 0-100 40t-40 100q0 35 14 70.5t50 81q36 45.5 98 107T480-228Zm0-273Z"/>
+                    </svg>
+                  )}
+                </button>
+              )}
+              <button
+                onClick={onMinimizeToggle}
+                className="text-purple-400 hover:text-purple-300 p-2 bg-black/40 rounded-full backdrop-blur-sm"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                  <path d="M200-200v-240h80v160h160v80H200Zm480-320v-160H520v-80h240v240h-80Z"/>
+                </svg>
+              </button>
+            </div>
             <div className={`transition-all duration-500 ease-in-out transform ${isPlaying ? 'scale-100' : 'scale-90'}`}>
               {nft.isVideo || nft.metadata?.animation_url ? (
                 renderVideo()
@@ -381,8 +408,11 @@ export const Player: React.FC<PlayerProps> = ({
 
 
 
+        </div>
+        {/* Controls Section */}
+        <div className="px-4 py-6 bg-black/40">
           {/* Progress Bar */}
-          <div className="mb-12">
+          <div className="mb-6">
             <div 
               className="h-1.5 bg-gray-800 rounded-full cursor-pointer"
               onClick={(e) => {
