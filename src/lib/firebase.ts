@@ -278,11 +278,14 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
     const audioUrl = nft.metadata?.animation_url || nft.audio;
     if (!audioUrl) return;
 
+    // Normalize tokenId (remove 0x prefix if present)
+    const normalizedTokenId = (nft.tokenId || '').replace(/^0x/, '');
+    
     // Store play data with default values for undefined fields
     const playData = {
       fid,
-      nftContract: nft.contract,
-      tokenId: nft.tokenId,
+      nftContract: nft.contract?.toLowerCase() || '',
+      tokenId: normalizedTokenId,
       name: nft.name || 'Untitled',
       description: nft.description || nft.metadata?.description || '',
       image: nft.image || nft.metadata?.image || '',
