@@ -6,7 +6,18 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 export function Button({ children, className = "", isLoading = false, ...props }: ButtonProps) {
   return (
     <button
-      className={`w-full max-w-xs mx-auto block bg-[#7C65C1] text-white py-3 px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#7C65C1] hover:bg-[#6952A3] ${className}`}
+      className={`w-full max-w-xs mx-auto block bg-[#7C65C1] text-white py-3 px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#7C65C1] hover:bg-[#6952A3] active:bg-[#5A4689] touch-none select-none ${className}`}
+      style={{ WebkitTapHighlightColor: 'transparent' }}
+      onTouchStart={(e) => {
+        e.preventDefault();
+        const btn = e.currentTarget;
+        btn.style.transform = 'scale(0.98)';
+      }}
+      onTouchEnd={(e) => {
+        e.preventDefault();
+        const btn = e.currentTarget;
+        btn.style.transform = 'scale(1)';
+      }}
       {...props}
     >
       {isLoading ? (
