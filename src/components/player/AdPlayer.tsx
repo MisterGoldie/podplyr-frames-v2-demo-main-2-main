@@ -9,7 +9,8 @@ interface AdPlayerProps {
 // List of available ad videos
 const AD_VIDEOS = [
   '/ad-video.mp4',
-  '/ad-video-2.mp4'
+  '/ad-video-2.mp4',
+  '/ad-video-3.mp4'
 ];
 
 export const AdPlayer: React.FC<AdPlayerProps> = ({ onAdComplete }) => {
