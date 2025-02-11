@@ -239,6 +239,8 @@ const ExploreView: React.FC<ExploreViewProps> = ({
                     publicCollections={publicCollections}
                     onAddToCollection={addToPublicCollection}
                     onRemoveFromCollection={removeFromPublicCollection}
+                    showTitleOverlay={true}
+                    useCenteredPlay={true}
                   />
                 ))
               )}
