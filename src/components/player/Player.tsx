@@ -287,20 +287,39 @@ export const Player: React.FC<PlayerProps> = ({
               </div>
             )}
 
-            {/* Contract */}
-            <div className="bg-black/30 rounded-lg p-3 border border-purple-400/10 overflow-hidden">
-              <h3 className="text-purple-300 font-mono text-xs uppercase tracking-wider mb-2">Contract</h3>
-              <div className="flex items-center gap-2">
-                <p className="text-gray-300 text-sm font-mono break-all">{nft.contract}</p>
-                <button 
-                  className="text-purple-400 hover:text-purple-300 transition-colors"
-                  onClick={() => navigator.clipboard.writeText(nft.contract)}
-                  title="Copy to clipboard"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" height="16" viewBox="0 -960 960 960" width="16" fill="currentColor">
-                    <path d="M360-240q-33 0-56.5-23.5T280-320v-480q0-33 23.5-56.5T360-880h360q33 0 56.5 23.5T800-800v480q0 33-23.5 56.5T720-240H360Zm0-80h360v-480H360v480ZM200-80q-33 0-56.5-23.5T120-160v-560h80v560h440v80H200Zm160-240v-480 480Z"/>
-                  </svg>
-                </button>
+            {/* Contract and Token ID */}
+            <div className="bg-black/30 rounded-lg p-3 border border-purple-400/10 overflow-hidden space-y-3">
+              {/* Contract */}
+              <div>
+                <h3 className="text-purple-300 font-mono text-xs uppercase tracking-wider mb-2">Contract</h3>
+                <div className="flex items-center gap-2">
+                  <p className="text-gray-300 text-sm font-mono break-all">{nft.contract}</p>
+                  <button 
+                    className="text-purple-400 hover:text-purple-300 transition-colors"
+                    onClick={() => navigator.clipboard.writeText(nft.contract)}
+                    title="Copy to clipboard"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" height="16" viewBox="0 -960 960 960" width="16" fill="currentColor">
+                      <path d="M360-240q-33 0-56.5-23.5T280-320v-480q0-33 23.5-56.5T360-880h360q33 0 56.5 23.5T800-800v480q0 33-23.5 56.5T720-240H360Zm0-80h360v-480H360v480ZM200-80q-33 0-56.5-23.5T120-160v-560h80v560h440v80H200Zm160-240v-480 480Z"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              {/* Token ID */}
+              <div>
+                <h3 className="text-purple-300 font-mono text-xs uppercase tracking-wider mb-2">Token ID</h3>
+                <div className="flex items-center gap-2">
+                  <p className="text-gray-300 text-sm font-mono break-all">{nft.tokenId}</p>
+                  <button 
+                    className="text-purple-400 hover:text-purple-300 transition-colors"
+                    onClick={() => navigator.clipboard.writeText(nft.tokenId || '')}
+                    title="Copy to clipboard"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" height="16" viewBox="0 -960 960 960" width="16" fill="currentColor">
+                      <path d="M360-240q-33 0-56.5-23.5T280-320v-480q0-33 23.5-56.5T360-880h360q33 0 56.5 23.5T800-800v480q0 33-23.5 56.5T720-240H360Zm0-80h360v-480H360v480ZM200-80q-33 0-56.5-23.5T120-160v-560h80v560h440v80H200Zm160-240v-480 480Z"/>
+                    </svg>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
