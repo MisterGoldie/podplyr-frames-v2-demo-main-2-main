@@ -26,7 +26,7 @@ type UseAudioPlayerReturn = {
   handlePlayNext: () => void;
   handlePlayPrevious: () => void;
   handleSeek: (time: number) => void;
-  audioRef: React.RefObject<HTMLAudioElement>;
+  audioRef: React.RefObject<HTMLAudioElement | null>;
 }
 
 type AudioPlayerHandles = {
@@ -260,12 +260,29 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs }: UseAudioPlaye
         const newVideo = document.querySelector(`#video-${nft.contract}-${nft.tokenId}`);
         if (newVideo instanceof HTMLVideoElement) {
           newVideo.play().catch(error => {
-            console.error("Error playing video:", error);
+            // Only log video errors if they're not abort errors
+            if (!(error instanceof DOMException && error.name === 'AbortError')) {
+              console.error("Error playing video:", error);
+            }
           });
         }
       } catch (error) {
-        console.error("Error playing audio:", error);
-        setIsPlaying(false);
+        // Don't treat AbortError as an error - it's normal when ads trigger
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          console.log('Audio playback interrupted by ad system', {
+            nftId: `${nft.contract}-${nft.tokenId}`,
+            audioUrl: audioUrl,
+            timestamp: new Date().toISOString()
+          });
+          // Don't set isPlaying to false for AbortError as the ad system will handle playback state
+        } else {
+          console.error("Error playing audio:", {
+            error,
+            nftId: `${nft.contract}-${nft.tokenId}`,
+            audioUrl: audioUrl
+          });
+          setIsPlaying(false);
+        }
       }
     }
   }, [currentlyPlaying, handlePlayPause, fid, setRecentlyPlayedNFTs]);
