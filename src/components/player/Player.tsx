@@ -221,6 +221,48 @@ export const Player: React.FC<PlayerProps> = ({
     );
   };
 
+  const [showInfo, setShowInfo] = useState(false);
+
+  const InfoPanel = () => {
+    if (!showInfo) return null;
+    
+    return (
+      <div className="fixed bottom-24 left-4 z-[101] max-w-sm">
+        <div className="bg-gray-900/95 backdrop-blur-sm rounded-lg p-4 shadow-xl border border-purple-400/20">
+          <div className="flex justify-between items-start mb-3">
+            <h2 className="text-purple-400 font-mono text-sm">{nft.name}</h2>
+            <button 
+              onClick={() => setShowInfo(false)}
+              className="text-purple-400 hover:text-purple-300 -mr-1"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor">
+                <path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/>
+              </svg>
+            </button>
+          </div>
+          <div className="space-y-3 max-h-48 overflow-y-auto custom-scrollbar">
+            {nft.description && (
+              <div>
+                <h3 className="text-purple-300 font-mono text-xs mb-1">Description</h3>
+                <p className="text-gray-300 text-xs">{nft.description}</p>
+              </div>
+            )}
+            <div>
+              <h3 className="text-purple-300 font-mono text-xs mb-1">Contract</h3>
+              <p className="text-gray-300 text-xs font-mono break-all">{nft.contract}</p>
+            </div>
+            {nft.collection?.name && (
+              <div>
+                <h3 className="text-purple-300 font-mono text-xs mb-1">Collection</h3>
+                <p className="text-gray-300 text-xs">{nft.collection.name}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const formatTime = (time: number): string => {
     const minutes = Math.floor(time / 60);
     const seconds = Math.floor(time % 60);
@@ -229,7 +271,9 @@ export const Player: React.FC<PlayerProps> = ({
 
   if (isMinimized) {
     return (
-      <div 
+      <>
+        {showInfo && <InfoPanel />}
+        <div 
         className="fixed bottom-20 left-0 right-0 bg-black border-t border-purple-400/20 h-20 z-[100] will-change-transform overflow-hidden"
         style={{
           transform: `translateY(${Math.min(0, Math.max(swipeDistance, -maxSwipeDistance))}px)`,
@@ -284,6 +328,15 @@ export const Player: React.FC<PlayerProps> = ({
 
             {/* Controls */}
             <div className="flex items-center gap-4">
+              <button
+                onClick={() => setShowInfo(!showInfo)}
+                className="text-purple-400 hover:text-purple-300"
+                aria-label="Show NFT Information"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                  <path d="M440-280h80v-240h-80v240Zm40-320q17 0 28.5-11.5T520-640q0-17-11.5-28.5T480-680q-17 0-28.5 11.5T440-640q0 17 11.5 28.5T480-600Zm0 520q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z"/>
+                </svg>
+              </button>
               <button 
                 onClick={onNext}
                 className="text-purple-400 hover:text-purple-300"
@@ -347,14 +400,17 @@ export const Player: React.FC<PlayerProps> = ({
             </div>
           </div>
         </div>
-      </div>
+        </div>
+      </>
     );
   }
 
   return (
-    <div 
-      className="fixed inset-0 bg-black backdrop-blur-md z-[100] flex flex-col will-change-transform overflow-hidden"
-    >
+    <>
+      {showInfo && <InfoPanel />}
+      <div 
+        className="fixed inset-0 bg-black backdrop-blur-md z-[100] flex flex-col will-change-transform overflow-hidden"
+      >
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="flex-1 flex items-center justify-center max-h-[70vh] px-4 py-4">
@@ -574,6 +630,7 @@ export const Player: React.FC<PlayerProps> = ({
           </button>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 };
