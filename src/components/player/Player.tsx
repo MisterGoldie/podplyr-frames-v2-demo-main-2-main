@@ -493,37 +493,11 @@ export const Player: React.FC<PlayerProps> = ({
         <div className="flex-1 flex items-center justify-center max-h-[70vh] px-4 py-4">
           {/* Title Bar */}
           <div className="fixed bottom-0 left-0 right-0 bg-black/80 backdrop-blur-sm border-t border-purple-400/20">
-            <div className="container mx-auto flex items-center px-4 py-3">
-              <div className="flex-1 min-w-0 mr-8">
-                <h3 className="font-mono text-purple-400 text-sm truncate">{nft.name}</h3>
-              </div>
-              <div className="flex-none">
-                <button 
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handleMinimizeToggle();
-                }}
-                className="text-purple-400 hover:text-purple-300 p-1 transition-colors ml-4 touch-none select-none"
-                style={{ WebkitTapHighlightColor: 'transparent' }}
-                onTouchStart={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  const btn = e.currentTarget;
-                  btn.style.transform = 'scale(0.9)';
-                }}
-                onTouchEnd={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  const btn = e.currentTarget;
-                  btn.style.transform = 'scale(1)';
-                  handleMinimizeToggle();
-                }}
-                onTouchCancel={(e) => {
-                  e.preventDefault();
-                  const btn = e.currentTarget;
-                  btn.style.transform = 'scale(1)';
-                }}
+            <div className="container mx-auto flex items-center justify-between px-4 py-3">
+              <h3 className="font-mono text-purple-400 text-sm truncate flex-1 min-w-0">{nft.name}</h3>
+              <button 
+                onClick={handleMinimizeToggle}
+                className="text-purple-400 hover:text-purple-300 p-1 transition-colors ml-4"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor">
                   <path d="M480-345 240-585l56-56 184 184 184-184 56 56-240 240Z"/>
