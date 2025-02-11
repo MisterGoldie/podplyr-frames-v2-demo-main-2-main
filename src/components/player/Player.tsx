@@ -364,9 +364,9 @@ export const Player: React.FC<PlayerProps> = ({
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="text-purple-400 font-mono text-sm truncate">{nft.name}</h3>
-                <div className="flex items-center gap-2">
+                <div className="inline-flex items-center -space-x-0.5">
                   <span className="text-gray-400 text-xs">{formatTime(progress)}</span>
-                  <span className="text-gray-600 text-xs">/</span>
+                  <span className="text-gray-600 text-xs px-0.5">/</span>
                   <span className="text-gray-400 text-xs">{formatTime(duration)}</span>
                 </div>
               </div>
