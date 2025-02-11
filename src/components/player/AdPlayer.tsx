@@ -4,10 +4,11 @@ import React, { useRef, useEffect, useState } from 'react';
 
 interface AdPlayerProps {
   onAdComplete: () => void;
+  nftDuration?: number; // Duration in seconds
 }
 
 // Ad configuration with URLs
-const AD_CONFIG = [
+const REGULAR_ADS = [
   {
     video: '/ad-video.mp4',
     url: 'https://acyl.world/TV',
@@ -25,16 +26,27 @@ const AD_CONFIG = [
     url: 'https://theleftfieldtv.vhx.tv/',
     title: 'The Left Field',
     domain: 'theleftfieldtv.vhx.tv'
-  }
+  },
 ];
 
-export const AdPlayer: React.FC<AdPlayerProps> = ({ onAdComplete }) => {
+const LONG_CONTENT_AD = {
+  video: '/ad-video-4.mp4',
+  url: 'https://acyl.world/TV',
+  title: 'ACYL TV',
+  domain: 'acyl.world'
+};
+
+export const AdPlayer: React.FC<AdPlayerProps> = ({ onAdComplete, nftDuration }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
   const [selectedAd] = useState(() => {
-    // Randomly select an ad when component mounts
-    const randomIndex = Math.floor(Math.random() * AD_CONFIG.length);
-    return AD_CONFIG[randomIndex];
+    // If NFT is over 30 minutes, use the long content ad
+    if (nftDuration && nftDuration > 1800) {
+      return LONG_CONTENT_AD;
+    }
+    // Otherwise randomly select from regular ads
+    const randomIndex = Math.floor(Math.random() * REGULAR_ADS.length);
+    return REGULAR_ADS[randomIndex];
   });
 
   useEffect(() => {
