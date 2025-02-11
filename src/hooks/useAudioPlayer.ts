@@ -208,21 +208,20 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs }: UseAudioPlaye
     setCurrentlyPlaying(`${nft.contract}-${nft.tokenId}`);
 
     // Track play in Firebase
-    if (!nft.playTracked) {
-      try {
-        await trackNFTPlay(nft, fid);
-        if (setRecentlyPlayedNFTs) {
-          setRecentlyPlayedNFTs((prevNFTs: NFT[]) => {
-            const newNFT: NFT = { ...nft, playTracked: true };
-            const filteredNFTs = prevNFTs.filter(
-              (item: NFT) => !(item.contract === nft.contract && item.tokenId === nft.tokenId)
-            );
-            return [newNFT, ...filteredNFTs].slice(0, 8);
-          });
-        }
-      } catch (error) {
-        console.error('Error tracking NFT play:', error);
+    try {
+      // Always track the play - our Firebase function will handle deduplication
+      await trackNFTPlay(nft, fid);
+      if (setRecentlyPlayedNFTs) {
+        setRecentlyPlayedNFTs((prevNFTs: NFT[]) => {
+          const newNFT: NFT = { ...nft };
+          const filteredNFTs = prevNFTs.filter(
+            (item: NFT) => !(item.contract === nft.contract && item.tokenId === nft.tokenId)
+          );
+          return [newNFT, ...filteredNFTs].slice(0, 8);
+        });
       }
+    } catch (error) {
+      console.error('Error tracking NFT play:', error);
     }
 
     // Start playing both audio and video after they're loaded
