@@ -451,13 +451,16 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
       return false;
     } else {
       await setDoc(userLikesRef, {
+        nftContract: nft.contract,
+        tokenId: nft.tokenId,
         name: nft.name || 'Untitled',
         description: nft.description || '',
         image: nft.image || nft.metadata?.image || '',
         audioUrl: nft.audio || nft.metadata?.animation_url || '',
         collection: nft.collection?.name || 'Unknown Collection',
         network: nft.network || 'ethereum',
-        timestamp: serverTimestamp()
+        timestamp: serverTimestamp(),
+        fid: fid
       });
       return true;
     }

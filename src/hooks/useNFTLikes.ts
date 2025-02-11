@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
+import { getFirestore, collection, query, where, onSnapshot } from 'firebase/firestore';
 import type { NFT } from '../types/user';
 
 export const useNFTLikes = (nft: NFT | null) => {
@@ -7,34 +7,35 @@ export const useNFTLikes = (nft: NFT | null) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchLikesCount = async () => {
-      if (!nft?.contract || !nft?.tokenId) {
+    if (!nft?.contract || !nft?.tokenId) {
+      setLikesCount(0);
+      setIsLoading(false);
+      return;
+    }
+
+    const db = getFirestore();
+    const userLikesRef = collection(db, 'user_likes');
+    const q = query(
+      userLikesRef,
+      where('nftContract', '==', nft.contract),
+      where('tokenId', '==', nft.tokenId)
+    );
+
+    // Set up real-time listener
+    const unsubscribe = onSnapshot(q, 
+      (snapshot) => {
+        setLikesCount(snapshot.size);
+        setIsLoading(false);
+      },
+      (error) => {
+        console.error('Error listening to likes:', error);
         setLikesCount(0);
         setIsLoading(false);
-        return;
       }
+    );
 
-      try {
-        const db = getFirestore();
-        const userLikesRef = collection(db, 'user_likes');
-        const q = query(
-          userLikesRef,
-          where('nftContract', '==', nft.contract),
-          where('tokenId', '==', nft.tokenId)
-        );
-
-        const querySnapshot = await getDocs(q);
-        const count = querySnapshot.size;
-        setLikesCount(count);
-      } catch (error) {
-        console.error('Error fetching likes count:', error);
-        setLikesCount(0);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchLikesCount();
+    // Cleanup listener when component unmounts or NFT changes
+    return () => unsubscribe();
   }, [nft?.contract, nft?.tokenId]);
 
   return { likesCount, isLoading };
