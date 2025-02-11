@@ -229,8 +229,8 @@ export const Player: React.FC<PlayerProps> = ({
     if (!showInfo) return null;
     
     return (
-      <div className="fixed bottom-40 left-4 z-[101] max-w-sm">
-        <div className="bg-gray-900/95 backdrop-blur-lg rounded-xl p-5 shadow-2xl border border-purple-400/30 animate-fadeIn">
+      <div className="fixed bottom-40 left-0 right-0 mx-auto z-[101] max-w-sm px-4">
+        <div className="bg-gray-900/95 backdrop-blur-lg rounded-xl p-5 shadow-2xl border border-purple-400/30 animate-fadeIn w-full">
           {/* Header */}
           <div className="flex justify-between items-start mb-4">
             <div className="flex-1">
