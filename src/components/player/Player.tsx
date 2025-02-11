@@ -120,12 +120,12 @@ export const Player: React.FC<PlayerProps> = ({
   // Spring animation configuration
   const springTransition = `transform 400ms cubic-bezier(0.17, 0.89, 0.24, 1.11)`;
 
-  const onTouchStart = (e: React.TouchEvent) => {
+  const onTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
     setTouchEnd(null);
     setTouchStart(e.targetTouches[0].clientY);
   };
 
-  const onTouchMove = (e: React.TouchEvent) => {
+  const onTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
     const currentY = e.targetTouches[0].clientY;
     setTouchEnd(currentY);
     
@@ -135,7 +135,7 @@ export const Player: React.FC<PlayerProps> = ({
     }
   };
 
-  const onTouchEnd = () => {
+  const onTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
     if (!touchStart || !touchEnd) return;
 
     // Calculate distance
