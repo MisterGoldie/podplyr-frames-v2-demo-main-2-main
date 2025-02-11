@@ -227,36 +227,55 @@ export const Player: React.FC<PlayerProps> = ({
     if (!showInfo) return null;
     
     return (
-      <div className="fixed bottom-24 left-4 z-[101] max-w-sm">
-        <div className="bg-gray-900/95 backdrop-blur-sm rounded-lg p-4 shadow-xl border border-purple-400/20">
-          <div className="flex justify-between items-start mb-3">
-            <h2 className="text-purple-400 font-mono text-sm">{nft.name}</h2>
+      <div className="fixed bottom-40 left-4 z-[101] max-w-sm">
+        <div className="bg-gray-900/95 backdrop-blur-lg rounded-xl p-5 shadow-2xl border border-purple-400/30 animate-fadeIn">
+          {/* Header */}
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex-1">
+              <h2 className="text-purple-300 font-mono text-base font-semibold">{nft.name}</h2>
+            </div>
             <button 
               onClick={() => setShowInfo(false)}
-              className="text-purple-400 hover:text-purple-300 -mr-1"
+              className="text-gray-400 hover:text-purple-300 transition-colors p-1 -mr-2"
             >
               <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor">
                 <path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/>
               </svg>
             </button>
           </div>
-          <div className="space-y-3 max-h-48 overflow-y-auto custom-scrollbar">
+
+          {/* Content */}
+          <div 
+            className="space-y-4 max-h-[40vh] overflow-y-auto pr-2"
+            style={{
+              scrollbarWidth: 'thin',
+              scrollbarColor: 'rgba(168, 85, 247, 0.4) rgba(0, 0, 0, 0.2)'
+            }}
+          >
+            {/* Description */}
             {nft.description && (
-              <div>
-                <h3 className="text-purple-300 font-mono text-xs mb-1">Description</h3>
-                <p className="text-gray-300 text-xs">{nft.description}</p>
+              <div className="bg-black/30 rounded-lg p-3 border border-purple-400/10 overflow-hidden">
+                <h3 className="text-purple-300 font-mono text-xs uppercase tracking-wider mb-2">Description</h3>
+                <p className="text-gray-300 text-sm leading-relaxed">{nft.description}</p>
               </div>
             )}
-            <div>
-              <h3 className="text-purple-300 font-mono text-xs mb-1">Contract</h3>
-              <p className="text-gray-300 text-xs font-mono break-all">{nft.contract}</p>
+
+            {/* Contract */}
+            <div className="bg-black/30 rounded-lg p-3 border border-purple-400/10 overflow-hidden">
+              <h3 className="text-purple-300 font-mono text-xs uppercase tracking-wider mb-2">Contract</h3>
+              <div className="flex items-center gap-2">
+                <p className="text-gray-300 text-sm font-mono break-all">{nft.contract}</p>
+                <button 
+                  className="text-purple-400 hover:text-purple-300 transition-colors"
+                  onClick={() => navigator.clipboard.writeText(nft.contract)}
+                  title="Copy to clipboard"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" height="16" viewBox="0 -960 960 960" width="16" fill="currentColor">
+                    <path d="M360-240q-33 0-56.5-23.5T280-320v-480q0-33 23.5-56.5T360-880h360q33 0 56.5 23.5T800-800v480q0 33-23.5 56.5T720-240H360Zm0-80h360v-480H360v480ZM200-80q-33 0-56.5-23.5T120-160v-560h80v560h440v80H200Zm160-240v-480 480Z"/>
+                  </svg>
+                </button>
+              </div>
             </div>
-            {nft.collection?.name && (
-              <div>
-                <h3 className="text-purple-300 font-mono text-xs mb-1">Collection</h3>
-                <p className="text-gray-300 text-xs">{nft.collection.name}</p>
-              </div>
-            )}
           </div>
         </div>
       </div>
