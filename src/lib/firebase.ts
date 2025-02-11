@@ -283,13 +283,20 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
       nftContract: nft.contract,
       tokenId: nft.tokenId,
       name: nft.name || 'Untitled',
-      description: nft.description || '',
+      description: nft.description || nft.metadata?.description || '',
       image: nft.image || nft.metadata?.image || '',
       audioUrl: audioUrl,
       collection: nft.collection?.name || 'Unknown Collection',
       network: nft.network || 'ethereum',
       timestamp: new Date().toISOString(),
-      playCount: 1
+      playCount: 1,
+      // Store full metadata for consistent access
+      metadata: {
+        name: nft.name || 'Untitled',
+        description: nft.description || nft.metadata?.description || '',
+        image: nft.image || nft.metadata?.image || '',
+        animation_url: audioUrl
+      }
     };
 
     // Add to global nft_plays collection
@@ -468,17 +475,18 @@ export const subscribeToRecentPlays = (fid: number, callback: (nfts: NFT[]) => v
   return onSnapshot(q, (snapshot) => {
     const nfts = snapshot.docs.map(doc => {
       const data = doc.data();
+      // Create NFT object with full metadata structure
       return {
         contract: data.nftContract,
         tokenId: data.tokenId,
         name: data.name,
-        description: data.description,
+        description: data.description || null, // Set to null if not present
         image: data.image,
         audio: data.audioUrl,
         hasValidAudio: true,
         metadata: {
           name: data.name,
-          description: data.description,
+          description: data.description || null, // Set to null if not present
           image: data.image,
           animation_url: data.audioUrl
         },

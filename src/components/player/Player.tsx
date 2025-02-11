@@ -265,10 +265,10 @@ export const Player: React.FC<PlayerProps> = ({
             }}
           >
             {/* Description */}
-            {nft.description && (
+            {(nft.description || nft.metadata?.description) && (
               <div className="bg-black/30 rounded-lg p-3 border border-purple-400/10">
                 <h3 className="text-purple-300 font-mono text-xs uppercase tracking-wider mb-2">Description</h3>
-                <p className="text-gray-300 text-sm leading-relaxed break-words">{nft.description}</p>
+                <p className="text-gray-300 text-sm leading-relaxed break-words">{nft.description || nft.metadata?.description}</p>
               </div>
             )}
 
