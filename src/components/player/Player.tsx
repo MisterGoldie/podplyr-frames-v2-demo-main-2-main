@@ -3,6 +3,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useNFTPlayCount } from '../../hooks/useNFTPlayCount';
 import { useNFTLikes } from '../../hooks/useNFTLikes';
+import { useNFTTopPlayed } from '../../hooks/useNFTTopPlayed';
 import { PlayerControls } from './PlayerControls';
 import type { NFT } from '../../types/user';
 import { processMediaUrl } from '../../utils/media';
@@ -226,6 +227,7 @@ export const Player: React.FC<PlayerProps> = ({
   const [showInfo, setShowInfo] = useState(false);
   const { playCount, loading } = useNFTPlayCount(nft);
   const { likesCount, isLoading: likesLoading } = useNFTLikes(nft);
+  const { hasBeenInTopPlayed, loading: topPlayedLoading } = useNFTTopPlayed(nft);
 
   const InfoPanel = () => {
     if (!showInfo) return null;
@@ -246,13 +248,23 @@ export const Player: React.FC<PlayerProps> = ({
                     {loading ? '...' : `${playCount} plays`}
                   </span>
                 </div>
-                <div className="flex items-center gap-1.5 bg-purple-500/10 px-2 py-0.5 rounded-full">
-                  <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="currentColor" className="text-purple-400">
-                    <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
-                  </svg>
-                  <span className="text-purple-300 text-xs font-mono">
-                    {likesLoading ? '...' : `${likesCount} likes`}
-                  </span>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 bg-purple-500/10 px-2 py-0.5 rounded-full">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="currentColor" className="text-purple-400">
+                      <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
+                    </svg>
+                    <span className="text-purple-300 text-xs font-mono">
+                      {likesLoading ? '...' : `${likesCount} likes`}
+                    </span>
+                  </div>
+                  {!topPlayedLoading && hasBeenInTopPlayed && (
+                    <div className="flex items-center gap-1.5 bg-purple-500/10 px-2 py-0.5 rounded-full">
+                      <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="currentColor" className="text-purple-400">
+                        <path d="m384-336 56-56-148-148 56-56 148 148 148-148 56 56-148 148 148 148-56 56-148-148-148 148-56-56 148-148-148-148 56-56 148 148-56 56Zm96 256q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Z"/>
+                      </svg>
+                      <span className="text-purple-300 text-xs font-mono">Top Played</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
