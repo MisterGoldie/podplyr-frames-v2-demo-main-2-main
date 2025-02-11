@@ -88,7 +88,7 @@ export const PlayerWithAds: React.FC<PlayerWithAdsProps> = (props) => {
 
   // Don't render anything until ad is complete if we're showing an ad
   if (showAd) {
-    return <AdPlayer onAdComplete={handleAdComplete} nftDuration={props.duration} />;
+    return <AdPlayer onAdComplete={handleAdComplete} />;
   }
 
   // Only render the Player when no ad is showing
