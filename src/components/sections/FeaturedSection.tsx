@@ -118,8 +118,13 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({
   onLikeToggle,
   isNFTLiked
 }) => {
-  // Preload audio for featured NFTs on mount
+  // Store featured NFTs in Firebase and preload audio
   React.useEffect(() => {
+    // Import here to avoid circular dependency
+    import('../../lib/firebase').then(({ ensureFeaturedNFTsExist }) => {
+      ensureFeaturedNFTsExist(FEATURED_NFTS);
+    });
+
     const preloadFeaturedContent = async () => {
       console.log('🎵 Starting to preload featured NFTs...');
       // Load all featured NFTs in parallel

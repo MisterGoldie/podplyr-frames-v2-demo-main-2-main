@@ -18,7 +18,8 @@ import {
   getDoc,
   deleteDoc,
   documentId,
-  serverTimestamp
+  serverTimestamp,
+  writeBatch
 } from 'firebase/firestore';
 import type { NFT, FarcasterUser, SearchedUser, NFTPlayData } from '../types/user';
 import { fetchUserNFTsFromAlchemy } from './alchemy';
@@ -793,6 +794,32 @@ const fetchWithRetry = async (url: string, options: RequestInit, maxRetries = 3)
 };
 
 // Search users by FID or username
+// Store featured NFTs in Firebase if they don't exist
+export const ensureFeaturedNFTsExist = async (nfts: NFT[]): Promise<void> => {
+  try {
+    const batch = writeBatch(db);
+    
+    for (const nft of nfts) {
+      const nftRef = doc(db, 'nfts', `${nft.contract}-${nft.tokenId}`);
+      const nftDoc = await getDoc(nftRef);
+      
+      if (!nftDoc.exists()) {
+        batch.set(nftRef, {
+          ...nft,
+          likes: 0,
+          plays: 0,
+          timestamp: serverTimestamp()
+        });
+      }
+    }
+    
+    await batch.commit();
+    console.log('Featured NFTs stored in Firebase');
+  } catch (error) {
+    console.error('Error storing featured NFTs:', error);
+  }
+};
+
 export const searchUsers = async (query: string): Promise<FarcasterUser[]> => {
   try {
     const neynarKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
