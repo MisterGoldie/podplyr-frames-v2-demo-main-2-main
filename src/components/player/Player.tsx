@@ -247,8 +247,13 @@ export const Player: React.FC<PlayerProps> = ({
               </div>
             </div>
             <button 
-              onClick={() => setShowInfo(false)}
-              className="text-gray-400 hover:text-purple-300 transition-colors p-1 -mr-2"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setShowInfo(false);
+              }}
+              className="text-gray-400 hover:text-purple-300 transition-colors p-1 -mr-2 touch-manipulation"
+              aria-label="Close info panel"
             >
               <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor">
                 <path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/>
