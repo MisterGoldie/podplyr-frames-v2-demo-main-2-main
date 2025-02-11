@@ -271,9 +271,6 @@ export const getRecentSearches = async (fid?: number): Promise<SearchedUser[]> =
   }
 };
 
-// Helper function to normalize tokenId by removing 0x prefix
-const normalizeTokenId = (tokenId: string = '') => tokenId.replace(/^0x/, '');
-
 // Track NFT play and update play count
 export const trackNFTPlay = async (nft: NFT, fid: number) => {
   try {
@@ -281,14 +278,11 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
     const audioUrl = nft.metadata?.animation_url || nft.audio;
     if (!audioUrl) return;
 
-    // Normalize tokenId
-    const normalizedTokenId = normalizeTokenId(nft.tokenId);
-    
     // Store play data with default values for undefined fields
     const playData = {
       fid,
-      nftContract: nft.contract?.toLowerCase() || '',
-      tokenId: normalizedTokenId,
+      nftContract: nft.contract,
+      tokenId: nft.tokenId,
       name: nft.name || 'Untitled',
       description: nft.description || nft.metadata?.description || '',
       image: nft.image || nft.metadata?.image || '',
@@ -317,7 +311,7 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
     const q = query(
       playHistoryRef,
       where('nftContract', '==', nft.contract),
-      where('tokenId', '==', normalizedTokenId)
+      where('tokenId', '==', nft.tokenId)
     );
 
     const querySnapshot = await getDocs(q);
@@ -446,10 +440,8 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
 
 // Toggle NFT like status
 export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => {
-  // Normalize tokenId
-  const normalizedTokenId = normalizeTokenId(nft.tokenId);
   try {
-    const docId = `${fid}-${nft.contract}-${normalizedTokenId}`;
+    const docId = `${fid}-${nft.contract}-${nft.tokenId}`;
     const userLikesRef = doc(db, 'user_likes', docId);
     const docSnap = await getDoc(userLikesRef);
     
@@ -461,7 +453,7 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
     } else {
       await setDoc(userLikesRef, {
         nftContract: nft.contract,
-        tokenId: normalizedTokenId,
+        tokenId: nft.tokenId,
         name: nft.name || 'Untitled',
         description: nft.description || '',
         image: nft.image || nft.metadata?.image || '',
@@ -488,12 +480,9 @@ export const subscribeToRecentPlays = (fid: number, callback: (nfts: NFT[]) => v
     const nfts = snapshot.docs.map(doc => {
       const data = doc.data();
       // Create NFT object with full metadata structure
-      // Normalize contract and tokenId
-      const normalizedContract = data.nftContract?.toLowerCase() || '';
-      const normalizedTokenId = normalizeTokenId(data.tokenId);
       return {
-        contract: normalizedContract,
-        tokenId: normalizedTokenId,
+        contract: data.nftContract,
+        tokenId: data.tokenId,
         name: data.name,
         description: data.description || null, // Set to null if not present
         image: data.image,
@@ -517,13 +506,11 @@ export const subscribeToRecentPlays = (fid: number, callback: (nfts: NFT[]) => v
 
 // Fetch NFT details from contract
 export const fetchNFTDetails = async (contractAddress: string, tokenId: string): Promise<NFT | null> => {
-  // Normalize tokenId
-  const normalizedTokenId = normalizeTokenId(tokenId);
   try {
-    const nftRef = doc(db, 'nft_details', `${contractAddress}-${normalizedTokenId}`);
+    const nftRef = doc(db, 'nft_details', `${contractAddress}-${tokenId}`);
     const snapshot = await getDocs(query(collection(db, 'nft_details'), 
       where('contract', '==', contractAddress),
-      where('tokenId', '==', normalizedTokenId)
+      where('tokenId', '==', tokenId)
     ));
 
     if (!snapshot.empty) {
@@ -591,7 +578,7 @@ export const fetchNFTDetails = async (contractAddress: string, tokenId: string):
     // Cache the NFT details
     await addDoc(collection(db, 'nft_details'), {
       contract: nft.contract,
-      tokenId: normalizedTokenId,
+      tokenId: nft.tokenId,
       name: nft.name,
       description: nft.description,
       image: nft.image,
@@ -610,10 +597,8 @@ export const fetchNFTDetails = async (contractAddress: string, tokenId: string):
 
 // Add NFT to user's liked collection
 export const addLikedNFT = async (fid: number, nft: NFT): Promise<void> => {
-  // Normalize tokenId
-  const normalizedTokenId = normalizeTokenId(nft.tokenId);
   try {
-    const docId = `${fid}-${nft.contract}-${normalizedTokenId}`;
+    const docId = `${fid}-${nft.contract}-${nft.tokenId}`;
     const userLikesRef = doc(db, 'user_likes', docId);
     
     console.log('Adding NFT to likes:', { fid, docId });
@@ -635,10 +620,8 @@ export const addLikedNFT = async (fid: number, nft: NFT): Promise<void> => {
 
 // Remove NFT from user's liked collection
 export const removeLikedNFT = async (fid: number, nft: NFT): Promise<void> => {
-  // Normalize tokenId
-  const normalizedTokenId = normalizeTokenId(nft.tokenId);
   try {
-    const docId = `${fid}-${nft.contract}-${normalizedTokenId}`;
+    const docId = `${fid}-${nft.contract}-${nft.tokenId}`;
     const userLikesRef = doc(db, 'user_likes', docId);
     
     // Delete the document for this liked NFT
