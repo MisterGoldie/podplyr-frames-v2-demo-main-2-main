@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Player } from './player/Player';
+import React, { useState, useEffect, useRef, useCallback, useContext } from 'react';
+import { FarcasterContext } from '~/app/providers';
+import { PlayerWithAds } from './player/PlayerWithAds';
 import { BottomNav } from './navigation/BottomNav';
 import HomeView from './views/HomeView';
 import ExploreView from './views/ExploreView';
@@ -31,9 +32,13 @@ import {
   limit,
   getDocs,
   DocumentData,
-  QueryDocumentSnapshot
+  QueryDocumentSnapshot,
+  doc,
+  setDoc
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { UserDataLoader } from './data/UserDataLoader';
+import { VideoSyncManager } from './media/VideoSyncManager';
 
 const NFT_CACHE_KEY = 'podplayr_nft_cache_';
 const TWO_HOURS = 2 * 60 * 60 * 1000;
@@ -49,7 +54,13 @@ interface PageState {
   isProfile: boolean;
 }
 
-const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
+const Demo: React.FC = () => {
+  // 1. Context Hooks
+  const { fid } = useContext(FarcasterContext);
+  // Assert fid type for TypeScript
+  const userFid = fid as number;
+
+  // 2. State Hooks
   const [currentPage, setCurrentPage] = useState<PageState>({
     isHome: true,
     isExplore: false,
@@ -73,7 +84,23 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
   const [recentSearches, setRecentSearches] = useState<SearchedUser[]>([]);
   const [isLiked, setIsLiked] = useState(false);
   const [userData, setUserData] = useState<FarcasterUser | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(document.createElement('video'));
+
+  // Load liked NFTs when user changes
+  useEffect(() => {
+    const loadLikedNFTs = async () => {
+      if (userFid) {
+        try {
+          const liked = await getLikedNFTs(userFid);
+          setLikedNFTs(liked);
+        } catch (error) {
+          console.error('Error loading liked NFTs:', error);
+        }
+      }
+    };
+
+    loadLikedNFTs();
+  }, [userFid]);
 
   const {
     isPlaying,
@@ -86,7 +113,7 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
     handleSeek,
     audioRef
   } = useAudioPlayer({ 
-    fid,
+    fid: userFid,
     setRecentlyPlayedNFTs 
   });
 
@@ -114,257 +141,90 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
     };
 
     loadInitialData();
-  }, [fid]);
+  }, [userFid]);
+
+  // User data loading is now handled by UserDataLoader component
 
   useEffect(() => {
-    const loadLikedNFTs = async () => {
-      if (fid) {
-        try {
-          console.log('Loading liked NFTs for user:', fid);
-          const liked = await getLikedNFTs(fid);
-          console.log('Loaded liked NFTs:', liked);
-          setLikedNFTs(liked);
-        } catch (error) {
-          console.error('Error loading liked NFTs:', error);
-          setError('Failed to load liked NFTs');
-        }
-      }
-    };
-
-    loadLikedNFTs();
-  }, [fid]);
-
-  useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        console.log('Fetching user data for FID:', fid);
-        // Get Farcaster user data
-        const user = await trackUserSearch('goldie', fid);
-        console.log('Received user data:', user);
-        setUserData(user);
-
-        // Get both custody and verified addresses
-        const addresses = [
-          user.custody_address,
-          ...(user.verified_addresses?.eth_addresses || [])
-        ].filter(Boolean) as string[];
-
-        console.log('Found addresses:', addresses);
-
-        if (addresses.length === 0) {
-          console.error('No wallet addresses found for user');
-          return;
-        }
-
-        // Try to get cached NFTs first
-        const cachedNFTs = getCachedNFTs(fid);
-        if (cachedNFTs) {
-          console.log('Using cached NFTs:', cachedNFTs.length);
-          // Inspect the cached NFTs
-          console.log('Sample of cached NFTs:', cachedNFTs.slice(0, 5).map(nft => ({
-            name: nft.name,
-            contract: nft.contract,
-            tokenId: nft.tokenId,
-            hasValidAudio: nft.hasValidAudio,
-            isVideo: nft.isVideo,
-            audio: nft.audio,
-            animation_url: nft.metadata?.animation_url,
-            properties: nft.metadata?.properties
-          })));
-          
-          // Clear cache if NFTs don't have the right structure
-          const hasValidStructure = cachedNFTs.every(nft => 
-            typeof nft.contract === 'string' && 
-            typeof nft.tokenId === 'string' &&
-            typeof nft.metadata === 'object'
-          );
-          
-          if (!hasValidStructure) {
-            console.log('Cached NFTs have invalid structure, clearing cache...');
-            localStorage.removeItem(`${NFT_CACHE_KEY}${fid}`);
-          } else {
-            setUserNFTs(cachedNFTs);
-            return;
-          }
-        }
-
-        // Fetch NFTs from all addresses
-        console.log('Fetching NFTs from addresses:', addresses);
-        const nftPromises = addresses.map(address => 
-          fetchUserNFTsFromAlchemy(address)
-        );
-
-        const nftResults = await Promise.all(nftPromises);
-        console.log('NFT results from each address:', nftResults.map(nfts => nfts.length));
-        
-        // Combine all NFTs and remove duplicates by contract+tokenId
-        const allNFTs = nftResults.flat();
-        console.log('Total NFTs before deduplication:', allNFTs.length);
-
-        const uniqueNFTs = allNFTs.reduce((acc, nft) => {
-          const key = `${nft.contract}-${nft.tokenId}`;
-          if (!acc[key]) {
-            acc[key] = nft;
-          }
-          return acc;
-        }, {} as Record<string, NFT>);
-
-        const combinedNFTs = Object.values(uniqueNFTs);
-        console.log('Final unique NFTs:', combinedNFTs.length);
-        console.log('Sample of fetched NFTs:', combinedNFTs.slice(0, 5).map(nft => ({
+    const filterMediaNFTs = () => {
+      const filtered = userNFTs.filter((nft) => {
+        console.log('Checking NFT for media:', {
           name: nft.name,
-          contract: nft.contract,
-          tokenId: nft.tokenId,
-          hasValidAudio: nft.hasValidAudio,
-          isVideo: nft.isVideo,
           audio: nft.audio,
           animation_url: nft.metadata?.animation_url,
-          properties: nft.metadata?.properties
-        })));
+          hasValidAudio: nft.hasValidAudio,
+          isVideo: nft.isVideo
+        });
 
-        // Cache the NFTs
-        cacheNFTs(fid, combinedNFTs);
+        let hasMedia = false;
         
-        // Set the NFTs in state
-        setUserNFTs(combinedNFTs);
+        try {
+          // Check for audio in metadata
+          const hasAudio = Boolean(nft.hasValidAudio || 
+            nft.audio || 
+            (nft.metadata?.animation_url && (
+              nft.metadata.animation_url.toLowerCase().endsWith('.mp3') ||
+              nft.metadata.animation_url.toLowerCase().endsWith('.wav') ||
+              nft.metadata.animation_url.toLowerCase().endsWith('.m4a') ||
+              // Check for common audio content types
+              nft.metadata.animation_url.toLowerCase().includes('audio/') ||
+              // Some NFTs store audio in IPFS
+              nft.metadata.animation_url.toLowerCase().includes('ipfs')
+            )));
 
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-        setError('Failed to fetch user data');
-      }
-    };
+          // Check for video in metadata
+          const hasVideo = Boolean(nft.isVideo || 
+            (nft.metadata?.animation_url && (
+              nft.metadata.animation_url.toLowerCase().endsWith('.mp4') ||
+              nft.metadata.animation_url.toLowerCase().endsWith('.webm') ||
+              nft.metadata.animation_url.toLowerCase().endsWith('.mov') ||
+              // Check for common video content types
+              nft.metadata.animation_url.toLowerCase().includes('video/')
+            )));
 
-    if (fid) {
-      console.log('Starting fetchUserData with FID:', fid);
-      fetchUserData();
-    }
-  }, [fid]);
+          // Also check properties.files if they exist
+          const hasMediaInProperties = nft.metadata?.properties?.files?.some((file: NFTFile) => {
+            if (!file) return false;
+            const fileUrl = (file.uri || file.url || '').toLowerCase();
+            const fileType = (file.type || file.mimeType || '').toLowerCase();
+            
+            return fileUrl.endsWith('.mp3') || 
+                  fileUrl.endsWith('.wav') || 
+                  fileUrl.endsWith('.m4a') ||
+                  fileUrl.endsWith('.mp4') || 
+                  fileUrl.endsWith('.webm') || 
+                  fileUrl.endsWith('.mov') ||
+                  fileType.includes('audio/') ||
+                  fileType.includes('video/');
+          }) ?? false;
 
-  useEffect(() => {
-    const filterMediaNFTs = userNFTs.filter(nft => {
-      console.log('Checking NFT for media:', {
-        name: nft.name,
-        audio: nft.audio,
-        animation_url: nft.metadata?.animation_url,
-        hasValidAudio: nft.hasValidAudio,
-        isVideo: nft.isVideo
+          hasMedia = hasAudio || hasVideo || hasMediaInProperties;
+          
+          if (hasMedia) {
+            console.log('Found media NFT:', { 
+              name: nft.name, 
+              hasAudio, 
+              hasVideo,
+              hasMediaInProperties,
+              animation_url: nft.metadata?.animation_url,
+              files: nft.metadata?.properties?.files
+            });
+          }
+        } catch (error) {
+          console.error('Error checking media types:', error);
+        }
+
+        return hasMedia;
       });
 
-      // Check for audio in metadata
-      const hasAudio = nft.hasValidAudio || 
-        nft.audio || 
-        (nft.metadata?.animation_url && (
-          nft.metadata.animation_url.toLowerCase().endsWith('.mp3') ||
-          nft.metadata.animation_url.toLowerCase().endsWith('.wav') ||
-          nft.metadata.animation_url.toLowerCase().endsWith('.m4a') ||
-          // Check for common audio content types
-          nft.metadata.animation_url.toLowerCase().includes('audio/') ||
-          // Some NFTs store audio in IPFS
-          nft.metadata.animation_url.toLowerCase().includes('ipfs')
-        ));
+      console.log(`Found ${filtered.length} media NFTs out of ${userNFTs.length} total NFTs`);
+      setFilteredNFTs(filtered);
+    };
 
-      // Check for video in metadata
-      const hasVideo = nft.isVideo || 
-        (nft.metadata?.animation_url && (
-          nft.metadata.animation_url.toLowerCase().endsWith('.mp4') ||
-          nft.metadata.animation_url.toLowerCase().endsWith('.webm') ||
-          nft.metadata.animation_url.toLowerCase().endsWith('.mov') ||
-          // Check for common video content types
-          nft.metadata.animation_url.toLowerCase().includes('video/')
-        ));
-
-      // Also check properties.files if they exist
-      const hasMediaInProperties = nft.metadata?.properties?.files?.some((file: NFTFile) => {
-        if (!file) return false;
-        const fileUrl = (file.uri || file.url || '').toLowerCase();
-        const fileType = (file.type || file.mimeType || '').toLowerCase();
-        
-        return fileUrl.endsWith('.mp3') || 
-               fileUrl.endsWith('.wav') || 
-               fileUrl.endsWith('.m4a') ||
-               fileUrl.endsWith('.mp4') || 
-               fileUrl.endsWith('.webm') || 
-               fileUrl.endsWith('.mov') ||
-               fileType.includes('audio/') ||
-               fileType.includes('video/');
-      }) ?? false;
-
-      const hasMedia = hasAudio || hasVideo || hasMediaInProperties;
-      
-      if (hasMedia) {
-        console.log('Found media NFT:', { 
-          name: nft.name, 
-          hasAudio, 
-          hasVideo,
-          hasMediaInProperties,
-          animation_url: nft.metadata?.animation_url,
-          files: nft.metadata?.properties?.files
-        });
-      }
-
-      return hasMedia;
-    });
-
-    console.log(`Found ${filterMediaNFTs.length} media NFTs out of ${userNFTs.length} total NFTs`);
-    setFilteredNFTs(filterMediaNFTs);
+    filterMediaNFTs();
   }, [userNFTs]);
 
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !currentPlayingNFT?.isVideo) return;
-
-    const syncVideo = () => {
-      if (isPlaying) {
-        video.play().catch(console.error);
-      } else {
-        video.pause();
-      }
-    };
-
-    syncVideo();
-
-    // Add event listeners to handle video state
-    const handlePlay = () => {
-      if (!isPlaying) handlePlayPause();
-    };
-    const handlePause = () => {
-      if (isPlaying) handlePlayPause();
-    };
-
-    video.addEventListener('play', handlePlay);
-    video.addEventListener('pause', handlePause);
-
-    return () => {
-      video.removeEventListener('play', handlePlay);
-      video.removeEventListener('pause', handlePause);
-    };
-  }, [isPlaying, currentPlayingNFT]);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !currentPlayingNFT?.isVideo) return;
-
-    const syncVideo = () => {
-      if (isPlaying) {
-        video.play().catch(console.error);
-      } else {
-        video.pause();
-      }
-    };
-
-    syncVideo();
-
-    // Keep video in sync with audio progress
-    const syncInterval = setInterval(() => {
-      if (video && Math.abs(video.currentTime - audioProgress) > 0.5) {
-        video.currentTime = audioProgress;
-      }
-    }, 1000);
-
-    return () => {
-      clearInterval(syncInterval);
-    };
-  }, [isPlaying, currentPlayingNFT, audioProgress]);
+  // Video synchronization is now handled by VideoSyncManager component
 
   useEffect(() => {
     if (isInitialPlay) {
@@ -374,32 +234,43 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
   }, [isInitialPlay]);
 
   const handleSearch = async (username: string) => {
+    console.log('=== EXPLORE: Starting user search ===');
+    console.log('Search query:', username);
     setIsSearching(true);
     setError(null);
     try {
+      console.log('Calling searchUsers...');
       const results = await searchUsers(username);
+      console.log('Search results:', results);
+      
       const formattedResults: FarcasterUser[] = results.map((user: any) => ({
         fid: user.fid || 0,
         username: user.username,
         display_name: user.display_name,
-        pfp_url: user.pfp,
+        pfp_url: user.pfp_url || user.pfp,
         follower_count: 0,
         following_count: 0,
         profile: {
           bio: user.bio
         }
       }));
+      console.log('Formatted results:', formattedResults);
       setSearchResults(formattedResults);
-      await trackUserSearch(username, fid);
+      
+      console.log('Tracking user search...');
+      await trackUserSearch(username, userFid);
       
       // Update recent searches after successful search
-      const updatedSearches = await getRecentSearches(fid);
+      console.log('Updating recent searches...');
+      const updatedSearches = await getRecentSearches(userFid);
+      console.log('New recent searches:', updatedSearches);
       setRecentSearches(updatedSearches || []);
     } catch (error) {
       console.error('Search error:', error);
       setError('Failed to search for users. Please try again.');
     } finally {
       setIsSearching(false);
+      console.log('=== EXPLORE: Search completed ===');
     }
   };
 
@@ -460,9 +331,11 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
 
   const togglePictureInPicture = async () => {
     try {
-      if (document.pictureInPictureElement) {
-        await document.exitPictureInPicture();
-      } else if (videoRef.current) {
+      if ('pictureInPictureElement' in document && document.pictureInPictureElement) {
+        if ('exitPictureInPicture' in document) {
+          await document.exitPictureInPicture();
+        }
+      } else if (videoRef.current && 'requestPictureInPicture' in videoRef.current) {
         await videoRef.current.requestPictureInPicture();
       }
     } catch (error) {
@@ -472,7 +345,7 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
 
   const handleLikeToggle = async (nft: NFT) => {
     try {
-      const wasLiked = await toggleLikeNFT(nft, fid);
+      const wasLiked = await toggleLikeNFT(nft, userFid);
       
       if (wasLiked) {
         setLikedNFTs(prev => [...prev, nft]);
@@ -491,7 +364,11 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
     }
   };
 
-  const isNFTLiked = (nft: NFT): boolean => {
+  const isNFTLiked = (nft: NFT, ignoreCurrentPage: boolean = false): boolean => {
+    // If we're in library view and not ignoring current page, all NFTs are liked
+    if (currentPage.isLibrary && !ignoreCurrentPage) return true;
+
+    // Otherwise check if it's in the likedNFTs array
     return likedNFTs.some(item => 
       item.contract.toLowerCase() === nft.contract.toLowerCase() && 
       item.tokenId === nft.tokenId
@@ -512,6 +389,17 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
     setSelectedUser(null);
     setSearchResults([]);
     setError(null);
+
+    // Update the NFT list for the new page
+    if (page === 'isHome') {
+      window.nftList = [...recentlyPlayedNFTs, ...topPlayedNFTs.map(item => item.nft)];
+    } else if (page === 'isLibrary') {
+      window.nftList = likedNFTs;
+    } else if (page === 'isProfile') {
+      window.nftList = userNFTs;
+    } else if (page === 'isExplore') {
+      window.nftList = filteredNFTs;
+    }
   };
 
   const handleReset = () => {
@@ -525,11 +413,24 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
     setSearchResults([]);
     setUserNFTs([]);
     setError(null);
+    
+    // Reset NFT list to home view
+    window.nftList = [...recentlyPlayedNFTs, ...topPlayedNFTs.map(item => item.nft)];
   };
 
   const handlePlayFromLibrary = async (nft: NFT) => {
     console.log('handlePlayFromLibrary called');
     setIsInitialPlay(true);
+    // Set the current list based on the active view
+    if (currentPage.isExplore) {
+      window.nftList = filteredNFTs;
+    } else if (currentPage.isLibrary) {
+      window.nftList = likedNFTs;
+    } else if (currentPage.isProfile) {
+      window.nftList = userNFTs;
+    } else if (currentPage.isHome) {
+      window.nftList = [...recentlyPlayedNFTs, ...topPlayedNFTs.map(item => item.nft)];
+    }
     await handlePlayAudio(nft);
     setIsInitialPlay(false);
   };
@@ -554,6 +455,8 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
           handlePlayPause={handlePlayPause}
           isLoading={isLoading}
           onReset={handleReset}
+          onLikeToggle={handleLikeToggle}
+          likedNFTs={likedNFTs}
         />
       );
     }
@@ -576,20 +479,40 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
           addToPublicCollection={() => { } }
           removeFromPublicCollection={() => { } }
           recentSearches={recentSearches}
-          handleUserSelect={(user) => {
+          handleUserSelect={async (user) => {
             setSelectedUser(user);
-            const fetchUserNFTs = async () => {
-              setIsLoading(true);
-              try {
-                setUserNFTs([]);
-              } catch (error) {
-                console.error('Error fetching user NFTs:', error);
-                setError('Failed to fetch user NFTs');
-              } finally {
+            setIsLoading(true);
+            try {
+              // First try to get cached NFTs
+              const cachedNFTs = getCachedNFTs(user.fid);
+              
+              // Track the user search using existing function
+              await trackUserSearch(user.username, user.fid);
+
+              if (cachedNFTs && Array.isArray(cachedNFTs)) {
+                setUserNFTs(cachedNFTs);
                 setIsLoading(false);
+                return;
               }
-            };
-            fetchUserNFTs();
+
+              // If no cache, fetch NFTs from API
+              const nfts = await fetchUserNFTs(user.fid);
+              if (!nfts) {
+                throw new Error('No NFTs returned');
+              }
+              
+              // Cache the NFTs for future use
+              cacheNFTs(user.fid, nfts);
+              
+              // Update state with fetched NFTs
+              setUserNFTs(nfts);
+            } catch (error) {
+              console.error('Error fetching user NFTs:', error);
+              setError('Failed to fetch user NFTs');
+              setUserNFTs([]); // Set empty array on error
+            } finally {
+              setIsLoading(false);
+            }
           }}
           onReset={handleReset}
         />
@@ -608,7 +531,7 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
           onReset={handleReset}
           userContext={{
             user: userData ? {
-              fid: fid,
+              fid: userFid,
               username: userData.username,
               displayName: userData.display_name,
               pfpUrl: userData.pfp_url,
@@ -631,7 +554,7 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
         <ProfileView
           userContext={{
             user: {
-              fid: fid,
+              fid: userFid,
               username: userData?.username,
               displayName: userData?.display_name,
               pfpUrl: userData?.pfp_url,
@@ -647,6 +570,8 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
           currentlyPlaying={currentlyPlaying}
           handlePlayPause={handlePlayPause}
           onReset={handleReset}
+          onNFTsLoaded={setUserNFTs}
+          onLikeToggle={handleLikeToggle}
         />
       );
     }
@@ -673,13 +598,13 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
   };
 
   const fetchRecentlyPlayed = useCallback(async () => {
-    if (!fid) return;
+    if (!userFid) return;
 
     try {
       const recentlyPlayedCollection = collection(db, 'nft_plays');
       const q = query(
         recentlyPlayedCollection,
-        where('fid', '==', fid),
+        where('fid', '==', userFid),
         orderBy('timestamp', 'desc'),
         limit(12) // Fetch more to account for duplicates
       );
@@ -719,7 +644,7 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
           const recentlyPlayedCollection = collection(db, 'nft_plays');
           const fallbackQuery = query(
             recentlyPlayedCollection,
-            where('fid', '==', fid),
+            where('fid', '==', userFid),
             limit(12)
           );
           
@@ -755,7 +680,7 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
         }
       }
     }
-  }, [fid]);
+  }, [userFid]);
 
   useEffect(() => {
     fetchRecentlyPlayed();
@@ -776,8 +701,26 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <div className="flex-1 container mx-auto px-4 py-6 pb-32">
+    <div className="min-h-screen flex flex-col no-select">
+      {userFid && (
+        <UserDataLoader
+          userFid={userFid}
+          onUserDataLoaded={setUserData}
+          onNFTsLoaded={setUserNFTs}
+          onLikedNFTsLoaded={setLikedNFTs}
+          onError={setError}
+        />
+      )}
+      {currentPlayingNFT?.isVideo && (
+        <VideoSyncManager
+          videoRef={videoRef}
+          currentPlayingNFT={currentPlayingNFT}
+          isPlaying={isPlaying}
+          audioProgress={audioProgress}
+          onPlayPause={handlePlayPause}
+        />
+      )}
+      <div className="flex-1 container mx-auto px-4 py-6 pb-40">
         {renderCurrentView()}
       </div>
 
@@ -790,7 +733,7 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
       )}
 
       {currentPlayingNFT && (
-        <Player
+        <PlayerWithAds
           nft={currentPlayingNFT}
           isPlaying={isPlaying}
           onPlayPause={handlePlayPause}
@@ -802,7 +745,7 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
           duration={audioDuration}
           onSeek={handleSeek}
           onLikeToggle={handleLikeToggle}
-          isLiked={isNFTLiked(currentPlayingNFT)}
+          isLiked={isNFTLiked(currentPlayingNFT, true)} // Always check actual liked state for Player
           onPictureInPicture={togglePictureInPicture}
         />
       )}
@@ -817,3 +760,4 @@ const Demo: React.FC<DemoProps> = ({ fid = 1 }) => {
 };
 
 export default Demo;
+//

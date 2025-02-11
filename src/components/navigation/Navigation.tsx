@@ -1,8 +1,10 @@
 import React from 'react';
 
+type View = 'home' | 'explore' | 'library' | 'profile';
+
 interface NavigationProps {
-  currentView: string;
-  onViewChange: (view: string) => void;
+  currentView: View;
+  onViewChange: (view: View) => void;
 }
 
 export const Navigation: React.FC<NavigationProps> = ({ currentView, onViewChange }) => {

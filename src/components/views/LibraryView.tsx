@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { NFTCard } from '../nft/NFTCard';
 import { NFTImage } from '../media/NFTImage';
 import type { NFT, UserContext } from '../../types/user';
@@ -40,6 +40,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
   const [filterSort, setFilterSort] = useState<'recent' | 'name'>('recent');
   const [searchFilter, setSearchFilter] = useState('');
   const [likedNFTs, setLikedNFTs] = useState<NFT[]>(initialLikedNFTs);
+
 
   // Load liked NFTs when user changes
   useEffect(() => {
@@ -95,7 +96,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
       } else {
         // Add to likes
         await addLikedNFT(userContext.user.fid, nft);
-        setLikedNFTs(prev => [...prev, nft]);
+        // Let the useEffect handle updating the state
         console.log('NFT added to likes');
       }
     } catch (error) {
@@ -114,7 +115,18 @@ const LibraryView: React.FC<LibraryViewProps> = ({
     }
   }, [currentPlayingNFT, likedNFTs, userContext?.user?.fid, setIsLiked]);
 
-  const filteredNFTs = likedNFTs
+  // Deduplicate NFTs based on contract and tokenId
+  const uniqueNFTs = likedNFTs.reduce((acc: NFT[], current) => {
+    const isDuplicate = acc.some(nft => 
+      nft.contract === current.contract && nft.tokenId === current.tokenId
+    );
+    if (!isDuplicate) {
+      acc.push(current);
+    }
+    return acc;
+  }, []);
+
+  const filteredNFTs = uniqueNFTs
     .filter(nft => 
       nft.name.toLowerCase().includes(searchFilter.toLowerCase())
     )
@@ -122,6 +134,8 @@ const LibraryView: React.FC<LibraryViewProps> = ({
       switch (filterSort) {
         case 'name':
           return a.name.localeCompare(b.name);
+        case 'recent':
+          return -1; // Keep most recent first
         default:
           return 0;
       }
@@ -142,10 +156,22 @@ const LibraryView: React.FC<LibraryViewProps> = ({
         </button>
       </header>
 
-      <div className="space-y-8 pt-20">
+      <div 
+        className="space-y-8 pt-20 pb-12 min-h-screen overflow-y-auto"
+        style={{
+          WebkitOverflowScrolling: 'touch',
+          height: 'calc(100vh - 4rem)', // Subtract header height
+          overscrollBehavior: 'none',
+          position: 'fixed',
+          top: '0',
+          left: '0',
+          right: '0',
+          bottom: '0'
+        }}
+      >
         {/* Header and Filters */}
         <div className="flex justify-between items-center px-4">
-          <h2 className="text-2xl font-bold text-purple-400">Your Library</h2>
+          <h2 className="text-base font-semibold text-purple-400">Your Library</h2>
           <div className="flex items-center gap-4">
             {/* View Toggle */}
             <div className="flex gap-2">
@@ -189,12 +215,12 @@ const LibraryView: React.FC<LibraryViewProps> = ({
             type="text"
             value={searchFilter}
             onChange={(e) => setSearchFilter(e.target.value)}
-            placeholder="Filter tracks..."
+            placeholder="Filter NFTs..."
             className="w-full px-4 py-3 bg-gray-800/50 border border-purple-400/20 rounded-lg text-purple-400 placeholder-purple-400/50 focus:outline-none focus:border-purple-400 font-mono text-sm"
           />
           <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor" 
             className="absolute right-8 top-1/2 transform -translate-y-1/2 text-purple-400/50">
-            <path d="M784-120 532-372q-30 24-69 38t-83 14q-109 0-184.5-75.5T120-580q0-109 75.5-184.5T380-840q109 0 184.5 75.5T640-580q0 44-14 83t-38 69l252 252-56 56ZM380-400q75 0 127.5-52.5T560-580q0-75-52.5-127.5T380-760q-75 0-127.5 52.5T200-580q0 75 52.5 127.5T380-400Zm0-108q96-86 158-147.5t98-107q36-45.5 50-81t14-70.5q0-60-40-100t-100-40q-47 0-87 26.5T518-680h-76q-15-41-55-67.5T300-774q-60 0-100 40t-40 100q0 35 14 70.5t50 81q36 45.5 98 107T480-228Zm0-273Z"/>
+            <path d="M784-120 532-372q-30 24-69 38t-83 14q-109 0-184.5-75.5T120-580q0-109 75.5-184.5T380-840q109 0 184.5 75.5T640-580q0 44-14 83t-38 69l252 252-56 56ZM380-400q75 0 127.5-52.5T560-580q0-75-52.5-127.5T380-760q-75 0-127.5 52.5T200-580q0 75 52.5 127.5T380-400Z"/>
           </svg>
         </div>
 
@@ -207,18 +233,24 @@ const LibraryView: React.FC<LibraryViewProps> = ({
             </p>
           </div>
         ) : (
-          <div className={`px-4 pb-24 ${viewMode === 'grid' ? 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4' : 'space-y-4'}`}>
+          <div 
+            className={`px-4 pb-48 ${viewMode === 'grid' ? 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4' : 'space-y-4'}`}
+          >
             {filteredNFTs.map((nft) => (
               viewMode === 'grid' ? (
                 <NFTCard
                   key={`${nft.contract}-${nft.tokenId}`}
                   nft={nft}
-                  onPlay={() => handlePlayAudio(nft)}
+                  onPlay={async (nft) => {
+                    await handlePlayAudio(nft);
+                  }}
                   isPlaying={isPlaying && currentlyPlaying === `${nft.contract}-${nft.tokenId}`}
                   currentlyPlaying={currentlyPlaying}
                   handlePlayPause={handlePlayPause}
                   onLikeToggle={() => handleLikeToggle(nft)}
-                  isLiked={isNFTLiked(nft)}
+                  isLiked={true} // All NFTs in library are liked by definition
+                  showTitleOverlay={true}
+                  useCenteredPlay={true}
                 />
               ) : (
                 <div 
@@ -234,33 +266,32 @@ const LibraryView: React.FC<LibraryViewProps> = ({
                       width={48}
                       height={48}
                       priority={true}
+                      nft={nft}
                     />
                   </div>
 
                   {/* Track Info */}
                   <div className="flex-grow min-w-0">
                     <h3 className="font-mono text-purple-400 truncate">{nft.name}</h3>
-                    {nft.collection?.name && (
-                      <p className="font-mono text-gray-400 text-sm truncate">
-                        {nft.collection.name}
-                      </p>
-                    )}
                   </div>
 
-                  {/* Like Button - Always filled since NFTs in library are liked */}
-                  <button 
-                    className="text-purple-400 hover:scale-110 transition-transform"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
-                      <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Zm0 400v-320h320v320H520Zm0 400v-320h320v320H520ZM200-600h160v-160H200v160Zm400 0h160v-160H600v160Zm0 400h160v-160H600v160Zm-400 0h160v-160H200v160Z"/>
-                    </svg>
-                  </button>
+                  {/* Controls */}
+                  <div className="flex items-center gap-2">
+                    {/* Like Button */}
+                    <button 
+                      onClick={() => handleLikeToggle(nft)}
+                      className="text-red-500 hover:scale-110 transition-transform"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                        <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
+                      </svg>
+                    </button>
 
-                  {/* Play Button */}
-                  <button 
-                    onClick={() => handlePlayAudio(nft)}
-                    className="text-purple-400 hover:scale-110 transition-transform"
-                  >
+                    {/* Play Button */}
+                    <button 
+                      onClick={() => handlePlayAudio(nft)}
+                      className="text-purple-400 hover:scale-110 transition-transform"
+                    >
                     {currentlyPlaying === `${nft.contract}-${nft.tokenId}` && isPlaying ? (
                       <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
                         <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
@@ -271,6 +302,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
                       </svg>
                     )}
                   </button>
+                  </div>
                 </div>
               )
             ))}

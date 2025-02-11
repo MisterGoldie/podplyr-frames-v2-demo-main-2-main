@@ -10,7 +10,7 @@ interface BottomNavProps {
 
 export const BottomNav: React.FC<BottomNavProps> = ({ currentPage, onNavigate, onReset, className = '' }) => {
   return (
-    <nav className={`fixed bottom-0 left-0 right-0 h-16 bg-black border-t border-purple-400/30 flex items-center justify-around z-50 ${className}`}>
+    <nav className={`fixed bottom-0 left-0 right-0 h-20 pb-4 bg-black border-t border-purple-400/30 flex items-center justify-around z-50 ${className}`}>
       <button
         onClick={() => onNavigate('isHome')}
         className={`flex flex-col items-center justify-center w-16 h-16 ${

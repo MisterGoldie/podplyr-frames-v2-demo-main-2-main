@@ -21,9 +21,13 @@ export interface SearchedUser {
   username: string;
   display_name?: string;
   pfp_url?: string;
-  bio?: string;
-  address?: string;
-  timestamp?: number;
+  follower_count: number;
+  following_count: number;
+  custody_address?: string;
+  verifiedAddresses?: string[];
+  searchCount: number;
+  lastSearched?: any; // FirebaseTimestamp
+  timestamp?: any; // FirebaseTimestamp
 }
 
 export interface NFTMetadata {

@@ -1,4 +1,10 @@
 declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      [elemName: string]: any;
+    }
+  }
+
   namespace NodeJS {
     interface ProcessEnv {
       NEXT_PUBLIC_ALCHEMY_API_KEY: string;

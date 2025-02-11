@@ -3,6 +3,13 @@ import { NFT } from '../types/user';
 import { trackNFTPlay } from '../lib/firebase';
 import { processMediaUrl } from '../utils/media';
 
+// Extend Window interface to include our custom property
+declare global {
+  interface Window {
+    nftList: NFT[];
+  }
+}
+
 interface UseAudioPlayerProps {
   fid?: number;
   setRecentlyPlayedNFTs?: React.Dispatch<React.SetStateAction<NFT[]>>;
@@ -36,6 +43,8 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs }: UseAudioPlaye
   const [currentlyPlaying, setCurrentlyPlaying] = useState<string | null>(null);
   const [audioProgress, setAudioProgress] = useState<number>(0);
   const [audioDuration, setAudioDuration] = useState<number>(0);
+  const [currentQueue, setCurrentQueue] = useState<NFT[]>([]);
+  const [queueType, setQueueType] = useState<string>('default');
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -87,9 +96,11 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs }: UseAudioPlaye
     if (isPlaying) {
       audioRef.current.pause();
       // Pause video if it exists
-      const video = document.querySelector('video');
-      if (video) {
-        video.pause();
+      if (currentPlayingNFT) {
+        const video = document.querySelector(`#video-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`);
+        if (video instanceof HTMLVideoElement) {
+          video.pause();
+        }
       }
     } else {
       audioRef.current.play().catch(error => {
@@ -107,15 +118,43 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs }: UseAudioPlaye
     }
   }, [isPlaying]);
 
-  const handlePlayNext = useCallback(() => {
-    // Implementation for playing next track
-    // This would need to be connected to your NFT list
-  }, []);
+  const handlePlayNext = useCallback(async () => {
+    if (!currentPlayingNFT) return;
+    
+    // Use the appropriate queue based on context
+    const activeQueue = queueType === 'featured' ? currentQueue : window.nftList;
+    if (!activeQueue || activeQueue.length === 0) return;
 
-  const handlePlayPrevious = useCallback(() => {
-    // Implementation for playing previous track
-    // This would need to be connected to your NFT list
-  }, []);
+    const currentIndex = activeQueue.findIndex(
+      (nft: NFT) => nft.contract === currentPlayingNFT.contract && nft.tokenId === currentPlayingNFT.tokenId
+    );
+
+    if (currentIndex === -1) return;
+
+    const nextIndex = (currentIndex + 1) % activeQueue.length;
+    const nextNFT = activeQueue[nextIndex];
+
+    if (nextNFT) await handlePlayAudio(nextNFT);
+  }, [currentPlayingNFT]);
+
+  const handlePlayPrevious = useCallback(async () => {
+    if (!currentPlayingNFT) return;
+
+    // Use the appropriate queue based on context
+    const activeQueue = queueType === 'featured' ? currentQueue : window.nftList;
+    if (!activeQueue || activeQueue.length === 0) return;
+
+    const currentIndex = activeQueue.findIndex(
+      (nft: NFT) => nft.contract === currentPlayingNFT.contract && nft.tokenId === currentPlayingNFT.tokenId
+    );
+
+    if (currentIndex === -1) return;
+
+    const prevIndex = (currentIndex - 1 + activeQueue.length) % activeQueue.length;
+    const prevNFT = activeQueue[prevIndex];
+
+    if (prevNFT) await handlePlayAudio(prevNFT);
+  }, [currentPlayingNFT]);
 
   const handleSeek = useCallback((time: number) => {
     if (!audioRef.current) return;
@@ -123,7 +162,16 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs }: UseAudioPlaye
     setAudioProgress(time);
   }, []);
 
-  const handlePlayAudio = useCallback(async (nft: NFT) => {
+  const handlePlayAudio = useCallback(async (nft: NFT, context?: { queue?: NFT[], queueType?: string }) => {
+    // Update queue context if provided
+    if (context?.queue) {
+      setCurrentQueue(context.queue);
+      setQueueType(context.queueType || 'default');
+    } else {
+      // Reset to default queue if no context provided
+      setCurrentQueue([]);
+      setQueueType('default');
+    }
     console.log('handlePlayAudio called with NFT:', nft);
 
     const audioUrl = nft.metadata?.animation_url || nft.audio;
@@ -148,11 +196,12 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs }: UseAudioPlaye
       setAudioDuration(0);
     }
 
-    // Only reset video if we're switching to a different NFT
-    const video = document.querySelector('video');
-    if (video && currentlyPlaying !== `${nft.contract}-${nft.tokenId}`) {
-      video.pause();
-      video.currentTime = 0;
+    // Stop any currently playing videos
+    const currentVideo = currentPlayingNFT ? 
+      document.querySelector(`#video-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`) : null;
+    if (currentVideo instanceof HTMLVideoElement) {
+      currentVideo.pause();
+      currentVideo.currentTime = 0;
     }
 
     setCurrentPlayingNFT(nft);
@@ -207,9 +256,10 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs }: UseAudioPlaye
       try {
         await audio.play();
         setIsPlaying(true);
-        // Only start video if we're switching to a different NFT
-        if (video && currentlyPlaying !== `${nft.contract}-${nft.tokenId}`) {
-          video.play().catch(error => {
+        // Start the new video
+        const newVideo = document.querySelector(`#video-${nft.contract}-${nft.tokenId}`);
+        if (newVideo instanceof HTMLVideoElement) {
+          newVideo.play().catch(error => {
             console.error("Error playing video:", error);
           });
         }

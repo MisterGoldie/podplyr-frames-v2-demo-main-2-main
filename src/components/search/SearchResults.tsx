@@ -5,7 +5,7 @@ import { NFTCard } from '../nft/NFTCard';
 
 interface SearchResultsProps {
   nfts: NFT[];
-  handlePlayAudio: (nft: NFT, context?: string) => void;
+  handlePlayAudio: (nft: NFT, context?: string) => Promise<void>;
   isPlaying: boolean;
   currentlyPlaying: string | null;
   handlePlayPause: () => void;
@@ -28,7 +28,7 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
         <NFTCard
           key={nft.contract}
           nft={nft}
-          onPlay={handlePlayAudio}
+          onPlay={() => handlePlayAudio(nft)}
           isPlaying={isPlaying}
           currentlyPlaying={currentlyPlaying}
           handlePlayPause={handlePlayPause}

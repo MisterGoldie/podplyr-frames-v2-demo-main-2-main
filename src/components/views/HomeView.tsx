@@ -4,16 +4,19 @@ import React from 'react';
 import { NFTCard } from '../nft/NFTCard';
 import type { NFT } from '../../types/user';
 import Image from 'next/image';
+import FeaturedSection from '../sections/FeaturedSection';
 
 interface HomeViewProps {
   recentlyPlayedNFTs: NFT[];
   topPlayedNFTs: { nft: NFT; count: number }[];
-  onPlayNFT: (nft: NFT) => void;
+  onPlayNFT: (nft: NFT, context?: { queue?: NFT[], queueType?: string }) => void;
   currentlyPlaying: string | null;
   isPlaying: boolean;
   handlePlayPause: () => void;
   isLoading?: boolean;
   onReset: () => void;
+  onLikeToggle: (nft: NFT) => Promise<void>;
+  likedNFTs: NFT[];
 }
 
 const HomeView: React.FC<HomeViewProps> = ({
@@ -24,8 +27,16 @@ const HomeView: React.FC<HomeViewProps> = ({
   isPlaying,
   handlePlayPause,
   isLoading = false,
-  onReset
+  onReset,
+  onLikeToggle,
+  likedNFTs
 }) => {
+  const isNFTLiked = (nft: NFT): boolean => {
+    return likedNFTs.some(item => 
+      item.contract.toLowerCase() === nft.contract.toLowerCase() && 
+      item.tokenId === nft.tokenId
+    );
+  };
   if (isLoading) {
     return (
       <>
@@ -83,7 +94,7 @@ const HomeView: React.FC<HomeViewProps> = ({
             />
         </button>
       </header>
-      <div className="space-y-8 pt-20">
+      <div className="space-y-8 pt-20 pb-48 overflow-y-auto h-screen overscroll-y-contain">
         {/* Recently Played Section */}
         <section>
           {recentlyPlayedNFTs.length > 0 && (
@@ -96,14 +107,16 @@ const HomeView: React.FC<HomeViewProps> = ({
                       <div key={`recently-played-${nft.contract}-${nft.tokenId}-${index}`} className="flex-shrink-0 w-[140px]">
                         <NFTCard
                           nft={nft}
-                          onPlay={() => {
-                            onPlayNFT(nft);
-                            return Promise.resolve();
+                          onPlay={async (nft) => {
+                            await onPlayNFT(nft);
                           }}
                           isPlaying={isPlaying && currentlyPlaying === `${nft.contract}-${nft.tokenId}`}
                           currentlyPlaying={currentlyPlaying}
                           handlePlayPause={handlePlayPause}
+                          onLikeToggle={() => onLikeToggle(nft)}
+                          isLiked={isNFTLiked(nft)}
                         />
+                        <h3 className="font-mono text-white text-sm truncate mt-3">{nft.name}</h3>
                       </div>
                     ))}
                   </div>
@@ -125,15 +138,17 @@ const HomeView: React.FC<HomeViewProps> = ({
                       <div key={`top-played-${nft.contract}-${nft.tokenId}-${index}`} className="flex-shrink-0 w-[200px]">
                         <NFTCard
                           nft={nft}
-                          onPlay={() => {
-                            onPlayNFT(nft);
-                            return Promise.resolve();
+                          onPlay={async (nft) => {
+                            await onPlayNFT(nft);
                           }}
                           isPlaying={isPlaying && currentlyPlaying === `${nft.contract}-${nft.tokenId}`}
                           currentlyPlaying={currentlyPlaying}
                           handlePlayPause={handlePlayPause}
+                          onLikeToggle={() => onLikeToggle(nft)}
+                          isLiked={isNFTLiked(nft)}
                           badge={`${count} plays`}
                         />
+                        <h3 className="font-mono text-white text-sm truncate mt-3">{nft.name}</h3>
                       </div>
                     ))}
                   </div>
@@ -141,6 +156,18 @@ const HomeView: React.FC<HomeViewProps> = ({
               </div>
             </div>
           )}
+        </section>
+
+        {/* Featured Section */}
+        <section>
+          <FeaturedSection
+            onPlayNFT={onPlayNFT}
+            handlePlayPause={handlePlayPause}
+            currentlyPlaying={currentlyPlaying}
+            isPlaying={isPlaying}
+            onLikeToggle={onLikeToggle}
+            isNFTLiked={isNFTLiked}
+          />
         </section>
       </div>
     </>

@@ -1,8 +1,14 @@
 import { useState, useEffect } from 'react';
-import { processMediaUrl } from '../../utils/media';
+import { processMediaUrl, IPFS_GATEWAYS } from '../../utils/media';
 import Image from 'next/image';
+import type { SyntheticEvent } from 'react';
 
-const IPFS_GATEWAYS = ['https://ipfs.io', 'https://cloudflare-ipfs.com', 'https://gateway.pinata.cloud'];
+// Helper function to clean IPFS URLs
+const getCleanIPFSUrl = (url: string): string => {
+  if (!url) return url;
+  // Remove any duplicate 'ipfs' in the path
+  return url.replace(/\/ipfs\/ipfs\//g, '/ipfs/');
+};
 
 interface NFTImageProps {
   src: string;
@@ -14,22 +20,41 @@ interface NFTImageProps {
   nft?: any; // For checking animation_url
 }
 
-const getAlternativeIPFSUrl = (url: string) => {
-  if (!url.includes('ipfs')) return null;
+const extractIPFSHash = (url: string): string | null => {
+  if (!url) return null;
+  
+  // Match IPFS hash patterns
+  const ipfsHashRegex = /(?:ipfs\/|ipfs:|\/ipfs\/)([a-zA-Z0-9]{46})/;
+  const match = url.match(ipfsHashRegex);
+  
+  return match ? match[1] : null;
+};
 
+const getNextIPFSUrl = (url: string, currentIndex: number): { url: string; nextIndex: number } | null => {
+  // Clean the URL first
+  url = getCleanIPFSUrl(url);
+  
+  // Try to find which gateway we're currently using
   const currentGateway = IPFS_GATEWAYS.find(gateway => url.includes(gateway));
   if (!currentGateway) return null;
-
-  const alternativeGateway = IPFS_GATEWAYS[(IPFS_GATEWAYS.indexOf(currentGateway) + 1) % IPFS_GATEWAYS.length];
-  return url.replace(currentGateway, alternativeGateway);
+  
+  // Get the path after the gateway
+  const path = url.split(currentGateway)[1];
+  if (!path) return null;
+  
+  const nextIndex = (currentIndex + 1) % IPFS_GATEWAYS.length;
+  return {
+    url: `${IPFS_GATEWAYS[nextIndex]}${path}`,
+    nextIndex
+  };
 };
 
 export const NFTImage: React.FC<NFTImageProps> = ({ 
   src, 
   alt, 
   className, 
-  width, 
-  height, 
+  width = 300, 
+  height = 300, 
   priority,
   nft 
 }) => {
@@ -38,6 +63,8 @@ export const NFTImage: React.FC<NFTImageProps> = ({
   const [imgSrc, setImgSrc] = useState<string>(fallbackSrc);
   const [error, setError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const [currentGatewayIndex, setCurrentGatewayIndex] = useState(0);
+  const [isLoadingFallback, setIsLoadingFallback] = useState(false);
 
   useEffect(() => {
     const detectVideoContent = (url: string) => {
@@ -60,24 +87,24 @@ export const NFTImage: React.FC<NFTImageProps> = ({
     setError(false);
     setRetryCount(0);
 
-    // For video NFTs, check both animation_url and the processed version
-    if (nft?.metadata?.animation_url) {
-      const rawUrl = nft.metadata.animation_url;
-      // For nftstorage.link URLs, use them directly as they handle video well
-      const processedUrl = rawUrl.includes('nftstorage.link') ? rawUrl : processMediaUrl(rawUrl, fallbackSrc);
-      
-      if (detectVideoContent(rawUrl) || detectVideoContent(processedUrl)) {
-        console.log('Video content detected:', { rawUrl, processedUrl });
-        setIsVideo(true);
-        setImgSrc(processedUrl);
-        return;
-      }
+    // Always use the NFT's image as thumbnail, regardless of content type
+    if (nft?.metadata?.image || nft?.image) {
+      setIsVideo(false);
+      const thumbnailUrl = nft.metadata?.image || nft.image;
+      setImgSrc(processMediaUrl(thumbnailUrl, fallbackSrc));
+      return;
     }
 
     // For NFTs with image
     if (src) {
       setIsVideo(false);
-      setImgSrc(src.includes('.ipfs.dweb.link') || src.includes('nftstorage.link') ? src : processMediaUrl(src, fallbackSrc));
+      // Clean and process the URL
+      if (src.includes('ipfs') || src.includes('nftstorage.link')) {
+        const cleanedUrl = getCleanIPFSUrl(src);
+        setImgSrc(processMediaUrl(cleanedUrl, fallbackSrc));
+      } else {
+        setImgSrc(src);
+      }
     }
     // Fallback
     else {
@@ -86,62 +113,73 @@ export const NFTImage: React.FC<NFTImageProps> = ({
     }
   }, [src, nft]);
 
-  const handleError = () => {
-    console.error('Media failed to load:', { 
-      src: imgSrc, 
-      isVideo, 
-      nftMetadata: nft?.metadata,
-      rawAnimationUrl: nft?.metadata?.animation_url 
-    });
-    
-    // For nftstorage.link URLs that fail, try using them directly
-    if (nft?.metadata?.animation_url?.includes('nftstorage.link') && retryCount === 0) {
-      setImgSrc(nft.metadata.animation_url);
-      setRetryCount(prev => prev + 1);
+  const handleError = async (error: SyntheticEvent<HTMLVideoElement | HTMLImageElement>) => {
+    // Prevent infinite retry loops
+    if (retryCount >= IPFS_GATEWAYS.length) {
+      if (!isLoadingFallback) {
+        setIsLoadingFallback(true);
+        setError(true);
+        setImgSrc(fallbackSrc);
+      }
       return;
     }
-    
-    // Try alternative IPFS gateway if available
-    const alternativeUrl = getAlternativeIPFSUrl(imgSrc);
-    if (alternativeUrl && retryCount < IPFS_GATEWAYS.length) {
-      console.log('Trying alternative IPFS gateway:', alternativeUrl);
-      setImgSrc(alternativeUrl);
+
+    // Only log detailed error on first attempt
+    if (retryCount === 0) {
+      console.warn('NFT Image load failed, attempting fallback gateways:', { 
+        originalSrc: src,
+        failedSrc: error.currentTarget.src || imgSrc,
+        attempt: retryCount + 1,
+        isVideo,
+        nftId: nft?.id || 'unknown'
+      });
+    }
+
+    // Try next IPFS gateway
+    const nextGateway = getNextIPFSUrl(imgSrc, currentGatewayIndex);
+    if (nextGateway) {
+      setImgSrc(nextGateway.url);
+      setCurrentGatewayIndex(nextGateway.nextIndex);
       setRetryCount(prev => prev + 1);
       return;
     }
 
-    // If we've exhausted all retries or it's not an IPFS URL, use fallback
+    // If all gateways fail, use fallback
+    console.warn(`All IPFS gateways failed for NFT image, using fallback:`, {
+      nftId: nft?.id || 'unknown',
+      originalSrc: src
+    });
     setError(true);
     setImgSrc(fallbackSrc);
   };
 
-  if (isVideo) {
+  // Use regular img tag for IPFS content to bypass Next.js image optimization
+  const isIPFS = imgSrc.includes('ipfs') || imgSrc.includes('nftstorage.link');
+  const finalSrc = error ? fallbackSrc : imgSrc;
+  
+  if (isVideo || !isIPFS) {
     return (
-      <video
-        src={imgSrc}
+      <Image
+        src={finalSrc}
+        alt={alt}
         className={className}
-        width={width}
-        height={height}
-        controls
-        playsInline
+        width={width || 300}
+        height={height || 300}
+        priority={priority}
         onError={handleError}
-      >
-        <source src={imgSrc} type="video/mp4" />
-        <source src={imgSrc} type="video/webm" />
-        Your browser does not support the video tag.
-      </video>
+      />
     );
   }
 
   return (
-    <Image
-      src={error ? fallbackSrc : imgSrc}
+    <img
+      src={finalSrc}
       alt={alt}
       className={className}
       width={width || 300}
       height={height || 300}
-      priority={priority}
       onError={handleError}
+      loading={priority ? 'eager' : 'lazy'}
     />
   );
 };

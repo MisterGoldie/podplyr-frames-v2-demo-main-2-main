@@ -3,26 +3,27 @@ import { NFT } from '../types/user';
 
 // List of reliable IPFS gateways in order of preference
 const IPFS_GATEWAYS = [
-  'https://ipfs.io/ipfs/',
-  'https://nftstorage.link/ipfs/',
-  'https://cloudflare-ipfs.com/ipfs/',
-  'https://gateway.pinata.cloud/ipfs/'
+  'https://ipfs.io/ipfs/',         // Primary gateway
+  'https://nftstorage.link/ipfs/', // Secondary
+  'https://cloudflare-ipfs.com/ipfs/', // Tertiary
+  'https://gateway.pinata.cloud/ipfs/' // Final fallback
 ];
 
+export { IPFS_GATEWAYS };
+
 // Helper function to extract CID from various IPFS URL formats
-const extractIPFSHash = (url: string): string | null => {
+export const extractIPFSHash = (url: string): string | null => {
+  if (!url) return null;
+
+  // Remove any duplicate 'ipfs' in the path
+  url = url.replace(/\/ipfs\/ipfs\//, '/ipfs/');
+
   // Handle ipfs:// protocol
   if (url.startsWith('ipfs://')) {
     return url.replace('ipfs://', '');
   }
 
-  // Handle .ipfs.dweb.link format
-  const dwebMatch = url.match(/([a-zA-Z0-9]+)\.ipfs\.dweb\.link/);
-  if (dwebMatch) {
-    return dwebMatch[1];
-  }
-
-  // Handle /ipfs/ path format
+  // Use simple regex for all IPFS hashes as per requirements
   const ipfsMatch = url.match(/\/ipfs\/([a-zA-Z0-9]+)/);
   if (ipfsMatch) {
     return ipfsMatch[1];
@@ -44,6 +45,9 @@ export const processMediaUrl = (url: string, fallbackUrl: string = '/default-nft
   if (url.includes('.ipfs.dweb.link')) {
     return url;
   }
+
+  // Remove any duplicate 'ipfs' in the path
+  url = url.replace(/\/ipfs\/ipfs\//, '/ipfs/');
 
   // Try to extract IPFS hash
   const ipfsHash = extractIPFSHash(url);
