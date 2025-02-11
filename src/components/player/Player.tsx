@@ -260,7 +260,7 @@ export const Player: React.FC<PlayerProps> = ({
                   {!topPlayedLoading && hasBeenInTopPlayed && (
                     <div className="flex items-center gap-1.5 bg-purple-500/10 px-2 py-0.5 rounded-full">
                       <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="currentColor" className="text-purple-400">
-                        <path d="m384-336 56-56-148-148 56-56 148 148 148-148 56 56-148 148 148 148-56 56-148-148-148 148-56-56 148-148-148-148 56-56 148 148-56 56Zm96 256q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Z"/>
+                        <path d="m354-247 126-76 126 77-33-144 111-96-146-13-58-136-58 135-146 13 111 97-33 143ZM233-80l65-281L80-550l288-25 112-265 112 265 288 25-218 189 65 281-247-149L233-80Zm247-350Z"/>
                       </svg>
                       <span className="text-purple-300 text-xs font-mono">Top Played</span>
                     </div>
