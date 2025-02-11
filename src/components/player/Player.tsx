@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useRef, useState, useEffect } from 'react';
+import { useNFTPlayCount } from '../../hooks/useNFTPlayCount';
 import { PlayerControls } from './PlayerControls';
 import type { NFT } from '../../types/user';
 import { processMediaUrl } from '../../utils/media';
@@ -222,6 +223,7 @@ export const Player: React.FC<PlayerProps> = ({
   };
 
   const [showInfo, setShowInfo] = useState(false);
+  const { playCount, loading } = useNFTPlayCount(nft);
 
   const InfoPanel = () => {
     if (!showInfo) return null;
@@ -230,9 +232,19 @@ export const Player: React.FC<PlayerProps> = ({
       <div className="fixed bottom-40 left-4 z-[101] max-w-sm">
         <div className="bg-gray-900/95 backdrop-blur-lg rounded-xl p-5 shadow-2xl border border-purple-400/30 animate-fadeIn">
           {/* Header */}
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex justify-between items-start mb-4">
             <div className="flex-1">
               <h2 className="text-purple-300 font-mono text-base font-semibold">{nft.name}</h2>
+              <div className="flex items-center gap-2 mt-1">
+                <div className="flex items-center gap-1.5 bg-purple-500/10 px-2 py-0.5 rounded-full">
+                  <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="currentColor" className="text-purple-400">
+                    <path d="M380-300q-12 0-21-9t-9-21q0-12 9-21t21-9q12 0 21 9t9 21q0 12-9 21t-21 9Zm0-160q-12 0-21-9t-9-21q0-12 9-21t21-9q12 0 21 9t9 21q0 12-9 21t-21 9Zm0-160q-12 0-21-9t-9-21q0-12 9-21t21-9q12 0 21 9t9 21q0 12-9 21t-21 9Zm200 320q-12 0-21-9t-9-21q0-12 9-21t21-9q12 0 21 9t9 21q0 12-9 21t-21 9Zm0-160q-12 0-21-9t-9-21q0-12 9-21t21-9q12 0 21 9t9 21q0 12-9 21t-21 9Zm0-160q-12 0-21-9t-9-21q0-12 9-21t21-9q12 0 21 9t9 21q0 12-9 21t-21 9Z"/>
+                  </svg>
+                  <span className="text-purple-300 text-xs font-mono">
+                    {loading ? '...' : `${playCount} plays`}
+                  </span>
+                </div>
+              </div>
             </div>
             <button 
               onClick={() => setShowInfo(false)}
