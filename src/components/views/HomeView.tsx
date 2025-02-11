@@ -1,9 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { NFTCard } from '../nft/NFTCard';
 import type { NFT } from '../../types/user';
 import Image from 'next/image';
+import { useNFTPreloader } from '../../hooks/useNFTPreloader';
 import FeaturedSection from '../sections/FeaturedSection';
 
 interface HomeViewProps {
@@ -31,6 +32,23 @@ const HomeView: React.FC<HomeViewProps> = ({
   onLikeToggle,
   likedNFTs
 }) => {
+  // Combine all NFTs that need preloading
+  const allNFTs = useMemo(() => {
+    const nfts = [...recentlyPlayedNFTs];
+    topPlayedNFTs.forEach(({ nft }) => {
+      if (!nfts.some(existing => 
+        existing.contract === nft.contract && 
+        existing.tokenId === nft.tokenId
+      )) {
+        nfts.push(nft);
+      }
+    });
+    return nfts;
+  }, [recentlyPlayedNFTs, topPlayedNFTs]);
+
+  // Preload all NFT images
+  useNFTPreloader(allNFTs);
+
   const isNFTLiked = (nft: NFT): boolean => {
     return likedNFTs.some(item => 
       item.contract.toLowerCase() === nft.contract.toLowerCase() && 

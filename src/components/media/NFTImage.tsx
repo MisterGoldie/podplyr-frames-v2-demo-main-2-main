@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { processMediaUrl, IPFS_GATEWAYS } from '../../utils/media';
 import Image from 'next/image';
 import type { SyntheticEvent } from 'react';
+import type { NFT } from '../../types/user';
+import { useNFTPreloader } from '../../hooks/useNFTPreloader';
 
 // Helper function to clean IPFS URLs
 const getCleanIPFSUrl = (url: string): string => {
@@ -17,7 +19,7 @@ interface NFTImageProps {
   width?: number;
   height?: number;
   priority?: boolean;
-  nft?: any; // For checking animation_url
+  nft?: NFT;
 }
 
 const extractIPFSHash = (url: string): string | null => {
@@ -131,7 +133,7 @@ export const NFTImage: React.FC<NFTImageProps> = ({
         failedSrc: error.currentTarget.src || imgSrc,
         attempt: retryCount + 1,
         isVideo,
-        nftId: nft?.id || 'unknown'
+        nftId: nft ? `${nft.contract}-${nft.tokenId}` : 'unknown'
       });
     }
 
@@ -146,7 +148,7 @@ export const NFTImage: React.FC<NFTImageProps> = ({
 
     // If all gateways fail, use fallback
     console.warn(`All IPFS gateways failed for NFT image, using fallback:`, {
-      nftId: nft?.id || 'unknown',
+      nftId: nft ? `${nft.contract}-${nft.tokenId}` : 'unknown',
       originalSrc: src
     });
     setError(true);
