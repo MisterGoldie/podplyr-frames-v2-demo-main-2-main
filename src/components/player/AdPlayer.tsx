@@ -31,11 +31,27 @@ const AD_CONFIG = [
 export const AdPlayer: React.FC<AdPlayerProps> = ({ onAdComplete }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
+  const [elapsedTime, setElapsedTime] = useState<number>(0);
+  const [canSkip, setCanSkip] = useState<boolean>(false);
   const [selectedAd] = useState(() => {
     // Randomly select an ad when component mounts
     const randomIndex = Math.floor(Math.random() * AD_CONFIG.length);
     return AD_CONFIG[randomIndex];
   });
+
+  // Track elapsed time and enable skip after 5 seconds
+  useEffect(() => {
+    const startTime = Date.now();
+    const timer = setInterval(() => {
+      const elapsed = (Date.now() - startTime) / 1000;
+      setElapsedTime(elapsed);
+      if (elapsed >= 5 && !canSkip) {
+        setCanSkip(true);
+        clearInterval(timer);
+      }
+    }, 100);
+    return () => clearInterval(timer);
+  }, [canSkip]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -78,8 +94,18 @@ export const AdPlayer: React.FC<AdPlayerProps> = ({ onAdComplete }) => {
         className="w-full h-full object-contain"
         playsInline
       />
-      <div className="absolute top-4 right-4 bg-black/80 text-white px-3 py-1 rounded-full font-mono text-sm">
-        Ad: {timeRemaining}s
+      <div className="absolute top-4 right-4 flex items-center gap-3">
+        {canSkip && (
+          <button
+            onClick={onAdComplete}
+            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-1 rounded-full font-medium text-sm transition-colors"
+          >
+            Skip Ad
+          </button>
+        )}
+        <div className="bg-black/80 text-white px-3 py-1 rounded-full font-mono text-sm">
+          {canSkip ? 'Skip available' : `Wait ${Math.max(0, 5 - Math.floor(elapsedTime))}s to skip`}
+        </div>
       </div>
       {/* Ad link container */}
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-purple-900/90 rounded-lg overflow-hidden border border-purple-500/30">
