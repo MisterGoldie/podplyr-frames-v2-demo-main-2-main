@@ -429,11 +429,11 @@ export const Player: React.FC<PlayerProps> = ({
                 className="text-purple-400 hover:text-purple-300"
               >
                 {isPlaying ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                  <svg xmlns="http://www.w3.org/2000/svg" height="32" viewBox="0 -960 960 960" width="32" fill="currentColor">
                     <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
                   </svg>
                 ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                  <svg xmlns="http://www.w3.org/2000/svg" height="32" viewBox="0 -960 960 960" width="32" fill="currentColor">
                     <path d="M320-200v-560l440 280-440 280Z"/>
                   </svg>
                 )}
