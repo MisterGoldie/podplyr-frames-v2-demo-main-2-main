@@ -119,42 +119,34 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs }: UseAudioPlaye
   }, [isPlaying]);
 
   const handlePlayNext = useCallback(async () => {
-    if (!currentPlayingNFT) return;
+    if (!currentPlayingNFT || !currentQueue.length) return;
     
-    // Use the appropriate queue based on context
-    const activeQueue = queueType === 'featured' ? currentQueue : window.nftList;
-    if (!activeQueue || activeQueue.length === 0) return;
-
-    const currentIndex = activeQueue.findIndex(
+    const currentIndex = currentQueue.findIndex(
       (nft: NFT) => nft.contract === currentPlayingNFT.contract && nft.tokenId === currentPlayingNFT.tokenId
     );
 
     if (currentIndex === -1) return;
 
-    const nextIndex = (currentIndex + 1) % activeQueue.length;
-    const nextNFT = activeQueue[nextIndex];
+    const nextIndex = (currentIndex + 1) % currentQueue.length;
+    const nextNFT = currentQueue[nextIndex];
 
-    if (nextNFT) await handlePlayAudio(nextNFT);
-  }, [currentPlayingNFT]);
+    if (nextNFT) await handlePlayAudio(nextNFT, { queue: currentQueue, queueType });
+  }, [currentPlayingNFT, currentQueue, queueType]);
 
   const handlePlayPrevious = useCallback(async () => {
-    if (!currentPlayingNFT) return;
+    if (!currentPlayingNFT || !currentQueue.length) return;
 
-    // Use the appropriate queue based on context
-    const activeQueue = queueType === 'featured' ? currentQueue : window.nftList;
-    if (!activeQueue || activeQueue.length === 0) return;
-
-    const currentIndex = activeQueue.findIndex(
+    const currentIndex = currentQueue.findIndex(
       (nft: NFT) => nft.contract === currentPlayingNFT.contract && nft.tokenId === currentPlayingNFT.tokenId
     );
 
     if (currentIndex === -1) return;
 
-    const prevIndex = (currentIndex - 1 + activeQueue.length) % activeQueue.length;
-    const prevNFT = activeQueue[prevIndex];
+    const prevIndex = (currentIndex - 1 + currentQueue.length) % currentQueue.length;
+    const prevNFT = currentQueue[prevIndex];
 
-    if (prevNFT) await handlePlayAudio(prevNFT);
-  }, [currentPlayingNFT]);
+    if (prevNFT) await handlePlayAudio(prevNFT, { queue: currentQueue, queueType });
+  }, [currentPlayingNFT, currentQueue, queueType]);
 
   const handleSeek = useCallback((time: number) => {
     if (!audioRef.current) return;
@@ -163,14 +155,14 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs }: UseAudioPlaye
   }, []);
 
   const handlePlayAudio = useCallback(async (nft: NFT, context?: { queue?: NFT[], queueType?: string }) => {
-    // Update queue context if provided
+    // Always update queue context
     if (context?.queue) {
       setCurrentQueue(context.queue);
       setQueueType(context.queueType || 'default');
-    } else {
-      // Reset to default queue if no context provided
-      setCurrentQueue([]);
-      setQueueType('default');
+    } else if (!currentQueue.length) {
+      // If no queue exists, create a single-item queue
+      setCurrentQueue([nft]);
+      setQueueType('single');
     }
     console.log('handlePlayAudio called with NFT:', nft);
 
