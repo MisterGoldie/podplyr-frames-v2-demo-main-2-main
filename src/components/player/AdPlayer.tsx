@@ -25,6 +25,12 @@ const AD_CONFIG = [
     url: 'https://theleftfieldtv.vhx.tv/',
     title: 'The Left Field',
     domain: 'theleftfieldtv.vhx.tv'
+  },
+  {
+    video: '/ad-video-4.mp4',
+    url: 'https://www.coinbase.com/',
+    title: 'More Bitcoin',
+    domain: 'coinbase.com'
   }
 ];
 
