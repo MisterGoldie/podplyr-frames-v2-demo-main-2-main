@@ -346,17 +346,16 @@ const Demo: React.FC = () => {
 
   const handleLikeToggle = async (nft: NFT) => {
     try {
+      // toggleLikeNFT will update both global_likes and user's likes collection
       const wasLiked = await toggleLikeNFT(nft, userFid);
-      const nftMediaKey = getMediaKey(nft);
       
-      if (wasLiked) {
-        setLikedNFTs(prev => [...prev, nft]);
-        console.log('NFT added to likes');
-      } else {
-        setLikedNFTs(prev => prev.filter(
-          likedNFT => getMediaKey(likedNFT) !== nftMediaKey
-        ));
-        console.log('NFT removed from likes, mediaKey:', nftMediaKey);
+      // No need to manually update local state since useNFTLikeState handles that
+      console.log('Like toggled:', wasLiked ? 'added' : 'removed');
+
+      // Refresh the library view if we're on the library page
+      if (currentPage.isLibrary) {
+        const updatedLikedNFTs = await getLikedNFTs(userFid);
+        setLikedNFTs(updatedLikedNFTs);
       }
     } catch (error) {
       console.error('Error toggling like:', error);

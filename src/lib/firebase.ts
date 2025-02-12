@@ -389,9 +389,26 @@ export async function getTopPlayedNFTs(): Promise<{ nft: NFT; count: number }[]>
       });
     });
 
-    // Sort by play count in descending order
-    const sortedTopPlayed = topPlayed.sort((a, b) => b.count - a.count);
-    console.log('Top played NFTs:', sortedTopPlayed);
+    // Sort by play count in descending order and deduplicate by mediaKey
+    const mediaKeyMap = new Map<string, { nft: NFT; count: number }>();
+    
+    // Keep only the highest play count for each unique content
+    topPlayed.forEach(item => {
+      const mediaKey = getMediaKey(item.nft);
+      if (!mediaKey) return;
+      
+      const existing = mediaKeyMap.get(mediaKey);
+      if (!existing || item.count > existing.count) {
+        mediaKeyMap.set(mediaKey, item);
+      }
+    });
+
+    // Convert back to array and sort
+    const uniqueTopPlayed = Array.from(mediaKeyMap.values())
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 3); // Only keep top 3
+
+    console.log('Unique top played NFTs:', uniqueTopPlayed);
 
     // Update top_played collection
     const batch = writeBatch(db);
@@ -404,7 +421,7 @@ export async function getTopPlayedNFTs(): Promise<{ nft: NFT; count: number }[]>
     });
 
     // Add new top played NFTs
-    for (const item of sortedTopPlayed) {
+    for (const item of uniqueTopPlayed) {
       const mediaKey = getMediaKey(item.nft);
       if (!mediaKey) continue;
       
@@ -416,7 +433,7 @@ export async function getTopPlayedNFTs(): Promise<{ nft: NFT; count: number }[]>
         mediaKey,
         nft: item.nft,
         playCount: item.count,
-        rank: sortedTopPlayed.indexOf(item) + 1,
+        rank: uniqueTopPlayed.indexOf(item) + 1,
         firstTopPlayedAt: existingDoc.exists() ? existingDoc.data()?.firstTopPlayedAt : now,
         lastTopPlayedAt: now,
         updatedAt: now
@@ -424,7 +441,7 @@ export async function getTopPlayedNFTs(): Promise<{ nft: NFT; count: number }[]>
     }
 
     await batch.commit();
-    return sortedTopPlayed;
+    return uniqueTopPlayed;
   } catch (error) {
     console.error('Error getting top played NFTs:', error instanceof Error ? error.message : 'Unknown error');
     return [];
@@ -554,8 +571,8 @@ export const cleanupLikes = async (fid: number) => {
 export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
   try {
     console.log('Getting liked NFTs for FID:', fid);
-    const userLikesRef = collection(db, 'user_likes');
-    const q = query(userLikesRef, where('fid', '==', fid));
+    const userLikesRef = collection(db, 'users', fid.toString(), 'likes');
+    const q = query(userLikesRef);
     const querySnapshot = await getDocs(q);
     
     if (querySnapshot.empty) {
@@ -569,34 +586,39 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
     for (const docSnapshot of querySnapshot.docs) {
       const data = docSnapshot.data();
       
-      // Skip if no mediaKey (shouldn't happen after cleanup)
-      if (!data.mediaKey) {
-        console.warn('Found like without mediaKey:', data);
+      const mediaKey = docSnapshot.id;
+      // Skip duplicates
+      if (seenMediaKeys.has(mediaKey)) continue;
+      seenMediaKeys.add(mediaKey);
+      
+      // Get the global like document to get NFT details
+      const globalLikeRef = doc(db, 'global_likes', mediaKey);
+      const globalLikeDoc = await getDoc(globalLikeRef);
+      
+      if (!globalLikeDoc.exists()) {
+        console.warn('Global like document not found for mediaKey:', mediaKey);
         continue;
       }
       
-      // Skip duplicates
-      if (seenMediaKeys.has(data.mediaKey)) continue;
-      seenMediaKeys.add(data.mediaKey);
-      
+      const globalData = globalLikeDoc.data();
       const nft: NFT = {
-        contract: data.nftContract,
-        tokenId: data.tokenId,
-        name: data.name || 'Untitled',
-        description: data.description || '',
-        image: data.image || '',
-        audio: data.audioUrl || '',
-        hasValidAudio: Boolean(data.audioUrl),
+        contract: globalData.nftContract,
+        tokenId: globalData.tokenId,
+        name: globalData.name || 'Untitled',
+        description: globalData.description || '',
+        image: globalData.image || '',
+        audio: globalData.audioUrl || '',
+        hasValidAudio: Boolean(globalData.audioUrl),
         metadata: {
-          name: data.name || 'Untitled',
-          description: data.description || '',
-          image: data.image || '',
-          animation_url: data.audioUrl || ''
+          name: globalData.name || 'Untitled',
+          description: globalData.description || '',
+          image: globalData.image || '',
+          animation_url: globalData.audioUrl || ''
         },
         collection: {
-          name: data.collection || 'Unknown Collection'
+          name: globalData.collection || 'Unknown Collection'
         },
-        network: 'ethereum'
+        network: globalData.network || 'ethereum'
       };
       
       likedNFTs.push(nft);
@@ -684,36 +706,60 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
   }
 };
 
-// Subscribe to recent plays
+// Subscribe to recent plays using mediaKey for deduplication
 export const subscribeToRecentPlays = (fid: number, callback: (nfts: NFT[]) => void) => {
-  const playsRef = collection(db, 'nft_plays');
-  const q = query(playsRef, where('fid', '==', fid), orderBy('timestamp', 'desc'), limit(8));
+  // Listen to user's play history which stores mediaKeys
+  const historyRef = collection(db, 'users', fid.toString(), 'playHistory');
+  const q = query(historyRef, orderBy('timestamp', 'desc'), limit(20));
 
-  return onSnapshot(q, (snapshot) => {
-    const nfts = snapshot.docs.map(doc => {
-      const data = doc.data();
-      // Create NFT object with full metadata structure
-      return {
-        contract: data.nftContract,
-        tokenId: data.tokenId,
-        name: data.name,
-        description: data.description || null, // Set to null if not present
-        image: data.image,
-        audio: data.audioUrl,
-        hasValidAudio: true,
-        metadata: {
-          name: data.name,
-          description: data.description || null, // Set to null if not present
-          image: data.image,
-          animation_url: data.audioUrl
-        },
-        collection: {
-          name: data.collection
-        },
-        network: data.network
-      };
-    });
-    callback(nfts);
+  return onSnapshot(q, async (snapshot) => {
+    const mediaKeys = new Set<string>();
+    const uniqueNFTs: NFT[] = [];
+
+    // Process each play history entry
+    for (const playDoc of snapshot.docs) {
+      const playData = playDoc.data();
+      const mediaKey = playData.mediaKey as string;
+
+      // Skip if we've already seen this content
+      if (!mediaKey || mediaKeys.has(mediaKey)) continue;
+      mediaKeys.add(mediaKey);
+
+      // Get the NFT details from global_plays
+      const globalPlayRef = doc(db, 'global_plays', mediaKey);
+      const globalPlayDoc = await getDoc(globalPlayRef);
+      
+      if (globalPlayDoc.exists()) {
+        const globalData = globalPlayDoc.data();
+        if (!globalData) continue;
+
+        const nft: NFT = {
+          contract: globalData.nftContract as string,
+          tokenId: globalData.tokenId as string,
+          name: (globalData.name as string) || 'Untitled NFT',
+          description: (globalData.description as string) || '',
+          image: (globalData.image as string) || '',
+          audio: globalData.audioUrl as string,
+          hasValidAudio: Boolean(globalData.audioUrl),
+          metadata: {
+            name: (globalData.name as string) || 'Untitled NFT',
+            description: (globalData.description as string) || '',
+            image: (globalData.image as string) || '',
+            animation_url: globalData.audioUrl as string
+          },
+          collection: {
+            name: (globalData.collection as string) || 'Unknown Collection'
+          },
+          network: (globalData.network as 'base' | 'ethereum') || 'ethereum'
+        };
+        uniqueNFTs.push(nft);
+      }
+
+      // Only get first 8 unique NFTs
+      if (uniqueNFTs.length >= 8) break;
+    }
+
+    callback(uniqueNFTs);
   });
 };
 

@@ -1,7 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useContext } from 'react';
 import { NFT } from '../../types/user';
 import { NFTImage } from '../media/NFTImage';
 import { processMediaUrl } from '../../utils/media';
+import { useNFTLikeState } from '../../hooks/useNFTLikeState';
+import { FarcasterContext } from '../../app/providers';
 
 interface NFTCardProps {
   nft: NFT;
@@ -10,7 +12,6 @@ interface NFTCardProps {
   currentlyPlaying: string | null;
   handlePlayPause: () => void;
   onLikeToggle?: (nft: NFT) => Promise<void>;
-  isLiked?: boolean;
   publicCollections?: string[];
   onAddToCollection?: (nft: NFT, collectionId: string) => void;
   onRemoveFromCollection?: (nft: NFT, collectionId: string) => void;
@@ -27,7 +28,6 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   currentlyPlaying, 
   handlePlayPause,
   onLikeToggle,
-  isLiked,
   publicCollections,
   onAddToCollection,
   onRemoveFromCollection,
@@ -36,6 +36,11 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   showTitleOverlay = false,
   useCenteredPlay = false
 }) => {
+  // Get user's FID from context
+  const { fid: userFid } = useContext(FarcasterContext);
+  
+  // Use the new hook to track like state
+  const { isLiked, likesCount } = useNFTLikeState(nft, userFid || 0);
   const [showCollectionMenu, setShowCollectionMenu] = useState(false);
   const [showOverlay, setShowOverlay] = useState(false);
   const overlayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
