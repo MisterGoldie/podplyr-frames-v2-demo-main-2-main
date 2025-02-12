@@ -344,114 +344,89 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
   }
 };
 
-// Get top played NFTs and mark them in top_played collection
+// Get top played NFTs from global plays collection
 export async function getTopPlayedNFTs(): Promise<{ nft: NFT; count: number }[]> {
   try {
-    // Get all NFT plays
-    const nftPlaysRef = collection(db, 'nft_plays');
+    // Get all global plays, ordered by play count
+    const globalPlaysRef = collection(db, 'global_plays');
     const q = query(
-      nftPlaysRef,
-      orderBy('timestamp', 'desc')
+      globalPlaysRef,
+      orderBy('playCount', 'desc'),
+      limit(10) // Get top 10 most played
     );
     
     const querySnapshot = await getDocs(q);
-    const playsByMediaKey: { [mediaKey: string]: { count: number, nft: NFT, lastPlayed: Date } } = {};
+    const topPlayed: { nft: NFT; count: number }[] = [];
     
-    // Count plays by mediaKey
     querySnapshot.forEach((doc) => {
       const data = doc.data();
       if (!data.mediaKey || !data.nftContract || !data.tokenId) return;
       
-      const timestamp = data.timestamp?.toDate?.() || new Date(data.timestamp);
-      const playCount = data.playCount || 1;
-      
-      if (!playsByMediaKey[data.mediaKey]) {
-        playsByMediaKey[data.mediaKey] = {
-          count: playCount,
-          lastPlayed: timestamp,
-          nft: {
-            contract: data.nftContract,
-            tokenId: data.tokenId,
-            name: data.name || 'Untitled NFT',
-            description: data.description || data.metadata?.description || '',
-            image: data.image || data.metadata?.image || '',
-            audio: data.audioUrl,
-            hasValidAudio: true,
-            metadata: {
-              name: data.name || 'Untitled NFT',
-              description: data.description || data.metadata?.description || '',
-              image: data.image || data.metadata?.image || '',
-              animation_url: data.audioUrl
-            },
-            collection: {
-              name: data.collection || 'Unknown Collection'
-            },
-            network: data.network || 'ethereum'
-          }
-        };
-      } else {
-        playsByMediaKey[data.mediaKey].count += playCount;
-        if (timestamp > playsByMediaKey[data.mediaKey].lastPlayed) {
-          playsByMediaKey[data.mediaKey].lastPlayed = timestamp;
-        }
-      }
+      // Create NFT object from global_plays data
+      const nft: NFT = {
+        contract: data.nftContract,
+        tokenId: data.tokenId,
+        name: data.name || 'Untitled NFT',
+        description: data.description || '',
+        image: data.image || '',
+        audio: data.audioUrl,
+        hasValidAudio: Boolean(data.audioUrl),
+        metadata: {
+          name: data.name || 'Untitled NFT',
+          description: data.description || '',
+          image: data.image || '',
+          animation_url: data.audioUrl
+        },
+        collection: {
+          name: data.collection || 'Unknown Collection'
+        },
+        network: data.network || 'ethereum'
+      };
+
+      topPlayed.push({
+        nft,
+        count: data.playCount || 0
+      });
     });
 
-    // Get top 3 played NFTs by mediaKey
-    console.log('All plays by mediaKey:', playsByMediaKey);
-    
-    const topPlayed = Object.values(playsByMediaKey)
-      .sort((a, b) => {
-        if (b.count !== a.count) return b.count - a.count;
-        return b.lastPlayed.getTime() - a.lastPlayed.getTime();
-      })
-      .slice(0, 3)
-      .map(({ nft, count }) => ({ nft, count }));
-    
-    console.log('Top played NFTs:', topPlayed);
+    // Sort by play count in descending order
+    const sortedTopPlayed = topPlayed.sort((a, b) => b.count - a.count);
+    console.log('Top played NFTs:', sortedTopPlayed);
 
-    // Mark these NFTs in the top_played collection
-    if (topPlayed.length > 0) {
-      const batch = writeBatch(db);
-      for (const { nft, count } of topPlayed) {
-        const mediaKey = getMediaKey(nft);
-        console.log('Processing top played NFT:', { nft, count, mediaKey });
-        
-        // Create a consistent document ID using SHA-256 hash
-        const encoder = new TextEncoder();
-        const mediaKeyBytes = encoder.encode(mediaKey);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', mediaKeyBytes);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-        const docId = hashHex.substring(0, 32);
-        
-        const topPlayedRef = doc(db, 'top_played', docId);
-        console.log('Adding to top played:', { mediaKey, docId });
-        
-        // First check if this NFT is already in top played
-        const existingDoc = await getDoc(topPlayedRef);
-        const now = serverTimestamp();
-        
-        batch.set(topPlayedRef, {
-          mediaKey,
-          contract: nft.contract,
-          tokenId: nft.tokenId,
-          firstTopPlayedAt: existingDoc.exists() ? existingDoc.data().firstTopPlayedAt : now,
-          lastTopPlayedAt: now,
-          name: nft.name || 'Untitled NFT',
-          description: nft.description || nft.metadata?.description || '',
-          image: nft.image || nft.metadata?.image || '',
-          audioUrl: nft.audio || nft.metadata?.animation_url || '',
-          totalPlays: count,
-          metadata: nft.metadata
-        }, { merge: true });
-      }
-      await batch.commit();
+    // Update top_played collection
+    const batch = writeBatch(db);
+    const topPlayedRef = collection(db, 'top_played');
+
+    // First, clear existing top_played collection
+    const existingTopPlayed = await getDocs(topPlayedRef);
+    existingTopPlayed.forEach((doc) => {
+      batch.delete(doc.ref);
+    });
+
+    // Add new top played NFTs
+    for (const item of sortedTopPlayed) {
+      const mediaKey = getMediaKey(item.nft);
+      if (!mediaKey) continue;
+      
+      const docRef = doc(topPlayedRef, mediaKey);
+      const existingDoc = await getDoc(docRef);
+      const now = serverTimestamp();
+      
+      batch.set(docRef, {
+        mediaKey,
+        nft: item.nft,
+        playCount: item.count,
+        rank: sortedTopPlayed.indexOf(item) + 1,
+        firstTopPlayedAt: existingDoc.exists() ? existingDoc.data()?.firstTopPlayedAt : now,
+        lastTopPlayedAt: now,
+        updatedAt: now
+      });
     }
 
-    return topPlayed;
+    await batch.commit();
+    return sortedTopPlayed;
   } catch (error) {
-    console.error('Error getting top played NFTs:', error);
+    console.error('Error getting top played NFTs:', error instanceof Error ? error.message : 'Unknown error');
     return [];
   }
 }
