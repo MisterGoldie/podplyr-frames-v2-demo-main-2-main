@@ -31,6 +31,7 @@ const AD_CONFIG = [
 export const AdPlayer: React.FC<AdPlayerProps> = ({ onAdComplete }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
+  const [audioDuration, setAudioDuration] = useState<number>(0);
   const [elapsedTime, setElapsedTime] = useState<number>(0);
   const [canSkip, setCanSkip] = useState<boolean>(false);
   const [selectedAd] = useState(() => {
@@ -71,6 +72,7 @@ export const AdPlayer: React.FC<AdPlayerProps> = ({ onAdComplete }) => {
     const handleLoadedMetadata = () => {
       if (video) {
         setTimeRemaining(Math.round(video.duration));
+        setAudioDuration(video.duration);
       }
     };
 
@@ -94,17 +96,22 @@ export const AdPlayer: React.FC<AdPlayerProps> = ({ onAdComplete }) => {
         className="w-full h-full object-contain"
         playsInline
       />
-      <div className="absolute top-4 right-4 flex items-center gap-3">
+      <div className="absolute top-4 right-4 flex flex-col items-end gap-2">
+        <div className="flex items-center gap-3">
         {canSkip && (
           <button
             onClick={onAdComplete}
-            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-1 rounded-full font-medium text-sm transition-colors"
+              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-1 rounded-full font-medium text-sm transition-colors"
           >
             Skip Ad
           </button>
         )}
         <div className="bg-black/80 text-white px-3 py-1 rounded-full font-mono text-sm">
           {canSkip ? 'Skip available' : `Wait ${Math.max(0, 5 - Math.floor(elapsedTime))}s to skip`}
+        </div>
+      </div>
+        <div className="bg-black/80 text-white px-3 py-1 rounded-full font-mono text-sm">
+          Ad: {timeRemaining}s / {Math.round(audioDuration)}s
         </div>
       </div>
       {/* Ad link container */}
