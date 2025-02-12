@@ -1172,7 +1172,15 @@ export const ensureFeaturedNFTsExist = async (nfts: NFT[]): Promise<void> => {
   }
 };
 
+// Debounce search requests
+let searchTimeout: NodeJS.Timeout;
+
 export const searchUsers = async (query: string): Promise<FarcasterUser[]> => {
+  // Clear any pending search
+  if (searchTimeout) clearTimeout(searchTimeout);
+
+  // Return early if query is too short
+  if (query.length < 2) return [];
   try {
     const neynarKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
     if (!neynarKey) throw new Error('Neynar API key not found');
@@ -1268,6 +1276,6 @@ export const searchUsers = async (query: string): Promise<FarcasterUser[]> => {
     });
   } catch (error) {
     console.error('Error searching users:', error);
-    return [];
+    return []; // Return empty array instead of throwing to maintain backward compatibility
   }
 };

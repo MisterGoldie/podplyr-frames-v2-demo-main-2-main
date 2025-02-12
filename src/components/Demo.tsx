@@ -248,7 +248,11 @@ const Demo: React.FC = () => {
     setError(null);
     try {
       console.log('Calling searchUsers...');
-      const results = await searchUsers(username);
+      const results = await searchUsers(username).catch(error => {
+        console.error('Error searching users:', error);
+        setError(error.message || 'Error searching for user');
+        return [];
+      });
       console.log('Search results:', results);
       
       const formattedResults: FarcasterUser[] = results.map((user: any) => ({

@@ -34,7 +34,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, isSearching }) =
 
         const data = await response.json();
         if (data.result?.users) {
-          const mappedSuggestions = data.result.users.map((user: FarcasterUser) => ({
+          const mappedSuggestions = data.result.users.map((user: any) => ({
             fid: user.fid,
             username: user.username,
             display_name: user.display_name || user.username,
