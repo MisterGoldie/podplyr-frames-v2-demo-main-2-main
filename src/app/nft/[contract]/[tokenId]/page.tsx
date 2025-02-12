@@ -13,7 +13,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const nft = await getNFTMetadata(contract, tokenId);
   const appUrl = process.env.NEXT_PUBLIC_URL;
 
-  const frameMetadata = {
+  return {
     title: nft.name || 'PODPlayr NFT',
     description: nft.description || 'Listen to this NFT on PODPlayr',
     openGraph: {
@@ -22,15 +22,22 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       images: [nft.metadata?.image || `${appUrl}/api/og?contract=${contract}&tokenId=${tokenId}`],
     },
     other: {
+      // Farcaster Frame metadata
       'fc:frame': 'vNext',
       'fc:frame:image': nft.metadata?.image || `${appUrl}/api/og?contract=${contract}&tokenId=${tokenId}`,
-      'fc:frame:button:1': '▶️ Play on PODPlayr',
-      'fc:frame:button:1:action': 'post',
       'fc:frame:post_url': `${appUrl}/api/frame?contract=${contract}&tokenId=${tokenId}`,
+      // First button - Play
+      'fc:frame:button:1': '▶️ Play on PODPlayr',
+      'fc:frame:button:1:action': 'post_redirect',
+      'fc:frame:button:1:target': `${appUrl}/?contract=${contract}&tokenId=${tokenId}`,
+      // Second button - Share
+      'fc:frame:button:2': '🔗 Share',
+      'fc:frame:button:2:action': 'post',
+      // Third button - Add to Library
+      'fc:frame:button:3': '📚 Add to Library',
+      'fc:frame:button:3:action': 'post',
     },
   };
-
-  return frameMetadata;
 }
 
 export default async function NFTFramePage({ params }: Props) {
@@ -50,12 +57,22 @@ export default async function NFTFramePage({ params }: Props) {
         {nft.description && (
           <p className="mt-2 text-gray-400">{nft.description}</p>
         )}
-        <a
-          href={`${appUrl}/?contract=${contract}&tokenId=${tokenId}`}
-          className="mt-6 block w-full text-center bg-purple-500 text-black font-semibold py-3 px-6 rounded-lg hover:bg-purple-400 transition-colors"
-        >
-          ▶️ Play on PODPlayr
-        </a>
+        <div className="mt-6 flex gap-4">
+          <a
+            href={`${appUrl}/?contract=${contract}&tokenId=${tokenId}`}
+            className="flex-1 text-center bg-purple-500 text-black font-semibold py-3 px-6 rounded-lg hover:bg-purple-400 transition-colors"
+          >
+            ▶️ Play
+          </a>
+          <a
+            href={`https://warpcast.com/~/compose?embeds[]=${appUrl}/nft/${contract}/${tokenId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-1 text-center bg-purple-500 text-black font-semibold py-3 px-6 rounded-lg hover:bg-purple-400 transition-colors"
+          >
+            🔗 Share on Farcaster
+          </a>
+        </div>
       </div>
     </div>
   );

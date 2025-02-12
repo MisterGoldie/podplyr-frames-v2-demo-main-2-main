@@ -18,6 +18,7 @@ const notificationsRef = db.collection('notifications');
 export interface NotificationData {
   url: string;
   token: string;
+  action?: 'play' | 'share' | 'library';
   updatedAt: FirebaseFirestore.Timestamp;
 }
 

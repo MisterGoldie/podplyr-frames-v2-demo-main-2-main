@@ -548,7 +548,8 @@ export const Player: React.FC<PlayerProps> = ({
                       try {
                         const appUrl = process.env.NEXT_PUBLIC_URL || window.location.origin;
                         const frameUrl = `${appUrl}/nft/${nft.contract}/${nft.tokenId}`;
-                        window.open(frameUrl, '_blank', 'noopener,noreferrer');
+                        // Open Warpcast compose with our Frame URL embedded
+                        window.open(`https://warpcast.com/~/compose?embeds[]=${encodeURIComponent(frameUrl)}`, '_blank', 'noopener,noreferrer');
                       } catch (error) {
                         console.error('Error sharing NFT:', error);
                       }
