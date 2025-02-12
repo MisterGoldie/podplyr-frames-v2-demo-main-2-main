@@ -113,10 +113,11 @@ const createSafeId = (url: string): string => {
     return `ipfs_${ipfsHash}`;
   }
 
-  // For non-IPFS URLs, create a safe ID
+  // For non-IPFS URLs, create a safe ID by removing all special characters
   return url
     .replace(/^https?:\/\//, '') // Remove protocol
-    .replace(/[^a-zA-Z0-9._-]/g, '_') // Replace invalid chars with underscore
+    .replace(/[^a-zA-Z0-9]/g, '_') // Replace ALL special chars with underscore
+    .replace(/_+/g, '_') // Replace multiple underscores with single
     .slice(0, 100); // Limit length
 };
 
@@ -142,9 +143,11 @@ export const getMediaKey = (nft: NFT): string => {
 
   if (safeUrls.length === 0) {
     // Fallback to contract and tokenId if no valid URLs
-    return `${nft.contract}_${nft.tokenId}`;
+    return `${nft.contract || ''}_${nft.tokenId || ''}`
+      .replace(/[^a-zA-Z0-9]/g, '_')
+      .replace(/_+/g, '_');
   }
 
-  // Join with a delimiter
-  return safeUrls.join('___');
+  // Join with a delimiter and ensure it's Firestore-safe
+  return safeUrls.join('_')
 };
