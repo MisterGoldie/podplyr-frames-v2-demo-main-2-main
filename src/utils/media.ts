@@ -103,17 +103,34 @@ export const formatTime = (seconds: number): string => {
   return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
 };
 
+// Create a safe document ID from a URL by removing invalid characters
+const createSafeId = (url: string): string => {
+  // Remove protocol and special characters, keep only alphanumeric and basic punctuation
+  return url
+    .replace(/^https?:\/\//, '') // Remove protocol
+    .replace(/[^a-zA-Z0-9._-]/g, '_') // Replace invalid chars with underscore
+    .slice(0, 100); // Limit length to avoid extremely long IDs
+};
+
 // Function to generate consistent mediaKey for NFTs with identical content
 export const getMediaKey = (nft: NFT): string => {
+  if (!nft) return '';
+
   // Get all media URLs
   const audioUrl = nft.metadata?.animation_url || nft.audio || '';
   const imageUrl = nft.image || nft.metadata?.image || '';
   const animationUrl = nft.metadata?.animation_url || '';
 
-  // Create media key to group identical NFTs
-  return [
+  // Create safe IDs for each URL
+  const safeUrls = [
     audioUrl,
     imageUrl,
     animationUrl
-  ].sort().join('|');
+  ]
+    .filter(Boolean) // Remove empty strings
+    .map(createSafeId)
+    .sort(); // Sort for consistency
+
+  // Join with a safe delimiter and create a final safe ID
+  return createSafeId(safeUrls.join('_'));
 };

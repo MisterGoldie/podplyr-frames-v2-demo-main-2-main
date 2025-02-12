@@ -19,7 +19,8 @@ import {
   deleteDoc,
   documentId,
   serverTimestamp,
-  writeBatch
+  writeBatch,
+  DocumentSnapshot
 } from 'firebase/firestore';
 import type { NFT, FarcasterUser, SearchedUser, NFTPlayData } from '../types/user';
 import { fetchUserNFTsFromAlchemy } from './alchemy';
@@ -275,29 +276,44 @@ export const getRecentSearches = async (fid?: number): Promise<SearchedUser[]> =
 // Track NFT play and update play count globally
 export const trackNFTPlay = async (nft: NFT, fid: number) => {
   try {
+    if (!nft || !fid) {
+      console.error('Invalid NFT or FID provided to trackNFTPlay');
+      return;
+    }
+
     const audioUrl = nft.metadata?.animation_url || nft.audio;
-    if (!audioUrl) return;
+    if (!audioUrl) {
+      console.error('No audio URL found for NFT:', nft);
+      return;
+    }
 
     // Get mediaKey for consistent NFT content identification
     const mediaKey = getMediaKey(nft);
+    if (!mediaKey) {
+      console.error('Could not generate mediaKey for NFT:', nft);
+      return;
+    }
 
     // Reference to global play count document
     const globalPlayRef = doc(db, 'global_plays', mediaKey);
-    const globalPlayDoc = await getDoc(globalPlayRef);
+    const globalPlayDoc = await getDoc(globalPlayRef) as DocumentSnapshot;
+
+    const batch = writeBatch(db);
 
     if (globalPlayDoc.exists()) {
+      const data = globalPlayDoc.data();
       // Update existing global play count
-      await updateDoc(globalPlayRef, {
+      batch.update(globalPlayRef, {
         playCount: increment(1),
         lastPlayed: serverTimestamp(),
         // Update metadata if needed
-        name: nft.name || globalPlayDoc.data().name,
-        image: nft.image || globalPlayDoc.data().image,
-        audioUrl: audioUrl || globalPlayDoc.data().audioUrl
+        name: nft.name || data?.name || 'Untitled',
+        image: nft.image || data?.image || '',
+        audioUrl: audioUrl || data?.audioUrl || ''
       });
     } else {
       // Create new global play count
-      await setDoc(globalPlayRef, {
+      batch.set(globalPlayRef, {
         mediaKey,
         nftContract: nft.contract,
         tokenId: nft.tokenId,
@@ -315,12 +331,16 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
 
     // Track in user's history for recently played feature
     const userHistoryRef = doc(db, 'users', fid.toString(), 'playHistory', mediaKey);
-    await setDoc(userHistoryRef, {
+    batch.set(userHistoryRef, {
       mediaKey,
       timestamp: serverTimestamp()
     });
+
+    // Commit all changes in a single batch
+    await batch.commit();
   } catch (error) {
-    console.error('Error tracking NFT play:', error);
+    console.error('Error tracking NFT play:', error instanceof Error ? error.message : 'Unknown error');
+    throw error; // Re-throw to allow handling by the caller
   }
 };
 
