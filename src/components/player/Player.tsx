@@ -548,7 +548,7 @@ export const Player: React.FC<PlayerProps> = ({
                       try {
                         const appUrl = process.env.NEXT_PUBLIC_URL || window.location.origin;
                         const shareText = `Check out this NFT on PODPlayr 🎵`;
-                        // Just share the base domain - Farcaster will handle the Frame
+                        // Share base domain but Frame endpoint will show NFT image
                         window.open(`https://warpcast.com/~/compose?text=${encodeURIComponent(shareText)}&embeds[]=${encodeURIComponent(appUrl)}`, '_blank', 'noopener,noreferrer');
                       } catch (error) {
                         console.error('Error sharing NFT:', error);

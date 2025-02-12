@@ -12,6 +12,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { contract, tokenId } = params;
   const nft = await getNFTMetadata(contract, tokenId);
   const appUrl = process.env.NEXT_PUBLIC_URL;
+  const nftUrl = `${appUrl}/?contract=${contract}&tokenId=${tokenId}`;
 
   const frame = {
     version: 'vNext',
@@ -19,10 +20,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: nft.name || 'PODPlayr NFT',
     description: nft.description || 'Listen to this NFT on PODPlayr',
     buttons: [{
-      label: '▶️ Enter PODPlayr',
+      label: '▶️ Play Now',
       action: {
         type: 'post_redirect',
-        target: `${appUrl}/?contract=${contract}&tokenId=${tokenId}`,
+        target: nftUrl,
       },
     }],
     postUrl: `${appUrl}/api/frame?contract=${contract}&tokenId=${tokenId}`,
@@ -35,6 +36,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title: frame.title,
       description: frame.description,
       images: [frame.image],
+      url: nftUrl,
     },
     other: {
       'fc:frame': frame.version,

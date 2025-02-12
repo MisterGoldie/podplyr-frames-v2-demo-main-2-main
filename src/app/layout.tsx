@@ -10,7 +10,7 @@ const frame = {
   version: 'vNext',
   image: `${appUrl}/og-image.jpg`,
   title: 'PODPlayr',
-  description: 'Listen to NFTs on PODPlayr',
+  description: 'Listen & Watch NFTs on PODPlayr',
   buttons: [{
     label: '▶️ Enter PODPlayr',
     action: {
