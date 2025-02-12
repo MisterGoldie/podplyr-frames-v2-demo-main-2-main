@@ -65,7 +65,14 @@ export const useTopPlayedNFTs = () => {
 
       // Convert back to array, sort by play count, and take top 3
       const uniqueTopPlayed = Array.from(mediaKeyMap.values())
-        .sort((a, b) => b.count - a.count)
+        .sort((a, b) => {
+          // First sort by play count (highest first)
+          const countDiff = b.count - a.count;
+          if (countDiff !== 0) return countDiff;
+          
+          // If play counts are equal, maintain stable order
+          return 0;
+        })
         .slice(0, 3);
 
       setTopPlayed(uniqueTopPlayed);
