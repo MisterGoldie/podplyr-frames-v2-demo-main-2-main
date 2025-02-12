@@ -26,6 +26,7 @@ import {
 import { fetchUserNFTsFromAlchemy } from '../lib/alchemy';
 import type { NFT, FarcasterUser, SearchedUser, UserContext, LibraryViewProps, ProfileViewProps, NFTFile, NFTPlayData, GroupedNFT } from '../types/user';
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
+import { useTopPlayedNFTs } from '../hooks/useTopPlayedNFTs';
 import {
   collection,
   query,
@@ -74,7 +75,7 @@ const Demo: React.FC = () => {
   const [isInitialPlay, setIsInitialPlay] = useState(false);
 
   const [recentlyPlayedNFTs, setRecentlyPlayedNFTs] = useState<NFT[]>([]);
-  const [topPlayedNFTs, setTopPlayedNFTs] = useState<{ nft: NFT; count: number }[]>([]);
+  const { topPlayed: topPlayedNFTs, loading: topPlayedLoading } = useTopPlayedNFTs();
   const [searchResults, setSearchResults] = useState<FarcasterUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<FarcasterUser | null>(null);
   const [userNFTs, setUserNFTs] = useState<NFT[]>([]);
@@ -128,11 +129,8 @@ const Demo: React.FC = () => {
       setIsLoading(true);
       setError(null);
       try {
-        const [topPlayed, searches] = await Promise.all([
-          getTopPlayedNFTs(),
-          getRecentSearches(fid)
-        ]);
-        setTopPlayedNFTs(topPlayed);
+        // Get recent searches
+        const searches = await getRecentSearches(fid);
         setRecentSearches(searches || []); // Handle potential undefined
 
         // Subscribe to recently played NFTs
