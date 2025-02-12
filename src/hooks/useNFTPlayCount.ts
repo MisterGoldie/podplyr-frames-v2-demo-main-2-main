@@ -32,7 +32,7 @@ export const useNFTPlayCount = (nft: NFT | null) => {
             nft.metadata?.animation_url || nft.audio || '',
             nft.image || nft.metadata?.image || '',
             nft.metadata?.animation_url || ''
-          ].sort().join('|');
+          ].filter(Boolean).sort().join('|');
 
           const q = query(
             nftPlaysRef,

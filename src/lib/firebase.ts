@@ -281,12 +281,12 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
     
     if (!audioUrl) return;
 
-    // Create a media key to group identical NFTs
+    // Create media key to group identical NFTs by their content URLs
     const mediaKey = [
       audioUrl,
       imageUrl,
       animationUrl
-    ].sort().join('|');
+    ].filter(Boolean).sort().join('|');
 
     // Store play data with default values for undefined fields
     const playData = {
@@ -328,7 +328,7 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
     const querySnapshot = await getDocs(q);
     
     if (!querySnapshot.empty) {
-      // Update existing play history for all NFTs with this mediaKey
+      // Update existing play history
       const batch = writeBatch(db);
       querySnapshot.docs.forEach(doc => {
         batch.update(doc.ref, {
