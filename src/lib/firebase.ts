@@ -300,8 +300,10 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
     const globalPlayRef = doc(db, 'global_plays', mediaKey);
     const globalPlayDoc = await getDoc(globalPlayRef);
 
+    let newPlayCount = 1;
     if (globalPlayDoc.exists()) {
       const data = globalPlayDoc.data();
+      newPlayCount = (data.playCount || 0) + 1;
       batch.update(globalPlayRef, {
         playCount: increment(1),
         lastPlayed: serverTimestamp(),
@@ -325,6 +327,43 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
         firstPlayed: serverTimestamp(),
         lastPlayed: serverTimestamp()
       });
+    }
+
+    // Update nfts collection with latest play count
+    const nftRef = doc(db, 'nfts', `${nft.contract}-${nft.tokenId}`);
+    const nftDoc = await getDoc(nftRef);
+    if (nftDoc.exists()) {
+      batch.update(nftRef, {
+        plays: newPlayCount,
+        lastPlayed: serverTimestamp()
+      });
+    }
+
+    // Check if this NFT should be in top_played
+    if (newPlayCount >= 3) { // Threshold for being considered "top played"
+      const topPlayedRef = doc(db, 'top_played', mediaKey);
+      const topPlayedDoc = await getDoc(topPlayedRef);
+      
+      if (!topPlayedDoc.exists()) {
+        // First time being top played
+        batch.set(topPlayedRef, {
+          mediaKey,
+          nftContract: nft.contract,
+          tokenId: nft.tokenId,
+          name: nft.name || 'Untitled',
+          image: nft.image || '',
+          audioUrl,
+          firstTopPlayedAt: serverTimestamp(),
+          lastPlayed: serverTimestamp(),
+          playCount: newPlayCount
+        });
+      } else {
+        // Update existing top played entry
+        batch.update(topPlayedRef, {
+          lastPlayed: serverTimestamp(),
+          playCount: newPlayCount
+        });
+      }
     }
 
     // Also update nft_plays collection for backward compatibility
@@ -686,6 +725,16 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
           });
         }
       }
+
+      // Update likes count in nfts collection if it exists
+      const nftRef = doc(db, 'nfts', `${nft.contract}-${nft.tokenId}`);
+      const nftDoc = await getDoc(nftRef);
+      if (nftDoc.exists()) {
+        const currentLikes = nftDoc.data()?.likes || 1;
+        batch.update(nftRef, {
+          likes: Math.max(0, currentLikes - 1)
+        });
+      }
       
       await batch.commit();
       console.log('Removed like:', { mediaKey });
@@ -737,6 +786,16 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
           likeCount: 1,
           firstLiked: serverTimestamp(),
           lastLiked: serverTimestamp()
+        });
+      }
+
+      // Update likes count in nfts collection if it exists
+      const nftRef = doc(db, 'nfts', `${nft.contract}-${nft.tokenId}`);
+      const nftDoc = await getDoc(nftRef);
+      if (nftDoc.exists()) {
+        const currentLikes = nftDoc.data()?.likes || 0;
+        batch.update(nftRef, {
+          likes: currentLikes + 1
         });
       }
       
@@ -1087,7 +1146,6 @@ const fetchWithRetry = async (url: string, options: RequestInit, maxRetries = 3)
   throw new Error(`Failed after ${maxRetries} retries`);
 };
 
-// Search users by FID or username
 // Store featured NFTs in Firebase if they don't exist
 export const ensureFeaturedNFTsExist = async (nfts: NFT[]): Promise<void> => {
   try {

@@ -153,9 +153,10 @@ export const NFTCard: React.FC<NFTCardProps> = ({
           width={300}
           height={300}
         />
-        {badge && (
+        {/* Show play count for Top Played NFTs */}
+        {badge?.includes('plays') && playCount > 0 && (
           <div className="absolute top-2 left-2 bg-purple-400 text-white text-xs px-2 py-1 rounded-full font-medium">
-            {badge || `${playCount} plays`}
+            {playCount} plays
           </div>
         )}
         <div className={useCenteredPlay ? 
