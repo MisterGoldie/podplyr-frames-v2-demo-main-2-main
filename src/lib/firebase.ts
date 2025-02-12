@@ -352,7 +352,7 @@ export async function getTopPlayedNFTs(): Promise<{ nft: NFT; count: number }[]>
     const q = query(
       globalPlaysRef,
       orderBy('playCount', 'desc'),
-      limit(10) // Get top 10 most played
+      limit(3) // Get top 3 most played
     );
     
     const querySnapshot = await getDocs(q);
