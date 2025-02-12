@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getFirestore, collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
+import { getFirestore, doc, onSnapshot, DocumentSnapshot } from 'firebase/firestore';
 import type { NFT } from '../types/user';
 import { getMediaKey } from '../utils/media';
 
@@ -15,26 +15,21 @@ export const useNFTPlayCount = (nft: NFT | null) => {
     }
 
     const db = getFirestore();
-    const nftPlaysRef = collection(db, 'nft_plays');
     const mediaKey = getMediaKey(nft);
+    const globalPlayRef = doc(db, 'global_plays', mediaKey);
 
-    // Set up real-time listener for play count updates
-    const q = query(
-      nftPlaysRef,
-      where('mediaKey', '==', mediaKey)
-    );
-
-    const unsubscribe = onSnapshot(q, 
-      (snapshot) => {
-        let totalPlays = 0;
-        snapshot.forEach(doc => {
-          const data = doc.data();
-          totalPlays += data.playCount || 1;
-        });
-        setPlayCount(totalPlays);
+    // Set up real-time listener for global play count
+    const unsubscribe = onSnapshot(globalPlayRef,
+      (snapshot: DocumentSnapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          setPlayCount(data?.playCount || 0);
+        } else {
+          setPlayCount(0);
+        }
         setLoading(false);
       },
-      (error) => {
+      (error: Error) => {
         console.error('Error listening to play count:', error);
         setPlayCount(0);
         setLoading(false);

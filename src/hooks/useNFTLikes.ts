@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getFirestore, collection, query, where, onSnapshot } from 'firebase/firestore';
+import { getFirestore, doc, onSnapshot, DocumentSnapshot } from 'firebase/firestore';
 import type { NFT } from '../types/user';
 import { getMediaKey } from '../utils/media';
 
@@ -14,23 +14,22 @@ export const useNFTLikes = (nft: NFT | null) => {
       return;
     }
 
-    // Create mediaKey to group identical NFTs
     const mediaKey = getMediaKey(nft);
-    
     const db = getFirestore();
-    const userLikesRef = collection(db, 'user_likes');
-    const q = query(
-      userLikesRef,
-      where('mediaKey', '==', mediaKey)
-    );
+    const globalLikeRef = doc(db, 'global_likes', mediaKey);
 
-    // Set up real-time listener for all NFTs with same content
-    const unsubscribe = onSnapshot(q, 
-      (snapshot) => {
-        setLikesCount(snapshot.size);
+    // Set up real-time listener for global like count
+    const unsubscribe = onSnapshot(globalLikeRef,
+      (snapshot: DocumentSnapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          setLikesCount(data?.likeCount || 0);
+        } else {
+          setLikesCount(0);
+        }
         setIsLoading(false);
       },
-      (error) => {
+      (error: Error) => {
         console.error('Error listening to likes:', error);
         setLikesCount(0);
         setIsLoading(false);

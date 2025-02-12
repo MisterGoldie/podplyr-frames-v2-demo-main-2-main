@@ -272,69 +272,53 @@ export const getRecentSearches = async (fid?: number): Promise<SearchedUser[]> =
   }
 };
 
-// Track NFT play and update play count
+// Track NFT play and update play count globally
 export const trackNFTPlay = async (nft: NFT, fid: number) => {
   try {
-    // Get all media URLs
     const audioUrl = nft.metadata?.animation_url || nft.audio;
     if (!audioUrl) return;
 
     // Get mediaKey for consistent NFT content identification
     const mediaKey = getMediaKey(nft);
 
-    // Store play data with default values for undefined fields
-    const playData = {
-      fid,
-      nftContract: nft.contract,
-      tokenId: nft.tokenId,
-      name: nft.name || 'Untitled',
-      description: nft.description || nft.metadata?.description || '',
-      image: nft.image || nft.metadata?.image || '',
-      audioUrl: audioUrl,
-      animationUrl: nft.metadata?.animation_url || '',
-      mediaKey: mediaKey,
-      collection: nft.collection?.name || 'Unknown Collection',
-      network: nft.network || 'ethereum',
-      timestamp: new Date().toISOString(),
-      playCount: 1,
-      // Store full metadata for consistent access
-      metadata: {
+    // Reference to global play count document
+    const globalPlayRef = doc(db, 'global_plays', mediaKey);
+    const globalPlayDoc = await getDoc(globalPlayRef);
+
+    if (globalPlayDoc.exists()) {
+      // Update existing global play count
+      await updateDoc(globalPlayRef, {
+        playCount: increment(1),
+        lastPlayed: serverTimestamp(),
+        // Update metadata if needed
+        name: nft.name || globalPlayDoc.data().name,
+        image: nft.image || globalPlayDoc.data().image,
+        audioUrl: audioUrl || globalPlayDoc.data().audioUrl
+      });
+    } else {
+      // Create new global play count
+      await setDoc(globalPlayRef, {
+        mediaKey,
+        nftContract: nft.contract,
+        tokenId: nft.tokenId,
         name: nft.name || 'Untitled',
         description: nft.description || nft.metadata?.description || '',
         image: nft.image || nft.metadata?.image || '',
-        animation_url: audioUrl
-      }
-    };
-
-    // Add to global nft_plays collection
-    await addDoc(collection(db, 'nft_plays'), playData);
-
-    // Add to user's play history - using mediaKey to group identical NFTs
-    const userRef = doc(db, 'users', fid.toString());
-    const playHistoryRef = collection(userRef, 'playHistory');
-
-    // Check if any NFT with this mediaKey has been played before
-    const q = query(
-      playHistoryRef,
-      where('mediaKey', '==', mediaKey)
-    );
-
-    const querySnapshot = await getDocs(q);
-    
-    if (!querySnapshot.empty) {
-      // Update existing play history for all NFTs with this mediaKey
-      const batch = writeBatch(db);
-      querySnapshot.docs.forEach(doc => {
-        batch.update(doc.ref, {
-          timestamp: new Date().toISOString(),
-          playCount: increment(1)
-        });
+        audioUrl,
+        collection: nft.collection?.name || 'Unknown Collection',
+        network: nft.network || 'ethereum',
+        playCount: 1,
+        firstPlayed: serverTimestamp(),
+        lastPlayed: serverTimestamp()
       });
-      await batch.commit();
-    } else {
-      // Create new play history
-      await addDoc(playHistoryRef, playData);
     }
+
+    // Track in user's history for recently played feature
+    const userHistoryRef = doc(db, 'users', fid.toString(), 'playHistory', mediaKey);
+    await setDoc(userHistoryRef, {
+      mediaKey,
+      timestamp: serverTimestamp()
+    });
   } catch (error) {
     console.error('Error tracking NFT play:', error);
   }
@@ -631,44 +615,72 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
   }
 };
 
-// Toggle NFT like status
+// Toggle NFT like status globally
 export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => {
   try {
     const mediaKey = getMediaKey(nft);
     
-    // Create a consistent document ID
-    const encoder = new TextEncoder();
-    const mediaKeyBytes = encoder.encode(mediaKey);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', mediaKeyBytes);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    const docId = `${fid}-${hashHex.substring(0, 32)}`;
-    const docRef = doc(db, 'user_likes', docId);
+    // Reference to global likes document
+    const globalLikeRef = doc(db, 'global_likes', mediaKey);
+    const userLikeRef = doc(db, 'users', fid.toString(), 'likes', mediaKey);
     
-    // Check if document exists
-    const docSnap = await getDoc(docRef);
+    // Check if user has liked this NFT
+    const userLikeDoc = await getDoc(userLikeRef);
     
-    if (docSnap.exists()) {
+    if (userLikeDoc.exists()) {
       // Remove like
-      await deleteDoc(docRef);
-      console.log('Removed like:', { docId, mediaKey });
+      const batch = writeBatch(db);
+      
+      // Remove from user's likes
+      batch.delete(userLikeRef);
+      
+      // Decrement global like count
+      batch.update(globalLikeRef, {
+        likeCount: increment(-1)
+      });
+      
+      await batch.commit();
+      console.log('Removed like:', { mediaKey });
       return false;
     } else {
-      // Add new like
-      await setDoc(docRef, {
-        fid,
+      // Add like
+      const batch = writeBatch(db);
+      
+      // Add to user's likes
+      batch.set(userLikeRef, {
         mediaKey,
-        nftContract: nft.contract,
-        tokenId: nft.tokenId,
-        name: nft.name || 'Untitled',
-        description: nft.description || nft.metadata?.description || '',
-        image: nft.image || nft.metadata?.image || '',
-        audioUrl: nft.audio || nft.metadata?.animation_url || '',
-        collection: nft.collection?.name || 'Unknown Collection',
-        network: nft.network || 'ethereum',
         timestamp: serverTimestamp()
       });
-      console.log('Added like:', { docId, mediaKey });
+      
+      // Get global like document
+      const globalLikeDoc = await getDoc(globalLikeRef);
+      
+      if (globalLikeDoc.exists()) {
+        // Increment existing global like count
+        batch.update(globalLikeRef, {
+          likeCount: increment(1),
+          lastLiked: serverTimestamp()
+        });
+      } else {
+        // Create new global like document
+        batch.set(globalLikeRef, {
+          mediaKey,
+          nftContract: nft.contract,
+          tokenId: nft.tokenId,
+          name: nft.name || 'Untitled',
+          description: nft.description || nft.metadata?.description || '',
+          image: nft.image || nft.metadata?.image || '',
+          audioUrl: nft.audio || nft.metadata?.animation_url || '',
+          collection: nft.collection?.name || 'Unknown Collection',
+          network: nft.network || 'ethereum',
+          likeCount: 1,
+          firstLiked: serverTimestamp(),
+          lastLiked: serverTimestamp()
+        });
+      }
+      
+      await batch.commit();
+      console.log('Added like:', { mediaKey });
       return true;
     }
   } catch (error) {
