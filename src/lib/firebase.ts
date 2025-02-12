@@ -23,7 +23,7 @@ import {
 } from 'firebase/firestore';
 import type { NFT, FarcasterUser, SearchedUser, NFTPlayData } from '../types/user';
 import { fetchUserNFTsFromAlchemy } from './alchemy';
-import { getMediaKey } from '../utils/media';
+import { getMediaKey } from '~/utils/media';
 
 // Initialize Firebase with your config
 const firebaseConfig = {
@@ -394,6 +394,8 @@ export async function getTopPlayedNFTs(): Promise<{ nft: NFT; count: number }[]>
     });
 
     // Get top 3 played NFTs by mediaKey
+    console.log('All plays by mediaKey:', playsByMediaKey);
+    
     const topPlayed = Object.values(playsByMediaKey)
       .sort((a, b) => {
         if (b.count !== a.count) return b.count - a.count;
@@ -401,20 +403,37 @@ export async function getTopPlayedNFTs(): Promise<{ nft: NFT; count: number }[]>
       })
       .slice(0, 3)
       .map(({ nft, count }) => ({ nft, count }));
+    
+    console.log('Top played NFTs:', topPlayed);
 
     // Mark these NFTs in the top_played collection
     if (topPlayed.length > 0) {
       const batch = writeBatch(db);
       for (const { nft, count } of topPlayed) {
         const mediaKey = getMediaKey(nft);
-        const nftKey = `${nft.contract.toLowerCase()}-${nft.tokenId}`;
-        const topPlayedRef = doc(db, 'top_played', nftKey);
+        console.log('Processing top played NFT:', { nft, count, mediaKey });
+        
+        // Create a consistent document ID using SHA-256 hash
+        const encoder = new TextEncoder();
+        const mediaKeyBytes = encoder.encode(mediaKey);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', mediaKeyBytes);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        const docId = hashHex.substring(0, 32);
+        
+        const topPlayedRef = doc(db, 'top_played', docId);
+        console.log('Adding to top played:', { mediaKey, docId });
+        
+        // First check if this NFT is already in top played
+        const existingDoc = await getDoc(topPlayedRef);
+        const now = serverTimestamp();
         
         batch.set(topPlayedRef, {
           mediaKey,
           contract: nft.contract,
           tokenId: nft.tokenId,
-          firstTopPlayedAt: serverTimestamp(),
+          firstTopPlayedAt: existingDoc.exists() ? existingDoc.data().firstTopPlayedAt : now,
+          lastTopPlayedAt: now,
           name: nft.name || 'Untitled NFT',
           description: nft.description || nft.metadata?.description || '',
           image: nft.image || nft.metadata?.image || '',
@@ -435,13 +454,28 @@ export async function getTopPlayedNFTs(): Promise<{ nft: NFT; count: number }[]>
 
 // Check if an NFT has ever been in the top played section
 export async function hasBeenTopPlayed(nft: NFT | null): Promise<boolean> {
-  if (!nft?.contract || !nft?.tokenId) return false;
+  if (!nft) return false;
   
   try {
-    const nftKey = `${nft.contract.toLowerCase()}-${nft.tokenId}`;
-    const topPlayedRef = doc(db, 'top_played', nftKey);
-    const topPlayedDoc = await getDoc(topPlayedRef);
-    return topPlayedDoc.exists();
+    const mediaKey = getMediaKey(nft);
+    console.log('Checking top played status for:', { mediaKey, nft });
+    
+    // Check for NFTs that have been in top played
+    const topPlayedRef = collection(db, 'top_played');
+    const q = query(topPlayedRef, where('mediaKey', '==', mediaKey));
+    const querySnapshot = await getDocs(q);
+    
+    // Log what we found
+    let hasBeenTop = false;
+    querySnapshot.forEach(doc => {
+      const data = doc.data();
+      console.log('Found top played doc:', { id: doc.id, data });
+      if (data.firstTopPlayedAt) {
+        hasBeenTop = true;
+      }
+    });
+    
+    return hasBeenTop;
   } catch (error) {
     console.error('Error checking top played status:', error);
     return false;
@@ -453,7 +487,7 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
   try {
     console.log('Getting liked NFTs for FID:', fid);
     const userLikesRef = collection(db, 'user_likes');
-    const q = query(userLikesRef, where(documentId(), '>=', `${fid}-`), where(documentId(), '<', `${fid + 1}-`));
+    const q = query(userLikesRef, where('fid', '==', fid));
     const querySnapshot = await getDocs(q);
     
     if (querySnapshot.empty) {
@@ -462,31 +496,63 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
     }
 
     const likedNFTs: NFT[] = [];
+    const seenMediaKeys = new Set<string>();
     
-    for (const doc of querySnapshot.docs) {
-      const data = doc.data();
-      const [docFid, contract, tokenId] = doc.id.split('-');
-      
-      if (contract && tokenId) {
-        likedNFTs.push({
-          contract,
-          tokenId,
+    for (const docSnapshot of querySnapshot.docs) {
+      const data = docSnapshot.data();
+      const nft: NFT = {
+        contract: data.nftContract,
+        tokenId: data.tokenId,
+        name: data.name || 'Untitled',
+        description: data.description || '',
+        image: data.image || '',
+        audio: data.audioUrl || '',
+        hasValidAudio: Boolean(data.audioUrl),
+        metadata: {
           name: data.name || 'Untitled',
           description: data.description || '',
           image: data.image || '',
-          audio: data.audioUrl || '',
-          hasValidAudio: Boolean(data.audioUrl),
-          metadata: {
-            name: data.name || 'Untitled',
-            description: data.description || '',
-            image: data.image || '',
-            animation_url: data.audioUrl || ''
-          },
-          collection: {
-            name: data.collection || 'Unknown Collection'
-          }
-        });
+          animation_url: data.audioUrl || ''
+        },
+        collection: {
+          name: data.collection || 'Unknown Collection'
+        }
+      };
+      
+      // Generate mediaKey for both old and new records
+      const mediaKey = data.mediaKey || getMediaKey(nft);
+      
+      // Skip if we've already seen this content
+      if (seenMediaKeys.has(mediaKey)) continue;
+      seenMediaKeys.add(mediaKey);
+      
+      // If this is an old record, update it with the mediaKey
+      if (!data.mediaKey) {
+        // Create a shorter, safe document ID using first 32 chars of mediaKey hash
+        const encoder = new TextEncoder();
+        const mediaKeyBytes = encoder.encode(mediaKey);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', mediaKeyBytes);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        const docId = `${fid}-${hashHex.substring(0, 32)}`;
+        const docRef = doc(db, 'user_likes', docId);
+        const newData = {
+          fid,
+          nftContract: data.nftContract || '',
+          tokenId: data.tokenId || '',
+          name: data.name || 'Untitled',
+          description: data.description || '',
+          image: data.image || '',
+          audioUrl: data.audioUrl || '',
+          collection: data.collection || 'Unknown Collection',
+          mediaKey,
+          timestamp: data.timestamp || serverTimestamp()
+        };
+        console.log('Migrating old record:', { docId, newData });
+        await setDoc(docRef, newData);
       }
+      
+      likedNFTs.push(nft);
     }
 
     console.log('Processed liked NFTs:', likedNFTs);
@@ -502,19 +568,40 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
   try {
     // Get mediaKey for consistent NFT content identification
     const mediaKey = getMediaKey(nft);
-    const docId = `${fid}-${mediaKey}`;
-    const userLikesRef = doc(db, 'user_likes', docId);
-    const docSnap = await getDoc(userLikesRef);
     
-    console.log('Toggling NFT:', { fid, docId, mediaKey });
+    // Create a consistent document ID using SHA-256 hash
+    const encoder = new TextEncoder();
+    const mediaKeyBytes = encoder.encode(mediaKey);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', mediaKeyBytes);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    const docId = `${fid}-${hashHex.substring(0, 32)}`;
     
-    if (docSnap.exists()) {
-      await deleteDoc(userLikesRef);
+    // Try both the new and old document IDs
+    const oldDocId = `${fid}-${Buffer.from(mediaKey).toString('base64')}`;
+    const newUserLikesRef = doc(db, 'user_likes', docId);
+    const oldUserLikesRef = doc(db, 'user_likes', oldDocId);
+    
+    const [newDocSnap, oldDocSnap] = await Promise.all([
+      getDoc(newUserLikesRef),
+      getDoc(oldUserLikesRef)
+    ]);
+    
+    console.log('Toggling NFT:', { fid, docId, oldDocId, mediaKey });
+    
+    
+    // If either document exists, delete it
+    if (newDocSnap.exists() || oldDocSnap.exists()) {
+      await Promise.all([
+        deleteDoc(newUserLikesRef),
+        deleteDoc(oldUserLikesRef)
+      ]);
       return false;
     } else {
-      await setDoc(userLikesRef, {
+      // Create new document with consistent ID format
+      await setDoc(newUserLikesRef, {
         fid,
-        mediaKey,
+        mediaKey, // Store raw mediaKey for content identification
         nftContract: nft.contract,
         tokenId: nft.tokenId,
         name: nft.name || 'Untitled',

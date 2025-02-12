@@ -16,12 +16,14 @@ export const useNFTLikes = (nft: NFT | null) => {
 
     // Create mediaKey to group identical NFTs
     const mediaKey = getMediaKey(nft);
+    // Encode mediaKey to match document IDs
+    const encodedMediaKey = Buffer.from(mediaKey).toString('base64');
     
     const db = getFirestore();
     const userLikesRef = collection(db, 'user_likes');
     const q = query(
       userLikesRef,
-      where('mediaKey', '==', mediaKey)
+      where('mediaKey', '==', encodedMediaKey)
     );
 
     // Set up real-time listener for all NFTs with same content

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { NFTCard } from '../nft/NFTCard';
 import { NFTImage } from '../media/NFTImage';
+import { getMediaKey } from '~/utils/media';
 import type { NFT, UserContext } from '../../types/user';
 import Image from 'next/image';
 import { getLikedNFTs, addLikedNFT, removeLikedNFT } from '../../lib/firebase';
@@ -62,11 +63,8 @@ const LibraryView: React.FC<LibraryViewProps> = ({
 
   // Helper function to check if NFT is liked
   const isNFTLiked = useCallback((nft: NFT) => {
-    return likedNFTs.some(
-      likedNFT => 
-        likedNFT.contract.toLowerCase() === nft.contract.toLowerCase() && 
-        likedNFT.tokenId === nft.tokenId
-    );
+    const nftMediaKey = getMediaKey(nft);
+    return likedNFTs.some(likedNFT => getMediaKey(likedNFT) === nftMediaKey);
   }, [likedNFTs]);
 
   // Handle like/unlike NFT
@@ -107,19 +105,16 @@ const LibraryView: React.FC<LibraryViewProps> = ({
   // Update liked status for currently playing NFT
   useEffect(() => {
     if (currentPlayingNFT && userContext?.user?.fid) {
-      const isNFTLiked = likedNFTs.some(
-        nft => nft.contract === currentPlayingNFT.contract && 
-               nft.tokenId === currentPlayingNFT.tokenId
-      );
+      const currentMediaKey = getMediaKey(currentPlayingNFT);
+      const isNFTLiked = likedNFTs.some(nft => getMediaKey(nft) === currentMediaKey);
       setIsLiked(isNFTLiked);
     }
   }, [currentPlayingNFT, likedNFTs, userContext?.user?.fid, setIsLiked]);
 
-  // Deduplicate NFTs based on contract and tokenId
+  // Deduplicate NFTs based on mediaKey
   const uniqueNFTs = likedNFTs.reduce((acc: NFT[], current) => {
-    const isDuplicate = acc.some(nft => 
-      nft.contract === current.contract && nft.tokenId === current.tokenId
-    );
+    const currentMediaKey = getMediaKey(current);
+    const isDuplicate = acc.some(nft => getMediaKey(nft) === currentMediaKey);
     if (!isDuplicate) {
       acc.push(current);
     }

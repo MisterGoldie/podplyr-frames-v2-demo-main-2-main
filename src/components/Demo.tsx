@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback, useContext } from 'react';
 import { FarcasterContext } from '~/app/providers';
 import { PlayerWithAds } from './player/PlayerWithAds';
+import { getMediaKey } from '~/utils/media';
 import { BottomNav } from './navigation/BottomNav';
 import HomeView from './views/HomeView';
 import ExploreView from './views/ExploreView';
@@ -346,17 +347,16 @@ const Demo: React.FC = () => {
   const handleLikeToggle = async (nft: NFT) => {
     try {
       const wasLiked = await toggleLikeNFT(nft, userFid);
+      const nftMediaKey = getMediaKey(nft);
       
       if (wasLiked) {
         setLikedNFTs(prev => [...prev, nft]);
         console.log('NFT added to likes');
       } else {
         setLikedNFTs(prev => prev.filter(
-          likedNFT => 
-            !(likedNFT.contract.toLowerCase() === nft.contract.toLowerCase() && 
-            likedNFT.tokenId === nft.tokenId)
+          likedNFT => getMediaKey(likedNFT) !== nftMediaKey
         ));
-        console.log('NFT removed from likes');
+        console.log('NFT removed from likes, mediaKey:', nftMediaKey);
       }
     } catch (error) {
       console.error('Error toggling like:', error);
@@ -369,10 +369,8 @@ const Demo: React.FC = () => {
     if (currentPage.isLibrary && !ignoreCurrentPage) return true;
 
     // Otherwise check if it's in the likedNFTs array
-    return likedNFTs.some(item => 
-      item.contract.toLowerCase() === nft.contract.toLowerCase() && 
-      item.tokenId === nft.tokenId
-    );
+    const nftMediaKey = getMediaKey(nft);
+    return likedNFTs.some(item => getMediaKey(item) === nftMediaKey);
   };
 
   const switchPage = (page: keyof PageState) => {
