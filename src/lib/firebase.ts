@@ -482,6 +482,95 @@ export async function hasBeenTopPlayed(nft: NFT | null): Promise<boolean> {
   }
 }
 
+// Clean up old likes and migrate to new format
+export const cleanupLikes = async (fid: number) => {
+  try {
+    console.log('Starting likes cleanup for FID:', fid);
+    const userLikesRef = collection(db, 'user_likes');
+    const q = query(userLikesRef, where('fid', '==', fid));
+    const querySnapshot = await getDocs(q);
+    
+    // Group documents by mediaKey
+    const byMediaKey: { [key: string]: { docs: any[], latestTimestamp: any } } = {};
+    
+    querySnapshot.forEach(doc => {
+      const data = doc.data();
+      const mediaKey = data.mediaKey || getMediaKey({
+        contract: data.nftContract,
+        tokenId: data.tokenId,
+        audio: data.audioUrl,
+        image: data.image
+      } as NFT);
+      
+      if (!byMediaKey[mediaKey]) {
+        byMediaKey[mediaKey] = { docs: [], latestTimestamp: null };
+      }
+      byMediaKey[mediaKey].docs.push({ id: doc.id, data });
+      
+      // Track the latest timestamp
+      if (!byMediaKey[mediaKey].latestTimestamp || 
+          (data.timestamp && data.timestamp > byMediaKey[mediaKey].latestTimestamp)) {
+        byMediaKey[mediaKey].latestTimestamp = data.timestamp;
+      }
+    });
+    
+    // For each mediaKey, keep only the latest document
+    const batch = writeBatch(db);
+    let deleteCount = 0;
+    let migrateCount = 0;
+    
+    for (const [mediaKey, { docs, latestTimestamp }] of Object.entries(byMediaKey)) {
+      // Sort by timestamp, newest first
+      docs.sort((a, b) => {
+        const aTime = a.data.timestamp?.toMillis() || 0;
+        const bTime = b.data.timestamp?.toMillis() || 0;
+        return bTime - aTime;
+      });
+      
+      // Keep the newest document, delete others
+      const keep = docs[0];
+      
+      // Create new document with consistent ID format
+      const encoder = new TextEncoder();
+      const mediaKeyBytes = encoder.encode(mediaKey);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', mediaKeyBytes);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      const newDocId = `${fid}-${hashHex.substring(0, 32)}`;
+      
+      // Create new document with clean data
+      const newDocRef = doc(db, 'user_likes', newDocId);
+      batch.set(newDocRef, {
+        fid,
+        mediaKey,
+        nftContract: keep.data.nftContract,
+        tokenId: keep.data.tokenId,
+        name: keep.data.name || 'Untitled',
+        description: keep.data.description || '',
+        image: keep.data.image || '',
+        audioUrl: keep.data.audioUrl || '',
+        collection: keep.data.collection || 'Unknown Collection',
+        timestamp: latestTimestamp || serverTimestamp()
+      });
+      migrateCount++;
+      
+      // Delete all old documents
+      docs.forEach(({ id }) => {
+        if (id !== newDocId) {
+          const docRef = doc(db, 'user_likes', id);
+          batch.delete(docRef);
+          deleteCount++;
+        }
+      });
+    }
+    
+    await batch.commit();
+    console.log(`Cleanup complete. Migrated ${migrateCount} likes, deleted ${deleteCount} old documents.`);
+  } catch (error) {
+    console.error('Error during likes cleanup:', error);
+  }
+};
+
 // Get liked NFTs for a user
 export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
   try {
@@ -500,6 +589,17 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
     
     for (const docSnapshot of querySnapshot.docs) {
       const data = docSnapshot.data();
+      
+      // Skip if no mediaKey (shouldn't happen after cleanup)
+      if (!data.mediaKey) {
+        console.warn('Found like without mediaKey:', data);
+        continue;
+      }
+      
+      // Skip duplicates
+      if (seenMediaKeys.has(data.mediaKey)) continue;
+      seenMediaKeys.add(data.mediaKey);
+      
       const nft: NFT = {
         contract: data.nftContract,
         tokenId: data.tokenId,
@@ -516,41 +616,9 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
         },
         collection: {
           name: data.collection || 'Unknown Collection'
-        }
+        },
+        network: 'ethereum'
       };
-      
-      // Generate mediaKey for both old and new records
-      const mediaKey = data.mediaKey || getMediaKey(nft);
-      
-      // Skip if we've already seen this content
-      if (seenMediaKeys.has(mediaKey)) continue;
-      seenMediaKeys.add(mediaKey);
-      
-      // If this is an old record, update it with the mediaKey
-      if (!data.mediaKey) {
-        // Create a shorter, safe document ID using first 32 chars of mediaKey hash
-        const encoder = new TextEncoder();
-        const mediaKeyBytes = encoder.encode(mediaKey);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', mediaKeyBytes);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-        const docId = `${fid}-${hashHex.substring(0, 32)}`;
-        const docRef = doc(db, 'user_likes', docId);
-        const newData = {
-          fid,
-          nftContract: data.nftContract || '',
-          tokenId: data.tokenId || '',
-          name: data.name || 'Untitled',
-          description: data.description || '',
-          image: data.image || '',
-          audioUrl: data.audioUrl || '',
-          collection: data.collection || 'Unknown Collection',
-          mediaKey,
-          timestamp: data.timestamp || serverTimestamp()
-        };
-        console.log('Migrating old record:', { docId, newData });
-        await setDoc(docRef, newData);
-      }
       
       likedNFTs.push(nft);
     }
@@ -566,65 +634,46 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
 // Toggle NFT like status
 export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => {
   try {
-    // Get mediaKey for consistent NFT content identification
     const mediaKey = getMediaKey(nft);
     
-    // Create a consistent document ID using SHA-256 hash
+    // Create a consistent document ID
     const encoder = new TextEncoder();
     const mediaKeyBytes = encoder.encode(mediaKey);
     const hashBuffer = await crypto.subtle.digest('SHA-256', mediaKeyBytes);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     const docId = `${fid}-${hashHex.substring(0, 32)}`;
+    const docRef = doc(db, 'user_likes', docId);
     
-    // Try both the new and old document IDs
-    const oldDocId = `${fid}-${Buffer.from(mediaKey).toString('base64')}`;
-    const newUserLikesRef = doc(db, 'user_likes', docId);
-    const oldUserLikesRef = doc(db, 'user_likes', oldDocId);
+    // Check if document exists
+    const docSnap = await getDoc(docRef);
     
-    const [newDocSnap, oldDocSnap] = await Promise.all([
-      getDoc(newUserLikesRef),
-      getDoc(oldUserLikesRef)
-    ]);
-    
-    console.log('Toggling NFT:', { fid, docId, oldDocId, mediaKey });
-    
-    
-    // If either document exists, delete it
-    if (newDocSnap.exists() || oldDocSnap.exists()) {
-      await Promise.all([
-        deleteDoc(newUserLikesRef),
-        deleteDoc(oldUserLikesRef)
-      ]);
+    if (docSnap.exists()) {
+      // Remove like
+      await deleteDoc(docRef);
+      console.log('Removed like:', { docId, mediaKey });
       return false;
     } else {
-      // Create new document with consistent ID format
-      await setDoc(newUserLikesRef, {
+      // Add new like
+      await setDoc(docRef, {
         fid,
-        mediaKey, // Store raw mediaKey for content identification
+        mediaKey,
         nftContract: nft.contract,
         tokenId: nft.tokenId,
         name: nft.name || 'Untitled',
         description: nft.description || nft.metadata?.description || '',
         image: nft.image || nft.metadata?.image || '',
         audioUrl: nft.audio || nft.metadata?.animation_url || '',
-        animationUrl: nft.metadata?.animation_url || '',
         collection: nft.collection?.name || 'Unknown Collection',
         network: nft.network || 'ethereum',
-        timestamp: serverTimestamp(),
-        // Store full metadata for consistent access
-        metadata: {
-          name: nft.name || 'Untitled',
-          description: nft.description || nft.metadata?.description || '',
-          image: nft.image || nft.metadata?.image || '',
-          animation_url: nft.audio || nft.metadata?.animation_url || ''
-        }
+        timestamp: serverTimestamp()
       });
+      console.log('Added like:', { docId, mediaKey });
       return true;
     }
   } catch (error) {
     console.error('Error toggling NFT like:', error);
-    throw error;
+    return false;
   }
 };
 
