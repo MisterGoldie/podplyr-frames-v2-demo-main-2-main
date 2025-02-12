@@ -636,6 +636,10 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
 export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => {
   try {
     const mediaKey = getMediaKey(nft);
+    if (!mediaKey) {
+      console.error('Invalid mediaKey for NFT:', nft);
+      return false;
+    }
     
     // Reference to global likes document
     const globalLikeRef = doc(db, 'global_likes', mediaKey);
@@ -651,10 +655,14 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
       // Remove from user's likes
       batch.delete(userLikeRef);
       
-      // Decrement global like count
-      batch.update(globalLikeRef, {
-        likeCount: increment(-1)
-      });
+      // Get global like document
+      const globalLikeDoc = await getDoc(globalLikeRef);
+      if (globalLikeDoc.exists()) {
+        // Decrement global like count
+        batch.update(globalLikeRef, {
+          likeCount: increment(-1)
+        });
+      }
       
       await batch.commit();
       console.log('Removed like:', { mediaKey });
@@ -663,9 +671,17 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
       // Add like
       const batch = writeBatch(db);
       
-      // Add to user's likes
+      // Add to user's likes with full NFT data
       batch.set(userLikeRef, {
         mediaKey,
+        nftContract: nft.contract,
+        tokenId: nft.tokenId,
+        name: nft.name || 'Untitled',
+        description: nft.description || nft.metadata?.description || '',
+        image: nft.image || nft.metadata?.image || '',
+        audioUrl: nft.audio || nft.metadata?.animation_url || '',
+        collection: nft.collection?.name || 'Unknown Collection',
+        network: nft.network || 'ethereum',
         timestamp: serverTimestamp()
       });
       
@@ -706,24 +722,20 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
   }
 };
 
-// Subscribe to recent plays using mediaKey for deduplication
+// Subscribe to recent plays
 export const subscribeToRecentPlays = (fid: number, callback: (nfts: NFT[]) => void) => {
-  // Listen to user's play history which stores mediaKeys
+  // Listen to user's play history - get last 6 plays
   const historyRef = collection(db, 'users', fid.toString(), 'playHistory');
-  const q = query(historyRef, orderBy('timestamp', 'desc'), limit(20));
+  const q = query(historyRef, orderBy('timestamp', 'desc'), limit(6));
 
   return onSnapshot(q, async (snapshot) => {
-    const mediaKeys = new Set<string>();
-    const uniqueNFTs: NFT[] = [];
+    const recentNFTs: NFT[] = [];
 
     // Process each play history entry
     for (const playDoc of snapshot.docs) {
       const playData = playDoc.data();
       const mediaKey = playData.mediaKey as string;
-
-      // Skip if we've already seen this content
-      if (!mediaKey || mediaKeys.has(mediaKey)) continue;
-      mediaKeys.add(mediaKey);
+      if (!mediaKey) continue;
 
       // Get the NFT details from global_plays
       const globalPlayRef = doc(db, 'global_plays', mediaKey);
@@ -752,14 +764,11 @@ export const subscribeToRecentPlays = (fid: number, callback: (nfts: NFT[]) => v
           },
           network: (globalData.network as 'base' | 'ethereum') || 'ethereum'
         };
-        uniqueNFTs.push(nft);
+        recentNFTs.push(nft);
       }
-
-      // Only get first 8 unique NFTs
-      if (uniqueNFTs.length >= 8) break;
     }
 
-    callback(uniqueNFTs);
+    callback(recentNFTs);
   });
 };
 

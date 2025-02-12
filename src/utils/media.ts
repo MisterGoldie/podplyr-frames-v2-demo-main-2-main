@@ -105,11 +105,19 @@ export const formatTime = (seconds: number): string => {
 
 // Create a safe document ID from a URL by removing invalid characters
 const createSafeId = (url: string): string => {
-  // Remove protocol and special characters, keep only alphanumeric and basic punctuation
+  if (!url) return '';
+  
+  // Try to extract IPFS hash first
+  const ipfsHash = extractIPFSHash(url);
+  if (ipfsHash) {
+    return `ipfs_${ipfsHash}`;
+  }
+
+  // For non-IPFS URLs, create a safe ID
   return url
     .replace(/^https?:\/\//, '') // Remove protocol
     .replace(/[^a-zA-Z0-9._-]/g, '_') // Replace invalid chars with underscore
-    .slice(0, 100); // Limit length to avoid extremely long IDs
+    .slice(0, 100); // Limit length
 };
 
 // Function to generate consistent mediaKey for NFTs with identical content
@@ -129,8 +137,14 @@ export const getMediaKey = (nft: NFT): string => {
   ]
     .filter(Boolean) // Remove empty strings
     .map(createSafeId)
+    .filter(Boolean) // Remove any empty strings after processing
     .sort(); // Sort for consistency
 
-  // Join with a safe delimiter and create a final safe ID
-  return createSafeId(safeUrls.join('_'));
+  if (safeUrls.length === 0) {
+    // Fallback to contract and tokenId if no valid URLs
+    return `${nft.contract}_${nft.tokenId}`;
+  }
+
+  // Join with a delimiter
+  return safeUrls.join('___');
 };

@@ -20,7 +20,8 @@ import {
   getLikedNFTs,
   searchUsers,
   toggleLikeNFT,
-  fetchUserNFTs
+  fetchUserNFTs,
+  subscribeToRecentPlays
 } from '../lib/firebase';
 import { fetchUserNFTsFromAlchemy } from '../lib/alchemy';
 import type { NFT, FarcasterUser, SearchedUser, UserContext, LibraryViewProps, ProfileViewProps, NFTFile, NFTPlayData, GroupedNFT } from '../types/user';
@@ -133,6 +134,14 @@ const Demo: React.FC = () => {
         ]);
         setTopPlayedNFTs(topPlayed);
         setRecentSearches(searches || []); // Handle potential undefined
+
+        // Subscribe to recently played NFTs
+        if (userFid) {
+          const unsubscribe = subscribeToRecentPlays(userFid, (nfts) => {
+            setRecentlyPlayedNFTs(nfts);
+          });
+          return () => unsubscribe();
+        }
       } catch (error) {
         console.error('Error loading initial data:', error);
         setError('Failed to load initial data. Please try again later.');
