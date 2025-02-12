@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useContext } from 'react';
 import { useNFTPlayCount } from '../../hooks/useNFTPlayCount';
 import { useNFTLikes } from '../../hooks/useNFTLikes';
 import { useNFTTopPlayed } from '../../hooks/useNFTTopPlayed';
@@ -10,6 +10,8 @@ import { processMediaUrl } from '../../utils/media';
 import { NFTImage } from '../media/NFTImage';
 import Image from 'next/image';
 import { trackNFTPlay } from '../../lib/firebase';
+import { useNFTLikeState } from '../../hooks/useNFTLikeState';
+import { FarcasterContext } from '../../app/providers';
 
 // Augment the Document interface with Picture-in-Picture properties
 interface PictureInPictureWindow {}
@@ -52,9 +54,13 @@ export const Player: React.FC<PlayerProps> = ({
   duration,
   onSeek,
   onLikeToggle,
-  isLiked,
   onPictureInPicture
 }) => {
+  // Get user's FID from context
+  const { fid: userFid = 0 } = useContext(FarcasterContext);
+  
+  // Use the hook to get real-time like state
+  const { isLiked } = useNFTLikeState(nft || null, userFid);
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
   const [swipeDistance, setSwipeDistance] = useState(0);

@@ -1,11 +1,13 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useContext } from 'react';
 import { NFTCard } from '../nft/NFTCard';
 import type { NFT } from '../../types/user';
 import Image from 'next/image';
 import { useNFTPreloader } from '../../hooks/useNFTPreloader';
 import FeaturedSection from '../sections/FeaturedSection';
+import { getMediaKey } from '../../utils/media';
+import { FarcasterContext } from '../../app/providers';
 
 interface HomeViewProps {
   recentlyPlayedNFTs: NFT[];
@@ -49,11 +51,12 @@ const HomeView: React.FC<HomeViewProps> = ({
   // Preload all NFT images
   useNFTPreloader(allNFTs);
 
+  // Get user's FID from context
+  const { fid: userFid = 0 } = useContext(FarcasterContext);
+
   const isNFTLiked = (nft: NFT): boolean => {
-    return likedNFTs.some(item => 
-      item.contract.toLowerCase() === nft.contract.toLowerCase() && 
-      item.tokenId === nft.tokenId
-    );
+    const nftMediaKey = getMediaKey(nft);
+    return likedNFTs.some(item => getMediaKey(item) === nftMediaKey);
   };
   if (isLoading) {
     return (
@@ -132,7 +135,7 @@ const HomeView: React.FC<HomeViewProps> = ({
                           currentlyPlaying={currentlyPlaying}
                           handlePlayPause={handlePlayPause}
                           onLikeToggle={() => onLikeToggle(nft)}
-                          isLiked={isNFTLiked(nft)}
+                          userFid={userFid}
                         />
                         <h3 className="font-mono text-white text-sm truncate mt-3">{nft.name}</h3>
                       </div>
@@ -163,7 +166,7 @@ const HomeView: React.FC<HomeViewProps> = ({
                           currentlyPlaying={currentlyPlaying}
                           handlePlayPause={handlePlayPause}
                           onLikeToggle={() => onLikeToggle(nft)}
-                          isLiked={isNFTLiked(nft)}
+                          userFid={userFid}
                           badge={`${count} plays`}
                         />
                         <h3 className="font-mono text-white text-sm truncate mt-3">{nft.name}</h3>

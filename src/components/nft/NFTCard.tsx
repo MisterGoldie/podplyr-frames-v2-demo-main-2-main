@@ -3,6 +3,7 @@ import { NFT } from '../../types/user';
 import { NFTImage } from '../media/NFTImage';
 import { processMediaUrl } from '../../utils/media';
 import { useNFTLikeState } from '../../hooks/useNFTLikeState';
+import { useNFTPlayCount } from '../../hooks/useNFTPlayCount';
 import { FarcasterContext } from '../../app/providers';
 
 interface NFTCardProps {
@@ -19,6 +20,8 @@ interface NFTCardProps {
   badge?: string;
   showTitleOverlay?: boolean;
   useCenteredPlay?: boolean;
+  isLibraryView?: boolean;
+  userFid?: number;
 }
 
 export const NFTCard: React.FC<NFTCardProps> = ({ 
@@ -34,13 +37,17 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   viewMode = 'grid',
   badge,
   showTitleOverlay = false,
-  useCenteredPlay = false
+  useCenteredPlay = false,
+  isLibraryView = false,
+  userFid = 0
 }) => {
-  // Get user's FID from context
-  const { fid: userFid } = useContext(FarcasterContext);
+  // Get like state based on context - if we're in library view, NFT is always liked
+  const { isLiked: likeState, likesCount } = useNFTLikeState(nft, userFid || 0);
+  const isLiked = isLibraryView ? true : likeState; // In library view, always show as liked
   
-  // Use the new hook to track like state
-  const { isLiked, likesCount } = useNFTLikeState(nft, userFid || 0);
+  // Get real-time play count
+  const { playCount } = useNFTPlayCount(nft);
+  
   const [showCollectionMenu, setShowCollectionMenu] = useState(false);
   const [showOverlay, setShowOverlay] = useState(false);
   const overlayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -148,7 +155,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
         />
         {badge && (
           <div className="absolute top-2 left-2 bg-purple-400 text-white text-xs px-2 py-1 rounded-full font-medium">
-            {badge}
+            {badge || `${playCount} plays`}
           </div>
         )}
         <div className={useCenteredPlay ? 
