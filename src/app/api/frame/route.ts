@@ -1,23 +1,44 @@
 import { NextRequest } from 'next/server';
 import { NotificationStore } from '../../../lib/NotificationStore';
 import { getNFTMetadata } from '../../../lib/nft';
+import { z } from 'zod';
 
 const appUrl = process.env.NEXT_PUBLIC_URL;
 
+// Validate frame message schema
+const frameMessageSchema = z.object({
+  untrustedData: z.object({
+    fid: z.number(),
+    url: z.string(),
+    messageHash: z.string(),
+    timestamp: z.number(),
+    network: z.number(),
+    buttonIndex: z.number().optional(),
+    castId: z.object({
+      fid: z.number(),
+      hash: z.string(),
+    }),
+  }),
+  trustedData: z.object({
+    messageBytes: z.string(),
+  }),
+});
+
 export async function POST(req: NextRequest) {
   try {
+    // Get frame message
     const body = await req.json();
-    console.log('Frame request body:', body);
+    const result = frameMessageSchema.safeParse(body);
     
-    // Validate that this is a valid frame request
-    const { untrustedData, trustedData } = body;
-    
-    if (!untrustedData?.fid || !trustedData?.messageBytes) {
-      return new Response(JSON.stringify({ error: 'Invalid frame request' }), {
+    if (!result.success) {
+      console.error('Invalid frame message:', result.error);
+      return new Response(JSON.stringify({ error: 'Invalid frame message' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       });
     }
+    
+    const { untrustedData } = result.data;
 
     // Get contract and tokenId from URL parameters
     const url = new URL(req.url);
@@ -34,97 +55,52 @@ export async function POST(req: NextRequest) {
     // Get NFT metadata
     const nft = await getNFTMetadata(contract, tokenId);
     const nftUrl = `${appUrl}/?contract=${contract}&tokenId=${tokenId}`;
-    const frameUrl = `${appUrl}/nft/${contract}/${tokenId}`;
 
-    // Handle button actions based on buttonIndex
-    const buttonIndex = untrustedData.buttonIndex;
-    
     // Store the interaction with FID
-    const token = Math.random().toString(36).substring(2);
+    const token = crypto.randomUUID();
     await NotificationStore.create(untrustedData.fid, {
       url: nftUrl,
       token,
-      action: buttonIndex === 1 ? 'play' : buttonIndex === 2 ? 'share' : 'library'
+      action: 'play'
     });
 
-    // Return appropriate frame response based on button clicked
-    switch (buttonIndex) {
-      case 1: // Play - Redirect to player
-        return new Response(
-          JSON.stringify({
-            version: 'vNext',
-            image: nft.metadata?.image,
-            title: 'Opening PODPlayr...',
-            description: `Playing ${nft.name}`,
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } }
-        );
+    // Create frame response
+    const frame = {
+      version: 'vNext',
+      image: nft.metadata?.image || `${appUrl}/api/og?contract=${contract}&tokenId=${tokenId}`,
+      title: nft.name || 'PODPlayr NFT',
+      description: nft.description || 'Listen to this NFT on PODPlayr',
+      buttons: [{
+        label: '▶️ Enter PODPlayr',
+        action: {
+          type: 'post_redirect',
+          target: nftUrl
+        },
+      }],
+      postUrl: `${appUrl}/api/frame?contract=${contract}&tokenId=${tokenId}`,
+    };
 
-      case 2: // Share - Show share success
-        return new Response(
-          JSON.stringify({
-            version: 'vNext',
-            image: nft.metadata?.image,
-            title: 'Share this NFT',
-            description: 'Copy or share this link with friends',
-            buttons: [{
-              label: '🔗 Copy Link',
-              action: 'link',
-              target: frameUrl
-            }]
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } }
-        );
-
-      case 3: // Add to Library
-        return new Response(
-          JSON.stringify({
-            version: 'vNext',
-            image: nft.metadata?.image,
-            title: 'Added to Library',
-            description: 'This NFT has been added to your library',
-            buttons: [{
-              label: '▶️ Play Now',
-              action: 'post_redirect',
-              target: nftUrl
-            }]
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } }
-        );
-
-      default: // Initial frame or unknown button
-        return new Response(
-          JSON.stringify({
-            version: 'vNext',
-            image: nft.metadata?.image || `${appUrl}/api/og?contract=${contract}&tokenId=${tokenId}`,
-            title: nft.name || 'PODPlayr NFT',
-            description: nft.description || 'Listen to this NFT on PODPlayr',
-            buttons: [
-              {
-                label: '▶️ Play on PODPlayr',
-                action: 'post_redirect',
-                target: nftUrl
-              },
-              {
-                label: '🔗 Share',
-                action: 'post'
-              },
-              {
-                label: '📚 Add to Library',
-                action: 'post'
-              }
-            ]
-          }),
-          { 
-            status: 200, 
-            headers: { 
-              'Content-Type': 'application/json',
-              'Access-Control-Allow-Origin': '*',
-              'Cache-Control': 'no-cache, no-store, must-revalidate'
-            } 
-          }
-        );
-    }
+    // Return frame response
+    return new Response(
+      JSON.stringify({
+        ...frame,
+        // Frame V2 metadata
+        'fc:frame': frame.version,
+        'fc:frame:image': frame.image,
+        'fc:frame:post_url': frame.postUrl,
+        'fc:frame:button:1': frame.buttons[0].label,
+        'fc:frame:button:1:action': 'post_redirect',
+        'fc:frame:button:1:target': frame.buttons[0].action.target,
+      }),
+      { 
+        status: 200, 
+        headers: { 
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': 'no-cache, no-store, must-revalidate'
+        } 
+      }
+    );
   } catch (error) {
     console.error('Error in frame route:', error);
     return new Response(JSON.stringify({ error: 'Internal server error' }), {

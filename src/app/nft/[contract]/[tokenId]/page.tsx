@@ -13,29 +13,36 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const nft = await getNFTMetadata(contract, tokenId);
   const appUrl = process.env.NEXT_PUBLIC_URL;
 
-  return {
+  const frame = {
+    version: 'vNext',
+    image: nft.metadata?.image || `${appUrl}/api/og?contract=${contract}&tokenId=${tokenId}`,
     title: nft.name || 'PODPlayr NFT',
     description: nft.description || 'Listen to this NFT on PODPlayr',
+    buttons: [{
+      label: '▶️ Enter PODPlayr',
+      action: {
+        type: 'post_redirect',
+        target: `${appUrl}/?contract=${contract}&tokenId=${tokenId}`,
+      },
+    }],
+    postUrl: `${appUrl}/api/frame?contract=${contract}&tokenId=${tokenId}`,
+  };
+
+  return {
+    title: frame.title,
+    description: frame.description,
     openGraph: {
-      title: nft.name || 'PODPlayr NFT',
-      description: nft.description || 'Listen to this NFT on PODPlayr',
-      images: [nft.metadata?.image || `${appUrl}/api/og?contract=${contract}&tokenId=${tokenId}`],
+      title: frame.title,
+      description: frame.description,
+      images: [frame.image],
     },
     other: {
-      // Farcaster Frame metadata
-      'fc:frame': 'vNext',
-      'fc:frame:image': nft.metadata?.image || `${appUrl}/api/og?contract=${contract}&tokenId=${tokenId}`,
-      'fc:frame:post_url': `${appUrl}/api/frame?contract=${contract}&tokenId=${tokenId}`,
-      // First button - Play
-      'fc:frame:button:1': '▶️ Play on PODPlayr',
+      'fc:frame': frame.version,
+      'fc:frame:image': frame.image,
+      'fc:frame:post_url': frame.postUrl,
+      'fc:frame:button:1': frame.buttons[0].label,
       'fc:frame:button:1:action': 'post_redirect',
-      'fc:frame:button:1:target': `${appUrl}/?contract=${contract}&tokenId=${tokenId}`,
-      // Second button - Share
-      'fc:frame:button:2': '🔗 Share',
-      'fc:frame:button:2:action': 'post',
-      // Third button - Add to Library
-      'fc:frame:button:3': '📚 Add to Library',
-      'fc:frame:button:3:action': 'post',
+      'fc:frame:button:1:target': frame.buttons[0].action.target,
     },
   };
 }
