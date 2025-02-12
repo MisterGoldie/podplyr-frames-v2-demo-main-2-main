@@ -1,27 +1,30 @@
 import { useState, useEffect } from 'react';
 import { getFirestore, collection, query, where, onSnapshot } from 'firebase/firestore';
 import type { NFT } from '../types/user';
+import { getMediaKey } from '../utils/media';
 
 export const useNFTLikes = (nft: NFT | null) => {
   const [likesCount, setLikesCount] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!nft?.contract || !nft?.tokenId) {
+    if (!nft) {
       setLikesCount(0);
       setIsLoading(false);
       return;
     }
 
+    // Create mediaKey to group identical NFTs
+    const mediaKey = getMediaKey(nft);
+    
     const db = getFirestore();
     const userLikesRef = collection(db, 'user_likes');
     const q = query(
       userLikesRef,
-      where('nftContract', '==', nft.contract),
-      where('tokenId', '==', nft.tokenId)
+      where('mediaKey', '==', mediaKey)
     );
 
-    // Set up real-time listener
+    // Set up real-time listener for all NFTs with same content
     const unsubscribe = onSnapshot(q, 
       (snapshot) => {
         setLikesCount(snapshot.size);
@@ -36,7 +39,7 @@ export const useNFTLikes = (nft: NFT | null) => {
 
     // Cleanup listener when component unmounts or NFT changes
     return () => unsubscribe();
-  }, [nft?.contract, nft?.tokenId]);
+  }, [nft]);
 
   return { likesCount, isLoading };
 };

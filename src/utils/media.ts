@@ -102,3 +102,18 @@ export const formatTime = (seconds: number): string => {
   const remainingSeconds = Math.floor(seconds % 60);
   return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
 };
+
+// Function to generate consistent mediaKey for NFTs with identical content
+export const getMediaKey = (nft: NFT): string => {
+  // Get all media URLs
+  const audioUrl = nft.metadata?.animation_url || nft.audio || '';
+  const imageUrl = nft.image || nft.metadata?.image || '';
+  const animationUrl = nft.metadata?.animation_url || '';
+
+  // Create media key to group identical NFTs
+  return [
+    audioUrl,
+    imageUrl,
+    animationUrl
+  ].sort().join('|');
+};

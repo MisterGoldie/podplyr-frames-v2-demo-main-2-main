@@ -23,6 +23,7 @@ import {
 } from 'firebase/firestore';
 import type { NFT, FarcasterUser, SearchedUser, NFTPlayData } from '../types/user';
 import { fetchUserNFTsFromAlchemy } from './alchemy';
+import { getMediaKey } from '../utils/media';
 
 // Initialize Firebase with your config
 const firebaseConfig = {
@@ -276,17 +277,10 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
   try {
     // Get all media URLs
     const audioUrl = nft.metadata?.animation_url || nft.audio;
-    const imageUrl = nft.image || nft.metadata?.image || '';
-    const animationUrl = nft.metadata?.animation_url || '';
-    
     if (!audioUrl) return;
 
-    // Create media key to group identical NFTs by their content URLs
-    const mediaKey = [
-      audioUrl,
-      imageUrl,
-      animationUrl
-    ].filter(Boolean).sort().join('|');
+    // Get mediaKey for consistent NFT content identification
+    const mediaKey = getMediaKey(nft);
 
     // Store play data with default values for undefined fields
     const playData = {
@@ -295,9 +289,9 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
       tokenId: nft.tokenId,
       name: nft.name || 'Untitled',
       description: nft.description || nft.metadata?.description || '',
-      image: imageUrl,
+      image: nft.image || nft.metadata?.image || '',
       audioUrl: audioUrl,
-      animationUrl: animationUrl,
+      animationUrl: nft.metadata?.animation_url || '',
       mediaKey: mediaKey,
       collection: nft.collection?.name || 'Unknown Collection',
       network: nft.network || 'ethereum',
@@ -307,7 +301,7 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
       metadata: {
         name: nft.name || 'Untitled',
         description: nft.description || nft.metadata?.description || '',
-        image: imageUrl,
+        image: nft.image || nft.metadata?.image || '',
         animation_url: audioUrl
       }
     };
@@ -315,7 +309,7 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
     // Add to global nft_plays collection
     await addDoc(collection(db, 'nft_plays'), playData);
 
-    // Add to user's play history - now using mediaKey to group identical NFTs
+    // Add to user's play history - using mediaKey to group identical NFTs
     const userRef = doc(db, 'users', fid.toString());
     const playHistoryRef = collection(userRef, 'playHistory');
 
@@ -328,7 +322,7 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
     const querySnapshot = await getDocs(q);
     
     if (!querySnapshot.empty) {
-      // Update existing play history
+      // Update existing play history for all NFTs with this mediaKey
       const batch = writeBatch(db);
       querySnapshot.docs.forEach(doc => {
         batch.update(doc.ref, {
@@ -349,7 +343,7 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
 // Get top played NFTs and mark them in top_played collection
 export async function getTopPlayedNFTs(): Promise<{ nft: NFT; count: number }[]> {
   try {
-    // First get all NFT plays
+    // Get all NFT plays
     const nftPlaysRef = collection(db, 'nft_plays');
     const q = query(
       nftPlaysRef,
@@ -357,99 +351,50 @@ export async function getTopPlayedNFTs(): Promise<{ nft: NFT; count: number }[]>
     );
     
     const querySnapshot = await getDocs(q);
-    const playCount: { [key: string]: { count: number, nft: NFT, lastPlayed: Date } } = {};
-    const mediaGroupMap: { [mediaKey: string]: { [nftKey: string]: true } } = {};
+    const playsByMediaKey: { [mediaKey: string]: { count: number, nft: NFT, lastPlayed: Date } } = {};
     
-    // First pass: build media group mapping
+    // Count plays by mediaKey
     querySnapshot.forEach((doc) => {
       const data = doc.data();
-      if (!data.nftContract || !data.tokenId || !data.audioUrl || !data.image) return;
-      
-      // Create a composite key of all media URLs
-      const mediaKey = [
-        data.audioUrl,
-        data.image,
-        data.metadata?.animation_url || ''
-      ].sort().join('|');
-      
-      const nftKey = `${data.nftContract.toLowerCase()}-${data.tokenId}`;
-      
-      if (!mediaGroupMap[mediaKey]) {
-        mediaGroupMap[mediaKey] = {};
-      }
-      mediaGroupMap[mediaKey][nftKey] = true;
-    });
-
-    // Second pass: count plays using media groups
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
-      if (!data.nftContract || !data.tokenId || !data.audioUrl || !data.image) return;
-      
-      const mediaKey = [
-        data.audioUrl,
-        data.image,
-        data.metadata?.animation_url || ''
-      ].sort().join('|');
+      if (!data.mediaKey || !data.nftContract || !data.tokenId) return;
       
       const timestamp = data.timestamp?.toDate?.() || new Date(data.timestamp);
-      const relatedNFTKeys = Object.keys(mediaGroupMap[mediaKey]);
+      const playCount = data.playCount || 1;
       
-      // Update play count for all NFTs sharing the same media URLs
-      relatedNFTKeys.forEach(nftKey => {
-        if (!playCount[nftKey]) {
-          playCount[nftKey] = {
-            count: 1,
-            lastPlayed: timestamp,
-            nft: {
-              contract: data.nftContract,
-              tokenId: data.tokenId,
+      if (!playsByMediaKey[data.mediaKey]) {
+        playsByMediaKey[data.mediaKey] = {
+          count: playCount,
+          lastPlayed: timestamp,
+          nft: {
+            contract: data.nftContract,
+            tokenId: data.tokenId,
+            name: data.name || 'Untitled NFT',
+            description: data.description || data.metadata?.description || '',
+            image: data.image || data.metadata?.image || '',
+            audio: data.audioUrl,
+            hasValidAudio: true,
+            metadata: {
               name: data.name || 'Untitled NFT',
-              description: data.description || '',
-              image: data.image || '',
-              hasValidAudio: true,
-              metadata: {
-                name: data.name || 'Untitled NFT',
-                description: data.description || '',
-                image: data.image || '',
-                animation_url: data.audioUrl
-              },
-              collection: {
-                name: data.collection || 'Unknown Collection'
-              },
-              network: data.network || 'ethereum'
-            }
-          };
-        } else {
-          playCount[nftKey].count++;
-          if (timestamp > playCount[nftKey].lastPlayed) {
-            playCount[nftKey].lastPlayed = timestamp;
+              description: data.description || data.metadata?.description || '',
+              image: data.image || data.metadata?.image || '',
+              animation_url: data.audioUrl
+            },
+            collection: {
+              name: data.collection || 'Unknown Collection'
+            },
+            network: data.network || 'ethereum'
           }
-        }
-      });
-    });
-
-    // Consolidate play counts by mediaKey
-    const mediaKeyPlayCounts: { [mediaKey: string]: { count: number, nft: NFT, lastPlayed: Date } } = {};
-    Object.values(playCount).forEach(({ count, nft, lastPlayed }) => {
-      const mediaKey = [
-        nft.metadata?.animation_url || '',
-        nft.image || '',
-        nft.metadata?.image || ''
-      ].sort().join('|');
-
-      if (!mediaKeyPlayCounts[mediaKey]) {
-        mediaKeyPlayCounts[mediaKey] = { count, nft, lastPlayed };
+        };
       } else {
-        // If we find another NFT with the same media content, add its count
-        mediaKeyPlayCounts[mediaKey].count += count;
-        if (lastPlayed > mediaKeyPlayCounts[mediaKey].lastPlayed) {
-          mediaKeyPlayCounts[mediaKey].lastPlayed = lastPlayed;
+        playsByMediaKey[data.mediaKey].count += playCount;
+        if (timestamp > playsByMediaKey[data.mediaKey].lastPlayed) {
+          playsByMediaKey[data.mediaKey].lastPlayed = timestamp;
         }
       }
     });
 
-    // Get top 3 played NFTs (now consolidated by media content)
-    const topPlayed = Object.values(mediaKeyPlayCounts)
+    // Get top 3 played NFTs by mediaKey
+    const topPlayed = Object.values(playsByMediaKey)
       .sort((a, b) => {
         if (b.count !== a.count) return b.count - a.count;
         return b.lastPlayed.getTime() - a.lastPlayed.getTime();
@@ -461,24 +406,21 @@ export async function getTopPlayedNFTs(): Promise<{ nft: NFT; count: number }[]>
     if (topPlayed.length > 0) {
       const batch = writeBatch(db);
       for (const { nft, count } of topPlayed) {
-        const mediaKey = [
-          nft.metadata?.animation_url || '',
-          nft.image || '',
-          nft.metadata?.image || ''
-        ].sort().join('|');
-        
+        const mediaKey = getMediaKey(nft);
         const nftKey = `${nft.contract.toLowerCase()}-${nft.tokenId}`;
         const topPlayedRef = doc(db, 'top_played', nftKey);
+        
         batch.set(topPlayedRef, {
+          mediaKey,
           contract: nft.contract,
           tokenId: nft.tokenId,
           firstTopPlayedAt: serverTimestamp(),
           name: nft.name || 'Untitled NFT',
-          description: nft.description || '',
-          image: nft.image || '',
-          audioUrl: nft.metadata?.animation_url || '',
-          mediaKey: mediaKey,
-          totalPlays: count  // Store the consolidated play count
+          description: nft.description || nft.metadata?.description || '',
+          image: nft.image || nft.metadata?.image || '',
+          audioUrl: nft.audio || nft.metadata?.animation_url || '',
+          totalPlays: count,
+          metadata: nft.metadata
         }, { merge: true });
       }
       await batch.commit();
@@ -558,27 +500,38 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
 // Toggle NFT like status
 export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => {
   try {
-    const docId = `${fid}-${nft.contract}-${nft.tokenId}`;
+    // Get mediaKey for consistent NFT content identification
+    const mediaKey = getMediaKey(nft);
+    const docId = `${fid}-${mediaKey}`;
     const userLikesRef = doc(db, 'user_likes', docId);
     const docSnap = await getDoc(userLikesRef);
     
-    console.log('Toggling NFT:', { fid, docId });
+    console.log('Toggling NFT:', { fid, docId, mediaKey });
     
     if (docSnap.exists()) {
       await deleteDoc(userLikesRef);
       return false;
     } else {
       await setDoc(userLikesRef, {
+        fid,
+        mediaKey,
         nftContract: nft.contract,
         tokenId: nft.tokenId,
         name: nft.name || 'Untitled',
-        description: nft.description || '',
+        description: nft.description || nft.metadata?.description || '',
         image: nft.image || nft.metadata?.image || '',
         audioUrl: nft.audio || nft.metadata?.animation_url || '',
+        animationUrl: nft.metadata?.animation_url || '',
         collection: nft.collection?.name || 'Unknown Collection',
         network: nft.network || 'ethereum',
         timestamp: serverTimestamp(),
-        fid: fid
+        // Store full metadata for consistent access
+        metadata: {
+          name: nft.name || 'Untitled',
+          description: nft.description || nft.metadata?.description || '',
+          image: nft.image || nft.metadata?.image || '',
+          animation_url: nft.audio || nft.metadata?.animation_url || ''
+        }
       });
       return true;
     }

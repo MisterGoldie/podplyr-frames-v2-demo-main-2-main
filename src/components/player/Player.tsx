@@ -9,6 +9,7 @@ import type { NFT } from '../../types/user';
 import { processMediaUrl } from '../../utils/media';
 import { NFTImage } from '../media/NFTImage';
 import Image from 'next/image';
+import { trackNFTPlay } from '../../lib/firebase';
 
 // Augment the Document interface with Picture-in-Picture properties
 interface PictureInPictureWindow {}
@@ -707,12 +708,7 @@ export const Player: React.FC<PlayerProps> = ({
         <div className="container mx-auto flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => {
-                if (nft) {
-                  const shareUrl = `${window.location.origin}/api/share?contract=${nft.contract}&tokenId=${nft.tokenId}`;
-                  window.open(`https://warpcast.com/~/compose?text=Check%20out%20this%20NFT%20on%20PODPlayr&embeds[]=${encodeURIComponent(shareUrl)}`, '_blank');
-                }
-              }}
+              onClick={() => {}}
               className="text-purple-400 hover:text-purple-300 transition-colors"
             >
               <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
