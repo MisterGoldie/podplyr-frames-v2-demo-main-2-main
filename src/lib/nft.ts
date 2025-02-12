@@ -1,6 +1,52 @@
 import type { NFT } from '../types/user';
+import { Alchemy, Network } from 'alchemy-sdk';
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Initialize Alchemy client
+const alchemy = new Alchemy({
+  apiKey: process.env.NEXT_PUBLIC_ALCHEMY_API_KEY,
+  network: Network.ETH_MAINNET
+});
+
+export const getNFTMetadata = async (contract: string, tokenId: string): Promise<NFT> => {
+  try {
+    const metadata = await alchemy.nft.getNftMetadata(contract, tokenId);
+
+    // Process media URLs
+    const audioUrl = processMediaUrl(
+      metadata.raw.metadata?.animation_url ||
+      metadata.raw.metadata?.audio ||
+      metadata.raw.metadata?.audio_url ||
+      metadata.raw.metadata?.properties?.audio ||
+      metadata.raw.metadata?.properties?.audio_url ||
+      metadata.raw.metadata?.properties?.audio_file ||
+      metadata.raw.metadata?.properties?.soundContent?.url
+    );
+
+    const imageUrl = processMediaUrl(
+      metadata.raw.metadata?.image ||
+      metadata.raw.metadata?.image_url ||
+      metadata.raw.metadata?.properties?.image ||
+      metadata.raw.metadata?.properties?.visual?.url
+    );
+
+    return {
+      contract: metadata.contract.address,
+      tokenId: metadata.tokenId,
+      name: metadata.title || metadata.raw.metadata?.name || `NFT #${metadata.tokenId}`,
+      description: metadata.description || metadata.raw.metadata?.description,
+      metadata: {
+        ...metadata.raw.metadata,
+        image: imageUrl,
+        animation_url: audioUrl
+      }
+    };
+  } catch (error) {
+    console.error('Error fetching NFT metadata:', error);
+    throw error;
+  }
+};
 
 const processMediaUrl = (url: string | undefined): string => {
   if (!url) return '';

@@ -1,4 +1,8 @@
 import { NextRequest } from 'next/server';
+import { NotificationStore } from '../../../lib/NotificationStore';
+import { getNFTMetadata } from '../../../lib/nft';
+
+const appUrl = process.env.NEXT_PUBLIC_URL;
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,30 +19,45 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Basic validation of the frame data
-    if (
-      typeof untrustedData.buttonIndex !== 'number' ||
-      untrustedData.buttonIndex < 1 ||
-      !trustedData.messageBytes ||
-      typeof trustedData.messageBytes !== 'string'
-    ) {
-      return new Response(JSON.stringify({ error: 'Invalid frame data' }), {
+    // Get contract and tokenId from URL parameters
+    const url = new URL(req.url);
+    const contract = url.searchParams.get('contract');
+    const tokenId = url.searchParams.get('tokenId');
+
+    if (!contract || !tokenId) {
+      return new Response(JSON.stringify({ error: 'Missing contract or tokenId' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       });
     }
 
-    // Return the next frame state
+    // Get NFT metadata
+    const nft = await getNFTMetadata(contract, tokenId);
+
+    // Generate a unique token for this interaction
+    const token = Math.random().toString(36).substring(2);
+    const nftUrl = `${appUrl}/?contract=${contract}&tokenId=${tokenId}`;
+
+    // Store the notification with the FID
+    await NotificationStore.create(untrustedData.fid, {
+      url: nftUrl,
+      token
+    });
+
+    // Return success frame with NFT preview
     return new Response(
       JSON.stringify({
         version: 'vNext',
-        image: 'https://podplayr.vercel.app/image.jpg',
+        image: nft.metadata?.image || `${appUrl}/api/og?contract=${contract}&tokenId=${tokenId}`,
         buttons: [
           {
-            label: 'Check this out'
+            label: '▶️ Play on PODPlayr',
+            action: 'link',
+            target: nftUrl
           }
         ],
-        post_url: 'https://podplayr.vercel.app/api/frame'
+        title: nft.name || 'PODPlayr NFT',
+        description: nft.description || 'Listen to this NFT on PODPlayr'
       }),
       {
         status: 200,

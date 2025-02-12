@@ -546,8 +546,9 @@ export const Player: React.FC<PlayerProps> = ({
                   <button
                     onClick={() => {
                       try {
-                        const shareUrl = `${window.location.origin}/api/share?contract=${nft.contract}&tokenId=${nft.tokenId}`;
-                        window.open(shareUrl, '_blank', 'noopener,noreferrer');
+                        const appUrl = process.env.NEXT_PUBLIC_URL || window.location.origin;
+                        const frameUrl = `${appUrl}/nft/${nft.contract}/${nft.tokenId}`;
+                        window.open(frameUrl, '_blank', 'noopener,noreferrer');
                       } catch (error) {
                         console.error('Error sharing NFT:', error);
                       }

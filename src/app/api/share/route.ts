@@ -13,12 +13,17 @@ export async function GET(req: NextRequest) {
       return new Response('Missing contract or tokenId', { status: 400 });
     }
 
+    // Fetch NFT metadata for the image
+    const nftMetadataUrl = `${appUrl}/api/nft?contract=${contract}&tokenId=${tokenId}`;
+    const nftResponse = await fetch(nftMetadataUrl);
+    const nftData = await nftResponse.json();
+
     const frameMetadata = {
       version: 'vNext',
-      image: `${appUrl}/api/og?contract=${contract}&tokenId=${tokenId}`,
+      image: nftData.metadata?.image || `${appUrl}/api/og?contract=${contract}&tokenId=${tokenId}`,
       buttons: [
         {
-          label: 'Play on PODPlayr',
+          label: '▶️ Play on PODPlayr',
           action: 'post'
         }
       ],
@@ -29,13 +34,18 @@ export async function GET(req: NextRequest) {
       `<!DOCTYPE html>
       <html>
         <head>
-          <title>PODPlayr NFT</title>
+          <title>${nftData.name || 'PODPlayr NFT'}</title>
+          <meta property="og:title" content="${nftData.name || 'PODPlayr NFT'}" />
+          <meta property="og:description" content="${nftData.description || 'Listen to this NFT on PODPlayr'}" />
           <meta property="fc:frame" content="vNext" />
           <meta property="fc:frame:image" content="${frameMetadata.image}" />
-          <meta property="fc:frame:button:1" content="Play on PODPlayr" />
+          <meta property="fc:frame:button:1" content="${frameMetadata.buttons[0].label}" />
+          <meta property="fc:frame:button:1:action" content="post" />
           <meta property="fc:frame:post_url" content="${frameMetadata.postUrl}" />
           <meta property="og:image" content="${frameMetadata.image}" />
           <meta name="twitter:card" content="summary_large_image" />
+          <meta name="twitter:title" content="${nftData.name || 'PODPlayr NFT'}" />
+          <meta name="twitter:description" content="${nftData.description || 'Listen to this NFT on PODPlayr'}" />
           <meta name="twitter:image" content="${frameMetadata.image}" />
           <meta http-equiv="refresh" content="0;url=${appUrl}/?contract=${contract}&tokenId=${tokenId}" />
         </head>
