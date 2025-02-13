@@ -45,8 +45,11 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   const { isLiked: likeState, likesCount } = useNFTLikeState(nft, userFid || 0);
   const isLiked = isLibraryView ? true : likeState; // In library view, always show as liked
   
-  // Get real-time play count
+  // Get real-time play count only if we need it
   const { playCount } = useNFTPlayCount(nft);
+  
+  // Only show badge if we're in Top Played section (indicated by badge prop)
+  const shouldShowBadge = badge === `${playCount} plays`;
   
   const [showCollectionMenu, setShowCollectionMenu] = useState(false);
   const [showOverlay, setShowOverlay] = useState(false);
@@ -106,7 +109,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
             width={64}
             height={64}
           />
-          {badge && (
+          {shouldShowBadge && (
             <div className="absolute top-1 right-1 bg-purple-400 text-white text-xs px-1.5 py-0.5 rounded-full font-medium">
               {badge}
             </div>

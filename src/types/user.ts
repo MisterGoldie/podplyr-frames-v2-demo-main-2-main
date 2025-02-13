@@ -116,6 +116,7 @@ export interface NFT {
   isAnimation?: boolean;
   playTracked?: boolean;
   quantity?: number;
+  lastPlayed?: any; // Firestore Timestamp
 }
 
 export interface GroupedNFT extends Omit<NFT, 'quantity'> {

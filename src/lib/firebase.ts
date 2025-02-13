@@ -281,9 +281,36 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
       return;
     }
 
-    const audioUrl = nft.metadata?.animation_url || nft.audio;
+    // Validate required NFT fields
+    if (!nft.contract || !nft.tokenId) {
+      console.error('NFT missing required fields:', { 
+        contract: nft?.contract, 
+        tokenId: nft?.tokenId,
+        name: nft?.name,
+        metadata: nft?.metadata
+      });
+      return;
+    }
+
+    // Ensure we have a valid name
+    if (!nft.name) {
+      nft.name = nft.metadata?.name || `NFT #${nft.tokenId}`;
+    }
+
+    // Get audio URL with fallbacks
+    const audioUrl = nft.metadata?.animation_url || nft.audio || nft.metadata?.audio || nft.metadata?.audio_url;
     if (!audioUrl) {
-      console.error('No audio URL found for NFT:', nft);
+      console.error('No audio URL found for NFT:', {
+        contract: nft.contract,
+        tokenId: nft.tokenId,
+        name: nft.name,
+        audio: nft.audio,
+        metadata: {
+          animation_url: nft.metadata?.animation_url,
+          audio: nft.metadata?.audio,
+          audio_url: nft.metadata?.audio_url
+        }
+      });
       return;
     }
 
@@ -300,20 +327,26 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
     const globalPlayRef = doc(db, 'global_plays', mediaKey);
     const globalPlayDoc = await getDoc(globalPlayRef);
 
-    let newPlayCount = 1;
+    // Get the current play count
+    let currentPlayCount = 0;
     if (globalPlayDoc.exists()) {
       const data = globalPlayDoc.data();
-      newPlayCount = (data.playCount || 0) + 1;
+      currentPlayCount = data.playCount || 0;
+      // Keep the existing play count and increment it
       batch.update(globalPlayRef, {
         playCount: increment(1),
         lastPlayed: serverTimestamp(),
-        // Update metadata if needed
-        name: nft.name || data?.name || 'Untitled',
-        image: nft.image || data?.image || '',
-        audioUrl: audioUrl || data?.audioUrl || ''
+        // Always update metadata to ensure it's current
+        name: nft.name || data.name || 'Untitled',
+        image: nft.image || data.image || '',
+        audioUrl: audioUrl || data.audioUrl,
+        description: nft.description || nft.metadata?.description || data.description || '',
+        collection: nft.collection?.name || data.collection || 'Unknown Collection',
+        network: nft.network || data.network || 'ethereum'
       });
     } else {
-      batch.set(globalPlayRef, {
+      // Ensure all required fields are present and have fallback values
+      const nftData = {
         mediaKey,
         nftContract: nft.contract,
         tokenId: nft.tokenId,
@@ -326,10 +359,23 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
         playCount: 1,
         firstPlayed: serverTimestamp(),
         lastPlayed: serverTimestamp()
+      };
+
+      // Validate all fields before setting
+      Object.entries(nftData).forEach(([key, value]) => {
+        if (value === undefined) {
+          console.error(`Required field ${key} is undefined in NFT data`);
+          throw new Error(`Required field ${key} is undefined`);
+        }
       });
+
+      batch.set(globalPlayRef, nftData);
     }
 
-    // Update nfts collection with latest play count
+    // Calculate new play count after the increment
+    const newPlayCount = currentPlayCount + 1;
+
+    // Update NFT document
     const nftRef = doc(db, 'nfts', `${nft.contract}-${nft.tokenId}`);
     const nftDoc = await getDoc(nftRef);
     if (nftDoc.exists()) {
@@ -339,31 +385,40 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
       });
     }
 
-    // Check if this NFT should be in top_played
-    if (newPlayCount >= 3) { // Threshold for being considered "top played"
-      const topPlayedRef = doc(db, 'top_played', mediaKey);
-      const topPlayedDoc = await getDoc(topPlayedRef);
-      
-      if (!topPlayedDoc.exists()) {
-        // First time being top played
-        batch.set(topPlayedRef, {
-          mediaKey,
-          nftContract: nft.contract,
-          tokenId: nft.tokenId,
-          name: nft.name || 'Untitled',
-          image: nft.image || '',
-          audioUrl,
-          firstTopPlayedAt: serverTimestamp(),
-          lastPlayed: serverTimestamp(),
-          playCount: newPlayCount
-        });
-      } else {
-        // Update existing top played entry
-        batch.update(topPlayedRef, {
-          lastPlayed: serverTimestamp(),
-          playCount: newPlayCount
-        });
-      }
+    // Update top_played collection
+    const topPlayedRef = doc(db, 'top_played', mediaKey);
+    const topPlayedDoc = await getDoc(topPlayedRef);
+    
+    if (!topPlayedDoc.exists()) {
+      // First time in top_played
+      batch.set(topPlayedRef, {
+        mediaKey,
+        nftContract: nft.contract,
+        tokenId: nft.tokenId,
+        name: nft.name || 'Untitled',
+        image: nft.image || '',
+        audioUrl: audioUrl,
+        description: nft.description || nft.metadata?.description || '',
+        collection: nft.collection?.name || 'Unknown Collection',
+        network: nft.network || 'ethereum',
+        firstTopPlayedAt: serverTimestamp(),
+        lastPlayed: serverTimestamp(),
+        playCount: newPlayCount
+      });
+    } else {
+      // Update existing top_played entry with latest metadata
+      const data = topPlayedDoc.data();
+      batch.update(topPlayedRef, {
+        lastPlayed: serverTimestamp(),
+        playCount: increment(1),
+        // Always update metadata to ensure it's current
+        name: nft.name || data.name || 'Untitled',
+        image: nft.image || data.image || '',
+        audioUrl: audioUrl || data.audioUrl,
+        description: nft.description || nft.metadata?.description || data.description || '',
+        collection: nft.collection?.name || data.collection || 'Unknown Collection',
+        network: nft.network || data.network || 'ethereum'
+      });
     }
 
     // Also update nft_plays collection for backward compatibility
@@ -374,11 +429,11 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
       name: nft.name || 'Untitled',
       description: nft.description || nft.metadata?.description || '',
       image: nft.image || nft.metadata?.image || '',
-      audioUrl,
+      audioUrl: audioUrl,
       collection: nft.collection?.name || 'Unknown Collection',
       network: nft.network || 'ethereum',
       timestamp: serverTimestamp(),
-      playCount: 1
+      playCount: currentPlayCount + 1 // Use the actual play count
     };
     await addDoc(collection(db, 'nft_plays'), nftPlayData);
 

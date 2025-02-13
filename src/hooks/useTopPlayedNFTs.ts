@@ -9,9 +9,9 @@ export const useTopPlayedNFTs = () => {
 
   useEffect(() => {
     const db = getFirestore();
-    const globalPlaysRef = collection(db, 'global_plays');
+    const topPlayedRef = collection(db, 'top_played');
     const q = query(
-      globalPlaysRef,
+      topPlayedRef,
       orderBy('playCount', 'desc'),
       limit(10) // Get more than we need to account for duplicates
     );
@@ -51,31 +51,21 @@ export const useTopPlayedNFTs = () => {
         });
       });
 
-      // Deduplicate by mediaKey, keeping highest play count
-      const mediaKeyMap = new Map<string, { nft: NFT; count: number }>();
-      topPlayedNFTs.forEach(item => {
-        const mediaKey = getMediaKey(item.nft);
-        if (!mediaKey) return;
-        
-        const existing = mediaKeyMap.get(mediaKey);
-        if (!existing || item.count > existing.count) {
-          mediaKeyMap.set(mediaKey, item);
-        }
-      });
-
-      // Convert back to array, sort by play count, and take top 3
-      const uniqueTopPlayed = Array.from(mediaKeyMap.values())
+      // Sort by play count and take top 3
+      const sortedTopPlayed = topPlayedNFTs
         .sort((a, b) => {
           // First sort by play count (highest first)
           const countDiff = b.count - a.count;
           if (countDiff !== 0) return countDiff;
           
-          // If play counts are equal, maintain stable order
-          return 0;
+          // If play counts are equal, sort by last played timestamp
+          const aTime = (a.nft as any).lastPlayed?.toMillis?.() || 0;
+          const bTime = (b.nft as any).lastPlayed?.toMillis?.() || 0;
+          return bTime - aTime;
         })
         .slice(0, 3);
 
-      setTopPlayed(uniqueTopPlayed);
+      setTopPlayed(sortedTopPlayed);
       setLoading(false);
     });
 
