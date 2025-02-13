@@ -34,6 +34,7 @@ const HomeView: React.FC<HomeViewProps> = ({
   onLikeToggle,
   likedNFTs
 }) => {
+
   // Combine all NFTs that need preloading
   const allNFTs = useMemo(() => {
     const nfts = [...recentlyPlayedNFTs];
