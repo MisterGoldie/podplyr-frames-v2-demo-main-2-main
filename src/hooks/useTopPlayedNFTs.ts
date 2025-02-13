@@ -51,8 +51,20 @@ export const useTopPlayedNFTs = () => {
         });
       });
 
-      // Sort by play count and take top 3
-      const sortedTopPlayed = topPlayedNFTs
+      // Deduplicate by mediaKey first
+      const mediaKeyMap = new Map<string, { nft: NFT; count: number }>();
+      topPlayedNFTs.forEach(item => {
+        const mediaKey = getMediaKey(item.nft);
+        if (!mediaKey) return;
+
+        const existing = mediaKeyMap.get(mediaKey);
+        if (!existing || item.count > existing.count) {
+          mediaKeyMap.set(mediaKey, item);
+        }
+      });
+
+      // Convert to array, sort by play count and take top 3
+      const sortedTopPlayed = Array.from(mediaKeyMap.values())
         .sort((a, b) => {
           // First sort by play count (highest first)
           const countDiff = b.count - a.count;
