@@ -558,30 +558,34 @@ export async function getTopPlayedNFTs(): Promise<{ nft: NFT; count: number }[]>
   }
 }
 
-// Check if an NFT has ever been in the top played section
+// Check if an NFT is currently in the top played section
 export async function hasBeenTopPlayed(nft: NFT | null): Promise<boolean> {
   if (!nft) return false;
   
   try {
     const mediaKey = getMediaKey(nft);
-    console.log('Checking top played status for:', { mediaKey, nft });
-    
-    // Check for NFTs that have been in top played
+    if (!mediaKey) return false;
+
+    // Get current top played NFTs
     const topPlayedRef = collection(db, 'top_played');
-    const q = query(topPlayedRef, where('mediaKey', '==', mediaKey));
-    const querySnapshot = await getDocs(q);
+    const q = query(
+      topPlayedRef,
+      orderBy('playCount', 'desc'),
+      limit(3) // Only get top 3 NFTs
+    );
     
-    // Log what we found
-    let hasBeenTop = false;
+    const querySnapshot = await getDocs(q);
+    let isCurrentlyTopPlayed = false;
+
+    // Check if this NFT's mediaKey is in the current top 3
     querySnapshot.forEach(doc => {
       const data = doc.data();
-      console.log('Found top played doc:', { id: doc.id, data });
-      if (data.firstTopPlayedAt) {
-        hasBeenTop = true;
+      if (data.mediaKey === mediaKey) {
+        isCurrentlyTopPlayed = true;
       }
     });
     
-    return hasBeenTop;
+    return isCurrentlyTopPlayed;
   } catch (error) {
     console.error('Error checking top played status:', error);
     return false;

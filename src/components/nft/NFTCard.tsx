@@ -18,6 +18,7 @@ interface NFTCardProps {
   onRemoveFromCollection?: (nft: NFT, collectionId: string) => void;
   viewMode?: 'list' | 'grid';
   badge?: string;
+  playCountBadge?: string;
   showTitleOverlay?: boolean;
   useCenteredPlay?: boolean;
   isLibraryView?: boolean;
@@ -36,6 +37,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   onRemoveFromCollection,
   viewMode = 'grid',
   badge,
+  playCountBadge,
   showTitleOverlay = false,
   useCenteredPlay = false,
   isLibraryView = false,
@@ -45,11 +47,14 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   const { isLiked: likeState, likesCount } = useNFTLikeState(nft, userFid || 0);
   const isLiked = isLibraryView ? true : likeState; // In library view, always show as liked
   
-  // Get real-time play count only if we need it
+  // Get real-time play count
   const { playCount } = useNFTPlayCount(nft);
   
-  // Only show badge if we're in Top Played section (indicated by badge prop)
-  const shouldShowBadge = badge === `${playCount} plays`;
+  // Only show badge if explicitly passed as 'Top Played'
+  const shouldShowBadge = badge === 'Top Played';
+  
+  // Show play count pill if provided
+  const shouldShowPlayCount = Boolean(playCountBadge);
   
   const [showCollectionMenu, setShowCollectionMenu] = useState(false);
   const [showOverlay, setShowOverlay] = useState(false);
@@ -156,10 +161,10 @@ export const NFTCard: React.FC<NFTCardProps> = ({
           width={300}
           height={300}
         />
-        {/* Show play count for Top Played NFTs */}
-        {badge?.includes('plays') && playCount > 0 && (
+        {/* Show play count pill if provided */}
+        {shouldShowPlayCount && (
           <div className="absolute top-2 left-2 bg-purple-400 text-white text-xs px-2 py-1 rounded-full font-medium">
-            {playCount} plays
+            {playCountBadge}
           </div>
         )}
         <div className={useCenteredPlay ? 
