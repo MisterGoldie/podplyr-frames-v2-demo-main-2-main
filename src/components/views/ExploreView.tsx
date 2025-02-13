@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useVirtualizedNFTs } from '../../hooks/useVirtualizedNFTs';
 import { SearchBar } from '../search/SearchBar';
-import { NFTCard } from '../nft/NFTCard';
+import { VirtualizedNFTGrid } from '../nft/VirtualizedNFTGrid';
 import Image from 'next/image';
 import { NFT, FarcasterUser, SearchedUser } from '../../types/user';
 import { getDoc, doc } from 'firebase/firestore';
@@ -226,23 +227,19 @@ const ExploreView: React.FC<ExploreViewProps> = ({
                   <p className="font-mono text-gray-400">No audio NFTs found</p>
                 </div>
               ) : (
-                nfts.map((nft, index) => (
-                  <NFTCard
-                    key={generateUniqueNFTKey(nft, index)}
-                    nft={nft}
-                    onPlay={async (nft) => {
-                      await onPlayNFT(nft);
-                    }}
-                    isPlaying={isPlaying}
+                <>
+                  {/* Use virtualized loading for NFTs */}
+                  <VirtualizedNFTGrid 
+                    nfts={nfts}
                     currentlyPlaying={currentlyPlaying}
+                    isPlaying={isPlaying}
                     handlePlayPause={handlePlayPause}
+                    onPlayNFT={onPlayNFT}
                     publicCollections={publicCollections}
-                    onAddToCollection={addToPublicCollection}
-                    onRemoveFromCollection={removeFromPublicCollection}
-                    showTitleOverlay={true}
-                    useCenteredPlay={true}
+                    addToPublicCollection={addToPublicCollection}
+                    removeFromPublicCollection={removeFromPublicCollection}
                   />
-                ))
+                </>
               )}
             </div>
           </div>

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { NFT } from '../types/user';
 import { trackNFTPlay } from '../lib/firebase';
-import { processMediaUrl } from '../utils/media';
+import { processMediaUrl, getMediaKey } from '../utils/media';
 
 // Extend Window interface to include our custom property
 declare global {
@@ -206,9 +206,19 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs }: UseAudioPlaye
       if (setRecentlyPlayedNFTs) {
         setRecentlyPlayedNFTs((prevNFTs: NFT[]) => {
           const newNFT: NFT = { ...nft };
-          const filteredNFTs = prevNFTs.filter(
-            (item: NFT) => !(item.contract === nft.contract && item.tokenId === nft.tokenId)
-          );
+          // Get mediaKey for the new NFT
+          const newMediaKey = getMediaKey(nft);
+          if (!newMediaKey) {
+            console.error('Could not generate mediaKey for NFT:', nft);
+            return prevNFTs;
+          }
+          
+          // Filter out NFTs with the same mediaKey
+          const filteredNFTs = prevNFTs.filter(item => {
+            const itemMediaKey = getMediaKey(item);
+            return itemMediaKey !== newMediaKey;
+          });
+          
           return [newNFT, ...filteredNFTs].slice(0, 8);
         });
       }
