@@ -210,9 +210,9 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
     const timestamp = Date.now();
     console.log('Using timestamp:', new Date(timestamp));
     
-    // Create the search record
+    // Create the search record using unified index pattern
     const searchRecord = {
-      fid,
+      searching_fid: fid, // Changed from fid to match index
       searchedFid: user.fid,
       searchedUsername: user.username,
       searchedDisplayName: user.display_name,
@@ -242,7 +242,13 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
 // Subscribe to recent searches
 export const subscribeToRecentSearches = (fid: number, callback: (searches: SearchedUser[]) => void) => {
   const searchesRef = collection(db, 'user_searches');
-  const q = query(searchesRef, where('fid', '==', fid), orderBy('timestamp', 'desc'), limit(20));
+  // Use unified index pattern for recent searches
+  const q = query(
+    searchesRef,
+    where('searching_fid', '==', fid),
+    orderBy('timestamp', 'desc'),
+    limit(20)
+  );
 
   console.log('=== SUBSCRIBING TO RECENT SEARCHES ===');
   console.log('FID:', fid);
@@ -348,9 +354,19 @@ export const getRecentSearches = async (fid?: number): Promise<SearchedUser[]> =
   try {
     // Get from user_searches to maintain proper chronological order
     const searchesRef = collection(db, 'user_searches');
+    // Use unified index pattern for both filtered and unfiltered queries
     const q = fid
-      ? query(searchesRef, where('fid', '==', fid), orderBy('timestamp', 'desc'), limit(20))
-      : query(searchesRef, orderBy('timestamp', 'desc'), limit(20));
+      ? query(
+          searchesRef,
+          where('searching_fid', '==', fid),
+          orderBy('timestamp', 'desc'),
+          limit(20)
+        )
+      : query(
+          searchesRef,
+          orderBy('timestamp', 'desc'),
+          limit(20)
+        );
 
     const snapshot = await getDocs(q);
     
