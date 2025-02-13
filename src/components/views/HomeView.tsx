@@ -35,6 +35,17 @@ const HomeView: React.FC<HomeViewProps> = ({
   likedNFTs
 }) => {
 
+  // Initialize featured NFTs once on mount
+  React.useEffect(() => {
+    const initializeFeaturedNFTs = async () => {
+      const { ensureFeaturedNFTsExist } = await import('../../lib/firebase');
+      const { FEATURED_NFTS } = await import('../sections/FeaturedSection');
+      await ensureFeaturedNFTsExist(FEATURED_NFTS);
+    };
+
+    initializeFeaturedNFTs();
+  }, []);
+
   // Combine all NFTs that need preloading
   const allNFTs = useMemo(() => {
     const nfts = [...recentlyPlayedNFTs];

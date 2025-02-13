@@ -6,7 +6,7 @@ import type { NFT } from '../../types/user';
 import { IPFS_GATEWAYS, extractIPFSHash, processMediaUrl } from '../../utils/media';
 
 // Hardcoded featured NFTs
-const FEATURED_NFTS: NFT[] = [
+export const FEATURED_NFTS: NFT[] = [
   {
     name: 'Seasoning with Sazón - COD Zombies Terminus EP1',
     image: 'https://arweave.net/RvFQ8lrX3vRnnbbeA7eBoOvVsW5zOeqPXGOtZY_FXbw',
@@ -118,13 +118,8 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({
   onLikeToggle,
   isNFTLiked
 }) => {
-  // Store featured NFTs in Firebase and preload audio
+  // Preload featured NFTs audio
   React.useEffect(() => {
-    // Import here to avoid circular dependency
-    import('../../lib/firebase').then(({ ensureFeaturedNFTsExist }) => {
-      ensureFeaturedNFTsExist(FEATURED_NFTS);
-    });
-
     const preloadFeaturedContent = async () => {
       console.log('🎵 Starting to preload featured NFTs...');
       // Load all featured NFTs in parallel

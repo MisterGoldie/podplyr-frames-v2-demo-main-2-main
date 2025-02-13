@@ -19,6 +19,7 @@ import {
   fetchNFTDetails,
   getLikedNFTs,
   searchUsers,
+  subscribeToRecentSearches,
   toggleLikeNFT,
   fetchUserNFTs,
   subscribeToRecentPlays
@@ -89,20 +90,47 @@ const Demo: React.FC = () => {
   const [userData, setUserData] = useState<FarcasterUser | null>(null);
   const videoRef = useRef<HTMLVideoElement>(document.createElement('video'));
 
-  // Load liked NFTs when user changes
+  // Load liked NFTs and recent searches when user changes
   useEffect(() => {
-    const loadLikedNFTs = async () => {
+    let unsubscribeSearches: (() => void) | undefined;
+
+    const loadUserData = async () => {
       if (userFid) {
         try {
+          // Load liked NFTs
           const liked = await getLikedNFTs(userFid);
           setLikedNFTs(liked);
+
+          // Load recent searches
+          const searches = await getRecentSearches(userFid);
+          setRecentSearches(searches);
+
+          // Subscribe to real-time updates for recent searches
+          console.log('=== DEMO: Setting up recent searches subscription ===');
+          console.log('Current userFid:', userFid);
+          
+          unsubscribeSearches = subscribeToRecentSearches(userFid, (searches) => {
+            console.log('=== DEMO: Recent searches callback triggered ===');
+            console.log('New searches:', searches);
+            setRecentSearches(searches);
+          });
+          
+          console.log('Subscription set up successfully');
         } catch (error) {
-          console.error('Error loading liked NFTs:', error);
+          console.error('Error loading user data:', error);
         }
       }
     };
 
-    loadLikedNFTs();
+    loadUserData();
+
+    return () => {
+      console.log('=== DEMO: Cleaning up subscriptions ===');
+      if (unsubscribeSearches) {
+        console.log('Unsubscribing from recent searches');
+        unsubscribeSearches();
+      }
+    };
   }, [userFid]);
 
   const {
@@ -241,50 +269,7 @@ const Demo: React.FC = () => {
     }
   }, [isInitialPlay]);
 
-  const handleSearch = async (username: string) => {
-    console.log('=== EXPLORE: Starting user search ===');
-    console.log('Search query:', username);
-    setIsSearching(true);
-    setError(null);
-    try {
-      console.log('Calling searchUsers...');
-      const results = await searchUsers(username).catch(error => {
-        console.error('Error searching users:', error);
-        setError(error.message || 'Error searching for user');
-        return [];
-      });
-      console.log('Search results:', results);
-      
-      const formattedResults: FarcasterUser[] = results.map((user: any) => ({
-        fid: user.fid || 0,
-        username: user.username,
-        display_name: user.display_name,
-        pfp_url: user.pfp_url || user.pfp,
-        follower_count: 0,
-        following_count: 0,
-        profile: {
-          bio: user.bio
-        }
-      }));
-      console.log('Formatted results:', formattedResults);
-      setSearchResults(formattedResults);
-      
-      console.log('Tracking user search...');
-      await trackUserSearch(username, userFid);
-      
-      // Update recent searches after successful search
-      console.log('Updating recent searches...');
-      const updatedSearches = await getRecentSearches(userFid);
-      console.log('New recent searches:', updatedSearches);
-      setRecentSearches(updatedSearches || []);
-    } catch (error) {
-      console.error('Search error:', error);
-      setError('Failed to search for users. Please try again.');
-    } finally {
-      setIsSearching(false);
-      console.log('=== EXPLORE: Search completed ===');
-    }
-  };
+
 
   const formatTime = (time: number): string => {
     const minutes = Math.floor(time / 60);
@@ -410,6 +395,29 @@ const Demo: React.FC = () => {
     }
   };
 
+  const handleSearch = async (query: string) => {
+    setIsSearching(true);
+    try {
+      // Search for users
+      const results = await searchUsers(query);
+      setSearchResults(results);
+
+      // Track search for first result if any
+      if (results.length > 0 && userFid) {
+        await trackUserSearch(results[0].username, userFid);
+        
+        // After tracking search, refresh recent searches
+        const searches = await getRecentSearches(userFid);
+        setRecentSearches(searches);
+      }
+    } catch (error) {
+      console.error('Error searching users:', error);
+      setError('Error searching users');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
   const handleReset = () => {
     setCurrentPage({
       isHome: true,
@@ -494,8 +502,12 @@ const Demo: React.FC = () => {
               // First try to get cached NFTs
               const cachedNFTs = getCachedNFTs(user.fid);
               
-              // Track the user search using existing function
-              await trackUserSearch(user.username, user.fid);
+              // Track the user search and get updated search data
+              await trackUserSearch(user.username, userFid);
+              
+              // Immediately refresh recent searches
+              const updatedSearches = await getRecentSearches(userFid);
+              setRecentSearches(updatedSearches);
 
               if (cachedNFTs && Array.isArray(cachedNFTs)) {
                 setUserNFTs(cachedNFTs);

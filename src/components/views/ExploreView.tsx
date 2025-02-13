@@ -7,7 +7,9 @@ import { VirtualizedNFTGrid } from '../nft/VirtualizedNFTGrid';
 import Image from 'next/image';
 import { NFT, FarcasterUser, SearchedUser } from '../../types/user';
 import { getDoc, doc } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { db, trackUserSearch } from '../../lib/firebase';
+import { useContext } from 'react';
+import { FarcasterContext } from '../../app/providers';
 
 interface ExploreViewProps {
   onSearch: (query: string) => void;
@@ -29,9 +31,9 @@ interface ExploreViewProps {
   onReset: () => void;
 }
 
-const ExploreView: React.FC<ExploreViewProps> = ({
-  // Props
-
+const ExploreView: React.FC<ExploreViewProps> = (props) => {
+  const { fid: userFid = 0 } = useContext(FarcasterContext);
+  const {
   onSearch,
   selectedUser,
   onPlayNFT,
@@ -49,7 +51,7 @@ const ExploreView: React.FC<ExploreViewProps> = ({
   recentSearches,
   handleUserSelect,
   onReset,
-}) => {
+} = props;
   const generateUniqueNFTKey = (nft: NFT, index: number) => {
     return `${nft.contract}-${nft.tokenId}-${index}`;
   };
@@ -153,22 +155,32 @@ const ExploreView: React.FC<ExploreViewProps> = ({
                         // Get the full user data from searchedusers collection
                         console.log('=== EXPLORE: User selected from recent searches ===');
                         console.log('Getting full user data for FID:', user.fid);
+                        console.log('Current userFid:', userFid);
                         
                         const userDoc = await getDoc(doc(db, 'searchedusers', user.fid.toString()));
                         const userData = userDoc.data();
+                        console.log('User data from searchedusers:', userData);
                         
                         const farcasterUser: FarcasterUser = {
                           fid: user.fid,
                           username: user.username,
                           display_name: user.display_name || user.username,
                           pfp_url: user.pfp_url || `https://avatar.vercel.sh/${user.username}`,
-                          follower_count: 0,
-                          following_count: 0,
+                          follower_count: user.follower_count || 0,
+                          following_count: user.following_count || 0,
                           custody_address: userData?.custody_address,
                           verified_addresses: userData?.verified_addresses
                         };
                         
                         console.log('Selected user with addresses:', farcasterUser);
+                        
+                        // Track the search before selecting the user
+                        console.log('=== EXPLORE: Tracking search ===');
+                        await trackUserSearch(user.username, userFid);
+                        console.log('Search tracked successfully');
+                        
+                        // No need to manually refresh recent searches here
+                        // The subscription in Demo.tsx will handle it
                         handleUserSelect(farcasterUser);
                       }}
                       className="bg-gray-800/30 backdrop-blur-sm p-4 rounded-lg text-left hover:bg-gray-800/50 transition-colors"

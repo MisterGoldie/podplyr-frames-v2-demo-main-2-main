@@ -179,11 +179,9 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
     const finalAddresses = Array.from(addresses);
     console.log('Final addresses:', finalAddresses);
 
-    // Store user data in searchedusers collection for NFT retrieval
-    const searchedUserRef = doc(db, 'searchedusers', searchedUser.fid.toString());
-    const searchedUserDoc = await getDoc(searchedUserRef);
-    const existingSearchData = searchedUserDoc.exists() ? searchedUserDoc.data() : {};
-    
+    // Update searchedusers collection with user data and search info
+    const now = new Date().getTime();
+    const searchedUserRef = doc(db, 'searchedusers', user.fid.toString());
     const searchedUserData = {
       fid: user.fid,
       username: user.username,
@@ -193,21 +191,27 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
       verifiedAddresses: finalAddresses,
       follower_count: user.follower_count,
       following_count: user.following_count,
-      searchCount: (existingSearchData.searchCount || 0) + 1,
-      lastSearched: serverTimestamp(),
-      timestamp: existingSearchData.timestamp || serverTimestamp()
+      lastSearched: now,
+      searchCount: increment(1)
     };
-
-    await setDoc(searchedUserRef, searchedUserData);
+    await setDoc(searchedUserRef, searchedUserData, { merge: true });
 
     // Cache the first available address for NFT retrieval
     if (finalAddresses.length > 0) {
       await cacheUserWallet(user.fid, finalAddresses[0]);
     }
-
-    // Track the search in user_searches collection for recent searches
+    
+    // Also track in user_searches for history
+    console.log('=== TRACKING USER SEARCH ===');
+    console.log('FID:', fid);
+    console.log('Searched User:', user);
+    
     const searchRef = collection(db, 'user_searches');
-    await addDoc(searchRef, {
+    const timestamp = Date.now();
+    console.log('Using timestamp:', new Date(timestamp));
+    
+    // Create the search record
+    const searchRecord = {
       fid,
       searchedFid: user.fid,
       searchedUsername: user.username,
@@ -215,8 +219,13 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
       searchedPfpUrl: user.pfp_url,
       searchedFollowerCount: user.follower_count,
       searchedFollowingCount: user.following_count,
-      timestamp: serverTimestamp()
-    });
+      timestamp: timestamp, // Use client timestamp for immediate ordering
+      serverTimestamp: serverTimestamp() // Keep server timestamp for consistency
+    };
+    
+    console.log('Adding search with data:', searchRecord);
+    await addDoc(searchRef, searchRecord);
+    console.log('Search tracked successfully');
 
     return {
       ...user,
@@ -230,11 +239,117 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
 };
 
 // Get recent searches with optional FID filter
+// Subscribe to recent searches
+export const subscribeToRecentSearches = (fid: number, callback: (searches: SearchedUser[]) => void) => {
+  const searchesRef = collection(db, 'user_searches');
+  const q = query(searchesRef, where('fid', '==', fid), orderBy('timestamp', 'desc'), limit(20));
+
+  console.log('=== SUBSCRIBING TO RECENT SEARCHES ===');
+  console.log('FID:', fid);
+  
+  console.log('Setting up snapshot listener with query:', {
+    fid,
+    orderBy: 'timestamp',
+    direction: 'desc',
+    limit: 20
+  });
+
+  return onSnapshot(q, (snapshot) => {
+    console.log('=== RECEIVED SEARCH UPDATE ===');
+    console.log('Number of docs:', snapshot.docs.length);
+    
+    // Check if there are any changes
+    if (snapshot.empty) {
+      console.log('No documents found');
+      callback([]);
+      return;
+    }
+
+    if (!snapshot.metadata.hasPendingWrites) {
+      console.log('Update is from server, not local');
+    }
+    
+    // Use a Map to keep only the most recent search for each searchedFid
+    const uniqueSearches = new Map<number, SearchedUser>();
+    const recentSearches: SearchedUser[] = [];
+    
+    // Process docs in order (already sorted by timestamp desc)
+    const processedFids = new Set<number>();
+    const updatedSearches: SearchedUser[] = [];
+    
+    // First handle any modifications or removals
+    snapshot.docChanges().forEach(change => {
+      if (change.type === 'modified' || change.type === 'removed') {
+        const data = change.doc.data();
+        const searchedFid = data.searchedFid;
+        uniqueSearches.delete(searchedFid);
+        processedFids.delete(searchedFid);
+      }
+    });
+    
+    // Then process all current documents
+    snapshot.docs.forEach(doc => {
+      const data = doc.data();
+      const searchedFid = data.searchedFid;
+      
+      // Skip if we've already seen this FID
+      if (processedFids.has(searchedFid)) {
+        return;
+      }
+      
+      // Handle different timestamp formats
+      let timestamp: number;
+      if (data.timestamp) {
+        if (typeof data.timestamp === 'object' && 'toMillis' in data.timestamp) {
+          // Firestore Timestamp
+          timestamp = data.timestamp.toMillis();
+        } else if (typeof data.timestamp === 'number') {
+          // Unix timestamp in milliseconds
+          timestamp = data.timestamp;
+        } else if (typeof data.timestamp === 'string') {
+          // ISO string timestamp
+          timestamp = new Date(data.timestamp).getTime();
+        } else {
+          console.warn('Unknown timestamp format:', data.timestamp);
+          timestamp = Date.now();
+        }
+      } else {
+        timestamp = Date.now();
+      }
+      
+      console.log('Processing search for FID:', searchedFid, 'with timestamp:', new Date(timestamp));
+      const searchedUser = {
+        fid: searchedFid,
+        username: data.searchedUsername,
+        display_name: data.searchedDisplayName,
+        pfp_url: data.searchedPfpUrl,
+        follower_count: data.searchedFollowerCount || 0,
+        following_count: data.searchedFollowingCount || 0,
+        searchCount: 1,
+        timestamp: timestamp,
+        lastSearched: timestamp
+      };
+      
+      uniqueSearches.set(searchedFid, searchedUser);
+      updatedSearches.push(searchedUser);
+      processedFids.add(searchedFid);
+    });
+
+    // Sort by timestamp descending (most recent first)
+    const sortedSearches = updatedSearches.sort((a, b) => b.timestamp - a.timestamp);
+    
+    console.log('Final recent searches:', sortedSearches);
+    // Take first 8 unique users
+    callback(sortedSearches.slice(0, 8));
+  });
+};
+
 export const getRecentSearches = async (fid?: number): Promise<SearchedUser[]> => {
   try {
+    // Get from user_searches to maintain proper chronological order
     const searchesRef = collection(db, 'user_searches');
     const q = fid
-      ? query(searchesRef, where('fid', '==', fid), orderBy('timestamp', 'desc'), limit(20)) 
+      ? query(searchesRef, where('fid', '==', fid), orderBy('timestamp', 'desc'), limit(20))
       : query(searchesRef, orderBy('timestamp', 'desc'), limit(20));
 
     const snapshot = await getDocs(q);
@@ -242,13 +357,14 @@ export const getRecentSearches = async (fid?: number): Promise<SearchedUser[]> =
     // Use a Map to keep only the most recent search for each searchedFid
     const uniqueSearches = new Map<number, SearchedUser>();
     
+    // Process docs in reverse chronological order
     snapshot.docs.forEach(doc => {
       const data = doc.data();
       const searchedFid = data.searchedFid;
+      const timestamp = data.timestamp;
       
-      // Only add if this fid hasn't been seen yet or if this is a more recent search
-      const existingSearch = uniqueSearches.get(searchedFid);
-      if (!existingSearch || data.timestamp > existingSearch.timestamp) {
+      // Only add if this fid hasn't been seen yet (first occurrence is most recent due to orderBy)
+      if (!uniqueSearches.has(searchedFid)) {
         uniqueSearches.set(searchedFid, {
           fid: searchedFid,
           username: data.searchedUsername,
@@ -257,16 +373,24 @@ export const getRecentSearches = async (fid?: number): Promise<SearchedUser[]> =
           follower_count: data.searchedFollowerCount || 0,
           following_count: data.searchedFollowingCount || 0,
           searchCount: 1,
-          timestamp: data.timestamp,
-          lastSearched: data.timestamp
+          timestamp: timestamp,
+          lastSearched: timestamp
         });
       }
     });
 
-    // Convert Map values to array and take only the first 8 unique users
-    return Array.from(uniqueSearches.values())
-      .sort((a, b) => b.timestamp - a.timestamp)
-      .slice(0, 8);
+    // Convert to array maintaining query order (already sorted by timestamp desc)
+    const recentSearches: SearchedUser[] = [];
+    snapshot.docs.forEach(doc => {
+      const searchedFid = doc.data().searchedFid;
+      const user = uniqueSearches.get(searchedFid);
+      if (user && !recentSearches.some(s => s.fid === searchedFid)) {
+        recentSearches.push(user);
+      }
+    });
+
+    // Take first 8 unique users
+    return recentSearches.slice(0, 8);
   } catch (error) {
     console.error('Error getting recent searches:', error);
     return [];
