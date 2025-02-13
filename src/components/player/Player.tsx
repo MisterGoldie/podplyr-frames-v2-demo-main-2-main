@@ -22,8 +22,11 @@ interface Document {
   exitPictureInPicture(): Promise<void>;
 }
 
-interface HTMLVideoElement {
+interface HTMLVideoElement extends HTMLMediaElement {
   requestPictureInPicture(): Promise<PictureInPictureWindow>;
+  currentTime: number;
+  play(): Promise<void>;
+  pause(): void;
 }
 
 interface PlayerProps {
@@ -64,59 +67,64 @@ export const Player: React.FC<PlayerProps> = ({
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
   const [swipeDistance, setSwipeDistance] = useState(0);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
   const [showControls, setShowControls] = useState(true);
   const hideControlsTimer = useRef<NodeJS.Timeout | undefined>(undefined);
   
-  // Sync video playback with isPlaying state and progress
+  // Handle video time updates
   useEffect(() => {
-    if (!(videoElement instanceof HTMLVideoElement)) return;
+    if (!videoElement) return;
+    
+    try {
+      // Only update if the difference is significant
+      if (Math.abs(videoElement.currentTime - progress) > 0.5) {
+        videoElement.currentTime = progress;
+      }
+    } catch (error) {
+      console.error('Error updating video time:', error);
+    }
+  }, [videoElement, progress]);
 
-    let isVideoSwitching = false;
-    let playAttemptTimeout: NodeJS.Timeout;
+  // Handle play/pause state
+  useEffect(() => {
+    if (!videoElement || !nft) return;
 
-    const syncVideoPlayback = async () => {
-      if (isVideoSwitching) return;
-
+    let playbackTimeout: NodeJS.Timeout;
+    
+    const handlePlayback = async () => {
       try {
-        // Sync time if needed
-        if (Math.abs(videoElement.currentTime - progress) > 0.1) {
-          videoElement.currentTime = progress;
-        }
-
-        // Handle play/pause state
         if (isPlaying) {
-          isVideoSwitching = true;
-          clearTimeout(playAttemptTimeout);
-
-          // Add a small delay to handle rapid switches
-          playAttemptTimeout = setTimeout(async () => {
+          // Clear any existing timeout
+          clearTimeout(playbackTimeout);
+          
+          // Add small delay to handle rapid state changes
+          playbackTimeout = setTimeout(async () => {
             try {
               await videoElement.play();
             } catch (err) {
-              // Ignore AbortError during quick switches
               if (err instanceof Error && err.name !== 'AbortError') {
-                console.warn('Non-critical video playback warning:', err);
+                console.error('Video playback error:', err);
               }
-            } finally {
-              isVideoSwitching = false;
             }
           }, 100);
         } else {
           videoElement.pause();
         }
-      } catch (err) {
-        // Ignore errors during switching
-        isVideoSwitching = false;
+      } catch (error) {
+        console.error('Playback state error:', error);
       }
     };
 
-    syncVideoPlayback();
+    handlePlayback();
 
     return () => {
-      clearTimeout(playAttemptTimeout);
+      clearTimeout(playbackTimeout);
+      if (videoElement) {
+        videoElement.pause();
+      }
     };
-  }, [isPlaying, videoElement, progress]);
+  }, [videoElement, isPlaying, nft]);
   
   // Minimum distance for swipe (100px)
   const minSwipeDistance = 100;
@@ -202,16 +210,20 @@ export const Player: React.FC<PlayerProps> = ({
           // Show video if available
           <div className="relative w-full h-full">
             <video
-              ref={setVideoElement}
+              ref={(el) => {
+                videoRef.current = el;
+                setVideoElement(el);
+              }}
               src={processedVideoUrl}
               className={`w-full h-full object-contain rounded-lg transition-transform duration-500 ${
                 isMinimized ? '' : 'transform transition-all duration-500 ease-in-out ' + (isPlaying ? 'scale-100' : 'scale-90')
               }`}
               playsInline
-              autoPlay={isPlaying}
+              preload="metadata"
               loop
               muted={true}
               controls={false}
+              poster={processedImageUrl}
             />
           </div>
         ) : (
