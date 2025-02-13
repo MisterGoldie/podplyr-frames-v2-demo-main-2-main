@@ -44,8 +44,9 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   userFid = 0
 }) => {
   // Get like state based on context - if we're in library view, NFT is always liked
-  const { isLiked: likeState, likesCount } = useNFTLikeState(nft, userFid || 0);
+  const { isLiked: likeState, likesCount: globalLikesCount } = useNFTLikeState(nft, userFid || 0);
   const isLiked = isLibraryView ? true : likeState; // In library view, always show as liked
+  const likesCount = isLibraryView ? Math.max(1, globalLikesCount) : globalLikesCount; // In library view, ensure at least 1 like
   
   // Get real-time play count
   const { playCount } = useNFTPlayCount(nft);
