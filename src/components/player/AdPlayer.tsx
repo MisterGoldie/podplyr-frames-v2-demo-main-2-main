@@ -22,9 +22,9 @@ const AD_CONFIG = [
   },
   {
     video: '/ad-video-3.mp4',
-    url: 'https://theleftfieldtv.vhx.tv/',
-    title: 'The Left Field',
-    domain: 'theleftfieldtv.vhx.tv'
+    url: 'https://acyl.world/TV',
+    title: 'ACYL TV',
+    domain: 'acyl.world'
   },
   {
     video: '/ad-video-4.mp4',
