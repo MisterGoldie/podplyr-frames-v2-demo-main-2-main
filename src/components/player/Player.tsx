@@ -293,10 +293,11 @@ export const Player: React.FC<PlayerProps> = ({
                 e.stopPropagation();
                 setShowInfo(false);
               }}
-              className="text-gray-400 hover:text-purple-300 transition-colors p-1 -mr-2 touch-manipulation"
+              className="text-gray-400 hover:text-purple-300 active:scale-95 transition-all p-3 -mr-3 touch-manipulation rounded-full bg-black/20 backdrop-blur-sm"
+              style={{ touchAction: 'manipulation' }}
               aria-label="Close info panel"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
                 <path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/>
               </svg>
             </button>
@@ -304,10 +305,13 @@ export const Player: React.FC<PlayerProps> = ({
 
           {/* Content */}
           <div 
-            className="space-y-4 max-h-[40vh] overflow-y-auto pr-2"
+            className="space-y-4 max-h-[40vh] overflow-y-auto overscroll-contain will-change-scroll pr-2"
             style={{
               scrollbarWidth: 'thin',
-              scrollbarColor: 'rgba(168, 85, 247, 0.4) rgba(0, 0, 0, 0.2)'
+              scrollbarColor: 'rgba(168, 85, 247, 0.4) rgba(0, 0, 0, 0.2)',
+              WebkitOverflowScrolling: 'touch',
+              transform: 'translateZ(0)',
+              backfaceVisibility: 'hidden'
             }}
           >
             {/* Description */}
