@@ -72,8 +72,14 @@ export const Player: React.FC<PlayerProps> = ({
   const [showControls, setShowControls] = useState(true);
   const hideControlsTimer = useRef<NodeJS.Timeout | undefined>(undefined);
 
-  // Auto-hide controls after 3 seconds of inactivity
+  // Auto-hide controls after 3 seconds of inactivity (only in maximized state)
   useEffect(() => {
+    // Don't run auto-hide in minimized state
+    if (isMinimized) {
+      setShowControls(true);
+      return;
+    }
+
     const handleUserActivity = () => {
       setShowControls(true);
       if (hideControlsTimer.current) {
@@ -96,21 +102,64 @@ export const Player: React.FC<PlayerProps> = ({
       document.removeEventListener('mousemove', handleUserActivity);
       document.removeEventListener('touchstart', handleUserActivity);
     };
-  }, []);
+  }, [isMinimized]);
   
-  // Handle video time updates
+  // Handle video time updates and PIP sync
   useEffect(() => {
     if (!videoElement) return;
-    
-    try {
-      // Only update if the difference is significant
-      if (Math.abs(videoElement.currentTime - progress) > 0.5) {
-        videoElement.currentTime = progress;
+
+    const syncTime = () => {
+      try {
+        // Always sync time in PIP mode, otherwise only if difference is significant
+        if (document.pictureInPictureElement === videoElement || Math.abs(videoElement.currentTime - progress) > 0.1) {
+          videoElement.currentTime = progress;
+        }
+      } catch (error) {
+        console.error('Error updating video time:', error);
       }
-    } catch (error) {
-      console.error('Error updating video time:', error);
-    }
-  }, [videoElement, progress]);
+    };
+
+    // Sync immediately
+    syncTime();
+
+    // Add listeners for PIP events
+    const handlePIPChange = () => {
+      syncTime();
+      // Ensure video state matches player state
+      if (isPlaying) {
+        videoElement.play();
+      } else {
+        videoElement.pause();
+      }
+    };
+
+    // Handle play/pause events from PIP video
+    const handlePIPPlayPause = () => {
+      if (document.pictureInPictureElement === videoElement) {
+        // Sync the player state with the video state
+        if (videoElement.paused && isPlaying) {
+          onPlayPause(); // Update main player state
+        } else if (!videoElement.paused && !isPlaying) {
+          onPlayPause(); // Update main player state
+        }
+      }
+    };
+
+    videoElement.addEventListener('enterpictureinpicture', handlePIPChange);
+    videoElement.addEventListener('leavepictureinpicture', handlePIPChange);
+    videoElement.addEventListener('play', handlePIPPlayPause);
+    videoElement.addEventListener('pause', handlePIPPlayPause);
+    // Add timeupdate listener for more frequent sync in PIP mode
+    videoElement.addEventListener('timeupdate', syncTime);
+
+    return () => {
+      videoElement.removeEventListener('enterpictureinpicture', handlePIPChange);
+      videoElement.removeEventListener('leavepictureinpicture', handlePIPChange);
+      videoElement.removeEventListener('play', handlePIPPlayPause);
+      videoElement.removeEventListener('pause', handlePIPPlayPause);
+      videoElement.removeEventListener('timeupdate', syncTime);
+    };
+  }, [videoElement, progress, isPlaying]);
 
   // Handle play/pause state
   useEffect(() => {
@@ -453,10 +502,10 @@ export const Player: React.FC<PlayerProps> = ({
             </div>
 
             {/* Controls */}
-            <div className={`flex items-center gap-4 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
+            <div className="flex items-center gap-4">
               <button
                 onClick={() => setShowInfo(!showInfo)}
-                className="text-purple-400 hover:text-purple-300"
+                className={`text-purple-400 hover:text-purple-300 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}
                 aria-label="Show NFT Information"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
@@ -465,7 +514,7 @@ export const Player: React.FC<PlayerProps> = ({
               </button>
               <button 
                 onClick={onNext}
-                className="text-purple-400 hover:text-purple-300"
+                className={`text-purple-400 hover:text-purple-300 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}
                 disabled={!onNext}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
@@ -490,7 +539,7 @@ export const Player: React.FC<PlayerProps> = ({
 
               <button 
                 onClick={onPrevious}
-                className="text-purple-400 hover:text-purple-300"
+                className={`text-purple-400 hover:text-purple-300 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}
                 disabled={!onPrevious}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
