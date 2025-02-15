@@ -212,15 +212,36 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
           </>
         ) : (
           <div>
-            <button 
-              onClick={onBack}
-              className="mb-6 flex items-center gap-3 text-green-400 hover:text-green-300 transition-all px-4 py-2 rounded-lg bg-gray-800/20 hover:bg-gray-800/40 active:bg-gray-800/60"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor">
-                <path d="M400-80 0-480l400-400 56 57-343 343 343 343-56 57Z"/>
-              </svg>
-              <span className="font-mono text-sm tracking-wide">Back to Search</span>
-            </button>
+            <div className="px-4 mb-8">
+              <button 
+                onClick={onBack}
+                className="mb-6 flex items-center gap-3 text-green-400 hover:text-green-300 transition-all px-4 py-2 rounded-lg bg-gray-800/20 hover:bg-gray-800/40 active:bg-gray-800/60"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor">
+                  <path d="M400-80 0-480l400-400 56 57-343 343 343 343-56 57Z"/>
+                </svg>
+                <span className="font-mono text-sm tracking-wide">Back to Search</span>
+              </button>
+
+              {/* User Profile Header */}
+              <div className="flex items-center gap-6 p-6 rounded-2xl bg-gray-800/20 backdrop-blur-sm border border-gray-800/40">
+                <div className="w-20 h-20 rounded-full overflow-hidden flex-shrink-0 relative ring-2 ring-gray-800/60">
+                  <Image
+                    src={selectedUser.pfp_url || `https://avatar.vercel.sh/${selectedUser.username}`}
+                    alt={selectedUser.display_name || selectedUser.username}
+                    className="object-cover"
+                    fill
+                    sizes="80px"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <h2 className="text-2xl font-mono text-green-400">
+                    {selectedUser.display_name || selectedUser.username}
+                  </h2>
+                  <p className="font-mono text-gray-400">@{selectedUser.username}</p>
+                </div>
+              </div>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
               {isLoadingNFTs ? (
