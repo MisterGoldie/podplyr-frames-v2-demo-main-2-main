@@ -6,10 +6,10 @@ import Image from 'next/image';
 import { NFTCard } from '../nft/NFTCard';
 import type { NFT, UserContext } from '../../types/user';
 import { getLikedNFTs } from '../../lib/firebase';
-import { uploadProfileBackground, db } from '../../firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { uploadProfileBackground } from '../../firebase';
 import { fetchUserNFTs } from '../../lib/nft';
 import { optimizeImage } from '../../utils/imageOptimizer';
+import { useUserImages } from '../../contexts/UserImageContext';
 
 interface ProfileViewProps {
   userContext: UserContext;
@@ -54,28 +54,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({
   }, [userContext?.user?.fid]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
-
-  // Load user's background image
-  useEffect(() => {
-    const loadBackgroundImage = async () => {
-      if (userContext?.user?.fid) {
-        try {
-          const userDoc = await getDoc(doc(db, 'users', userContext.user.fid.toString()));
-          const backgroundUrl = userDoc.data()?.backgroundImage;
-          if (backgroundUrl) {
-            setBackgroundImage(backgroundUrl);
-          }
-        } catch (err) {
-          console.error('Error loading background image:', err);
-        }
-      }
-    };
-
-    loadBackgroundImage();
-  }, [userContext?.user?.fid]);
+  const { backgroundImage, profileImage, setBackgroundImage } = useUserImages();
 
   useEffect(() => {
     const loadNFTs = async () => {
