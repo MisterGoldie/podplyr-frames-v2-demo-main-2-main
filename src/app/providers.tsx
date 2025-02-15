@@ -5,6 +5,7 @@ import { createContext, useContext, useState } from 'react';
 import { Frame } from '~/components/frame/Frame';
 import type { FrameContext } from '@farcaster/frame-core';
 import { VideoPlayProvider } from '../contexts/VideoPlayContext';
+import { Toaster } from 'react-hot-toast';
 
 const WagmiProvider = dynamic(
   () => import("~/components/providers/WagmiProvider"),
@@ -30,6 +31,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
               }
             }}
           />
+          <Toaster position="top-center" />
           {children}
         </VideoPlayProvider>
       </FarcasterContext.Provider>

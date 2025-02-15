@@ -1,0 +1,18 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Allow public read access to all files
+    match /{allPaths=**} {
+      allow read: if true;
+    }
+    
+    // Allow uploads to profile backgrounds with validation
+    match /profile-backgrounds/{filename} {
+      allow write: if
+        request.resource.size < 5 * 1024 * 1024 && // 5MB limit
+        request.resource.contentType.matches('image/.*') && // Only images
+        filename.matches('^[0-9]+\\.[a-zA-Z]+$'); // Only valid filenames
+    }
+  }
+}
