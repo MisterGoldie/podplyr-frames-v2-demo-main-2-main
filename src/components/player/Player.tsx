@@ -505,7 +505,7 @@ export const Player: React.FC<PlayerProps> = ({
             <div className="flex items-center gap-4">
               <button
                 onClick={() => setShowInfo(!showInfo)}
-                className={`text-purple-400 hover:text-purple-300 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}
+                className="text-purple-400 hover:text-purple-300"
                 aria-label="Show NFT Information"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
@@ -514,7 +514,7 @@ export const Player: React.FC<PlayerProps> = ({
               </button>
               <button 
                 onClick={onNext}
-                className={`text-purple-400 hover:text-purple-300 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}
+                className="text-purple-400 hover:text-purple-300"
                 disabled={!onNext}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
@@ -539,7 +539,7 @@ export const Player: React.FC<PlayerProps> = ({
 
               <button 
                 onClick={onPrevious}
-                className={`text-purple-400 hover:text-purple-300 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}
+                className="text-purple-400 hover:text-purple-300"
                 disabled={!onPrevious}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
