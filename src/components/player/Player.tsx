@@ -722,7 +722,7 @@ export const Player: React.FC<PlayerProps> = ({
       </div>
       {/* Now Playing Bar */}
       <div className="fixed bottom-0 left-0 right-0 bg-black/80 backdrop-blur-sm border-t border-purple-400/20">
-        <div className="container mx-auto flex items-center justify-between px-4 py-3">
+        <div className="container mx-auto flex items-center justify-between px-4 py-5">
           <div className="flex items-center gap-4">
             <span className="text-sm font-mono text-purple-400 truncate">{nft.name}</span>
           </div>
