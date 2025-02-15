@@ -113,15 +113,19 @@ const ProfileView: React.FC<ProfileViewProps> = ({
           <div className="relative">
             <Image
               src={userContext.user?.pfpUrl || '/default-avatar.png'}
-              alt={userContext.user?.displayName || 'User'}
+              alt={userContext.user?.username || 'User'}
               width={120}
               height={120}
               className="rounded-full ring-4 ring-purple-400/20"
             />
           </div>
           <div className="space-y-2">
-            <h2 className="text-2xl font-mono text-purple-400 font-bold">{userContext.user?.displayName || 'User'}</h2>
-            <p className="text-lg text-purple-300/60">@{userContext.user?.username || 'user'}</p>
+            <h2 className="text-2xl font-mono text-purple-400">@{userContext.user?.username || 'user'}</h2>
+            {!isLoading && (
+              <p className="font-mono text-sm text-purple-300/60">
+                {nfts.length} {nfts.length === 1 ? 'NFT' : 'NFTs'} found
+              </p>
+            )}
           </div>
         </div>
 
@@ -157,11 +161,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                     currentlyPlaying={currentlyPlaying}
                     handlePlayPause={handlePlayPause}
                     onLikeToggle={() => onLikeToggle(nft)}
-                    isLiked={likedNFTs.some(likedNft => 
-                      likedNft.contract === nft.contract && likedNft.tokenId === nft.tokenId
-                    )}
                     showTitleOverlay={true}
                     useCenteredPlay={true}
+                    userFid={userContext.user?.fid}
                   />
                 );
               })}
