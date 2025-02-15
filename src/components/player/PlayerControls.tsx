@@ -23,7 +23,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
       <button
         onClick={onPrevious}
         disabled={disabled}
-        className={`text-green-400 hover:text-green-300 transition-colors ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+        className={`text-purple-400 hover:text-purple-300 transition-colors ${disabled ? 'opacity-50 cursor-not-allowed' : ''} touch-manipulation`}
       >
         <svg xmlns="http://www.w3.org/2000/svg" height="32" viewBox="0 -960 960 960" width="32" fill="currentColor">
           <path d="M220-240v-480h80v480h-80Zm520 0L380-480l360-240v480Z" />
@@ -34,7 +34,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
       <button
         onClick={onPlayPause}
         disabled={disabled}
-        className={`w-12 h-12 rounded-full bg-green-400 text-black flex items-center justify-center hover:bg-green-300 transition-colors ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+        className={`w-12 h-12 rounded-full bg-purple-400 text-black flex items-center justify-center hover:bg-purple-300 transition-colors ${disabled ? 'opacity-50 cursor-not-allowed' : ''} touch-manipulation`}
       >
         {isPlaying ? (
           <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
@@ -51,7 +51,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
       <button
         onClick={onNext}
         disabled={disabled}
-        className={`text-green-400 hover:text-green-300 transition-colors ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+        className={`text-purple-400 hover:text-purple-300 transition-colors ${disabled ? 'opacity-50 cursor-not-allowed' : ''} touch-manipulation`}
       >
         <svg xmlns="http://www.w3.org/2000/svg" height="32" viewBox="0 -960 960 960" width="32" fill="currentColor">
           <path d="M660-240v-480h80v480h-80ZM140-240v-480l360 240-360 240Z" />

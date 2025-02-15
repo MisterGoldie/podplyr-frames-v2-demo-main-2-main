@@ -105,7 +105,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
 
   if (viewMode === 'list') {
     return (
-      <div className="group flex items-center gap-4 bg-gray-800/20 p-3 rounded-lg active:bg-gray-800/60 hover:bg-gray-800/40 transition-colors touch-manipulation">
+      <div className="group flex items-center gap-4 bg-gray-800/20 p-3 rounded-lg active:bg-gray-800/60 hover:bg-gray-800/40 transition-colors touch-manipulation shadow-lg shadow-purple-900/20">
         <div className="relative w-16 h-16 flex-shrink-0">
           <NFTImage
             nft={nft}
@@ -145,7 +145,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
 
   return (
     <div 
-      className="group relative bg-gray-800/20 rounded-lg overflow-hidden hover:bg-gray-800/40 active:bg-gray-800/60 transition-all duration-500 ease-in-out touch-manipulation"
+      className="group relative bg-gray-800/20 rounded-lg overflow-hidden hover:bg-gray-800/40 active:bg-gray-800/60 transition-all duration-500 ease-in-out touch-manipulation shadow-lg shadow-purple-900/20"
       onMouseEnter={(e) => {
         if (useCenteredPlay && e) startOverlayTimer(e);
       }}
