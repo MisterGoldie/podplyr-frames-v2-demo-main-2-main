@@ -200,7 +200,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
                 await handlePlay(e);
                 if (e) startOverlayTimer(e);
               }}
-              className="w-16 h-16 rounded-full bg-purple-500 text-black flex items-center justify-center mb-3 hover:scale-105 transform transition-all duration-300 ease-out active:scale-95"
+              className="w-16 h-16 rounded-full bg-purple-500 text-black flex items-center justify-center mb-3 hover:scale-105 transform transition-all duration-300 ease-out active:scale-95 touch-manipulation"
             >
               {isCurrentTrack && isPlaying ? (
                 <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px" fill="currentColor">
@@ -223,7 +223,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
               await handlePlay(e);
               if (e) startOverlayTimer(e);
             }}
-            className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-purple-500 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
+            className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-purple-500 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform touch-manipulation"
           >
             {isCurrentTrack && isPlaying ? (
               <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
