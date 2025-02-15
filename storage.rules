@@ -2,17 +2,25 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // Allow public read access to all files
-    match /{allPaths=**} {
-      allow read: if true;
-    }
-    
-    // Allow uploads to profile backgrounds with validation
+    // Allow public read access to profile backgrounds
     match /profile-backgrounds/{filename} {
+      allow read: if true;
+      
       allow write: if
+        // Size and type validation
         request.resource.size < 5 * 1024 * 1024 && // 5MB limit
         request.resource.contentType.matches('image/.*') && // Only images
-        filename.matches('^[0-9]+\\.[a-zA-Z]+$'); // Only valid filenames
+        
+        // Filename must be fid.extension
+        filename.matches('^[0-9]+\\.(jpg|jpeg|png)$') &&
+        
+        // Extract fid from filename and verify it matches the request
+        filename.split('.')[0] == request.auth.uid;
+    }
+    
+    // Default deny for all other paths
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
   }
 }

@@ -234,6 +234,8 @@ disabled={isUploading}
               width={120}
               height={120}
               className="rounded-full ring-4 ring-purple-400/20"
+              style={{ objectFit: 'cover' }}
+              priority={true}
             />
           </div>
           <div className="space-y-2 relative z-10">
