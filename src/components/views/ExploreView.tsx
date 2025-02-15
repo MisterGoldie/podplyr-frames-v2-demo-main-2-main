@@ -235,10 +235,10 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <h2 className="text-2xl font-mono text-green-400">
-                    {selectedUser.display_name || selectedUser.username}
-                  </h2>
-                  <p className="font-mono text-gray-400">@{selectedUser.username}</p>
+                  <h2 className="text-2xl font-mono text-green-400">@{selectedUser.username}</h2>
+                  <p className="font-mono text-sm text-gray-500">
+                    {nfts.length} {nfts.length === 1 ? 'NFT' : 'NFTs'} found
+                  </p>
                 </div>
               </div>
             </div>
