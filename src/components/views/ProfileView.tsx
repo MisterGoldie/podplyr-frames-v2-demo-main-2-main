@@ -121,9 +121,11 @@ const ProfileView: React.FC<ProfileViewProps> = ({
           </div>
           <div className="space-y-2">
             <h2 className="text-2xl font-mono text-purple-400">@{userContext.user?.username || 'user'}</h2>
-              <p className="font-mono text-sm text-purple-300/60">
-                {nfts.length} {nfts.length === 1 ? 'NFT' : 'NFTs'} found
-              </p>
+              {!isLoading && (
+                <p className="font-mono text-sm text-purple-300/60">
+                  {nfts.length} {nfts.length === 1 ? 'NFT' : 'NFTs'} found
+                </p>
+              )}
           </div>
         </div>
 
