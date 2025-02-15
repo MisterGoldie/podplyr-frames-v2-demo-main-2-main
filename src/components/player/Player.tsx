@@ -71,6 +71,32 @@ export const Player: React.FC<PlayerProps> = ({
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
   const [showControls, setShowControls] = useState(true);
   const hideControlsTimer = useRef<NodeJS.Timeout | undefined>(undefined);
+
+  // Auto-hide controls after 3 seconds of inactivity
+  useEffect(() => {
+    const handleUserActivity = () => {
+      setShowControls(true);
+      if (hideControlsTimer.current) {
+        clearTimeout(hideControlsTimer.current);
+      }
+      hideControlsTimer.current = setTimeout(() => {
+        setShowControls(false);
+      }, 3000);
+    };
+
+    handleUserActivity(); // Initial setup
+
+    document.addEventListener('mousemove', handleUserActivity);
+    document.addEventListener('touchstart', handleUserActivity);
+
+    return () => {
+      if (hideControlsTimer.current) {
+        clearTimeout(hideControlsTimer.current);
+      }
+      document.removeEventListener('mousemove', handleUserActivity);
+      document.removeEventListener('touchstart', handleUserActivity);
+    };
+  }, []);
   
   // Handle video time updates
   useEffect(() => {
@@ -427,7 +453,7 @@ export const Player: React.FC<PlayerProps> = ({
             </div>
 
             {/* Controls */}
-            <div className="flex items-center gap-4">
+            <div className={`flex items-center gap-4 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
               <button
                 onClick={() => setShowInfo(!showInfo)}
                 className="text-purple-400 hover:text-purple-300"
