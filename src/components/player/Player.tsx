@@ -520,7 +520,7 @@ export const Player: React.FC<PlayerProps> = ({
               <h3 className="font-mono text-purple-400 text-sm truncate flex-1 min-w-0">{nft.name}</h3>
               <button 
                 onClick={handleMinimizeToggle}
-                className="text-purple-400 hover:text-purple-300 p-1 transition-colors ml-4"
+                className="text-purple-400 hover:text-purple-300 p-1 transition-colors touch-manipulation"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor">
                   <path d="M480-345 240-585l56-56 184 184 184-184 56 56-240 240Z"/>
