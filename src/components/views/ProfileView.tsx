@@ -220,9 +220,9 @@ disabled={isUploading}
             />
           </div>
           <div className="space-y-2 relative z-10">
-            <h2 className="text-2xl font-mono text-purple-400">@{userContext.user?.username || 'user'}</h2>
+            <h2 className="text-2xl font-mono text-purple-400 text-shadow">@{userContext.user?.username || 'user'}</h2>
               {!isLoading && (
-                <p className="font-mono text-sm text-purple-300/60">
+                <p className="font-mono text-sm text-purple-300/60 text-shadow">
                   {nfts.length} {nfts.length === 1 ? 'NFT' : 'NFTs'} found
                 </p>
               )}
