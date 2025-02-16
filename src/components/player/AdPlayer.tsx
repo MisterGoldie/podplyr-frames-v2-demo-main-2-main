@@ -30,7 +30,7 @@ const AD_CONFIG = [
     video: '/ad-video-4.mp4',
     url: 'https://www.coinbase.com/',
     title: 'More Bitcoin',
-    domain: 'coinbase.com'
+    domain: 'coinbase.com/learn'
   }
 ];
 
