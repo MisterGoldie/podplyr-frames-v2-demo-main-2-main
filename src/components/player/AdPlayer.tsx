@@ -10,39 +10,27 @@ interface AdPlayerProps {
 const AD_CONFIG = [
   {
     video: '/ad-video.mp4',
-    url: 'https://acyl.world/TV',
+    url: 'https://acyl.world',  
     title: 'ACYL TV',
     domain: 'acyl.world'
   },
   {
     video: '/ad-video-2.mp4',
-    url: 'https://acyl.world/TV',
+    url: 'https://acyl.world',  
     title: 'ACYL Radio',
     domain: 'acyl.world'
   },
   {
     video: '/ad-video-3.mp4',
-    url: 'https://acyl.world/TV',
+    url: 'https://acyl.world/TV',  
     title: 'Art House',
-    domain: 'acyl.world'
+    domain: 'acyl.world/TV'
   },
   {
     video: '/ad-video-4.mp4',
     url: 'https://www.coinbase.com/',
     title: 'More Bitcoin',
     domain: 'coinbase.com'
-  },
-  {
-    video: '/ad-video-5.mp4',
-    url: 'https://acyl.world/TV',
-    title: 'ACYL Radio',
-    domain: 'acyl.world'
-  },
-  {
-    video: '/ad-video-6.mp4',
-    url: 'https://acyl.world/TV',
-    title: 'Visit ACYL',
-    domain: 'acyl.world'
   }
 ];
 
