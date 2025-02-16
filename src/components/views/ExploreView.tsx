@@ -123,15 +123,15 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                       className="group relative bg-gray-800/20 backdrop-blur-sm rounded-xl p-4 hover:bg-gray-800/40 transition-all cursor-pointer border border-gray-800/40 hover:border-green-400/40"
                     >
                       <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-full overflow-hidden flex-shrink-0 relative ring-2 ring-gray-800/60 group-hover:ring-green-400/40 transition-all">
-                          <Image
-                            src={user.pfp_url || `https://avatar.vercel.sh/${user.username}`}
-                            alt={user.display_name || user.username}
-                            className="object-cover"
-                            fill
-                            sizes="56px"
-                          />
-                        </div>
+                          <div className="w-14 h-14 rounded-full overflow-hidden flex-shrink-0 relative ring-2 ring-gray-800/60 group-hover:ring-green-400/40 transition-all">
+                            <Image
+                              src={user.pfp_url || `https://avatar.vercel.sh/${user.username}`}
+                              alt={user.display_name || user.username}
+                              className="object-cover"
+                              fill
+                              sizes="56px"
+                            />
+                          </div>
                         <div className="space-y-1 flex-1 min-w-0">
                           <h3 className="font-mono text-green-400 truncate group-hover:text-green-300 transition-colors">{user.display_name || user.username}</h3>
                           <p className="font-mono text-gray-400 text-sm truncate">@{user.username}</p>
@@ -225,15 +225,27 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
 
               {/* User Profile Header */}
               <div className="flex items-center gap-6 p-6 rounded-2xl bg-gray-800/20 backdrop-blur-sm border border-gray-800/40">
-                <div className="w-20 h-20 rounded-full overflow-hidden flex-shrink-0 relative ring-2 ring-gray-800/60">
-                  <Image
-                    src={selectedUser.pfp_url || `https://avatar.vercel.sh/${selectedUser.username}`}
-                    alt={selectedUser.display_name || selectedUser.username}
-                    className="object-cover"
-                    fill
-                    sizes="80px"
-                  />
-                </div>
+                <a 
+                  href={`https://warpcast.com/${selectedUser.username}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.open(`https://warpcast.com/${selectedUser.username}`, '_blank');
+                  }}
+                  className="block transition-transform hover:scale-105 active:scale-95"
+                >
+                  <div className="w-20 h-20 rounded-full overflow-hidden flex-shrink-0 relative ring-2 ring-gray-800/60">
+                    <Image
+                      src={selectedUser.pfp_url || `https://avatar.vercel.sh/${selectedUser.username}`}
+                      alt={selectedUser.display_name || selectedUser.username}
+                      className="object-cover"
+                      fill
+                      sizes="80px"
+                    />
+                  </div>
+                </a>
                 <div className="space-y-2">
                   <h2 className="text-2xl font-mono text-green-400">@{selectedUser.username}</h2>
                   {!isLoadingNFTs && (
