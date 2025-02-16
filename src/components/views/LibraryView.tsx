@@ -229,7 +229,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
             <p className="text-gray-400">
               {!userContext?.user?.fid
                 ? 'Must be on Farcaster to add to your library'
-                : 'Like some music NFTs to add them to your library.'
+                : 'Like some media NFTs to add them to your library.'
               }
             </p>
           </div>
