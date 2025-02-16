@@ -1,52 +1,104 @@
 import { NextRequest } from 'next/server';
+import { NotificationStore } from '../../../lib/NotificationStore';
+import { getNFTMetadata } from '../../../lib/nft';
+import { z } from 'zod';
+
+const appUrl = process.env.NEXT_PUBLIC_URL;
+
+// Validate frame message schema
+const frameMessageSchema = z.object({
+  untrustedData: z.object({
+    fid: z.number(),
+    url: z.string(),
+    messageHash: z.string(),
+    timestamp: z.number(),
+    network: z.number(),
+    buttonIndex: z.number().optional(),
+    castId: z.object({
+      fid: z.number(),
+      hash: z.string(),
+    }),
+  }),
+  trustedData: z.object({
+    messageBytes: z.string(),
+  }),
+});
 
 export async function POST(req: NextRequest) {
   try {
+    // Get frame message
     const body = await req.json();
-    console.log('Frame request body:', body);
+    const result = frameMessageSchema.safeParse(body);
     
-    // Validate that this is a valid frame request
-    const { untrustedData, trustedData } = body;
+    if (!result.success) {
+      console.error('Invalid frame message:', result.error);
+      return new Response(JSON.stringify({ error: 'Invalid frame message' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
     
-    if (!untrustedData?.fid || !trustedData?.messageBytes) {
-      return new Response(JSON.stringify({ error: 'Invalid frame request' }), {
+    const { untrustedData } = result.data;
+
+    // Get contract and tokenId from URL parameters
+    const url = new URL(req.url);
+    const contract = url.searchParams.get('contract');
+    const tokenId = url.searchParams.get('tokenId');
+
+    if (!contract || !tokenId) {
+      return new Response(JSON.stringify({ error: 'Missing contract or tokenId' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       });
     }
 
-    // Basic validation of the frame data
-    if (
-      typeof untrustedData.buttonIndex !== 'number' ||
-      untrustedData.buttonIndex < 1 ||
-      !trustedData.messageBytes ||
-      typeof trustedData.messageBytes !== 'string'
-    ) {
-      return new Response(JSON.stringify({ error: 'Invalid frame data' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
+    // Get NFT metadata
+    const nft = await getNFTMetadata(contract, tokenId);
+    const nftUrl = `${appUrl}/?contract=${contract}&tokenId=${tokenId}`;
 
-    // Return the next frame state
+    // Store the interaction with FID
+    const token = crypto.randomUUID();
+    await NotificationStore.create(untrustedData.fid, {
+      url: nftUrl,
+      token,
+      action: 'play'
+    });
+
+    // Create frame response
+    const frame = {
+      version: 'vNext',
+      image: nft.metadata?.image || `${appUrl}/api/og?contract=${contract}&tokenId=${tokenId}`,
+      title: nft.name || 'PODPlayr NFT',
+      description: nft.description || 'Listen to this NFT on PODPlayr',
+      buttons: [{
+        label: '▶️ Enter PODPlayr',
+        action: {
+          type: 'post_redirect',
+          target: nftUrl
+        },
+      }],
+      postUrl: `${appUrl}/api/frame?contract=${contract}&tokenId=${tokenId}`,
+    };
+
+    // Return frame response
     return new Response(
       JSON.stringify({
-        version: 'vNext',
-        image: 'https://podplayr.vercel.app/image.jpg',
-        buttons: [
-          {
-            label: 'Check this out'
-          }
-        ],
-        post_url: 'https://podplayr.vercel.app/api/frame'
+        ...frame,
+        // Frame V2 metadata
+        'fc:frame': frame.version,
+        'fc:frame:image': frame.image,
+        'fc:frame:post_url': frame.postUrl,
+        'fc:frame:button:1': frame.buttons[0].label,
+        'fc:frame:button:1:action': 'post_redirect',
+        'fc:frame:button:1:target': frame.buttons[0].action.target,
       }),
-      {
-        status: 200,
-        headers: {
+      { 
+        status: 200, 
+        headers: { 
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*',
           'Cache-Control': 'no-cache, no-store, must-revalidate'
-        },
+        } 
       }
     );
   } catch (error) {

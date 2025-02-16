@@ -11,10 +11,40 @@ import {
 import { sendFrameNotification } from "~/lib/notifs";
 
 export async function POST(request: NextRequest) {
+  // Verify Vercel webhook signature
+  const signature = request.headers.get('x-vercel-signature');
+  const webhookSecret = process.env.VERCEL_WEBHOOK_SECRET;
+  
+  if (!signature || !webhookSecret) {
+    return new Response('Unauthorized', { status: 401 });
+  }
+
+  // Compare signatures
+  const rawBody = await request.text();
+  const hmac = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(webhookSecret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const signature256 = await crypto.subtle.sign(
+    'HMAC',
+    hmac,
+    new TextEncoder().encode(rawBody)
+  );
+  const computedSignature = Array.from(new Uint8Array(signature256))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+
+  if (computedSignature !== signature) {
+    return new Response('Invalid signature', { status: 401 });
+  }
+
   // Check if Redis is configured
   const isRedisConfigured = process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN;
 
-  const requestJson = await request.json();
+  const requestJson = JSON.parse(rawBody);
 
   let data;
   try {

@@ -1,11 +1,15 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
+import { useToast } from '../../hooks/useToast';
 import Image from 'next/image';
 import { NFTCard } from '../nft/NFTCard';
 import type { NFT, UserContext } from '../../types/user';
 import { getLikedNFTs } from '../../lib/firebase';
+import { uploadProfileBackground } from '../../firebase';
 import { fetchUserNFTs } from '../../lib/nft';
+import { optimizeImage } from '../../utils/imageOptimizer';
+import { useUserImages } from '../../contexts/UserImageContext';
 
 interface ProfileViewProps {
   userContext: UserContext;
@@ -31,6 +35,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
   onLikeToggle
 }) => {
   const [likedNFTs, setLikedNFTs] = useState<NFT[]>([]);
+  const toast = useToast();
 
   // Load liked NFTs when user changes
   useEffect(() => {
@@ -49,6 +54,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({
   }, [userContext?.user?.fid]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const { backgroundImage, profileImage, setBackgroundImage } = useUserImages();
 
   useEffect(() => {
     const loadNFTs = async () => {
@@ -89,9 +97,99 @@ const ProfileView: React.FC<ProfileViewProps> = ({
       </header>
       <div className="space-y-8 pt-20 pb-48 overflow-y-auto h-screen overscroll-y-contain">
         {/* Profile Header */}
-        <div className="relative flex flex-col items-center text-center p-8 space-y-6 bg-gradient-to-br from-blue-600/40 via-purple-600/30 to-pink-600/40 rounded-3xl mx-4 backdrop-blur-lg w-[340px] h-[280px] mx-auto border border-purple-400/20 shadow-xl shadow-purple-900/30 overflow-hidden hover:border-indigo-400/30 transition-all duration-300">
+        <div className="relative flex flex-col items-center text-center p-8 space-y-6 rounded-3xl mx-4 w-[340px] h-[280px] mx-auto border border-purple-400/20 shadow-xl shadow-purple-900/30 overflow-hidden hover:border-indigo-400/30 transition-all duration-300"
+          style={{
+            background: backgroundImage 
+              ? `url(${backgroundImage}) center/cover no-repeat`
+              : 'linear-gradient(to bottom right, rgba(37, 99, 235, 0.4), rgba(147, 51, 234, 0.3), rgba(219, 39, 119, 0.4))'
+          }}
+        >
           {/* Glow effect */}
-          <div className="absolute inset-0 bg-gradient-to-tr from-blue-500/20 via-purple-500/15 to-pink-500/20 blur-2xl rounded-full -z-10 animate-pulse"></div>
+          <div className="absolute inset-0 bg-black/30"></div>
+          {error && (
+            <div className="absolute top-4 left-4 right-4 p-2 bg-red-500/80 text-white text-sm rounded-lg z-20">
+              {error}
+            </div>
+          )}
+          <input
+            type="file"
+            ref={fileInputRef}
+            className="hidden"
+            accept="image/*"
+            onChange={async (e) => {
+              const input = e.target as HTMLInputElement;
+              const files = input.files;
+              
+              if (!files || files.length === 0) {
+                setError('No file selected');
+                return;
+              }
+
+              const file = files[0];
+              if (!userContext?.user?.fid) {
+                setError('User not authenticated');
+                return;
+              }
+
+              if (file.size > 5 * 1024 * 1024) { // 5MB limit
+                setError('Image size must be less than 5MB');
+                return;
+              }
+
+              if (!file.type.startsWith('image/')) {
+                setError('Please select an image file');
+                return;
+              }
+
+              try {
+                setError(null);
+                setIsUploading(true);
+                console.log('Starting upload with file:', {
+                  name: file.name,
+                  type: file.type,
+                  size: file.size
+                });
+
+                // Optimize image before upload
+                const optimized = await optimizeImage(file);
+                console.log('Optimized image:', {
+                  width: optimized.width,
+                  height: optimized.height,
+                  size: optimized.size,
+                  reduction: `${Math.round((1 - optimized.size / file.size) * 100)}%`
+                });
+
+                // Upload optimized background
+                const url = await uploadProfileBackground(userContext.user.fid, optimized.file);
+                setBackgroundImage(url);
+
+                // Clear the input and show success state
+                input.value = '';
+                toast?.success('Background updated successfully');
+              } catch (err) {
+                console.error('Error uploading background:', err);
+                const errorMessage = err instanceof Error ? err.message : 'Failed to upload background image';
+                setError(errorMessage);
+                toast?.error(errorMessage);
+              } finally {
+                setIsUploading(false);
+              }
+            }}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className={`absolute top-4 right-4 p-2 rounded-full transition-colors duration-200 z-10 ${isUploading ? 'bg-purple-500/40 cursor-not-allowed' : 'bg-purple-500/20 hover:bg-purple-500/30 cursor-pointer'}`}
+disabled={isUploading}
+            title="Change background"
+          >
+            {isUploading ? (
+              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+            ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            )}
+          </button>
           {/* Floating music notes */}
           <div className="absolute inset-0 overflow-hidden">
             <div className="absolute text-2xl text-purple-400/30 animate-float-slow top-12 left-8">
@@ -110,18 +208,45 @@ const ProfileView: React.FC<ProfileViewProps> = ({
               ♫
             </div>
           </div>
-          <div className="relative">
-            <Image
-              src={userContext.user?.pfpUrl || '/default-avatar.png'}
-              alt={userContext.user?.displayName || 'User'}
-              width={120}
-              height={120}
-              className="rounded-full ring-4 ring-purple-400/20"
-            />
+          <div className="relative z-10">
+            {userContext?.user?.username ? (
+              <a 
+                href={`https://warpcast.com/${userContext.user.username}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block transition-transform hover:scale-105 active:scale-95"
+              >
+                <Image
+                  src={userContext.user?.pfpUrl || '/default-avatar.png'}
+                  alt={userContext.user?.username}
+                  width={120}
+                  height={120}
+                  className="rounded-full ring-4 ring-purple-400/20 cursor-pointer"
+                  style={{ objectFit: 'cover' }}
+                  priority={true}
+                />
+              </a>
+            ) : (
+              <Image
+                src='/default-avatar.png'
+                alt='User'
+                width={120}
+                height={120}
+                className="rounded-full ring-4 ring-purple-400/20"
+                style={{ objectFit: 'cover' }}
+                priority={true}
+              />
+            )}
           </div>
-          <div className="space-y-2">
-            <h2 className="text-2xl font-mono text-purple-400 font-bold">{userContext.user?.displayName || 'User'}</h2>
-            <p className="text-lg text-purple-300/60">@{userContext.user?.username || 'user'}</p>
+          <div className="space-y-2 relative z-10">
+            <h2 className="text-2xl font-mono text-purple-400 text-shadow">
+              {userContext?.user?.username ? `@${userContext.user.username}` : 'Welcome to PODPlayr'}
+            </h2>
+              {!isLoading && userContext?.user?.fid && (
+                <p className="font-mono text-sm text-purple-300/60 text-shadow">
+                  {nfts.length} {nfts.length === 1 ? 'NFT' : 'NFTs'} found
+                </p>
+              )}
           </div>
         </div>
 
@@ -135,6 +260,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                 <div className="absolute top-0 w-16 h-16 border-4 border-t-green-400 border-r-green-400 rounded-full animate-spin"></div>
               </div>
               <div className="text-xl font-mono text-green-400 animate-pulse">Loading your NFTs...</div>
+            </div>
+          ) : !userContext?.user?.fid ? (
+            <div className="text-center py-12">
+              <p className="text-gray-400 text-lg">Currently you can only create a profile through Farcaster</p>
             </div>
           ) : error ? (
             <div className="text-center py-12">
@@ -157,11 +286,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                     currentlyPlaying={currentlyPlaying}
                     handlePlayPause={handlePlayPause}
                     onLikeToggle={() => onLikeToggle(nft)}
-                    isLiked={likedNFTs.some(likedNft => 
-                      likedNft.contract === nft.contract && likedNft.tokenId === nft.tokenId
-                    )}
                     showTitleOverlay={true}
                     useCenteredPlay={true}
+                    userFid={userContext.user?.fid}
                   />
                 );
               })}
@@ -170,10 +297,17 @@ const ProfileView: React.FC<ProfileViewProps> = ({
             <div className="text-center py-12">
               <h3 className="text-xl text-red-500 mb-2">No Media NFTs Found</h3>
               <p className="text-gray-400">
-                No media NFTs found in your connected wallets
+                {!userContext?.user?.fid
+                  ? 'Currently you can only create a profile through Farcaster'
+                  : 'No media NFTs found in your connected wallets'
+                }
               </p>
             </div>
           )}
+        </div>
+        {/* Copyright text */}
+        <div className="text-center py-8 text-white/60 text-sm">
+          © THEPOD 2025 ALL RIGHTS RESERVED
         </div>
       </div>
     </>

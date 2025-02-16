@@ -1,7 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useContext } from 'react';
 import { NFT } from '../../types/user';
 import { NFTImage } from '../media/NFTImage';
 import { processMediaUrl } from '../../utils/media';
+import { useNFTLikeState } from '../../hooks/useNFTLikeState';
+import { useNFTPlayCount } from '../../hooks/useNFTPlayCount';
+import { FarcasterContext } from '../../app/providers';
 
 interface NFTCardProps {
   nft: NFT;
@@ -10,14 +13,16 @@ interface NFTCardProps {
   currentlyPlaying: string | null;
   handlePlayPause: () => void;
   onLikeToggle?: (nft: NFT) => Promise<void>;
-  isLiked?: boolean;
   publicCollections?: string[];
   onAddToCollection?: (nft: NFT, collectionId: string) => void;
   onRemoveFromCollection?: (nft: NFT, collectionId: string) => void;
   viewMode?: 'list' | 'grid';
   badge?: string;
+  playCountBadge?: string;
   showTitleOverlay?: boolean;
   useCenteredPlay?: boolean;
+  isLibraryView?: boolean;
+  userFid?: number;
 }
 
 export const NFTCard: React.FC<NFTCardProps> = ({ 
@@ -27,15 +32,31 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   currentlyPlaying, 
   handlePlayPause,
   onLikeToggle,
-  isLiked,
   publicCollections,
   onAddToCollection,
   onRemoveFromCollection,
   viewMode = 'grid',
   badge,
+  playCountBadge,
   showTitleOverlay = false,
-  useCenteredPlay = false
+  useCenteredPlay = false,
+  isLibraryView = false,
+  userFid = 0
 }) => {
+  // Get like state based on context - if we're in library view, NFT is always liked
+  const { isLiked: likeState, likesCount: globalLikesCount } = useNFTLikeState(nft, userFid || 0);
+  const isLiked = isLibraryView ? true : likeState; // In library view, always show as liked
+  const likesCount = isLibraryView ? Math.max(1, globalLikesCount) : globalLikesCount; // In library view, ensure at least 1 like
+  
+  // Get real-time play count
+  const { playCount } = useNFTPlayCount(nft);
+  
+  // Only show badge if explicitly passed as 'Top Played'
+  const shouldShowBadge = badge === 'Top Played';
+  
+  // Show play count pill if provided
+  const shouldShowPlayCount = Boolean(playCountBadge);
+  
   const [showCollectionMenu, setShowCollectionMenu] = useState(false);
   const [showOverlay, setShowOverlay] = useState(false);
   const overlayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -84,7 +105,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
 
   if (viewMode === 'list') {
     return (
-      <div className="group flex items-center gap-4 bg-gray-800/20 p-3 rounded-lg active:bg-gray-800/60 hover:bg-gray-800/40 transition-colors touch-manipulation">
+      <div className="group flex items-center gap-4 bg-gradient-to-br from-gray-800/30 to-gray-800/10 p-3 rounded-lg active:bg-gray-800/60 hover:bg-gray-800/40 transition-colors touch-manipulation shadow-xl shadow-purple-900/30 border border-purple-400/10">
         <div className="relative w-16 h-16 flex-shrink-0">
           <NFTImage
             nft={nft}
@@ -94,7 +115,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
             width={64}
             height={64}
           />
-          {badge && (
+          {shouldShowBadge && (
             <div className="absolute top-1 right-1 bg-purple-400 text-white text-xs px-1.5 py-0.5 rounded-full font-medium">
               {badge}
             </div>
@@ -124,7 +145,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
 
   return (
     <div 
-      className="group relative bg-gray-800/20 rounded-lg overflow-hidden hover:bg-gray-800/40 active:bg-gray-800/60 transition-all duration-500 ease-in-out touch-manipulation"
+      className="group relative bg-gradient-to-br from-gray-800/30 to-gray-800/10 rounded-lg overflow-hidden hover:bg-gray-800/40 active:bg-gray-800/60 transition-all duration-500 ease-in-out touch-manipulation shadow-xl shadow-purple-900/30 border border-purple-400/10"
       onMouseEnter={(e) => {
         if (useCenteredPlay && e) startOverlayTimer(e);
       }}
@@ -141,9 +162,10 @@ export const NFTCard: React.FC<NFTCardProps> = ({
           width={300}
           height={300}
         />
-        {badge && (
+        {/* Show play count pill if provided */}
+        {shouldShowPlayCount && (
           <div className="absolute top-2 left-2 bg-purple-400 text-white text-xs px-2 py-1 rounded-full font-medium">
-            {badge}
+            {playCountBadge}
           </div>
         )}
         <div className={useCenteredPlay ? 
@@ -178,7 +200,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
                 await handlePlay(e);
                 if (e) startOverlayTimer(e);
               }}
-              className="w-16 h-16 rounded-full bg-purple-500 text-black flex items-center justify-center mb-3 hover:scale-105 transform transition-all duration-300 ease-out active:scale-95"
+              className="w-16 h-16 rounded-full bg-purple-500 text-black flex items-center justify-center mb-3 hover:scale-105 transform transition-all duration-300 ease-out active:scale-95 touch-manipulation"
             >
               {isCurrentTrack && isPlaying ? (
                 <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px" fill="currentColor">
@@ -201,7 +223,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
               await handlePlay(e);
               if (e) startOverlayTimer(e);
             }}
-            className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-purple-500 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
+            className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-purple-500 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform touch-manipulation"
           >
             {isCurrentTrack && isPlaying ? (
               <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">

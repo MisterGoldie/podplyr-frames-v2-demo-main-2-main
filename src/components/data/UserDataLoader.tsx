@@ -41,7 +41,12 @@ export const UserDataLoader: React.FC<UserDataLoaderProps> = ({
         
         // Get Farcaster user data
         console.log('Fetching Farcaster user data...');
-        const users = await searchUsers(userFid.toString());
+        const users = await searchUsers(userFid.toString()).catch(error => {
+          console.error('Error searching for user:', error);
+          onError(error.message || 'Error searching for user');
+          return [];
+        });
+
         if (!users?.length) {
           console.error('No user found for FID:', userFid);
           onError('User not found');

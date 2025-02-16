@@ -46,9 +46,9 @@ export async function GET() {
       },
       frame: {
         version: "next",
-        imageUrl: "https://podplayr.vercel.app/image.jpg",
+        imageUrl: "https://podplayr.vercel.app/og-image.jpg",
         button: {
-          title: "Check this out",
+          title: "Enter PODPlayr",
           action: {
             type: "launch_frame",
             name: "POD Playr",

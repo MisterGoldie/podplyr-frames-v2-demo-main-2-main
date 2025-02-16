@@ -1,6 +1,59 @@
 import type { NFT } from '../types/user';
+import { Alchemy, Network } from 'alchemy-sdk';
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Initialize Alchemy client
+const alchemy = new Alchemy({
+  apiKey: process.env.NEXT_PUBLIC_ALCHEMY_API_KEY,
+  network: Network.ETH_MAINNET
+});
+
+export const getNFTMetadata = async (contract: string, tokenId: string): Promise<NFT> => {
+  try {
+    const metadata = await alchemy.nft.getNftMetadata(contract, tokenId);
+
+    // Process media URLs
+    const audioUrl = processMediaUrl(
+      metadata.raw.metadata?.animation_url ||
+      metadata.raw.metadata?.audio ||
+      metadata.raw.metadata?.audio_url ||
+      metadata.raw.metadata?.properties?.audio ||
+      metadata.raw.metadata?.properties?.audio_url ||
+      metadata.raw.metadata?.properties?.audio_file ||
+      metadata.raw.metadata?.properties?.soundContent?.url
+    );
+
+    const imageUrl = processMediaUrl(
+      metadata.raw.metadata?.image ||
+      metadata.raw.metadata?.image_url ||
+      metadata.raw.metadata?.properties?.image ||
+      metadata.raw.metadata?.properties?.visual?.url
+    );
+
+    // Ensure contract address is lowercase
+    const contractAddress = metadata.contract.address.toLowerCase();
+    const formattedTokenId = metadata.tokenId.toString().replace(/^0x/, '');
+
+    return {
+      contract: contractAddress,
+      tokenId: formattedTokenId,
+      name: metadata.raw.metadata?.name || `NFT #${formattedTokenId}`,
+      description: metadata.description || metadata.raw.metadata?.description || '',
+      image: imageUrl || '',
+      audio: audioUrl || '',
+      hasValidAudio: !!audioUrl,
+      metadata: {
+        ...metadata.raw.metadata,
+        image: imageUrl || '',
+        animation_url: audioUrl || ''
+      }
+    };
+  } catch (error) {
+    console.error('Error fetching NFT metadata:', error);
+    throw error;
+  }
+};
 
 const processMediaUrl = (url: string | undefined): string => {
   if (!url) return '';
@@ -30,7 +83,7 @@ export const fetchUserNFTsFromAlchemy = async (address: string): Promise<NFT[]> 
     if (!alchemyKey) throw new Error('Alchemy API key not found');
 
     const response = await fetch(
-      `https://eth-mainnet.g.alchemy.com/v2/${alchemyKey}/getNFTs?owner=${address}&withMetadata=true`,
+      `https://eth-mainnet.g.alchemy.com/v2/${alchemyKey}/getNFTs?owner=${address}&withMetadata=true&pageSize=100`,
       { headers: { accept: 'application/json' } }
     );
 
@@ -41,6 +94,7 @@ export const fetchUserNFTsFromAlchemy = async (address: string): Promise<NFT[]> 
 
     const data = await response.json();
     console.log(`Found ${data.ownedNfts?.length || 0} NFTs for address ${address}`);
+    console.log('Sample NFT data:', data.ownedNfts?.[0]);
 
     interface AlchemyNFT {
       contract: {
@@ -50,7 +104,9 @@ export const fetchUserNFTsFromAlchemy = async (address: string): Promise<NFT[]> 
           imageUrl?: string;
         };
       };
-      tokenId: string;
+      id: {
+        tokenId: string;
+      };
       title?: string;
       description?: string;
       metadata?: {
@@ -79,7 +135,8 @@ export const fetchUserNFTsFromAlchemy = async (address: string): Promise<NFT[]> 
     }
 
     // Process NFTs to identify audio content
-    const processedNFTs = (data.ownedNfts || []).map((nft: AlchemyNFT) => {
+    const processedNFTs = (data.ownedNfts || [] as AlchemyNFT[])
+      .map((nft: AlchemyNFT) => {
       const audioUrl = processMediaUrl(
         nft.metadata?.animation_url ||
         nft.metadata?.audio ||
@@ -113,11 +170,27 @@ export const fetchUserNFTsFromAlchemy = async (address: string): Promise<NFT[]> 
         /\.(glb|gltf)$/i.test(audioUrl)
       );
 
-      return {
+      // Ensure tokenId is a string and properly formatted
+      const tokenId = nft.id?.tokenId?.toString()?.replace(/^0x/, '');
+      if (!tokenId) {
+        console.warn('Missing tokenId for NFT:', nft);
+        return null;
+      }
+      
+      // Log NFT details for debugging
+      console.log('Processing NFT:', {
         contract: nft.contract.address,
-        tokenId: nft.tokenId,
-        name: nft.metadata?.name || nft.title || `#${nft.tokenId}`,
-        description: nft.description || nft.metadata?.description,
+        tokenId,
+        name: nft.metadata?.name,
+        audioUrl,
+        imageUrl
+      });
+
+      const processedNFT: NFT = {
+        contract: nft.contract.address.toLowerCase(),
+        tokenId: tokenId,
+        name: nft.metadata?.name || `NFT #${tokenId}`,
+        description: nft.metadata?.description || '',
         image: imageUrl || '',
         animationUrl: audioUrl || '',
         audio: audioUrl || '',
@@ -130,9 +203,29 @@ export const fetchUserNFTsFromAlchemy = async (address: string): Promise<NFT[]> 
         },
         metadata: nft.metadata
       } as NFT;
+      return processedNFT;
+    }).filter((nft: NFT | null): nft is NFT => {
+      if (!nft) return false;
+      console.log('Filtering NFT:', {
+        contract: nft.contract,
+        tokenId: nft.tokenId,
+        hasValidAudio: nft.hasValidAudio,
+        audio: nft.audio
+      });
+      return nft.hasValidAudio === true;
     });
 
-    return processedNFTs.filter((nft: NFT) => nft.hasValidAudio);
+    return processedNFTs.map((nft: NFT) => ({
+      ...nft,
+      // Ensure contract and tokenId are properly formatted
+      contract: nft.contract.toLowerCase(),
+      tokenId: nft.tokenId.toString().replace(/^0x/, ''),
+      // Ensure all required fields have values
+      image: nft.image || '',
+      animationUrl: nft.audio || '',
+      audio: nft.audio || '',
+      hasValidAudio: true as const
+    }));
   } catch (error) {
     console.error(`Error fetching NFTs for address ${address}:`, error);
     return [];

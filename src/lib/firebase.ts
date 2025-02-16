@@ -18,10 +18,13 @@ import {
   getDoc,
   deleteDoc,
   documentId,
-  serverTimestamp
+  serverTimestamp,
+  writeBatch,
+  DocumentSnapshot
 } from 'firebase/firestore';
 import type { NFT, FarcasterUser, SearchedUser, NFTPlayData } from '../types/user';
 import { fetchUserNFTsFromAlchemy } from './alchemy';
+import { getMediaKey } from '~/utils/media';
 
 // Initialize Firebase with your config
 const firebaseConfig = {
@@ -176,11 +179,9 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
     const finalAddresses = Array.from(addresses);
     console.log('Final addresses:', finalAddresses);
 
-    // Store user data in searchedusers collection for NFT retrieval
-    const searchedUserRef = doc(db, 'searchedusers', searchedUser.fid.toString());
-    const searchedUserDoc = await getDoc(searchedUserRef);
-    const existingSearchData = searchedUserDoc.exists() ? searchedUserDoc.data() : {};
-    
+    // Update searchedusers collection with user data and search info
+    const now = new Date().getTime();
+    const searchedUserRef = doc(db, 'searchedusers', user.fid.toString());
     const searchedUserData = {
       fid: user.fid,
       username: user.username,
@@ -190,30 +191,41 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
       verifiedAddresses: finalAddresses,
       follower_count: user.follower_count,
       following_count: user.following_count,
-      searchCount: (existingSearchData.searchCount || 0) + 1,
-      lastSearched: serverTimestamp(),
-      timestamp: existingSearchData.timestamp || serverTimestamp()
+      lastSearched: now,
+      searchCount: increment(1)
     };
-
-    await setDoc(searchedUserRef, searchedUserData);
+    await setDoc(searchedUserRef, searchedUserData, { merge: true });
 
     // Cache the first available address for NFT retrieval
     if (finalAddresses.length > 0) {
       await cacheUserWallet(user.fid, finalAddresses[0]);
     }
-
-    // Track the search in user_searches collection for recent searches
+    
+    // Also track in user_searches for history
+    console.log('=== TRACKING USER SEARCH ===');
+    console.log('FID:', fid);
+    console.log('Searched User:', user);
+    
     const searchRef = collection(db, 'user_searches');
-    await addDoc(searchRef, {
-      fid,
+    const timestamp = Date.now();
+    console.log('Using timestamp:', new Date(timestamp));
+    
+    // Create the search record using unified index pattern
+    const searchRecord = {
+      searching_fid: fid, // Changed from fid to match index
       searchedFid: user.fid,
       searchedUsername: user.username,
       searchedDisplayName: user.display_name,
       searchedPfpUrl: user.pfp_url,
       searchedFollowerCount: user.follower_count,
       searchedFollowingCount: user.following_count,
-      timestamp: serverTimestamp()
-    });
+      timestamp: timestamp, // Use client timestamp for immediate ordering
+      serverTimestamp: serverTimestamp() // Keep server timestamp for consistency
+    };
+    
+    console.log('Adding search with data:', searchRecord);
+    await addDoc(searchRef, searchRecord);
+    console.log('Search tracked successfully');
 
     return {
       ...user,
@@ -227,25 +239,148 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
 };
 
 // Get recent searches with optional FID filter
+// Subscribe to recent searches
+export const subscribeToRecentSearches = (fid: number, callback: (searches: SearchedUser[]) => void) => {
+  const searchesRef = collection(db, 'user_searches');
+  // Use unified index pattern for recent searches
+  const q = query(
+    searchesRef,
+    where('searching_fid', '==', fid),
+    orderBy('timestamp', 'desc'),
+    limit(20)
+  );
+
+  console.log('=== SUBSCRIBING TO RECENT SEARCHES ===');
+  console.log('FID:', fid);
+  
+  console.log('Setting up snapshot listener with query:', {
+    fid,
+    orderBy: 'timestamp',
+    direction: 'desc',
+    limit: 20
+  });
+
+  return onSnapshot(q, (snapshot) => {
+    console.log('=== RECEIVED SEARCH UPDATE ===');
+    console.log('Number of docs:', snapshot.docs.length);
+    
+    // Check if there are any changes
+    if (snapshot.empty) {
+      console.log('No documents found');
+      callback([]);
+      return;
+    }
+
+    if (!snapshot.metadata.hasPendingWrites) {
+      console.log('Update is from server, not local');
+    }
+    
+    // Use a Map to keep only the most recent search for each searchedFid
+    const uniqueSearches = new Map<number, SearchedUser>();
+    const recentSearches: SearchedUser[] = [];
+    
+    // Process docs in order (already sorted by timestamp desc)
+    const processedFids = new Set<number>();
+    const updatedSearches: SearchedUser[] = [];
+    
+    // First handle any modifications or removals
+    snapshot.docChanges().forEach(change => {
+      if (change.type === 'modified' || change.type === 'removed') {
+        const data = change.doc.data();
+        const searchedFid = data.searchedFid;
+        uniqueSearches.delete(searchedFid);
+        processedFids.delete(searchedFid);
+      }
+    });
+    
+    // Then process all current documents
+    snapshot.docs.forEach(doc => {
+      const data = doc.data();
+      const searchedFid = data.searchedFid;
+      
+      // Skip if we've already seen this FID
+      if (processedFids.has(searchedFid)) {
+        return;
+      }
+      
+      // Handle different timestamp formats
+      let timestamp: number;
+      if (data.timestamp) {
+        if (typeof data.timestamp === 'object' && 'toMillis' in data.timestamp) {
+          // Firestore Timestamp
+          timestamp = data.timestamp.toMillis();
+        } else if (typeof data.timestamp === 'number') {
+          // Unix timestamp in milliseconds
+          timestamp = data.timestamp;
+        } else if (typeof data.timestamp === 'string') {
+          // ISO string timestamp
+          timestamp = new Date(data.timestamp).getTime();
+        } else {
+          console.warn('Unknown timestamp format:', data.timestamp);
+          timestamp = Date.now();
+        }
+      } else {
+        timestamp = Date.now();
+      }
+      
+      console.log('Processing search for FID:', searchedFid, 'with timestamp:', new Date(timestamp));
+      const searchedUser = {
+        fid: searchedFid,
+        username: data.searchedUsername,
+        display_name: data.searchedDisplayName,
+        pfp_url: data.searchedPfpUrl,
+        follower_count: data.searchedFollowerCount || 0,
+        following_count: data.searchedFollowingCount || 0,
+        searchCount: 1,
+        timestamp: timestamp,
+        lastSearched: timestamp
+      };
+      
+      uniqueSearches.set(searchedFid, searchedUser);
+      updatedSearches.push(searchedUser);
+      processedFids.add(searchedFid);
+    });
+
+    // Sort by timestamp descending (most recent first)
+    const sortedSearches = updatedSearches.sort((a, b) => b.timestamp - a.timestamp);
+    
+    console.log('Final recent searches:', sortedSearches);
+    // Take first 8 unique users
+    callback(sortedSearches.slice(0, 8));
+  });
+};
+
 export const getRecentSearches = async (fid?: number): Promise<SearchedUser[]> => {
   try {
+    // Get from user_searches to maintain proper chronological order
     const searchesRef = collection(db, 'user_searches');
+    // Use unified index pattern for both filtered and unfiltered queries
     const q = fid
-      ? query(searchesRef, where('fid', '==', fid), orderBy('timestamp', 'desc'), limit(20)) 
-      : query(searchesRef, orderBy('timestamp', 'desc'), limit(20));
+      ? query(
+          searchesRef,
+          where('searching_fid', '==', fid),
+          orderBy('timestamp', 'desc'),
+          limit(20)
+        )
+      : query(
+          searchesRef,
+          orderBy('timestamp', 'desc'),
+          limit(20)
+        );
 
     const snapshot = await getDocs(q);
     
     // Use a Map to keep only the most recent search for each searchedFid
     const uniqueSearches = new Map<number, SearchedUser>();
     
+    // Process docs in reverse chronological order
     snapshot.docs.forEach(doc => {
       const data = doc.data();
       const searchedFid = data.searchedFid;
+      const timestamp = data.timestamp;
       
-      // Only add if this fid hasn't been seen yet or if this is a more recent search
-      const existingSearch = uniqueSearches.get(searchedFid);
-      if (!existingSearch || data.timestamp > existingSearch.timestamp) {
+      // Only add if this fid hasn't been seen yet (first occurrence is most recent due to orderBy)
+      if (!uniqueSearches.has(searchedFid)) {
         uniqueSearches.set(searchedFid, {
           fid: searchedFid,
           username: data.searchedUsername,
@@ -254,139 +389,444 @@ export const getRecentSearches = async (fid?: number): Promise<SearchedUser[]> =
           follower_count: data.searchedFollowerCount || 0,
           following_count: data.searchedFollowingCount || 0,
           searchCount: 1,
-          timestamp: data.timestamp,
-          lastSearched: data.timestamp
+          timestamp: timestamp,
+          lastSearched: timestamp
         });
       }
     });
 
-    // Convert Map values to array and take only the first 8 unique users
-    return Array.from(uniqueSearches.values())
-      .sort((a, b) => b.timestamp - a.timestamp)
-      .slice(0, 8);
+    // Convert to array maintaining query order (already sorted by timestamp desc)
+    const recentSearches: SearchedUser[] = [];
+    snapshot.docs.forEach(doc => {
+      const searchedFid = doc.data().searchedFid;
+      const user = uniqueSearches.get(searchedFid);
+      if (user && !recentSearches.some(s => s.fid === searchedFid)) {
+        recentSearches.push(user);
+      }
+    });
+
+    // Take first 8 unique users
+    return recentSearches.slice(0, 8);
   } catch (error) {
     console.error('Error getting recent searches:', error);
     return [];
   }
 };
 
-// Track NFT play and update play count
+// Track NFT play and update play count globally
 export const trackNFTPlay = async (nft: NFT, fid: number) => {
   try {
-    // Get the audio URL from either source
-    const audioUrl = nft.metadata?.animation_url || nft.audio;
-    if (!audioUrl) return;
+    if (!nft || !fid) {
+      console.error('Invalid NFT or FID provided to trackNFTPlay');
+      return;
+    }
 
-    // Store play data with default values for undefined fields
-    const playData = {
+    // Validate required NFT fields
+    if (!nft.contract || !nft.tokenId) {
+      console.error('NFT missing required fields:', { 
+        contract: nft?.contract, 
+        tokenId: nft?.tokenId,
+        name: nft?.name,
+        metadata: nft?.metadata
+      });
+      return;
+    }
+
+    // Ensure we have a valid name
+    if (!nft.name) {
+      nft.name = nft.metadata?.name || `NFT #${nft.tokenId}`;
+    }
+
+    // Get audio URL with fallbacks
+    const audioUrl = nft.metadata?.animation_url || nft.audio || nft.metadata?.audio || nft.metadata?.audio_url;
+    if (!audioUrl) {
+      console.error('No audio URL found for NFT:', {
+        contract: nft.contract,
+        tokenId: nft.tokenId,
+        name: nft.name,
+        audio: nft.audio,
+        metadata: {
+          animation_url: nft.metadata?.animation_url,
+          audio: nft.metadata?.audio,
+          audio_url: nft.metadata?.audio_url
+        }
+      });
+      return;
+    }
+
+    // Get mediaKey for consistent NFT content identification
+    const mediaKey = getMediaKey(nft);
+    if (!mediaKey) {
+      console.error('Could not generate mediaKey for NFT:', nft);
+      return;
+    }
+
+    const batch = writeBatch(db);
+
+    // Update global_plays with mediaKey
+    const globalPlayRef = doc(db, 'global_plays', mediaKey);
+    const globalPlayDoc = await getDoc(globalPlayRef);
+
+    // Get the current play count
+    let currentPlayCount = 0;
+    if (globalPlayDoc.exists()) {
+      const data = globalPlayDoc.data();
+      currentPlayCount = data.playCount || 0;
+      // Keep the existing play count and increment it
+      batch.update(globalPlayRef, {
+        playCount: increment(1),
+        lastPlayed: serverTimestamp(),
+        // Always update metadata to ensure it's current
+        name: nft.name || data.name || 'Untitled',
+        image: nft.image || data.image || '',
+        audioUrl: audioUrl || data.audioUrl,
+        description: nft.description || nft.metadata?.description || data.description || '',
+        collection: nft.collection?.name || data.collection || 'Unknown Collection',
+        network: nft.network || data.network || 'ethereum'
+      });
+    } else {
+      // Ensure all required fields are present and have fallback values
+      const nftData = {
+        mediaKey,
+        nftContract: nft.contract,
+        tokenId: nft.tokenId,
+        name: nft.name || 'Untitled',
+        description: nft.description || nft.metadata?.description || '',
+        image: nft.image || nft.metadata?.image || '',
+        audioUrl,
+        collection: nft.collection?.name || 'Unknown Collection',
+        network: nft.network || 'ethereum',
+        playCount: 1,
+        firstPlayed: serverTimestamp(),
+        lastPlayed: serverTimestamp()
+      };
+
+      // Validate all fields before setting
+      Object.entries(nftData).forEach(([key, value]) => {
+        if (value === undefined) {
+          console.error(`Required field ${key} is undefined in NFT data`);
+          throw new Error(`Required field ${key} is undefined`);
+        }
+      });
+
+      batch.set(globalPlayRef, nftData);
+    }
+
+    // Calculate new play count after the increment
+    const newPlayCount = currentPlayCount + 1;
+
+    // Update NFT document
+    const nftRef = doc(db, 'nfts', `${nft.contract}-${nft.tokenId}`);
+    const nftDoc = await getDoc(nftRef);
+    if (nftDoc.exists()) {
+      batch.update(nftRef, {
+        plays: newPlayCount,
+        lastPlayed: serverTimestamp()
+      });
+    }
+
+    // Update top_played collection
+    const topPlayedRef = doc(db, 'top_played', mediaKey);
+    const topPlayedDoc = await getDoc(topPlayedRef);
+    
+    if (!topPlayedDoc.exists()) {
+      // First time in top_played
+      batch.set(topPlayedRef, {
+        mediaKey,
+        nftContract: nft.contract,
+        tokenId: nft.tokenId,
+        name: nft.name || 'Untitled',
+        image: nft.image || '',
+        audioUrl: audioUrl,
+        description: nft.description || nft.metadata?.description || '',
+        collection: nft.collection?.name || 'Unknown Collection',
+        network: nft.network || 'ethereum',
+        firstTopPlayedAt: serverTimestamp(),
+        lastPlayed: serverTimestamp(),
+        playCount: newPlayCount
+      });
+    } else {
+      // Update existing top_played entry with latest metadata
+      const data = topPlayedDoc.data();
+      batch.update(topPlayedRef, {
+        lastPlayed: serverTimestamp(),
+        playCount: increment(1),
+        // Always update metadata to ensure it's current
+        name: nft.name || data.name || 'Untitled',
+        image: nft.image || data.image || '',
+        audioUrl: audioUrl || data.audioUrl,
+        description: nft.description || nft.metadata?.description || data.description || '',
+        collection: nft.collection?.name || data.collection || 'Unknown Collection',
+        network: nft.network || data.network || 'ethereum'
+      });
+    }
+
+    // Also update nft_plays collection for backward compatibility
+    const nftPlayData = {
       fid,
       nftContract: nft.contract,
       tokenId: nft.tokenId,
       name: nft.name || 'Untitled',
-      description: nft.description || '',
+      description: nft.description || nft.metadata?.description || '',
       image: nft.image || nft.metadata?.image || '',
       audioUrl: audioUrl,
       collection: nft.collection?.name || 'Unknown Collection',
       network: nft.network || 'ethereum',
-      timestamp: new Date().toISOString(),
-      playCount: 1
+      timestamp: serverTimestamp(),
+      playCount: currentPlayCount + 1 // Use the actual play count
     };
+    await addDoc(collection(db, 'nft_plays'), nftPlayData);
 
-    // Add to global nft_plays collection
-    await addDoc(collection(db, 'nft_plays'), playData);
-
-    // Add to user's play history
+    // Track in user's play history
     const userRef = doc(db, 'users', fid.toString());
     const playHistoryRef = collection(userRef, 'playHistory');
+    await addDoc(playHistoryRef, {
+      ...nftPlayData,
+      mediaKey,
+      timestamp: serverTimestamp()
+    });
 
-    // Check if the NFT has been played before
-    const q = query(
-      playHistoryRef,
-      where('nftContract', '==', nft.contract),
-      where('tokenId', '==', nft.tokenId)
-    );
-
-    const querySnapshot = await getDocs(q);
-    
-    if (!querySnapshot.empty) {
-      // Update existing play history
-      const docRef = querySnapshot.docs[0].ref;
-      await updateDoc(docRef, {
-        timestamp: new Date().toISOString(),
-        playCount: increment(1)
-      });
-    } else {
-      // Create new play history
-      await addDoc(playHistoryRef, playData);
-    }
+    // Commit the batch
+    await batch.commit();
   } catch (error) {
-    console.error('Error tracking NFT play:', error);
+    console.error('Error tracking NFT play:', error instanceof Error ? error.message : 'Unknown error');
+    throw error; // Re-throw to allow handling by the caller
   }
 };
 
-// Get top played NFTs
+// Get top played NFTs from global plays collection
 export async function getTopPlayedNFTs(): Promise<{ nft: NFT; count: number }[]> {
-  const nftPlaysRef = collection(db, 'nft_plays');
-  const q = query(
-    nftPlaysRef,
-    orderBy('nftContract'),
-    orderBy('tokenId')
-  );
-  
-  const querySnapshot = await getDocs(q);
-  const playCount: { [key: string]: { count: number, nft: NFT, lastPlayed: Date } } = {};
-  
-  querySnapshot.forEach((doc) => {
-    const data = doc.data();
-    const nftKey = `${data.nftContract.toLowerCase()}-${data.tokenId}`;
+  try {
+    // Get all global plays, ordered by play count
+    const globalPlaysRef = collection(db, 'global_plays');
+    const q = query(
+      globalPlaysRef,
+      orderBy('playCount', 'desc'),
+      limit(10) // Get more than we need to account for duplicates
+    );
     
-    if (!playCount[nftKey]) {
-      playCount[nftKey] = {
-        count: 1,
-        lastPlayed: new Date(data.timestamp),
-        nft: {
-          contract: data.nftContract,
-          tokenId: data.tokenId,
-          name: data.name,
-          description: data.description,
-          image: data.image,
-          hasValidAudio: true,
-          metadata: {
-            name: data.name,
-            description: data.description,
-            image: data.image,
-            animation_url: data.audioUrl
-          },
-          collection: {
-            name: data.collection
-          },
-          network: data.network || 'ethereum'
-        }
+    const querySnapshot = await getDocs(q);
+    const topPlayed: { nft: NFT; count: number }[] = [];
+    
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      if (!data.mediaKey || !data.nftContract || !data.tokenId) return;
+      
+      // Create NFT object from global_plays data
+      const nft: NFT = {
+        contract: data.nftContract,
+        tokenId: data.tokenId,
+        name: data.name || 'Untitled NFT',
+        description: data.description || '',
+        image: data.image || '',
+        audio: data.audioUrl,
+        hasValidAudio: Boolean(data.audioUrl),
+        metadata: {
+          name: data.name || 'Untitled NFT',
+          description: data.description || '',
+          image: data.image || '',
+          animation_url: data.audioUrl
+        },
+        collection: {
+          name: data.collection || 'Unknown Collection'
+        },
+        network: data.network || 'ethereum'
       };
-    } else {
-      playCount[nftKey].count++;
-      const playDate = new Date(data.timestamp);
-      if (playDate > playCount[nftKey].lastPlayed) {
-        playCount[nftKey].lastPlayed = playDate;
-      }
-    }
-  });
 
-  return Object.values(playCount)
-    .sort((a, b) => {
-      if (b.count !== a.count) return b.count - a.count;
-      return b.lastPlayed.getTime() - a.lastPlayed.getTime();
-    })
-    .slice(0, 3)
-    .map(({ nft, count }) => ({ nft, count }));
+      topPlayed.push({
+        nft,
+        count: data.playCount || 0
+      });
+    });
+
+    // Sort by play count in descending order and deduplicate by mediaKey
+    const mediaKeyMap = new Map<string, { nft: NFT; count: number }>();
+    
+    // Keep only the highest play count for each unique content
+    topPlayed.forEach(item => {
+      const mediaKey = getMediaKey(item.nft);
+      if (!mediaKey) return;
+      
+      const existing = mediaKeyMap.get(mediaKey);
+      if (!existing || item.count > existing.count) {
+        mediaKeyMap.set(mediaKey, item);
+      }
+    });
+
+    // Convert back to array, sort by play count, and take top 3
+    const uniqueTopPlayed = Array.from(mediaKeyMap.values())
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 3);
+
+    console.log('Unique top played NFTs:', uniqueTopPlayed);
+
+    // Update top_played collection
+    const batch = writeBatch(db);
+    const topPlayedRef = collection(db, 'top_played');
+
+    // First, clear existing top_played collection
+    const existingTopPlayed = await getDocs(topPlayedRef);
+    existingTopPlayed.forEach((doc) => {
+      batch.delete(doc.ref);
+    });
+
+    // Add new top played NFTs
+    for (const item of uniqueTopPlayed) {
+      const mediaKey = getMediaKey(item.nft);
+      if (!mediaKey) continue;
+      
+      const docRef = doc(topPlayedRef, mediaKey);
+      const existingDoc = await getDoc(docRef);
+      const now = serverTimestamp();
+      
+      batch.set(docRef, {
+        mediaKey,
+        nft: item.nft,
+        playCount: item.count,
+        rank: uniqueTopPlayed.indexOf(item) + 1,
+        firstTopPlayedAt: existingDoc.exists() ? existingDoc.data()?.firstTopPlayedAt : now,
+        lastTopPlayedAt: now,
+        updatedAt: now
+      });
+    }
+
+    await batch.commit();
+    return uniqueTopPlayed;
+  } catch (error) {
+    console.error('Error getting top played NFTs:', error instanceof Error ? error.message : 'Unknown error');
+    return [];
+  }
 }
+
+// Check if an NFT is currently in the top played section
+export async function hasBeenTopPlayed(nft: NFT | null): Promise<boolean> {
+  if (!nft) return false;
+  
+  try {
+    const mediaKey = getMediaKey(nft);
+    if (!mediaKey) return false;
+
+    // Get current top played NFTs
+    const topPlayedRef = collection(db, 'top_played');
+    const q = query(
+      topPlayedRef,
+      orderBy('playCount', 'desc'),
+      limit(3) // Only get top 3 NFTs
+    );
+    
+    const querySnapshot = await getDocs(q);
+    let isCurrentlyTopPlayed = false;
+
+    // Check if this NFT's mediaKey is in the current top 3
+    querySnapshot.forEach(doc => {
+      const data = doc.data();
+      if (data.mediaKey === mediaKey) {
+        isCurrentlyTopPlayed = true;
+      }
+    });
+    
+    return isCurrentlyTopPlayed;
+  } catch (error) {
+    console.error('Error checking top played status:', error);
+    return false;
+  }
+}
+
+// Clean up old likes and migrate to new format
+export const cleanupLikes = async (fid: number) => {
+  try {
+    console.log('Starting likes cleanup for FID:', fid);
+    const userLikesRef = collection(db, 'user_likes');
+    const q = query(userLikesRef, where('fid', '==', fid));
+    const querySnapshot = await getDocs(q);
+    
+    // Group documents by mediaKey
+    const byMediaKey: { [key: string]: { docs: any[], latestTimestamp: any } } = {};
+    
+    querySnapshot.forEach(doc => {
+      const data = doc.data();
+      const mediaKey = data.mediaKey || getMediaKey({
+        contract: data.nftContract,
+        tokenId: data.tokenId,
+        audio: data.audioUrl,
+        image: data.image
+      } as NFT);
+      
+      if (!byMediaKey[mediaKey]) {
+        byMediaKey[mediaKey] = { docs: [], latestTimestamp: null };
+      }
+      byMediaKey[mediaKey].docs.push({ id: doc.id, data });
+      
+      // Track the latest timestamp
+      if (!byMediaKey[mediaKey].latestTimestamp || 
+          (data.timestamp && data.timestamp > byMediaKey[mediaKey].latestTimestamp)) {
+        byMediaKey[mediaKey].latestTimestamp = data.timestamp;
+      }
+    });
+    
+    // For each mediaKey, keep only the latest document
+    const batch = writeBatch(db);
+    let deleteCount = 0;
+    let migrateCount = 0;
+    
+    for (const [mediaKey, { docs, latestTimestamp }] of Object.entries(byMediaKey)) {
+      // Sort by timestamp, newest first
+      docs.sort((a, b) => {
+        const aTime = a.data.timestamp?.toMillis() || 0;
+        const bTime = b.data.timestamp?.toMillis() || 0;
+        return bTime - aTime;
+      });
+      
+      // Keep the newest document, delete others
+      const keep = docs[0];
+      
+      // Create new document with consistent ID format
+      const encoder = new TextEncoder();
+      const mediaKeyBytes = encoder.encode(mediaKey);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', mediaKeyBytes);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      const newDocId = `${fid}-${hashHex.substring(0, 32)}`;
+      
+      // Create new document with clean data
+      const newDocRef = doc(db, 'user_likes', newDocId);
+      batch.set(newDocRef, {
+        fid,
+        mediaKey,
+        nftContract: keep.data.nftContract,
+        tokenId: keep.data.tokenId,
+        name: keep.data.name || 'Untitled',
+        description: keep.data.description || '',
+        image: keep.data.image || '',
+        audioUrl: keep.data.audioUrl || '',
+        collection: keep.data.collection || 'Unknown Collection',
+        timestamp: latestTimestamp || serverTimestamp()
+      });
+      migrateCount++;
+      
+      // Delete all old documents
+      docs.forEach(({ id }) => {
+        if (id !== newDocId) {
+          const docRef = doc(db, 'user_likes', id);
+          batch.delete(docRef);
+          deleteCount++;
+        }
+      });
+    }
+    
+    await batch.commit();
+    console.log(`Cleanup complete. Migrated ${migrateCount} likes, deleted ${deleteCount} old documents.`);
+  } catch (error) {
+    console.error('Error during likes cleanup:', error);
+  }
+};
 
 // Get liked NFTs for a user
 export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
   try {
     console.log('Getting liked NFTs for FID:', fid);
-    const userLikesRef = collection(db, 'user_likes');
-    const q = query(userLikesRef, where(documentId(), '>=', `${fid}-`), where(documentId(), '<', `${fid + 1}-`));
+    const userLikesRef = collection(db, 'users', fid.toString(), 'likes');
+    const q = query(userLikesRef, orderBy('timestamp', 'asc'));
     const querySnapshot = await getDocs(q);
     
     if (querySnapshot.empty) {
@@ -395,31 +835,47 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
     }
 
     const likedNFTs: NFT[] = [];
+    const seenMediaKeys = new Set<string>();
     
-    for (const doc of querySnapshot.docs) {
-      const data = doc.data();
-      const [docFid, contract, tokenId] = doc.id.split('-');
+    for (const docSnapshot of querySnapshot.docs) {
+      const data = docSnapshot.data();
       
-      if (contract && tokenId) {
-        likedNFTs.push({
-          contract,
-          tokenId,
-          name: data.name || 'Untitled',
-          description: data.description || '',
-          image: data.image || '',
-          audio: data.audioUrl || '',
-          hasValidAudio: Boolean(data.audioUrl),
-          metadata: {
-            name: data.name || 'Untitled',
-            description: data.description || '',
-            image: data.image || '',
-            animation_url: data.audioUrl || ''
-          },
-          collection: {
-            name: data.collection || 'Unknown Collection'
-          }
-        });
+      const mediaKey = docSnapshot.id;
+      // Skip duplicates
+      if (seenMediaKeys.has(mediaKey)) continue;
+      seenMediaKeys.add(mediaKey);
+      
+      // Get the global like document to get NFT details
+      const globalLikeRef = doc(db, 'global_likes', mediaKey);
+      const globalLikeDoc = await getDoc(globalLikeRef);
+      
+      if (!globalLikeDoc.exists()) {
+        console.warn('Global like document not found for mediaKey:', mediaKey);
+        continue;
       }
+      
+      const globalData = globalLikeDoc.data();
+      const nft: NFT = {
+        contract: globalData.nftContract,
+        tokenId: globalData.tokenId,
+        name: globalData.name || 'Untitled',
+        description: globalData.description || '',
+        image: globalData.image || '',
+        audio: globalData.audioUrl || '',
+        hasValidAudio: Boolean(globalData.audioUrl),
+        metadata: {
+          name: globalData.name || 'Untitled',
+          description: globalData.description || '',
+          image: globalData.image || '',
+          animation_url: globalData.audioUrl || ''
+        },
+        collection: {
+          name: globalData.collection || 'Unknown Collection'
+        },
+        network: globalData.network || 'ethereum'
+      };
+      
+      likedNFTs.push(nft);
     }
 
     console.log('Processed liked NFTs:', likedNFTs);
@@ -430,65 +886,192 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
   }
 };
 
-// Toggle NFT like status
+// Toggle NFT like status globally
 export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => {
   try {
-    const docId = `${fid}-${nft.contract}-${nft.tokenId}`;
-    const userLikesRef = doc(db, 'user_likes', docId);
-    const docSnap = await getDoc(userLikesRef);
+    const mediaKey = getMediaKey(nft);
+    if (!mediaKey) {
+      console.error('Invalid mediaKey for NFT:', nft);
+      return false;
+    }
     
-    console.log('Toggling NFT:', { fid, docId });
+    // Reference to global likes document
+    const globalLikeRef = doc(db, 'global_likes', mediaKey);
+    const userLikeRef = doc(db, 'users', fid.toString(), 'likes', mediaKey);
     
-    if (docSnap.exists()) {
-      await deleteDoc(userLikesRef);
+    // Get both documents in parallel for efficiency
+    const [userLikeDoc, globalLikeDoc] = await Promise.all([
+      getDoc(userLikeRef),
+      getDoc(globalLikeRef)
+    ]);
+    
+    const batch = writeBatch(db);
+    
+    if (userLikeDoc.exists()) {
+      // Remove like
+      // Remove from user's likes
+      batch.delete(userLikeRef);
+      
+      if (globalLikeDoc.exists()) {
+        const currentCount = globalLikeDoc.data()?.likeCount || 1;
+        // Only remove global document if it's the last like
+        if (currentCount <= 1) {
+          console.log('Removing last like for mediaKey:', mediaKey);
+          batch.delete(globalLikeRef);
+        } else {
+          batch.update(globalLikeRef, {
+            likeCount: increment(-1),
+            lastUnliked: serverTimestamp()
+          });
+        }
+      } else {
+        // If global doc doesn't exist but user like does, this is an inconsistency
+        // Create a new global doc with count 0 to track this content
+        console.log('Creating missing global like document for:', mediaKey);
+        batch.set(globalLikeRef, {
+          mediaKey,
+          nftContract: nft.contract,
+          tokenId: nft.tokenId,
+          name: nft.name || 'Untitled',
+          description: nft.description || nft.metadata?.description || '',
+          image: nft.image || nft.metadata?.image || '',
+          audioUrl: nft.audio || nft.metadata?.animation_url || '',
+          collection: nft.collection?.name || 'Unknown Collection',
+          network: nft.network || 'ethereum',
+          likeCount: 0,
+          firstLiked: serverTimestamp(),
+          lastUnliked: serverTimestamp()
+        });
+      }
+
+      // Update likes count in nfts collection if it exists
+      const nftRef = doc(db, 'nfts', `${nft.contract}-${nft.tokenId}`);
+      const nftDoc = await getDoc(nftRef);
+      if (nftDoc.exists()) {
+        const currentLikes = nftDoc.data()?.likes || 1;
+        batch.update(nftRef, {
+          likes: Math.max(0, currentLikes - 1)
+        });
+      }
+      
+      await batch.commit();
+      console.log('Removed like:', { mediaKey });
       return false;
     } else {
-      await setDoc(userLikesRef, {
+      // Add like
+      // Always create both user and global documents
+      
+      // Add to user's likes with full NFT data
+      batch.set(userLikeRef, {
+        mediaKey,
+        nftContract: nft.contract,
+        tokenId: nft.tokenId,
         name: nft.name || 'Untitled',
-        description: nft.description || '',
+        description: nft.description || nft.metadata?.description || '',
         image: nft.image || nft.metadata?.image || '',
         audioUrl: nft.audio || nft.metadata?.animation_url || '',
         collection: nft.collection?.name || 'Unknown Collection',
         network: nft.network || 'ethereum',
         timestamp: serverTimestamp()
       });
+      
+      if (globalLikeDoc.exists()) {
+        const globalData = globalLikeDoc.data();
+        // Update existing global like document
+        batch.update(globalLikeRef, {
+          likeCount: increment(1),
+          lastLiked: serverTimestamp(),
+          // Always update metadata to ensure consistency
+          name: nft.name || globalData?.name || 'Untitled',
+          description: nft.description || nft.metadata?.description || globalData?.description || '',
+          image: nft.image || nft.metadata?.image || globalData?.image || '',
+          audioUrl: nft.audio || nft.metadata?.animation_url || globalData?.audioUrl || '',
+          collection: nft.collection?.name || globalData?.collection || 'Unknown Collection',
+          network: nft.network || globalData?.network || 'ethereum'
+        });
+      } else {
+        // Create new global like document with full NFT data
+        batch.set(globalLikeRef, {
+          mediaKey,
+          nftContract: nft.contract,
+          tokenId: nft.tokenId,
+          name: nft.name || 'Untitled',
+          description: nft.description || nft.metadata?.description || '',
+          image: nft.image || nft.metadata?.image || '',
+          audioUrl: nft.audio || nft.metadata?.animation_url || '',
+          collection: nft.collection?.name || 'Unknown Collection',
+          network: nft.network || 'ethereum',
+          likeCount: 1,
+          firstLiked: serverTimestamp(),
+          lastLiked: serverTimestamp()
+        });
+      }
+
+      // Update likes count in nfts collection if it exists
+      const nftRef = doc(db, 'nfts', `${nft.contract}-${nft.tokenId}`);
+      const nftDoc = await getDoc(nftRef);
+      if (nftDoc.exists()) {
+        const currentLikes = nftDoc.data()?.likes || 0;
+        batch.update(nftRef, {
+          likes: currentLikes + 1
+        });
+      }
+      
+      await batch.commit();
+      console.log('Added like:', { mediaKey });
       return true;
     }
   } catch (error) {
     console.error('Error toggling NFT like:', error);
-    throw error;
+    return false;
   }
 };
 
 // Subscribe to recent plays
 export const subscribeToRecentPlays = (fid: number, callback: (nfts: NFT[]) => void) => {
+  // Listen to nft_plays collection
   const playsRef = collection(db, 'nft_plays');
-  const q = query(playsRef, where('fid', '==', fid), orderBy('timestamp', 'desc'), limit(8));
+  const q = query(playsRef, where('fid', '==', fid), orderBy('timestamp', 'desc'), limit(20));
 
   return onSnapshot(q, (snapshot) => {
-    const nfts = snapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        contract: data.nftContract,
-        tokenId: data.tokenId,
-        name: data.name,
-        description: data.description,
-        image: data.image,
-        audio: data.audioUrl,
-        hasValidAudio: true,
+    const recentNFTs: NFT[] = [];
+    const seenKeys = new Set<string>();
+
+    // Process each play history entry
+    for (const playDoc of snapshot.docs) {
+      const playData = playDoc.data();
+      const nftKey = `${playData.nftContract}-${playData.tokenId}`;
+      
+      // Skip if we've already seen this NFT
+      if (seenKeys.has(nftKey)) continue;
+      seenKeys.add(nftKey);
+
+      const nft: NFT = {
+        contract: playData.nftContract,
+        tokenId: playData.tokenId,
+        name: playData.name || 'Untitled NFT',
+        description: playData.description || '',
+        image: playData.image || '',
+        audio: playData.audioUrl || '',
+        hasValidAudio: Boolean(playData.audioUrl),
         metadata: {
-          name: data.name,
-          description: data.description,
-          image: data.image,
-          animation_url: data.audioUrl
+          name: playData.name || 'Untitled NFT',
+          description: playData.description || '',
+          image: playData.image || '',
+          animation_url: playData.audioUrl || ''
         },
         collection: {
-          name: data.collection
+          name: playData.collection || 'Unknown Collection'
         },
-        network: data.network
+        network: playData.network || 'ethereum'
       };
-    });
-    callback(nfts);
+      recentNFTs.push(nft);
+
+      // Stop after we have 6 unique NFTs
+      if (recentNFTs.length >= 6) break;
+    }
+
+    callback(recentNFTs);
   });
 };
 
@@ -781,8 +1364,41 @@ const fetchWithRetry = async (url: string, options: RequestInit, maxRetries = 3)
   throw new Error(`Failed after ${maxRetries} retries`);
 };
 
-// Search users by FID or username
+// Store featured NFTs in Firebase if they don't exist
+export const ensureFeaturedNFTsExist = async (nfts: NFT[]): Promise<void> => {
+  try {
+    const batch = writeBatch(db);
+    
+    for (const nft of nfts) {
+      const nftRef = doc(db, 'nfts', `${nft.contract}-${nft.tokenId}`);
+      const nftDoc = await getDoc(nftRef);
+      
+      if (!nftDoc.exists()) {
+        batch.set(nftRef, {
+          ...nft,
+          likes: 0,
+          plays: 0,
+          timestamp: serverTimestamp()
+        });
+      }
+    }
+    
+    await batch.commit();
+    console.log('Featured NFTs stored in Firebase');
+  } catch (error) {
+    console.error('Error storing featured NFTs:', error);
+  }
+};
+
+// Debounce search requests
+let searchTimeout: NodeJS.Timeout;
+
 export const searchUsers = async (query: string): Promise<FarcasterUser[]> => {
+  // Clear any pending search
+  if (searchTimeout) clearTimeout(searchTimeout);
+
+  // Return early if query is too short
+  if (query.length < 2) return [];
   try {
     const neynarKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
     if (!neynarKey) throw new Error('Neynar API key not found');
@@ -878,6 +1494,6 @@ export const searchUsers = async (query: string): Promise<FarcasterUser[]> => {
     });
   } catch (error) {
     console.error('Error searching users:', error);
-    return [];
+    return []; // Return empty array instead of throwing to maintain backward compatibility
   }
 };

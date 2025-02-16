@@ -22,7 +22,24 @@ export const PlaybackButton: React.FC<PlaybackButtonProps> = ({
   return (
     <button
       onClick={onClick}
-      className={`rounded-full bg-purple-400 hover:bg-purple-500 active:bg-purple-600 transition-colors flex items-center justify-center ${sizeClasses[size]} ${className}`}
+      className={`rounded-full bg-purple-400 hover:bg-purple-500 active:bg-purple-600 transition-all flex items-center justify-center touch-none select-none ${sizeClasses[size]} ${className}`}
+      style={{ WebkitTapHighlightColor: 'transparent' }}
+      onTouchStart={(e) => {
+        e.preventDefault();
+        const btn = e.currentTarget;
+        btn.style.transform = 'scale(0.95)';
+      }}
+      onTouchEnd={(e) => {
+        e.preventDefault();
+        const btn = e.currentTarget;
+        btn.style.transform = 'scale(1)';
+        onClick();
+      }}
+      onTouchCancel={(e) => {
+        e.preventDefault();
+        const btn = e.currentTarget;
+        btn.style.transform = 'scale(1)';
+      }}
       aria-label={isPlaying ? 'Pause' : 'Play'}
     >
       {isPlaying ? (

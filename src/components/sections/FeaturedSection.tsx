@@ -6,12 +6,12 @@ import type { NFT } from '../../types/user';
 import { IPFS_GATEWAYS, extractIPFSHash, processMediaUrl } from '../../utils/media';
 
 // Hardcoded featured NFTs
-const FEATURED_NFTS: NFT[] = [
+export const FEATURED_NFTS: NFT[] = [
   {
     name: 'Seasoning with Sazón - COD Zombies Terminus EP1',
     image: 'https://arweave.net/RvFQ8lrX3vRnnbbeA7eBoOvVsW5zOeqPXGOtZY_FXbw',
     contract: '0x27430c3ef4b04f7d223df7f280ae8fc0b3a407b7',
-    tokenId: '50dc9fb449e0',
+    tokenId: '50dc9fb449e0', // Already in correct format
     audio: 'https://arweave.net/noYvGupxQyo2P7C2GMNNUseml29HEN6HLyvXOBD7jYQ',
     metadata: {
       animation_url: 'https://arweave.net/noYvGupxQyo2P7C2GMNNUseml29HEN6HLyvXOBD7jYQ'
@@ -21,7 +21,7 @@ const FEATURED_NFTS: NFT[] = [
     name: 'NEON NIGHTS ft Jadyn Violet #5',
     image: 'https://arweave.net/EGQzuCvDtPVzuKVOJpu4gt2eh642PyOdrk5m2S1iAYw',
     contract: '0x260944f3c90c982801dd0caca58314bf0007ebda',
-    tokenId: '2ecfda1dbf54',
+    tokenId: '2ecfda1dbf54', // Already in correct format
     audio: 'https://arweave.net/kTdSRwNVqTcFBGJ3uqhApAiZMhBOu71UNnoOax-C6YM',
     metadata: {
       animation_url: 'https://arweave.net/kTdSRwNVqTcFBGJ3uqhApAiZMhBOu71UNnoOax-C6YM'
@@ -31,7 +31,7 @@ const FEATURED_NFTS: NFT[] = [
     name: 'Isolation(2020)',
     image: 'https://nftstorage.link/ipfs/bafybeibjen3vz5bbw7e3u5sj3x65dyg3k5bqznrmq4ctylvxadkazgnkli',
     contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb',
-    tokenId: '0x79428737e6',
+    tokenId: '79428737e6', // Removed 0x prefix
     audio: 'https://nftstorage.link/ipfs/bafybeibops7cqqf5ssqvueexmsyyrf6q4x6jbeaicymrnnzbg7dx34k2jq',
     metadata: {
       animation_url: 'https://nftstorage.link/ipfs/bafybeibops7cqqf5ssqvueexmsyyrf6q4x6jbeaicymrnnzbg7dx34k2jq'
@@ -118,7 +118,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({
   onLikeToggle,
   isNFTLiked
 }) => {
-  // Preload audio for featured NFTs on mount
+  // Preload featured NFTs audio
   React.useEffect(() => {
     const preloadFeaturedContent = async () => {
       console.log('🎵 Starting to preload featured NFTs...');

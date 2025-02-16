@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback, useContext } from 'react';
 import { FarcasterContext } from '~/app/providers';
 import { PlayerWithAds } from './player/PlayerWithAds';
+import { getMediaKey } from '~/utils/media';
 import { BottomNav } from './navigation/BottomNav';
 import HomeView from './views/HomeView';
 import ExploreView from './views/ExploreView';
@@ -18,12 +19,15 @@ import {
   fetchNFTDetails,
   getLikedNFTs,
   searchUsers,
+  subscribeToRecentSearches,
   toggleLikeNFT,
-  fetchUserNFTs
+  fetchUserNFTs,
+  subscribeToRecentPlays
 } from '../lib/firebase';
 import { fetchUserNFTsFromAlchemy } from '../lib/alchemy';
 import type { NFT, FarcasterUser, SearchedUser, UserContext, LibraryViewProps, ProfileViewProps, NFTFile, NFTPlayData, GroupedNFT } from '../types/user';
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
+import { useTopPlayedNFTs } from '../hooks/useTopPlayedNFTs';
 import {
   collection,
   query,
@@ -72,7 +76,7 @@ const Demo: React.FC = () => {
   const [isInitialPlay, setIsInitialPlay] = useState(false);
 
   const [recentlyPlayedNFTs, setRecentlyPlayedNFTs] = useState<NFT[]>([]);
-  const [topPlayedNFTs, setTopPlayedNFTs] = useState<{ nft: NFT; count: number }[]>([]);
+  const { topPlayed: topPlayedNFTs, loading: topPlayedLoading } = useTopPlayedNFTs();
   const [searchResults, setSearchResults] = useState<FarcasterUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<FarcasterUser | null>(null);
   const [userNFTs, setUserNFTs] = useState<NFT[]>([]);
@@ -86,20 +90,47 @@ const Demo: React.FC = () => {
   const [userData, setUserData] = useState<FarcasterUser | null>(null);
   const videoRef = useRef<HTMLVideoElement>(document.createElement('video'));
 
-  // Load liked NFTs when user changes
+  // Load liked NFTs and recent searches when user changes
   useEffect(() => {
-    const loadLikedNFTs = async () => {
+    let unsubscribeSearches: (() => void) | undefined;
+
+    const loadUserData = async () => {
       if (userFid) {
         try {
+          // Load liked NFTs
           const liked = await getLikedNFTs(userFid);
           setLikedNFTs(liked);
+
+          // Load recent searches
+          const searches = await getRecentSearches(userFid);
+          setRecentSearches(searches);
+
+          // Subscribe to real-time updates for recent searches
+          console.log('=== DEMO: Setting up recent searches subscription ===');
+          console.log('Current userFid:', userFid);
+          
+          unsubscribeSearches = subscribeToRecentSearches(userFid, (searches) => {
+            console.log('=== DEMO: Recent searches callback triggered ===');
+            console.log('New searches:', searches);
+            setRecentSearches(searches);
+          });
+          
+          console.log('Subscription set up successfully');
         } catch (error) {
-          console.error('Error loading liked NFTs:', error);
+          console.error('Error loading user data:', error);
         }
       }
     };
 
-    loadLikedNFTs();
+    loadUserData();
+
+    return () => {
+      console.log('=== DEMO: Cleaning up subscriptions ===');
+      if (unsubscribeSearches) {
+        console.log('Unsubscribing from recent searches');
+        unsubscribeSearches();
+      }
+    };
   }, [userFid]);
 
   const {
@@ -126,12 +157,17 @@ const Demo: React.FC = () => {
       setIsLoading(true);
       setError(null);
       try {
-        const [topPlayed, searches] = await Promise.all([
-          getTopPlayedNFTs(),
-          getRecentSearches(fid)
-        ]);
-        setTopPlayedNFTs(topPlayed);
+        // Get recent searches
+        const searches = await getRecentSearches(fid);
         setRecentSearches(searches || []); // Handle potential undefined
+
+        // Subscribe to recently played NFTs
+        if (userFid) {
+          const unsubscribe = subscribeToRecentPlays(userFid, (nfts) => {
+            setRecentlyPlayedNFTs(nfts);
+          });
+          return () => unsubscribe();
+        }
       } catch (error) {
         console.error('Error loading initial data:', error);
         setError('Failed to load initial data. Please try again later.');
@@ -233,46 +269,7 @@ const Demo: React.FC = () => {
     }
   }, [isInitialPlay]);
 
-  const handleSearch = async (username: string) => {
-    console.log('=== EXPLORE: Starting user search ===');
-    console.log('Search query:', username);
-    setIsSearching(true);
-    setError(null);
-    try {
-      console.log('Calling searchUsers...');
-      const results = await searchUsers(username);
-      console.log('Search results:', results);
-      
-      const formattedResults: FarcasterUser[] = results.map((user: any) => ({
-        fid: user.fid || 0,
-        username: user.username,
-        display_name: user.display_name,
-        pfp_url: user.pfp_url || user.pfp,
-        follower_count: 0,
-        following_count: 0,
-        profile: {
-          bio: user.bio
-        }
-      }));
-      console.log('Formatted results:', formattedResults);
-      setSearchResults(formattedResults);
-      
-      console.log('Tracking user search...');
-      await trackUserSearch(username, userFid);
-      
-      // Update recent searches after successful search
-      console.log('Updating recent searches...');
-      const updatedSearches = await getRecentSearches(userFid);
-      console.log('New recent searches:', updatedSearches);
-      setRecentSearches(updatedSearches || []);
-    } catch (error) {
-      console.error('Search error:', error);
-      setError('Failed to search for users. Please try again.');
-    } finally {
-      setIsSearching(false);
-      console.log('=== EXPLORE: Search completed ===');
-    }
-  };
+
 
   const formatTime = (time: number): string => {
     const minutes = Math.floor(time / 60);
@@ -345,18 +342,16 @@ const Demo: React.FC = () => {
 
   const handleLikeToggle = async (nft: NFT) => {
     try {
+      // toggleLikeNFT will update both global_likes and user's likes collection
       const wasLiked = await toggleLikeNFT(nft, userFid);
       
-      if (wasLiked) {
-        setLikedNFTs(prev => [...prev, nft]);
-        console.log('NFT added to likes');
-      } else {
-        setLikedNFTs(prev => prev.filter(
-          likedNFT => 
-            !(likedNFT.contract.toLowerCase() === nft.contract.toLowerCase() && 
-            likedNFT.tokenId === nft.tokenId)
-        ));
-        console.log('NFT removed from likes');
+      // No need to manually update local state since useNFTLikeState handles that
+      console.log('Like toggled:', wasLiked ? 'added' : 'removed');
+
+      // Refresh the library view if we're on the library page
+      if (currentPage.isLibrary) {
+        const updatedLikedNFTs = await getLikedNFTs(userFid);
+        setLikedNFTs(updatedLikedNFTs);
       }
     } catch (error) {
       console.error('Error toggling like:', error);
@@ -369,10 +364,8 @@ const Demo: React.FC = () => {
     if (currentPage.isLibrary && !ignoreCurrentPage) return true;
 
     // Otherwise check if it's in the likedNFTs array
-    return likedNFTs.some(item => 
-      item.contract.toLowerCase() === nft.contract.toLowerCase() && 
-      item.tokenId === nft.tokenId
-    );
+    const nftMediaKey = getMediaKey(nft);
+    return likedNFTs.some(item => getMediaKey(item) === nftMediaKey);
   };
 
   const switchPage = (page: keyof PageState) => {
@@ -399,6 +392,29 @@ const Demo: React.FC = () => {
       window.nftList = userNFTs;
     } else if (page === 'isExplore') {
       window.nftList = filteredNFTs;
+    }
+  };
+
+  const handleSearch = async (query: string) => {
+    setIsSearching(true);
+    try {
+      // Search for users
+      const results = await searchUsers(query);
+      setSearchResults(results);
+
+      // Track search for first result if any
+      if (results.length > 0 && userFid) {
+        await trackUserSearch(results[0].username, userFid);
+        
+        // After tracking search, refresh recent searches
+        const searches = await getRecentSearches(userFid);
+        setRecentSearches(searches);
+      }
+    } catch (error) {
+      console.error('Error searching users:', error);
+      setError('Error searching users');
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -486,8 +502,12 @@ const Demo: React.FC = () => {
               // First try to get cached NFTs
               const cachedNFTs = getCachedNFTs(user.fid);
               
-              // Track the user search using existing function
-              await trackUserSearch(user.username, user.fid);
+              // Track the user search and get updated search data
+              await trackUserSearch(user.username, userFid);
+              
+              // Immediately refresh recent searches
+              const updatedSearches = await getRecentSearches(userFid);
+              setRecentSearches(updatedSearches);
 
               if (cachedNFTs && Array.isArray(cachedNFTs)) {
                 setUserNFTs(cachedNFTs);

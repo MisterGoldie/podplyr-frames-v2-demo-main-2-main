@@ -1,10 +1,13 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo, useContext } from 'react';
 import { NFTCard } from '../nft/NFTCard';
 import type { NFT } from '../../types/user';
 import Image from 'next/image';
+import { useNFTPreloader } from '../../hooks/useNFTPreloader';
 import FeaturedSection from '../sections/FeaturedSection';
+import { getMediaKey } from '../../utils/media';
+import { FarcasterContext } from '../../app/providers';
 
 interface HomeViewProps {
   recentlyPlayedNFTs: NFT[];
@@ -31,11 +34,41 @@ const HomeView: React.FC<HomeViewProps> = ({
   onLikeToggle,
   likedNFTs
 }) => {
+
+  // Initialize featured NFTs once on mount
+  React.useEffect(() => {
+    const initializeFeaturedNFTs = async () => {
+      const { ensureFeaturedNFTsExist } = await import('../../lib/firebase');
+      const { FEATURED_NFTS } = await import('../sections/FeaturedSection');
+      await ensureFeaturedNFTsExist(FEATURED_NFTS);
+    };
+
+    initializeFeaturedNFTs();
+  }, []);
+
+  // Combine all NFTs that need preloading
+  const allNFTs = useMemo(() => {
+    const nfts = [...recentlyPlayedNFTs];
+    topPlayedNFTs.forEach(({ nft }) => {
+      if (!nfts.some(existing => 
+        existing.contract === nft.contract && 
+        existing.tokenId === nft.tokenId
+      )) {
+        nfts.push(nft);
+      }
+    });
+    return nfts;
+  }, [recentlyPlayedNFTs, topPlayedNFTs]);
+
+  // Preload all NFT images
+  useNFTPreloader(allNFTs);
+
+  // Get user's FID from context
+  const { fid: userFid = 0 } = useContext(FarcasterContext);
+
   const isNFTLiked = (nft: NFT): boolean => {
-    return likedNFTs.some(item => 
-      item.contract.toLowerCase() === nft.contract.toLowerCase() && 
-      item.tokenId === nft.tokenId
-    );
+    const nftMediaKey = getMediaKey(nft);
+    return likedNFTs.some(item => getMediaKey(item) === nftMediaKey);
   };
   if (isLoading) {
     return (
@@ -114,7 +147,7 @@ const HomeView: React.FC<HomeViewProps> = ({
                           currentlyPlaying={currentlyPlaying}
                           handlePlayPause={handlePlayPause}
                           onLikeToggle={() => onLikeToggle(nft)}
-                          isLiked={isNFTLiked(nft)}
+                          userFid={userFid}
                         />
                         <h3 className="font-mono text-white text-sm truncate mt-3">{nft.name}</h3>
                       </div>
@@ -145,8 +178,8 @@ const HomeView: React.FC<HomeViewProps> = ({
                           currentlyPlaying={currentlyPlaying}
                           handlePlayPause={handlePlayPause}
                           onLikeToggle={() => onLikeToggle(nft)}
-                          isLiked={isNFTLiked(nft)}
-                          badge={`${count} plays`}
+                          userFid={userFid}
+                          playCountBadge={`${count} plays`}
                         />
                         <h3 className="font-mono text-white text-sm truncate mt-3">{nft.name}</h3>
                       </div>

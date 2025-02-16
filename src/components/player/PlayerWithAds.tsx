@@ -24,6 +24,7 @@ interface PlayerWithAdsProps {
 
 export const PlayerWithAds: React.FC<PlayerWithAdsProps> = (props) => {
   const { playCount, incrementPlayCount, resetPlayCount } = useVideoPlay();
+  const [navElement, setNavElement] = useState<HTMLElement | null>(null);
   const [showAd, setShowAd] = useState(false);
   const [adComplete, setAdComplete] = useState(false);
   const [hasShownFirstAd, setHasShownFirstAd] = useState(false);
@@ -56,10 +57,14 @@ export const PlayerWithAds: React.FC<PlayerWithAdsProps> = (props) => {
     }
   }, [props.nft?.tokenId, props.isPlaying]);
 
-  // Force pause content if ad is showing
+  // Force pause content if ad is showing and handle nav visibility
   useEffect(() => {
-    if (showAd && props.isPlaying) {
-      props.onPlayPause();
+    const nav = document.querySelector('nav');
+    if (showAd) {
+      if (nav) nav.style.display = 'none';
+      if (props.isPlaying) props.onPlayPause();
+    } else {
+      if (nav) nav.style.display = 'flex';
     }
   }, [showAd, props.isPlaying]);
 
@@ -68,6 +73,8 @@ export const PlayerWithAds: React.FC<PlayerWithAdsProps> = (props) => {
     setAdComplete(true);
     resetPlayCount();
     setPlaysAfterAd(0); // Reset the counter for plays after ad
+    const nav = document.querySelector('nav');
+    if (nav) nav.style.display = 'flex';
     props.onPlayPause(); // Resume the main content
   };
 
