@@ -826,7 +826,7 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
   try {
     console.log('Getting liked NFTs for FID:', fid);
     const userLikesRef = collection(db, 'users', fid.toString(), 'likes');
-    const q = query(userLikesRef);
+    const q = query(userLikesRef, orderBy('timestamp', 'asc'));
     const querySnapshot = await getDocs(q);
     
     if (querySnapshot.empty) {
