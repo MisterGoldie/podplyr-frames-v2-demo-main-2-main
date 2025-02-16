@@ -270,26 +270,27 @@ export const Player: React.FC<PlayerProps> = ({
     console.log('After toggle called. New state will be:', !isMinimized);
   };
 
-  const renderVideo = () => {
-    // Get the video URL from metadata.animation_url or audio
-    const videoUrl = nft.metadata?.animation_url || nft.audio;
+  const renderMedia = () => {
+    // Determine media type and URLs
+    const isAudioOnly = nft.audio && !nft.metadata?.animation_url;
+    const mediaUrl = nft.metadata?.animation_url || nft.audio;
     const imageUrl = nft.image || nft.metadata?.image || '/placeholder-image.jpg';
     
-    // Process both URLs through our IPFS gateway system
+    // Process URLs through IPFS gateway
     const processedImageUrl = processMediaUrl(imageUrl, '/placeholder-image.jpg');
-    const processedVideoUrl = videoUrl ? processMediaUrl(videoUrl) : null;
+    const processedMediaUrl = mediaUrl ? processMediaUrl(mediaUrl) : null;
     
     return (
       <div className="relative w-full h-auto aspect-square">
-        {processedVideoUrl ? (
-          // Show video if available
+        {processedMediaUrl && !isAudioOnly ? (
+          // Show video for video NFTs
           <div className="relative w-full h-full">
             <video
               ref={(el) => {
                 videoRef.current = el;
                 setVideoElement(el);
               }}
-              src={processedVideoUrl}
+              src={processedMediaUrl}
               className={`w-full h-full object-contain rounded-lg transition-transform duration-500 ${
                 isMinimized ? '' : 'transform transition-all duration-500 ease-in-out ' + (isPlaying ? 'scale-100' : 'scale-90')
               }`}
@@ -302,17 +303,32 @@ export const Player: React.FC<PlayerProps> = ({
             />
           </div>
         ) : (
-          // Fallback to image
-          <Image
-            src={processedImageUrl}
-            alt={nft.name || 'NFT Image'}
-            className={`w-full h-auto object-contain rounded-lg transition-transform duration-500 ${
-              isMinimized ? '' : 'transform transition-all duration-500 ease-in-out ' + (isPlaying ? 'scale-100' : 'scale-90')
-            }`}
-            fill
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-            priority={true}
-          />
+          // Show image for audio NFTs or fallback
+          <div className="relative w-full h-full">
+            <Image
+              src={processedImageUrl}
+              alt={nft.name || 'NFT Image'}
+              className={`w-full h-auto object-contain rounded-lg transition-transform duration-500 ${
+                isMinimized ? '' : 'transform transition-all duration-500 ease-in-out ' + (isPlaying ? 'scale-100' : 'scale-90')
+              }`}
+              fill
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              priority={true}
+            />
+            {isAudioOnly && processedMediaUrl && (
+              <audio
+                ref={(el) => {
+                  videoRef.current = el;
+                  setVideoElement(el);
+                }}
+                src={processedMediaUrl}
+                className="hidden"
+                preload="metadata"
+                loop
+                controls={false}
+              />
+            )}
+          </div>
         )}
       </div>
     );
@@ -671,13 +687,13 @@ export const Player: React.FC<PlayerProps> = ({
               )}
             </div>
             <div className={`transition-all duration-500 ease-in-out transform ${isPlaying ? 'scale-100' : 'scale-90'}`}>
-              {nft.isVideo || nft.metadata?.animation_url ? (
-                renderVideo()
+              {nft.isVideo || nft.metadata?.animation_url || nft.audio ? (
+                renderMedia()
               ) : (
                 <NFTImage
                   src={nft.metadata?.image || ''}
                   alt={nft.name}
-                  className="w-full h-auto object-contain rounded-lg transition-transform duration-500"
+                  className="w-full h-auto object-contain rounded-lg transitionn-transform duration-500"
                   width={500}
                   height={500}
                   priority={true}
