@@ -166,7 +166,10 @@ const LibraryView: React.FC<LibraryViewProps> = ({
       >
         {/* Header and Filters */}
         <div className="flex justify-between items-center px-4">
-          <h2 className="text-base font-semibold text-purple-400">Your Library</h2>
+          <div>
+            <h2 className="text-base font-semibold text-purple-400">Your Library</h2>
+            <p className="text-xs text-gray-400 mt-0.5 font-mono">{uniqueNFTs.length} NFTs</p>
+          </div>
           <div className="flex items-center gap-4">
             {/* View Toggle */}
             <div className="flex gap-2">
