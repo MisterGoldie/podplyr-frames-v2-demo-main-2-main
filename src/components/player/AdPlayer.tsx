@@ -17,13 +17,13 @@ const AD_CONFIG = [
   {
     video: '/ad-video-2.mp4',
     url: 'https://acyl.world/TV',
-    title: 'ACYL TV',
+    title: 'ACYL Radio',
     domain: 'acyl.world'
   },
   {
     video: '/ad-video-3.mp4',
     url: 'https://acyl.world/TV',
-    title: 'ACYL TV',
+    title: 'Art House',
     domain: 'acyl.world'
   },
   {
@@ -31,6 +31,18 @@ const AD_CONFIG = [
     url: 'https://www.coinbase.com/',
     title: 'More Bitcoin',
     domain: 'coinbase.com'
+  },
+  {
+    video: '/ad-video-5.mp4',
+    url: 'https://acyl.world/TV',
+    title: 'ACYL Radio',
+    domain: 'acyl.world'
+  },
+  {
+    video: '/ad-video-6.mp4',
+    url: 'https://acyl.world/TV',
+    title: 'Visit ACYL',
+    domain: 'acyl.world'
   }
 ];
 
@@ -40,10 +52,25 @@ export const AdPlayer: React.FC<AdPlayerProps> = ({ onAdComplete }) => {
   const [audioDuration, setAudioDuration] = useState<number>(0);
   const [elapsedTime, setElapsedTime] = useState<number>(0);
   const [canSkip, setCanSkip] = useState<boolean>(false);
+  const [error, setError] = useState<boolean>(false);
+  
+  // Function to check if a video format is supported
+  const isVideoFormatSupported = (videoPath: string) => {
+    const video = document.createElement('video');
+    return video.canPlayType(`video/${videoPath.split('.').pop()}`) !== '';
+  };
+
   const [selectedAd] = useState(() => {
-    // Randomly select an ad when component mounts
-    const randomIndex = Math.floor(Math.random() * AD_CONFIG.length);
-    return AD_CONFIG[randomIndex];
+    // Filter ads to only include supported formats for the current device
+    const supportedAds = AD_CONFIG.filter(ad => isVideoFormatSupported(ad.video));
+    if (supportedAds.length === 0) {
+      console.error('No supported ad formats found');
+      setError(true);
+      return AD_CONFIG[0]; // Fallback to first ad
+    }
+    // Randomly select from supported ads
+    const randomIndex = Math.floor(Math.random() * supportedAds.length);
+    return supportedAds[randomIndex];
   });
 
   // Track elapsed time and enable skip after 5 seconds
@@ -103,19 +130,14 @@ export const AdPlayer: React.FC<AdPlayerProps> = ({ onAdComplete }) => {
         playsInline
       />
       <div className="absolute top-4 right-4 flex flex-col items-end gap-2">
-        <div className="flex items-center gap-3">
         {canSkip && (
           <button
             onClick={onAdComplete}
-              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-1 rounded-full font-medium text-sm transition-colors"
+            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-1 rounded-full font-medium text-sm transition-colors"
           >
             Skip Ad
           </button>
         )}
-        <div className="bg-black/80 text-white px-3 py-1 rounded-full font-mono text-sm">
-          {canSkip ? 'Skip available' : `Wait ${Math.max(0, 5 - Math.floor(elapsedTime))}s to skip`}
-        </div>
-      </div>
         <div className="bg-black/80 text-white px-3 py-1 rounded-full font-mono text-sm">
           Ad: {timeRemaining}s / {Math.round(audioDuration)}s
         </div>

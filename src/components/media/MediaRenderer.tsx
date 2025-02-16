@@ -26,8 +26,16 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ url, alt, classNam
   }
 
   const isVideo = /\.(mp4|webm|mov)$/i.test(mediaUrl);
+  const videoFormat = mediaUrl.split('.').pop()?.toLowerCase();
+  
+  // Check if the video format is supported on this device
+  const isVideoSupported = useMemo(() => {
+    if (!isVideo || !videoFormat) return false;
+    const video = document.createElement('video');
+    return video.canPlayType(`video/${videoFormat}`) !== '';
+  }, [isVideo, videoFormat]);
 
-  if (isVideo) {
+  if (isVideo && isVideoSupported) {
     return (
       <video 
         ref={videoRef}
