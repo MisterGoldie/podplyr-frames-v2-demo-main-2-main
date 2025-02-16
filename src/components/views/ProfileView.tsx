@@ -209,15 +209,34 @@ disabled={isUploading}
             </div>
           </div>
           <div className="relative z-10">
-            <Image
-              src={userContext.user?.pfpUrl || '/default-avatar.png'}
-              alt={userContext.user?.username || 'User'}
-              width={120}
-              height={120}
-              className="rounded-full ring-4 ring-purple-400/20"
-              style={{ objectFit: 'cover' }}
-              priority={true}
-            />
+            {userContext?.user?.username ? (
+              <a 
+                href={`https://warpcast.com/${userContext.user.username}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block transition-transform hover:scale-105 active:scale-95"
+              >
+                <Image
+                  src={userContext.user?.pfpUrl || '/default-avatar.png'}
+                  alt={userContext.user?.username}
+                  width={120}
+                  height={120}
+                  className="rounded-full ring-4 ring-purple-400/20 cursor-pointer"
+                  style={{ objectFit: 'cover' }}
+                  priority={true}
+                />
+              </a>
+            ) : (
+              <Image
+                src='/default-avatar.png'
+                alt='User'
+                width={120}
+                height={120}
+                className="rounded-full ring-4 ring-purple-400/20"
+                style={{ objectFit: 'cover' }}
+                priority={true}
+              />
+            )}
           </div>
           <div className="space-y-2 relative z-10">
             <h2 className="text-2xl font-mono text-purple-400 text-shadow">
