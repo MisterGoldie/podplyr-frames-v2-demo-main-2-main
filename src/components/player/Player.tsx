@@ -245,7 +245,13 @@ export const Player: React.FC<PlayerProps> = ({
 
   // Handle Picture-in-Picture mode
   const handlePictureInPicture = async () => {
-    if (!videoElement) return;
+    if (!videoElement || !nft) return;
+    
+    // Check if this is an audio-only NFT
+    if (!nft.isVideo) {
+      console.log('Picture-in-Picture mode is not available for audio-only content');
+      return;
+    }
     
     try {
       if (document.pictureInPictureElement) {
@@ -253,6 +259,11 @@ export const Player: React.FC<PlayerProps> = ({
           await document.exitPictureInPicture();
         }
       } else if (videoElement.requestPictureInPicture) {
+        // Check if video has started loading
+        if (videoElement.readyState < HTMLMediaElement.HAVE_METADATA) {
+          console.log('Video content is not yet available for Picture-in-Picture mode');
+          return;
+        }
         await videoElement.requestPictureInPicture();
       }
     } catch (error) {
