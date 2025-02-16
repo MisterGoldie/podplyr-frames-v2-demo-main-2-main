@@ -224,7 +224,10 @@ const LibraryView: React.FC<LibraryViewProps> = ({
           <div className="text-center py-12">
             <h3 className="text-xl text-purple-400 mb-2">Your Library is Empty</h3>
             <p className="text-gray-400">
-              Like some music NFTs to add them to your library.
+              {!userContext?.user?.fid
+                ? 'Must be on Farcaster to add to your library'
+                : 'Like some music NFTs to add them to your library.'
+              }
             </p>
           </div>
         ) : (

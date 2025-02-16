@@ -220,8 +220,10 @@ disabled={isUploading}
             />
           </div>
           <div className="space-y-2 relative z-10">
-            <h2 className="text-2xl font-mono text-purple-400 text-shadow">@{userContext.user?.username || 'user'}</h2>
-              {!isLoading && (
+            <h2 className="text-2xl font-mono text-purple-400 text-shadow">
+              {userContext?.user?.username ? `@${userContext.user.username}` : 'Welcome to PODPlayr'}
+            </h2>
+              {!isLoading && userContext?.user?.fid && (
                 <p className="font-mono text-sm text-purple-300/60 text-shadow">
                   {nfts.length} {nfts.length === 1 ? 'NFT' : 'NFTs'} found
                 </p>
@@ -239,6 +241,10 @@ disabled={isUploading}
                 <div className="absolute top-0 w-16 h-16 border-4 border-t-green-400 border-r-green-400 rounded-full animate-spin"></div>
               </div>
               <div className="text-xl font-mono text-green-400 animate-pulse">Loading your NFTs...</div>
+            </div>
+          ) : !userContext?.user?.fid ? (
+            <div className="text-center py-12">
+              <p className="text-gray-400 text-lg">Currently you can only create a profile through Farcaster</p>
             </div>
           ) : error ? (
             <div className="text-center py-12">
@@ -272,10 +278,17 @@ disabled={isUploading}
             <div className="text-center py-12">
               <h3 className="text-xl text-red-500 mb-2">No Media NFTs Found</h3>
               <p className="text-gray-400">
-                No media NFTs found in your connected wallets
+                {!userContext?.user?.fid
+                  ? 'Currently you can only create a profile through Farcaster'
+                  : 'No media NFTs found in your connected wallets'
+                }
               </p>
             </div>
           )}
+        </div>
+        {/* Copyright text */}
+        <div className="text-center py-8 text-white/60 text-sm">
+          © THEPOD 2025 ALL RIGHTS RESERVED
         </div>
       </div>
     </>
