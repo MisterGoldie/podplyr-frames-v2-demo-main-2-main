@@ -4,10 +4,10 @@
     "name": "PODPlayr",
     "iconUrl": "${appUrl}/logo.png",
     "homeUrl": "${appUrl}",
-    "imageUrl": "${appUrl}/og-image.png",
+    "imageUrl": "${appUrl}/og-image.jpg",
     "buttonTitle": "Play on PODPlayr",
     "splashImageUrl": "${appUrl}/splash.png",
-    "splashBackgroundColor": "#2D1E69",
+    "splashBackgroundColor": "#000000",
     "webhookUrl": "${appUrl}/api/frame/webhook"
   }
 }
