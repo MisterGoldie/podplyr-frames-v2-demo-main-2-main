@@ -9,22 +9,32 @@ import { IPFS_GATEWAYS, extractIPFSHash, processMediaUrl } from '../../utils/med
 export const FEATURED_NFTS: NFT[] = [
   {
     name: 'Seasoning with Sazón - COD Zombies Terminus EP1',
-    image: 'https://arweave.net/RvFQ8lrX3vRnnbbeA7eBoOvVsW5zOeqPXGOtZY_FXbw',
+    image: 'https://arweave.net/HvZ4oE2mDf6G1o1rX9Y_lkqegYA_0ZsRyY1JxQpL2v0',
     contract: '0x27430c3ef4b04f7d223df7f280ae8fc0b3a407b7',
     tokenId: '50dc9fb449e0', // Already in correct format
     audio: 'https://arweave.net/noYvGupxQyo2P7C2GMNNUseml29HEN6HLyvXOBD7jYQ',
     metadata: {
-      animation_url: 'https://arweave.net/noYvGupxQyo2P7C2GMNNUseml29HEN6HLyvXOBD7jYQ'
+      animation_url: 'https://arweave.net/noYvGupxQyo2P7C2GMNNUseml29HEN6HLyvXOBD7jYQ',
+      description: 'Seasoning with Sazón, Call of Duty Black Ops 6 - Zombies - Terminus Episode 1 of 5',
+      attributes: [
+        {"trait_type":"Game","value":"Call of Duty Black Ops 6"},
+        {"trait_type":"Map","value":"Terminus"}
+      ]
     }
   },
   {
-    name: 'NEON NIGHTS ft Jadyn Violet #5',
-    image: 'https://arweave.net/EGQzuCvDtPVzuKVOJpu4gt2eh642PyOdrk5m2S1iAYw',
-    contract: '0x260944f3c90c982801dd0caca58314bf0007ebda',
-    tokenId: '2ecfda1dbf54', // Already in correct format
-    audio: 'https://arweave.net/kTdSRwNVqTcFBGJ3uqhApAiZMhBOu71UNnoOax-C6YM',
+    name: 'Seasoning with Sazón - COD Zombies Terminus EP2',
+    image: 'https://arweave.net/DQxVsBRsi4_o5TKW84WcVRhh2V7l70U4A9hmm78tw9I',
+    contract: '0x27430c3ef4b04f7d223df7f280ae8fc0b3a407b7',
+    tokenId: '50dc9fb449e1', // Incremented from EP1
+    audio: 'https://arweave.net/5nT_2ndn-No1UV3zZnR-r5yPyelkSm-z-9rDS-3d1aA',
     metadata: {
-      animation_url: 'https://arweave.net/kTdSRwNVqTcFBGJ3uqhApAiZMhBOu71UNnoOax-C6YM'
+      animation_url: 'https://arweave.net/5nT_2ndn-No1UV3zZnR-r5yPyelkSm-z-9rDS-3d1aA',
+      description: 'Seasoning with Sazón, Call of Duty Black Ops 6 - Zombies - Terminus Episode 2 of 5',
+      attributes: [
+        {"trait_type":"Game","value":"Call of Duty Black Ops 6 "},
+        {"trait_type":"Map","value":"Terminus"}
+      ]
     }
   },
   {
@@ -34,7 +44,12 @@ export const FEATURED_NFTS: NFT[] = [
     tokenId: '79428737e6', // Removed 0x prefix
     audio: 'https://nftstorage.link/ipfs/bafybeibops7cqqf5ssqvueexmsyyrf6q4x6jbeaicymrnnzbg7dx34k2jq',
     metadata: {
-      animation_url: 'https://nftstorage.link/ipfs/bafybeibops7cqqf5ssqvueexmsyyrf6q4x6jbeaicymrnnzbg7dx34k2jq'
+      animation_url: 'https://nftstorage.link/ipfs/bafybeibops7cqqf5ssqvueexmsyyrf6q4x6jbeaicymrnnzbg7dx34k2jq',
+      description: 'A musical journey through isolation in 2020',
+      attributes: [
+        {"trait_type":"Genre","value":"Electronic"},
+        {"trait_type":"Year","value":"2020"}
+      ]
     }
   }
 ];
