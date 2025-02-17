@@ -44,7 +44,7 @@ export const FEATURED_NFTS: NFT[] = [
     audio: 'https://arweave.net/FXMkBkgV79p3QIL8589uh68-sKuXbmuBzQwvWH10v74',
     metadata: {
       animation_url: 'https://arweave.net/FXMkBkgV79p3QIL8589uh68-sKuXbmuBzQwvWH10v74',
-      description: '',
+      description: 'Episode 1 from the founder of ACYL',
       attributes: [
         {"trait_type":"Host","value":"WiLL"}
       ]
