@@ -23,17 +23,16 @@ export const FEATURED_NFTS: NFT[] = [
     }
   },
   {
-    name: 'Seasoning with Sazón - COD Zombies Terminus EP2',
-    image: 'https://arweave.net/DQxVsBRsi4_o5TKW84WcVRhh2V7l70U4A9hmm78tw9I',
+    name: 'I Found It (Artist Token)',
+    image: 'https://arweave.net/Wvad7CgtidFMH3mOBjRHOeV5_bKvvAR9zZH2BhQSl7M',
     contract: '0x27430c3ef4b04f7d223df7f280ae8fc0b3a407b7',
-    tokenId: '50dc9fb449e1', // Incremented from EP1
-    audio: 'https://arweave.net/5nT_2ndn-No1UV3zZnR-r5yPyelkSm-z-9rDS-3d1aA',
+    tokenId: '50dc9fb449e1',
+    audio: 'https://arweave.net/qsVEbTD0FUZ8VebK4yxOrKWDQtW8BpNWj7o46HzKsV8',
     metadata: {
-      animation_url: 'https://arweave.net/5nT_2ndn-No1UV3zZnR-r5yPyelkSm-z-9rDS-3d1aA',
-      description: 'Seasoning with Sazón, Call of Duty Black Ops 6 - Zombies - Terminus Episode 2 of 5',
+      animation_url: 'https://arweave.net/qsVEbTD0FUZ8VebK4yxOrKWDQtW8BpNWj7o46HzKsV8',
+      description: '',
       attributes: [
-        {"trait_type":"Game","value":"Call of Duty Black Ops 6 "},
-        {"trait_type":"Map","value":"Terminus"}
+        {"trait_type":"Director","value":"Charles Fox"}
       ]
     }
   },
