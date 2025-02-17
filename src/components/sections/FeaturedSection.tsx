@@ -30,7 +30,7 @@ export const FEATURED_NFTS: NFT[] = [
     audio: 'https://arweave.net/qsVEbTD0FUZ8VebK4yxOrKWDQtW8BpNWj7o46HzKsV8',
     metadata: {
       animation_url: 'https://arweave.net/qsVEbTD0FUZ8VebK4yxOrKWDQtW8BpNWj7o46HzKsV8',
-      description: '',
+      description: 'A Charles Fox Film (ACYL)',
       attributes: [
         {"trait_type":"Director","value":"Charles Fox"}
       ]
