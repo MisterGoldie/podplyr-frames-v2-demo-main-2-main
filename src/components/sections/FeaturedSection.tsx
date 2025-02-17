@@ -3,7 +3,8 @@
 import React from 'react';
 import { NFTImage } from '../media/NFTImage';
 import type { NFT } from '../../types/user';
-import { IPFS_GATEWAYS, extractIPFSHash, processMediaUrl, getMediaKey } from '../../utils/media';
+import { getMediaKey, extractIPFSHash, IPFS_GATEWAYS, processMediaUrl } from '../../utils/media';
+import { preloadAudio } from '../../utils/audioPreloader';
 
 // Hardcoded featured NFTs
 export const FEATURED_NFTS: NFT[] = [
@@ -61,67 +62,7 @@ interface FeaturedSectionProps {
   isNFTLiked: (nft: NFT) => boolean;
 }
 
-const preloadAudio = async (url: string, nftName: string): Promise<void> => {
-  const ipfsHash = extractIPFSHash(url);
-  const urlsToTry = ipfsHash 
-    ? IPFS_GATEWAYS.map(gateway => `${gateway}${ipfsHash}`) // Try all IPFS gateways if it's an IPFS URL
-    : [url]; // Otherwise just try the original URL
 
-  let lastError: Error | null = null;
-
-  // Try each URL until one works
-  for (const currentUrl of urlsToTry) {
-    try {
-      const audio = new Audio();
-      audio.preload = 'auto';
-      audio.crossOrigin = 'anonymous';
-      
-      const loadPromise = new Promise((resolve, reject) => {
-        audio.addEventListener('canplaythrough', () => resolve(true), { once: true });
-        audio.addEventListener('error', (e) => {
-          const error = e as ErrorEvent;
-          if (error.target instanceof HTMLAudioElement) {
-            switch (error.target.error?.code) {
-              case MediaError.MEDIA_ERR_ABORTED:
-                reject(new Error('Audio loading aborted'));
-                break;
-              case MediaError.MEDIA_ERR_NETWORK:
-                reject(new Error('Network error while loading audio'));
-                break;
-              case MediaError.MEDIA_ERR_DECODE:
-                reject(new Error('Audio decode error'));
-                break;
-              case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
-                reject(new Error('Audio format not supported'));
-                break;
-              default:
-                reject(new Error('Unknown audio loading error'));
-            }
-          } else {
-            reject(error);
-          }
-        }, { once: true });
-      });
-
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Audio preload timeout')), 15000); // 15 second timeout per gateway
-      });
-
-      audio.src = currentUrl;
-      audio.load();
-      
-      await Promise.race([loadPromise, timeoutPromise]);
-      console.log(`✅ Featured NFT preloaded successfully: ${nftName} using ${currentUrl}`);
-      return; // Success! Exit the function
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error('Unknown error');
-      console.warn(`⚠️ Failed to preload "${nftName}" using ${currentUrl}: ${lastError.message}. Trying next gateway...`);
-    }
-  }
-
-  // If we get here, all attempts failed
-  console.warn(`⚠️ Could not preload "${nftName}" using any gateway: ${lastError?.message}. Playback will still be attempted when needed.`);
-};
 
 const FeaturedSection: React.FC<FeaturedSectionProps> = ({
   onPlayNFT,
@@ -137,13 +78,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({
       console.log('🎵 Starting to preload featured NFTs...');
       // Load all featured NFTs in parallel
       await Promise.all(
-        FEATURED_NFTS.map(nft => {
-          const audioUrl = nft.audio || nft.metadata?.animation_url;
-          if (audioUrl) {
-            return preloadAudio(audioUrl, nft.name);
-          }
-          return Promise.resolve();
-        })
+        FEATURED_NFTS.map(nft => preloadAudio(nft))
       );
       console.log('✨ All featured NFTs preloaded!');
     };

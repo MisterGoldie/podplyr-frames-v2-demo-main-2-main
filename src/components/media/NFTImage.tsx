@@ -20,6 +20,10 @@ interface NFTImageProps {
   height?: number;
   priority?: boolean;
   nft?: NFT;
+  sizes?: string;
+  quality?: number;
+  loading?: 'lazy' | 'eager';
+  placeholder?: 'empty';
 }
 
 const extractIPFSHash = (url: string): string | null => {
@@ -57,8 +61,12 @@ export const NFTImage: React.FC<NFTImageProps> = ({
   className, 
   width = 300, 
   height = 300, 
-  priority,
-  nft 
+  priority = false,
+  nft,
+  sizes = '(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw',
+  quality = 75,
+  loading = 'lazy',
+  placeholder = 'empty'
 }) => {
   const fallbackSrc = '/default-nft.png';
   const [isVideo, setIsVideo] = useState(false);
@@ -167,7 +175,10 @@ export const NFTImage: React.FC<NFTImageProps> = ({
         className={className}
         width={width || 300}
         height={height || 300}
-        priority={priority}
+        quality={quality}
+        sizes={sizes}
+        loading={priority ? 'eager' : loading}
+        placeholder={placeholder}
         onError={handleError}
       />
     );
@@ -181,7 +192,8 @@ export const NFTImage: React.FC<NFTImageProps> = ({
       width={width || 300}
       height={height || 300}
       onError={handleError}
-      loading={priority ? 'eager' : 'lazy'}
+      loading={priority ? 'eager' : loading}
+      sizes={sizes}
     />
   );
 };
