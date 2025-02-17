@@ -3,7 +3,7 @@
 import React from 'react';
 import { NFTImage } from '../media/NFTImage';
 import type { NFT } from '../../types/user';
-import { IPFS_GATEWAYS, extractIPFSHash, processMediaUrl } from '../../utils/media';
+import { IPFS_GATEWAYS, extractIPFSHash, processMediaUrl, getMediaKey } from '../../utils/media';
 
 // Hardcoded featured NFTs
 export const FEATURED_NFTS: NFT[] = [
@@ -158,7 +158,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({
         <div className="overflow-x-auto pb-4 hide-scrollbar">
           <div className="flex gap-6">
             {FEATURED_NFTS.map((nft) => (
-              <div key={`${nft.contract}-${nft.tokenId}`} className="flex-shrink-0 w-[200px] group">
+              <div key={getMediaKey(nft)} className="flex-shrink-0 w-[200px] group">
                 <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-gray-800/20">
                   <NFTImage
                     src={nft.image}

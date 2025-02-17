@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useContext } from 'react';
 import { NFT } from '../../types/user';
 import { NFTImage } from '../media/NFTImage';
-import { processMediaUrl } from '../../utils/media';
+import { processMediaUrl, getMediaKey } from '../../utils/media';
 import { useNFTLikeState } from '../../hooks/useNFTLikeState';
 import { useNFTPlayCount } from '../../hooks/useNFTPlayCount';
 import { FarcasterContext } from '../../app/providers';
@@ -60,7 +60,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   const [showCollectionMenu, setShowCollectionMenu] = useState(false);
   const [showOverlay, setShowOverlay] = useState(false);
   const overlayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const isCurrentTrack = currentlyPlaying === `${nft.contract}-${nft.tokenId}`;
+  const isCurrentTrack = currentlyPlaying === getMediaKey(nft);
 
   const startOverlayTimer = (e: React.MouseEvent | React.TouchEvent) => {
     // Clear any existing timeout

@@ -137,7 +137,7 @@ const HomeView: React.FC<HomeViewProps> = ({
                 <div className="overflow-x-auto pb-4 hide-scrollbar">
                   <div className="flex gap-4">
                     {recentlyPlayedNFTs.map((nft, index) => (
-                      <div key={`recently-played-${nft.contract}-${nft.tokenId}-${index}`} className="flex-shrink-0 w-[140px]">
+                      <div key={`recently-played-${getMediaKey(nft)}`} className="flex-shrink-0 w-[140px]">
                         <NFTCard
                           nft={nft}
                           onPlay={async (nft) => {
@@ -168,7 +168,7 @@ const HomeView: React.FC<HomeViewProps> = ({
                 <div className="overflow-x-auto pb-4 hide-scrollbar">
                   <div className="flex gap-6">
                     {topPlayedNFTs.map(({ nft, count }, index) => (
-                      <div key={`top-played-${nft.contract}-${nft.tokenId}-${index}`} className="flex-shrink-0 w-[200px]">
+                      <div key={`top-played-${getMediaKey(nft)}`} className="flex-shrink-0 w-[200px]">
                         <NFTCard
                           nft={nft}
                           onPlay={async (nft) => {

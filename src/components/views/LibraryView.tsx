@@ -240,7 +240,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
             {filteredNFTs.map((nft) => (
               viewMode === 'grid' ? (
                 <NFTCard
-                  key={`${nft.contract}-${nft.tokenId}`}
+                  key={getMediaKey(nft)}
                   nft={nft}
                   onPlay={async (nft) => {
                     await handlePlayAudio(nft);
@@ -255,7 +255,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
                 />
               ) : (
                 <div 
-                  key={`${nft.contract}-${nft.tokenId}`}
+                  key={getMediaKey(nft)}
                   className="bg-gray-800/30 rounded-lg p-3 flex items-center gap-4 group hover:bg-gray-800/50 transition-colors"
                 >
                   {/* Thumbnail */}
