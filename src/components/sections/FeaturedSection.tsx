@@ -23,7 +23,7 @@ export const FEATURED_NFTS: NFT[] = [
     }
   },
   {
-    name: 'I Found It (Artist Token)',
+    name: 'I Found It',
     image: 'https://arweave.net/Wvad7CgtidFMH3mOBjRHOeV5_bKvvAR9zZH2BhQSl7M',
     contract: '0x27430c3ef4b04f7d223df7f280ae8fc0b3a407b7',
     tokenId: '50dc9fb449e1',
@@ -37,17 +37,16 @@ export const FEATURED_NFTS: NFT[] = [
     }
   },
   {
-    name: 'Isolation(2020)',
-    image: 'https://nftstorage.link/ipfs/bafybeibjen3vz5bbw7e3u5sj3x65dyg3k5bqznrmq4ctylvxadkazgnkli',
+    name: 'ACYL RADIO - WILL01',
+    image: 'https://arweave.net/9MMNoTZJecFZTWL3AaebXDRq7UKcO2N4orYH6ZPzsYU',
     contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb',
-    tokenId: '79428737e6', // Removed 0x prefix
-    audio: 'https://nftstorage.link/ipfs/bafybeibops7cqqf5ssqvueexmsyyrf6q4x6jbeaicymrnnzbg7dx34k2jq',
+    tokenId: '79428737e6',
+    audio: 'https://arweave.net/FXMkBkgV79p3QIL8589uh68-sKuXbmuBzQwvWH10v74',
     metadata: {
-      animation_url: 'https://nftstorage.link/ipfs/bafybeibops7cqqf5ssqvueexmsyyrf6q4x6jbeaicymrnnzbg7dx34k2jq',
-      description: 'A musical journey through isolation in 2020',
+      animation_url: 'https://arweave.net/FXMkBkgV79p3QIL8589uh68-sKuXbmuBzQwvWH10v74',
+      description: '',
       attributes: [
-        {"trait_type":"Genre","value":"Electronic"},
-        {"trait_type":"Year","value":"2020"}
+        {"trait_type":"Host","value":"WiLL"}
       ]
     }
   }
