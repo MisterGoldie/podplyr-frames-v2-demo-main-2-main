@@ -144,17 +144,16 @@ const createSafeId = (url: string): string => {
 export const getMediaKey = (nft: NFT): string => {
   if (!nft) return '';
 
-  // Get unique media URLs
-  const audioUrl = nft.metadata?.animation_url || nft.audio || '';
+  // Get media URLs
+  const videoUrl = nft.metadata?.animation_url || '';
   const imageUrl = nft.image || nft.metadata?.image || '';
-  // Only use animationUrl if it's different from audioUrl
-  const animationUrl = (nft.metadata?.animation_url !== audioUrl) ? nft.metadata?.animation_url || '' : '';
+  const audioUrl = nft.audio || '';
 
   // Create safe IDs for each URL
   const safeUrls = Array.from(new Set([
-    audioUrl,
+    videoUrl,
     imageUrl,
-    animationUrl
+    audioUrl
   ]))
     .filter(Boolean) // Remove empty strings
     .map(createSafeId)

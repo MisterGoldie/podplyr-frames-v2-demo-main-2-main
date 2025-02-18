@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   env: {
-    NEXT_PUBLIC_HOST: process.env.NEXT_PUBLIC_NGROK_URL || process.env.NEXT_PUBLIC_HOST || 'http://localhost:3002',
+    NEXT_PUBLIC_HOST: process.env.NEXT_PUBLIC_HOST || 'http://localhost:3000',
     NEXT_PUBLIC_ALCHEMY_API_KEY: process.env.NEXT_PUBLIC_ALCHEMY_API_KEY,
   },
   // Required for Frames to work properly

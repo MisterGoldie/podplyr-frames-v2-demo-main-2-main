@@ -278,39 +278,24 @@ const Demo: React.FC = () => {
   };
 
   const findAdjacentNFT = (direction: 'next' | 'previous'): NFT | null => {
-    if (!currentPlayingNFT) return null;
+    if (!currentPlayingNFT || !window.nftList) return null;
     
-    // Determine which list of NFTs we're currently playing from
-    let currentList: NFT[] = [];
+    // Use the current window.nftList which is maintained by switchPage and handlePlayFromLibrary
+    const currentList = window.nftList;
     
-    // Check which section the current NFT is from
-    if (recentlyPlayedNFTs.some(nft => 
-      nft.contract === currentPlayingNFT.contract && 
-      nft.tokenId === currentPlayingNFT.tokenId
-    )) {
-      currentList = recentlyPlayedNFTs;
-    } else if (topPlayedNFTs.some(item => 
-      item.nft.contract === currentPlayingNFT.contract && 
-      item.nft.tokenId === currentPlayingNFT.tokenId
-    )) {
-      currentList = topPlayedNFTs.map(item => item.nft);
-    } else if (likedNFTs.some(nft => 
-      nft.contract === currentPlayingNFT.contract && 
-      nft.tokenId === currentPlayingNFT.tokenId
-    )) {
-      currentList = likedNFTs;
-    } else {
-      currentList = userNFTs.filter(nft => nft.hasValidAudio);
+    if (!currentList.length) {
+      console.log('No NFTs in current list');
+      return null;
     }
 
-    if (!currentList.length) return null;
+    // Find the current NFT in the list using mediaKey for consistent matching
+    const currentMediaKey = getMediaKey(currentPlayingNFT);
+    const currentIndex = currentList.findIndex(nft => getMediaKey(nft) === currentMediaKey);
 
-    const currentIndex = currentList.findIndex(
-      nft => nft.contract === currentPlayingNFT.contract && 
-             nft.tokenId === currentPlayingNFT.tokenId
-    );
-
-    if (currentIndex === -1) return null;
+    if (currentIndex === -1) {
+      console.log('Current NFT not found in list');
+      return null;
+    }
 
     const adjacentIndex = direction === 'next' ? 
       currentIndex + 1 : 

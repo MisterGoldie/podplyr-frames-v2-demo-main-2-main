@@ -100,11 +100,91 @@ export const getFastestGateway = async (nft: NFT): Promise<string | null> => {
   return null;
 };
 
-// Preload audio with optimized gateway selection
+// Interface for Mux asset response
+interface MuxAssetResponse {
+  playbackId: string;
+  status: string;
+  assetId?: string;
+}
+
+// Cache for Mux assets to prevent duplicate creation
+const muxAssetCache: { [key: string]: MuxAssetResponse } = {};
+
+// Maximum retries for Mux asset creation
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000; // 1 second
+
+// Helper to delay execution
+const delay = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+
+// Create Mux asset with retries and caching
+const createMuxAsset = async (url: string, nftName: string, mediaKey: string, retryCount = 0): Promise<MuxAssetResponse> => {
+  // Check cache first
+  if (muxAssetCache[mediaKey]) {
+    console.log(`Using cached Mux asset for ${nftName}:`, muxAssetCache[mediaKey]);
+    return muxAssetCache[mediaKey];
+  }
+  try {
+    console.log(`Attempt ${retryCount + 1}/${MAX_RETRIES}: Creating Mux asset for ${nftName}`);
+    const response = await fetch('/api/mux/create-asset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, mediaKey })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      const errorMessage = errorData.details?.message || errorData.error || 'Unknown error';
+      throw new Error(`Server error (${response.status}): ${errorMessage}`);
+    }
+
+    const data = await response.json();
+    // Cache the successful result
+    muxAssetCache[mediaKey] = {
+      playbackId: data.playbackId,
+      status: data.status
+    };
+    return muxAssetCache[mediaKey];
+  } catch (error) {
+    console.error(`Error creating Mux asset for ${nftName}:`, error);
+    
+    if (retryCount < MAX_RETRIES - 1) {
+      console.log(`Retrying in ${RETRY_DELAY}ms...`);
+      await delay(RETRY_DELAY);
+      return createMuxAsset(url, nftName, mediaKey, retryCount + 1);
+    }
+    throw error;
+  }
+};
+
+// Get Mux asset for NFT
+export const getMuxAsset = (nft: NFT): MuxAssetResponse | null => {
+  const mediaKey = getMediaKey(nft);
+  return muxAssetCache[mediaKey] || null;
+};
+
+// Preload audio and create Mux assets
 export const preloadAudio = async (nft: NFT): Promise<void> => {
-  const url = nft.audio || nft.metadata?.animation_url;
+  const url = nft.metadata?.animation_url || nft.audio;
   if (!url) return;
 
+  const mediaKey = getMediaKey(nft);
+
+  // Check for existing Mux asset first
+  const existingAsset = getMuxAsset(nft);
+  if (existingAsset) {
+    console.log(`Using existing Mux asset for ${nft.name}:`, existingAsset);
+  } else {
+    // Create new Mux asset if none exists
+    try {
+      const muxAsset = await createMuxAsset(url, nft.name, mediaKey);
+      console.log(`✨ Created Mux asset for ${nft.name}:`, muxAsset);
+    } catch (error) {
+      console.error(`Failed to create Mux asset for ${nft.name} after ${MAX_RETRIES} attempts:`, error);
+    }
+  }
+
+  // Then preload audio
   const fastestGateway = await getFastestGateway(nft);
   if (!fastestGateway) {
     throw new Error(`No working gateway found for ${nft.name}`);
