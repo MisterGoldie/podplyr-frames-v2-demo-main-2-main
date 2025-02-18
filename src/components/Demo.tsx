@@ -278,10 +278,30 @@ const Demo: React.FC = () => {
   };
 
   const findAdjacentNFT = (direction: 'next' | 'previous'): NFT | null => {
-    if (!currentPlayingNFT || !window.nftList) return null;
+    if (!currentPlayingNFT) return null;
     
-    // Use the current window.nftList which is maintained by switchPage and handlePlayFromLibrary
-    const currentList = window.nftList;
+    // Determine which list to use based on the current context
+    let currentList: NFT[] = [];
+    
+    // Check if we're playing from top played section
+    if (topPlayedNFTs.some(item => 
+      getMediaKey(item.nft) === getMediaKey(currentPlayingNFT)
+    )) {
+      currentList = topPlayedNFTs.map(item => item.nft);
+      console.log('Playing from Top Played section');
+    }
+    // Check if we're playing from featured section
+    else if (FEATURED_NFTS.some(nft => 
+      getMediaKey(nft) === getMediaKey(currentPlayingNFT)
+    )) {
+      currentList = FEATURED_NFTS;
+      console.log('Playing from Featured section');
+    }
+    // Otherwise use the window.nftList for other views
+    else if (window.nftList) {
+      currentList = window.nftList;
+      console.log('Playing from main list');
+    }
     
     if (!currentList.length) {
       console.log('No NFTs in current list');
