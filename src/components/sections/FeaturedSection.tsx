@@ -72,19 +72,31 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({
   onLikeToggle,
   isNFTLiked
 }) => {
-  // Preload featured NFTs audio
+  // Track preload status
+  const [preloaded, setPreloaded] = React.useState(false);
+
+  // Preload featured NFTs with high priority
   React.useEffect(() => {
+    // Skip if already preloaded
+    if (preloaded) return;
+
     const preloadFeaturedContent = async () => {
       console.log('🎵 Starting to preload featured NFTs...');
-      // Load all featured NFTs in parallel
-      await Promise.all(
-        FEATURED_NFTS.map(nft => preloadAudio(nft))
-      );
-      console.log('✨ All featured NFTs preloaded!');
+      
+      try {
+        // Load all featured NFTs in parallel with high priority
+        await Promise.all(
+          FEATURED_NFTS.map(nft => preloadAudio(nft, 'high'))
+        );
+        console.log('✨ All featured NFTs preloaded!');
+        setPreloaded(true);
+      } catch (error) {
+        console.warn('Failed to preload some featured NFTs:', error);
+      }
     };
 
     preloadFeaturedContent();
-  }, []); // Empty dependency array means this runs once on mount
+  }, [preloaded]); // Only run if not yet preloaded
 
   return (
     <div className="mb-8">

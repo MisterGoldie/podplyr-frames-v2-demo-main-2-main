@@ -163,8 +163,10 @@ export const getMuxAsset = (nft: NFT): MuxAssetResponse | null => {
   return muxAssetCache[mediaKey] || null;
 };
 
+import { mediaLoadManager } from './mediaLoadManager';
+
 // Preload audio and create Mux assets
-export const preloadAudio = async (nft: NFT): Promise<void> => {
+export const preloadAudio = async (nft: NFT, priority: 'high' | 'medium' | 'low' = 'medium'): Promise<void> => {
   const url = nft.metadata?.animation_url || nft.audio;
   if (!url) return;
 
@@ -184,20 +186,45 @@ export const preloadAudio = async (nft: NFT): Promise<void> => {
     }
   }
 
-  // Then preload audio
+  // Get fastest gateway
   const fastestGateway = await getFastestGateway(nft);
   if (!fastestGateway) {
     throw new Error(`No working gateway found for ${nft.name}`);
   }
 
+  // Create audio element and set properties
   const audio = new Audio();
   audio.preload = 'metadata';
   audio.crossOrigin = 'anonymous';
   audio.src = fastestGateway;
 
-  // Wait for metadata to load
-  await new Promise((resolve, reject) => {
-    audio.addEventListener('loadedmetadata', () => resolve(true), { once: true });
-    audio.addEventListener('error', (e) => reject(e), { once: true });
-  });
+  // Wait for metadata to load with timeout
+  await Promise.race([
+    new Promise((resolve, reject) => {
+      const cleanup = () => {
+        audio.removeEventListener('loadedmetadata', onLoad);
+        audio.removeEventListener('error', onError);
+        audio.src = ''; // Clear source to stop loading
+      };
+
+      const onLoad = () => {
+        cleanup();
+        resolve(true);
+      };
+
+      const onError = (e: Event) => {
+        cleanup();
+        reject(e);
+      };
+
+      audio.addEventListener('loadedmetadata', onLoad);
+      audio.addEventListener('error', onError);
+    }),
+    new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Audio metadata load timeout')), 10000)
+    )
+  ]);
+
+  // Cache the metadata
+  await cacheAudioMetadata(nft, audio);
 };
