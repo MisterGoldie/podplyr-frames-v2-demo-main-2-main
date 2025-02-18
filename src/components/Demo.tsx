@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback, useContext } from 'rea
 import { FarcasterContext } from '~/app/providers';
 import { PlayerWithAds } from './player/PlayerWithAds';
 import { getMediaKey } from '~/utils/media';
+import { FEATURED_NFTS } from './sections/FeaturedSection';
 import { BottomNav } from './navigation/BottomNav';
 import HomeView from './views/HomeView';
 import ExploreView from './views/ExploreView';
@@ -291,7 +292,7 @@ const Demo: React.FC = () => {
       console.log('Playing from Top Played section');
     }
     // Check if we're playing from featured section
-    else if (FEATURED_NFTS.some(nft => 
+    else if (FEATURED_NFTS.some((nft: NFT) => 
       getMediaKey(nft) === getMediaKey(currentPlayingNFT)
     )) {
       currentList = FEATURED_NFTS;
