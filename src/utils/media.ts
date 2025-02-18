@@ -2,14 +2,19 @@ import { useState } from 'react';
 import { NFT } from '../types/user';
 
 // List of reliable IPFS gateways in order of preference
-const IPFS_GATEWAYS = [
+// Helper function to clean IPFS URLs
+export const getCleanIPFSUrl = (url: string): string => {
+  if (!url) return url;
+  // Remove any duplicate 'ipfs' in the path
+  return url.replace(/\/ipfs\/ipfs\//g, '/ipfs/');
+};
+
+export const IPFS_GATEWAYS = [
   'https://ipfs.io/ipfs/',         // Primary gateway
   'https://nftstorage.link/ipfs/', // Secondary
   'https://cloudflare-ipfs.com/ipfs/', // Tertiary
   'https://gateway.pinata.cloud/ipfs/' // Final fallback
 ];
-
-export { IPFS_GATEWAYS };
 
 // Helper function to extract CID from various IPFS URL formats
 export const extractIPFSHash = (url: string): string | null => {
@@ -41,6 +46,21 @@ export const extractIPFSHash = (url: string): string | null => {
   }
 
   return null;
+};
+
+// Check if an NFT is using the same URL for both image and audio
+export const isAudioUrlUsedAsImage = (nft: NFT, imageUrl: string): boolean => {
+  if (!imageUrl) return false;
+  
+  // Get all possible audio URLs
+  const audioUrls = [
+    nft?.audio,
+    nft?.metadata?.audio,
+    nft?.metadata?.animation_url
+  ].filter(Boolean);
+  
+  // Return true if imageUrl matches any audio URL
+  return audioUrls.includes(imageUrl);
 };
 
 // Function to process media URLs to ensure they're properly formatted
