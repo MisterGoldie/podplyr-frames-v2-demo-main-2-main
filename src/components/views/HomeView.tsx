@@ -143,7 +143,7 @@ const HomeView: React.FC<HomeViewProps> = ({
                           onPlay={async (nft) => {
                             await onPlayNFT(nft);
                           }}
-                          isPlaying={isPlaying && currentlyPlaying === `${nft.contract}-${nft.tokenId}`}
+                          isPlaying={isPlaying && currentlyPlaying === getMediaKey(nft)}
                           currentlyPlaying={currentlyPlaying}
                           handlePlayPause={handlePlayPause}
                           onLikeToggle={() => onLikeToggle(nft)}
@@ -174,7 +174,7 @@ const HomeView: React.FC<HomeViewProps> = ({
                           onPlay={async (nft) => {
                             await onPlayNFT(nft);
                           }}
-                          isPlaying={isPlaying && currentlyPlaying === `${nft.contract}-${nft.tokenId}`}
+                          isPlaying={isPlaying && currentlyPlaying === getMediaKey(nft)}
                           currentlyPlaying={currentlyPlaying}
                           handlePlayPause={handlePlayPause}
                           onLikeToggle={() => onLikeToggle(nft)}
