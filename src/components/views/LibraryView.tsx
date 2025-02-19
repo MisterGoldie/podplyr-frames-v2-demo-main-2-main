@@ -158,7 +158,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
         style={{
           WebkitOverflowScrolling: 'touch',
           height: 'calc(100vh - 4rem)', // Subtract header height
-          overscrollBehavior: 'none',
+          overscrollBehavior: 'contain',
           position: 'fixed',
           top: '0',
           left: '0',
