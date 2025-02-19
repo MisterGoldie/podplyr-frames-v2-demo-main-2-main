@@ -60,22 +60,36 @@ const ProfileView: React.FC<ProfileViewProps> = ({
 
   useEffect(() => {
     const loadNFTs = async () => {
-      if (!userContext.user?.fid) return;
+      if (!userContext.user?.fid) {
+        console.log('🚫 No FID found in userContext:', userContext);
+        return;
+      }
       
+      console.log('🔄 Loading NFTs for FID:', userContext.user.fid);
       try {
         setIsLoading(true);
         setError(null);
         
+        console.log('📡 Calling fetchUserNFTs...');
         const nfts = await fetchUserNFTs(userContext.user.fid);
+        console.log('✨ NFTs loaded:', {
+          count: nfts.length,
+          nfts: nfts.map(nft => ({
+            contract: nft.contract,
+            tokenId: nft.tokenId,
+            hasAudio: nft.hasValidAudio
+          }))
+        });
         onNFTsLoaded(nfts);
       } catch (err) {
-        console.error('Error loading NFTs:', err);
+        console.error('❌ Error loading NFTs:', err);
         setError(err instanceof Error ? err.message : 'Failed to load NFTs');
       } finally {
         setIsLoading(false);
       }
     };
 
+    console.log('🎯 ProfileView useEffect triggered with FID:', userContext.user?.fid);
     loadNFTs();
   }, [userContext.user?.fid, onNFTsLoaded]);
   return (

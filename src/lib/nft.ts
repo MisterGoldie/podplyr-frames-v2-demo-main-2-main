@@ -3,15 +3,21 @@ import { Alchemy, Network } from 'alchemy-sdk';
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Initialize Alchemy client
-const alchemy = new Alchemy({
+// Initialize Alchemy clients for both networks
+const ethAlchemy = new Alchemy({
   apiKey: process.env.NEXT_PUBLIC_ALCHEMY_API_KEY,
   network: Network.ETH_MAINNET
 });
 
-export const getNFTMetadata = async (contract: string, tokenId: string): Promise<NFT> => {
+const baseAlchemy = new Alchemy({
+  apiKey: process.env.NEXT_PUBLIC_ALCHEMY_API_KEY,
+  network: Network.BASE_MAINNET
+});
+
+export const getNFTMetadata = async (contract: string, tokenId: string, network: 'base' | 'ethereum' = 'ethereum'): Promise<NFT> => {
   try {
-    const metadata = await alchemy.nft.getNftMetadata(contract, tokenId);
+    const client = network === 'base' ? baseAlchemy : ethAlchemy;
+    const metadata = await client.nft.getNftMetadata(contract, tokenId);
 
     // Process media URLs
     const audioUrl = processMediaUrl(
@@ -78,23 +84,58 @@ const processMediaUrl = (url: string | undefined): string => {
 
 export const fetchUserNFTsFromAlchemy = async (address: string): Promise<NFT[]> => {
   try {
-    console.log('Fetching NFTs for address:', address);
+    console.log('\n🔍 Fetching NFTs for address:', address);
     const alchemyKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
     if (!alchemyKey) throw new Error('Alchemy API key not found');
 
-    const response = await fetch(
-      `https://eth-mainnet.g.alchemy.com/v2/${alchemyKey}/getNFTs?owner=${address}&withMetadata=true&pageSize=100`,
-      { headers: { accept: 'application/json' } }
-    );
+    console.log('🌐 Starting parallel fetch from ETH and BASE networks...');
+    
+    // Fetch from both networks
+    const [ethResponse, baseResponse] = await Promise.all([
+      fetch(
+        `https://eth-mainnet.g.alchemy.com/v2/${alchemyKey}/getNFTs?owner=${address}&withMetadata=true&pageSize=100`,
+        { headers: { accept: 'application/json' } }
+      ),
+      fetch(
+        `https://base-mainnet.g.alchemy.com/v2/${alchemyKey}/getNFTs?owner=${address}&withMetadata=true&pageSize=100`,
+        { headers: { accept: 'application/json' } }
+      )
+    ]);
 
-    if (!response.ok) {
-      const errorText = await response.text();
+    // Check responses
+    console.log('📡 Network Response Status:', {
+      ethereum: ethResponse.status,
+      base: baseResponse.status
+    });
+
+    if (!ethResponse.ok || !baseResponse.ok) {
+      const errorText = await ((!ethResponse.ok ? ethResponse : baseResponse).text());
       throw new Error(`Alchemy API error: ${errorText}`);
     }
 
-    const data = await response.json();
-    console.log(`Found ${data.ownedNfts?.length || 0} NFTs for address ${address}`);
-    console.log('Sample NFT data:', data.ownedNfts?.[0]);
+    const [ethData, baseData] = await Promise.all([
+      ethResponse.json(),
+      baseResponse.json()
+    ]);
+
+    // Log raw data from both networks
+    console.log('📦 ETH Network NFTs:', {
+      count: ethData.ownedNfts?.length || 0,
+      sampleNFT: ethData.ownedNfts?.[0]?.contract?.address
+    });
+    console.log('📦 BASE Network NFTs:', {
+      count: baseData.ownedNfts?.length || 0,
+      sampleNFT: baseData.ownedNfts?.[0]?.contract?.address
+    });
+
+    const data = {
+      ownedNfts: [...(ethData.ownedNfts || []), ...(baseData.ownedNfts || [])]
+    };
+    console.log(`✨ Combined NFTs for ${address}:`, {
+      total: data.ownedNfts?.length || 0,
+      fromEth: ethData.ownedNfts?.length || 0,
+      fromBase: baseData.ownedNfts?.length || 0
+    });
 
     interface AlchemyNFT {
       contract: {
@@ -234,13 +275,13 @@ export const fetchUserNFTsFromAlchemy = async (address: string): Promise<NFT[]> 
 
 export const fetchUserNFTs = async (fid: number): Promise<NFT[]> => {
   try {
-    console.log('=== START NFT FETCH ===');
+    console.log('🚀 === START NFT FETCH FOR FID:', fid, '===');
 
     // Get user profile from Neynar for verified addresses
     const neynarKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
     if (!neynarKey) throw new Error('Neynar API key not found');
 
-    console.log('Fetching user profile from Neynar...');
+    console.log('📡 Fetching user profile from Neynar...');
     const profileResponse = await fetch(
       `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`,
       {
@@ -257,59 +298,86 @@ export const fetchUserNFTs = async (fid: number): Promise<NFT[]> => {
     }
 
     const profileData = await profileResponse.json();
+    console.log('👤 Raw Neynar Profile Data:', JSON.stringify(profileData, null, 2));
+    
     let allAddresses: string[] = [];
 
     // Get verified addresses
+    console.log('🔍 Checking verified addresses...');
     if (profileData.users?.[0]?.verifications) {
+      console.log('✅ Found verified addresses:', profileData.users[0].verifications);
       allAddresses = [...profileData.users[0].verifications];
+    } else {
+      console.log('⚠️ No verified addresses found in profile');
     }
 
     // Get custody address
+    console.log('🔍 Checking custody address...');
     if (profileData.users?.[0]?.custody_address) {
+      console.log('✅ Found custody address:', profileData.users[0].custody_address);
       allAddresses.push(profileData.users[0].custody_address);
+    } else {
+      console.log('⚠️ No custody address found in profile');
     }
 
     // Filter addresses
-    allAddresses = [...new Set(allAddresses)].filter(addr => 
-      addr && addr.startsWith('0x') && addr.length === 42
-    );
+    allAddresses = [...new Set(allAddresses)].filter(addr => {
+      const isValid = addr && addr.startsWith('0x') && addr.length === 42;
+      if (!isValid) {
+        console.log('⚠️ Invalid address found:', addr);
+      }
+      return isValid;
+    });
 
     if (allAddresses.length === 0) {
       throw new Error('No valid addresses found for this user');
     }
 
-    console.log('Found addresses:', allAddresses);
+    console.log('📋 Valid addresses found:', allAddresses);
 
-    // Process addresses sequentially instead of in parallel
+    // Process addresses sequentially
     const allNFTs: NFT[] = [];
     
     for (let i = 0; i < allAddresses.length; i++) {
       const address = allAddresses[i];
-      console.log(`Processing address ${i + 1}/${allAddresses.length}:`, address);
+      console.log(`\n🔄 Processing address ${i + 1}/${allAddresses.length}:`, address);
       
       try {
         const nfts = await fetchUserNFTsFromAlchemy(address);
+        console.log(`✨ NFTs found for address ${address}:`, {
+          total: nfts.length,
+          audio: nfts.filter(nft => nft.hasValidAudio).length,
+          video: nfts.filter(nft => nft.isVideo).length,
+          animation: nfts.filter(nft => nft.isAnimation).length
+        });
         allNFTs.push(...nfts);
         
-        // Add delay between addresses if not the last one
         if (i < allAddresses.length - 1) {
-          await delay(2000); // Wait 2 seconds between addresses
+          console.log('⏳ Waiting 2 seconds before next address...');
+          await delay(2000);
         }
       } catch (error) {
-        console.error(`Error processing address ${address}:`, error);
+        console.error(`❌ Error processing address ${address}:`, error);
       }
     }
 
-    console.log('Total NFTs found:', allNFTs.length);
+    console.log('\n📊 Final NFT Collection Summary:', {
+      totalNFTs: allNFTs.length,
+      byType: {
+        audio: allNFTs.filter(nft => nft.hasValidAudio).length,
+        video: allNFTs.filter(nft => nft.isVideo).length,
+        animation: allNFTs.filter(nft => nft.isAnimation).length
+      }
+    });
     return allNFTs;
 
   } catch (error) {
-    console.error('NFT fetch error:', {
+    console.error('❌ NFT fetch error:', {
       message: error instanceof Error ? error.message : 'Unknown error',
       error
     });
     throw error;
   } finally {
-    console.log('=== END NFT FETCH ===');
+    console.log('🏁 === END NFT FETCH ===');
   }
 };
