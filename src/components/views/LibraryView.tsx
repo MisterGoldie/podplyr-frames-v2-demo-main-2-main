@@ -41,6 +41,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
   const [filterSort, setFilterSort] = useState<'recent' | 'name'>('recent');
   const [searchFilter, setSearchFilter] = useState('');
   const [likedNFTs, setLikedNFTs] = useState<NFT[]>(initialLikedNFTs);
+  const [isLoading, setIsLoading] = useState(true);
 
 
   // Load liked NFTs when user changes
@@ -52,6 +53,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
           const liked = await getLikedNFTs(userContext.user.fid);
           console.log('Loaded liked NFTs:', liked);
           setLikedNFTs(liked);
+          setIsLoading(false);
         } catch (error) {
           console.error('Error loading liked NFTs:', error);
         }
@@ -223,7 +225,12 @@ const LibraryView: React.FC<LibraryViewProps> = ({
         </div>
 
         {/* Content */}
-        {likedNFTs.length === 0 ? (
+        {isLoading ? (
+          <div className="flex flex-col justify-center items-center py-12 space-y-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-purple-400 border-t-transparent"></div>
+            <p className="text-purple-400 font-mono text-sm">Loading your library...</p>
+          </div>
+        ) : likedNFTs.length === 0 ? (
           <div className="text-center py-12">
             <h3 className="text-xl text-purple-400 mb-2">Your Library is Empty</h3>
             <p className="text-gray-400">
