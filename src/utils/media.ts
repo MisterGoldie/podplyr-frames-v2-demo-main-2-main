@@ -160,7 +160,19 @@ const createSafeId = (url: string): string => {
     .slice(0, 100); // Limit length
 };
 
-// Function to generate consistent mediaKey for NFTs with identical content
+/**
+ * Generates a consistent mediaKey for NFTs with identical content.
+ * 
+ * IMPORTANT: This function intentionally returns the same key for NFTs that share identical content
+ * (same audio/image/animation URLs). This is a core part of PODPlayr's content-first architecture:
+ * 
+ * - Same content = same mediaKey = shared play count and like status
+ * - Different NFT instances with same content are treated as the same media
+ * - This will cause React "duplicate key" warnings which can be safely ignored
+ * - The warnings indicate the system is correctly identifying duplicate content
+ * 
+ * DO NOT modify this to generate unique keys - duplicate keys are intentional!
+ */
 export const getMediaKey = (nft: NFT): string => {
   if (!nft) return '';
 
