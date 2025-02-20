@@ -392,7 +392,7 @@ export const Player: React.FC<PlayerProps> = ({
               aria-label="Close info panel"
             >
               <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
-                <path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/>
+                <path d="M256-200-56-56 224-224-224-224 56-56 224 224 224-224-56 56-224 224-224 224Z"/>
               </svg>
             </button>
           </div>
@@ -829,17 +829,19 @@ export const Player: React.FC<PlayerProps> = ({
       {/* Now Playing Bar */}
       <div className="fixed bottom-0 left-0 right-0 bg-black/80 backdrop-blur-sm border-t border-purple-400/20">
         <div className="container mx-auto flex items-center justify-between px-4 py-5">
-          <div className="flex items-center gap-4">
-            <span className="text-sm font-mono text-purple-400 truncate">{nft.name}</span>
+          <div className="flex-1 min-w-0 mr-4">
+            <div className="text-sm font-mono text-purple-400 truncate">{nft.name}</div>
           </div>
-          <button 
-            onClick={handleMinimizeToggle}
-            className="text-purple-400 hover:text-purple-300 p-1 transition-colors"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor">
-              <path d="M480-345 240-585l56-56 184 184 184-184 56 56-240 240Z"/>
-            </svg>
-          </button>
+          <div className="flex-shrink-0">
+            <button 
+              onClick={handleMinimizeToggle}
+              className="text-purple-400 hover:text-purple-300 p-1 transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor">
+                <path d="M480-345 240-585l56-56 184 184 184-184 56 56-240 240Z"/>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
       </div>
