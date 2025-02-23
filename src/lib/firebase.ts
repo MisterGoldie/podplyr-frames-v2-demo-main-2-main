@@ -1390,8 +1390,8 @@ export const ensureFeaturedNFTsExist = async (nfts: NFT[]): Promise<void> => {
   }
 };
 
-// Debounce search requests
-let searchTimeout: NodeJS.Timeout;
+// Declare searchTimeout at module level
+let searchTimeout: NodeJS.Timeout | undefined;
 
 export const searchUsers = async (query: string): Promise<FarcasterUser[]> => {
   // Clear any pending search
