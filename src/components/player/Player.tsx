@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState, useEffect, useContext, useMemo } from 'react';
+import React, { useRef, useState, useEffect, useContext } from 'react';
 import { useNFTPlayCount } from '../../hooks/useNFTPlayCount';
 import { useNFTLikes } from '../../hooks/useNFTLikes';
 import { useNFTTopPlayed } from '../../hooks/useNFTTopPlayed';
@@ -12,7 +12,6 @@ import Image from 'next/image';
 import { trackNFTPlay } from '../../lib/firebase';
 import { useNFTLikeState } from '../../hooks/useNFTLikeState';
 import { FarcasterContext } from '../../app/providers';
-import { isMobileDevice, getOptimalPreloadStrategy, getOptimalVideoResolution } from '../../utils/deviceDetection';
 
 // Augment the Document interface with Picture-in-Picture properties
 interface PictureInPictureWindow {}
@@ -293,10 +292,6 @@ export const Player: React.FC<PlayerProps> = ({
     const processedImageUrl = processMediaUrl(imageUrl, '/placeholder-image.jpg');
     const processedVideoUrl = videoUrl ? processMediaUrl(videoUrl) : null;
     
-    const isMobile = isMobileDevice();
-    const preloadStrategy = getOptimalPreloadStrategy();
-    const videoResolution = getOptimalVideoResolution();
-
     return (
       <div className="relative w-full h-auto aspect-square">
         {processedVideoUrl ? (
@@ -312,10 +307,8 @@ export const Player: React.FC<PlayerProps> = ({
                 isMinimized ? '' : 'transform transition-all duration-500 ease-in-out ' + (isPlaying ? 'scale-100' : 'scale-90')
               }`}
               playsInline
-              webkit-playsinline="true"
-              x5-playsinline="true"
-              preload={preloadStrategy}
-              loop={false}
+              preload="metadata"
+              loop
               muted={true}
               controls={false}
               poster={processedImageUrl}
@@ -323,27 +316,6 @@ export const Player: React.FC<PlayerProps> = ({
                 const video = e.target as HTMLVideoElement;
                 if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
                   video.currentTime = progress;
-                }
-              }}
-              onError={(e) => {
-                const target = e.target as HTMLVideoElement;
-                console.error('Video error:', {
-                  error: target.error,
-                  networkState: target.networkState,
-                  readyState: target.readyState,
-                  src: target.src
-                });
-                // Try to recover by using a different source format if available
-                if (nft.metadata?.animation_url_alternative) {
-                  const fallbackUrl = nft.metadata?.animation_url_alternative || 
-                                     nft?.audio ||
-                                     nft?.image; // Last resort: try showing image
-                  if (fallbackUrl && fallbackUrl !== target.src) {
-                    target.src = fallbackUrl;
-                    target.load();
-                  } else {
-                    console.log('No fallback source available');
-                  }
                 }
               }}
             />
@@ -370,53 +342,23 @@ export const Player: React.FC<PlayerProps> = ({
   const { likesCount, isLoading: likesLoading } = useNFTLikes(nft);
   const { hasBeenInTopPlayed, loading: topPlayedLoading } = useNFTTopPlayed(nft);
 
-  // Separate InfoPanel data into its own state to prevent re-renders
-  const infoPanelData = useMemo(() => ({
-    nftName: nft?.name,
-    nftDescription: nft?.description || nft?.metadata?.description,
-    playCount: playCount,
-    playCountLoading: loading,
-    likesCount: likesCount,
-    likesLoading: likesLoading,
-    hasBeenInTopPlayed: hasBeenInTopPlayed,
-    topPlayedLoading: topPlayedLoading,
-    contract: nft?.contract,
-    tokenId: nft?.tokenId
-  }), [nft?.name, nft?.description, nft?.metadata?.description, nft?.contract, nft?.tokenId,
-      playCount, loading, likesCount, likesLoading, hasBeenInTopPlayed, topPlayedLoading]);
-
-  // Memoized InfoPanel component to prevent re-rendering during playback
-  const InfoPanel = useMemo(() => {
+  const InfoPanel = () => {
     if (!showInfo) return null;
     
-    const handleInfoClick = (e: React.MouseEvent) => {
-      // Prevent event bubbling to player component
-      e.stopPropagation();
-    };
-    
-    const handleInfoClose = (e: React.MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setShowInfo(false);
-    };
-    
     return (
-      <div 
-        className="fixed bottom-40 left-0 right-0 mx-auto z-[101] max-w-sm px-4" 
-        onClick={handleInfoClick}
-      >
+      <div className="fixed bottom-40 left-0 right-0 mx-auto z-[101] max-w-sm px-4">
         <div className="bg-gray-900/95 backdrop-blur-lg rounded-xl p-5 shadow-2xl border border-purple-400/30 animate-fadeIn w-full">
           {/* Header */}
           <div className="flex justify-between items-start mb-4">
             <div className="flex-1">
-              <h2 className="text-purple-300 font-mono text-base font-semibold">{infoPanelData.nftName}</h2>
+              <h2 className="text-purple-300 font-mono text-base font-semibold">{nft.name}</h2>
               <div className="flex items-center gap-2 mt-1">
                 <div className="flex items-center gap-1.5 bg-purple-500/10 px-2 py-0.5 rounded-full">
                   <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="currentColor" className="text-purple-400">
                     <path d="M320-200v-560l440 280-440 280Z"/>
                   </svg>
                   <span className="text-purple-300 text-xs font-mono">
-                    {infoPanelData.playCountLoading ? '...' : `${infoPanelData.playCount} plays`}
+                    {loading ? '...' : `${playCount} plays`}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -425,10 +367,10 @@ export const Player: React.FC<PlayerProps> = ({
                       <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
                     </svg>
                     <span className="text-purple-300 text-xs font-mono">
-                      {infoPanelData.likesLoading ? '...' : `${infoPanelData.likesCount} likes`}
+                      {likesLoading ? '...' : `${likesCount} likes`}
                     </span>
                   </div>
-                  {!infoPanelData.topPlayedLoading && infoPanelData.hasBeenInTopPlayed && (
+                  {!topPlayedLoading && hasBeenInTopPlayed && (
                     <div className="flex items-center gap-1.5 bg-purple-500/10 px-2 py-0.5 rounded-full">
                       <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="currentColor" className="text-purple-400">
                         <path d="m233-80 65-281L80-550l288-25 112-265 112 265 288 25-218 189 65 281-247-149L233-80Z"/>
@@ -440,13 +382,17 @@ export const Player: React.FC<PlayerProps> = ({
               </div>
             </div>
             <button 
-              onClick={handleInfoClose}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setShowInfo(false);
+              }}
               className="text-gray-400 hover:text-purple-300 active:scale-95 transition-all p-3 -mr-3 touch-manipulation rounded-full bg-black/20 backdrop-blur-sm"
               style={{ touchAction: 'manipulation' }}
               aria-label="Close info panel"
             >
               <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
-                <path d="M480-424 284-228q-11 11-28 11t-28-11q-11-11-11-28t11-28l196-196-196-196q-11-11-11-28t11-28q11-11 28-11t28 11l196 196 196-196q11-11 28-11t28 11q11 11 11 28t-11 28L536-480l196 196q11 11 11 28t-11 28q-11 11-28 11t-28-11L480-424Z"/>
+                <path d="M256-200-56-56 224-224-224-224 56-56 224 224 224-224-56 56-224 224-224 224Z"/>
               </svg>
             </button>
           </div>
@@ -456,27 +402,17 @@ export const Player: React.FC<PlayerProps> = ({
             className="space-y-4 max-h-[40vh] overflow-y-auto overscroll-contain will-change-scroll pr-2"
             style={{
               scrollbarWidth: 'thin',
-              scrollbarColor: '#7e22ce #111827',
-              transform: 'translateZ(0)',
-              backfaceVisibility: 'hidden',
+              scrollbarColor: 'rgba(168, 85, 247, 0.4) rgba(0, 0, 0, 0.2)',
               WebkitOverflowScrolling: 'touch',
-              userSelect: 'text'
-            }}
-            onTouchStart={(e) => {
-              e.stopPropagation();
-            }}
-            onTouchMove={(e) => {
-              e.stopPropagation();
-            }}
-            onTouchEnd={(e) => {
-              e.stopPropagation();
+              transform: 'translateZ(0)',
+              backfaceVisibility: 'hidden'
             }}
           >
             {/* Description */}
-            {(infoPanelData.nftDescription) && (
+            {(nft.description || nft.metadata?.description) && (
               <div className="bg-black/30 rounded-lg p-3 border border-purple-400/10">
                 <h3 className="text-purple-300 font-mono text-xs uppercase tracking-wider mb-2">Description</h3>
-                <p className="text-gray-300 text-sm leading-relaxed break-words">{infoPanelData.nftDescription}</p>
+                <p className="text-gray-300 text-sm leading-relaxed break-words">{nft.description || nft.metadata?.description}</p>
               </div>
             )}
 
@@ -486,10 +422,10 @@ export const Player: React.FC<PlayerProps> = ({
               <div>
                 <h3 className="text-purple-300 font-mono text-xs uppercase tracking-wider mb-2">Contract</h3>
                 <div className="flex items-center gap-2">
-                  <p className="text-gray-300 text-sm font-mono break-all">{infoPanelData.contract}</p>
+                  <p className="text-gray-300 text-sm font-mono break-all">{nft.contract}</p>
                   <button 
                     className="text-purple-400 hover:text-purple-300 transition-colors"
-                    onClick={() => navigator.clipboard.writeText(infoPanelData.contract)}
+                    onClick={() => navigator.clipboard.writeText(nft.contract)}
                     title="Copy to clipboard"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" height="16" viewBox="0 -960 960 960" width="16" fill="currentColor">
@@ -502,10 +438,10 @@ export const Player: React.FC<PlayerProps> = ({
               <div>
                 <h3 className="text-purple-300 font-mono text-xs uppercase tracking-wider mb-2">Token ID</h3>
                 <div className="flex items-center gap-2">
-                  <p className="text-gray-300 text-sm font-mono break-all">{infoPanelData.tokenId}</p>
+                  <p className="text-gray-300 text-sm font-mono break-all">{nft.tokenId}</p>
                   <button 
                     className="text-purple-400 hover:text-purple-300 transition-colors"
-                    onClick={() => navigator.clipboard.writeText(infoPanelData.tokenId || '')}
+                    onClick={() => navigator.clipboard.writeText(nft.tokenId || '')}
                     title="Copy to clipboard"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" height="16" viewBox="0 -960 960 960" width="16" fill="currentColor">
@@ -519,7 +455,7 @@ export const Player: React.FC<PlayerProps> = ({
         </div>
       </div>
     );
-  }, [showInfo]);
+  };
 
   const formatTime = (time: number): string => {
     const minutes = Math.floor(time / 60);
@@ -530,7 +466,7 @@ export const Player: React.FC<PlayerProps> = ({
   if (isMinimized) {
     return (
       <>
-        {InfoPanel}
+        {showInfo && <InfoPanel />}
         <div 
         className="fixed bottom-20 left-0 right-0 bg-black border-t border-purple-400/20 h-20 z-[100] will-change-transform overflow-hidden"
         style={{
@@ -626,7 +562,7 @@ export const Player: React.FC<PlayerProps> = ({
                 disabled={!onPrevious}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                  <path d="M660-240v-480h80v480h-80ZM220-240v-480l360 240-360 240Zm80-240Zm0 90 136-90-136-90v180Z"/>
+                  <path d="M660-240v-480h80v480h-80Zm-440 0v-480l360 240-360 240Zm80-240Zm0 90 136-90-136-90v180Z"/>
                 </svg>
               </button>
 
@@ -654,7 +590,7 @@ export const Player: React.FC<PlayerProps> = ({
                   aria-label="Toggle Picture-in-Picture"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
-                    <path d="M320-240h320v-240H320v240Zm-80 80v-400h480v400H240Zm80-480v-80h480v80H320Zm-160 0v-80h560v80H160Zm160 480v-240 240Z"/>
+                    <path d="M320-240h320v-240H320v240Zm-80 80v-400h480v400H240Zm80-480v-80h480v400h-80v-320H320Zm-160 0v-80h560v80H160Zm160 480v-240 240Z"/>
                   </svg>
                 </button>
               )}
@@ -677,7 +613,7 @@ export const Player: React.FC<PlayerProps> = ({
 
   return (
     <>
-      {InfoPanel}
+      {showInfo && <InfoPanel />}
       <div 
         className="fixed inset-0 bg-black backdrop-blur-md z-[100] flex flex-col will-change-transform overflow-hidden"
       >
@@ -839,7 +775,7 @@ export const Player: React.FC<PlayerProps> = ({
                 disabled={!onPrevious}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px" fill="currentColor">
-                  <path d="M660-240v-480h80v480h-80ZM220-240v-480l360 240-360 240Zm80-240Zm0 90 136-90-136-90v180Z"/>
+                  <path d="M220-240v-480h80v480h-80Zm440 0v-480l-360 240 360 240Z"/>
                 </svg>
               </button>
 
@@ -865,7 +801,7 @@ export const Player: React.FC<PlayerProps> = ({
                 className="text-white hover:scale-110 transition-transform"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px" fill="currentColor">
-                  <path d="M220-240v-480h80v480h-80Zm440 0v-480l-360 240 360 240Zm80-240Zm0 90 136-90-136-90v180Z"/>
+                  <path d="M660-240v-480h80v480h-80ZM220-240v-480l360 240-360 240Z"/>
                 </svg>
               </button>
             </div>
@@ -880,7 +816,7 @@ export const Player: React.FC<PlayerProps> = ({
                   className="text-white hover:scale-110 transition-transform"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#ffffff">
-                    <path d="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Zm0-80h640v-480H160v480Zm0 0v-480 480Z"/>
+                    <path d="M280-400v-160l-80 80 80 80Zm200 120 80-80H400l80 80Zm-80-320h160l-80-80-80 80Zm280 200 80-80-80-80v160ZM160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Zm0-80h640v-480H160v480Zm0 0v-480 480Z"/>
                   </svg>
                 </button>
               )}
