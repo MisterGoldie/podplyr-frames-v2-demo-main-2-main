@@ -392,7 +392,7 @@ export const Player: React.FC<PlayerProps> = ({
               aria-label="Close info panel"
             >
               <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
-                <path d="M256-200-56-56 224-224-224-224 56-56 224 224 224-224-56 56-224 224-224 224Z"/>
+                <path d="M480-424 284-228q-11 11-28 11t-28-11q-11-11-11-28t11-28l196-196-196-196q-11-11-11-28t11-28q11-11 28-11t28 11l196 196 196-196q11-11 28-11t28 11q11 11 11 28t-11 28L536-480l196 196q11 11 11 28t-11 28q-11 11-28 11t-28-11L480-424Z"/>
               </svg>
             </button>
           </div>
@@ -590,7 +590,7 @@ export const Player: React.FC<PlayerProps> = ({
                   aria-label="Toggle Picture-in-Picture"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
-                    <path d="M320-240h320v-240H320v240Zm-80 80v-400h480v400H240Zm80-480v-80h480v400h-80v-320H320Zm-160 0v-80h560v80H160Zm160 480v-240 240Z"/>
+                    <path d="M320-240h320v-240H320v240Zm-80 80v-400h480v400H240Zm80-480v-80h480v80H320Zm-160 0v-80h560v80H160Zm160 480v-240 240Z"/>
                   </svg>
                 </button>
               )}

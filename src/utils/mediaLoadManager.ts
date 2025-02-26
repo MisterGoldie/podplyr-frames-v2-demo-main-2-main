@@ -1,6 +1,5 @@
 import { NFT } from '../types/user';
 import { getMediaKey } from './media';
-import { preloadAudio } from './audioPreloader';
 
 interface LoadProgress {
   loaded: number;
@@ -211,11 +210,6 @@ class MediaLoadManager {
       // Preload image if exists
       if (nft.image) {
         await this.retryWithBackoff(() => this.preloadImage(nft.image!, mediaKey), progress);
-      }
-
-      // Preload audio/video if exists
-      if (nft.audio || nft.metadata?.animation_url) {
-        await this.retryWithBackoff(() => preloadAudio(nft, priority), progress);
       }
 
       progress.status = 'complete';

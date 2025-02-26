@@ -49,7 +49,10 @@ export const MuxPlayer: React.FC<MuxPlayerProps> = ({
         
         // If no asset exists, create one with mobile-optimized settings
         if (!currentMuxAsset) {
-          await preloadAudio(nft);
+          // Temporarily disable preloadAudio to avoid errors
+          // await preloadAudio(nft);
+          console.log('Skipping preload for Mux asset');
+          
           // Retry getting the asset
           currentMuxAsset = getMuxAsset(nft);
           if (!currentMuxAsset) {

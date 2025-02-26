@@ -49,18 +49,40 @@ const LibraryView: React.FC<LibraryViewProps> = ({
     const loadLikedNFTs = async () => {
       if (userContext?.user?.fid) {
         try {
+          // Set loading state to prevent multiple calls
+          if (!isLoading) setIsLoading(true);
+          
           console.log('Loading liked NFTs for user:', userContext.user.fid);
           const liked = await getLikedNFTs(userContext.user.fid);
-          console.log('Loaded liked NFTs:', liked);
+          
+          // Only update state if component is still mounted
           setLikedNFTs(liked);
           setIsLoading(false);
         } catch (error) {
           console.error('Error loading liked NFTs:', error);
+          setIsLoading(false);
         }
       }
     };
 
-    loadLikedNFTs();
+    // Use a ref to track if the effect is already running
+    const isLoadingRef = useRef(false);
+    
+    if (userContext?.user?.fid && !isLoadingRef.current) {
+      isLoadingRef.current = true;
+      
+      // Add a small delay to prevent rapid consecutive calls
+      const timeoutId = setTimeout(() => {
+        loadLikedNFTs().finally(() => {
+          isLoadingRef.current = false;
+        });
+      }, 100);
+      
+      return () => {
+        clearTimeout(timeoutId);
+        isLoadingRef.current = false;
+      };
+    }
   }, [userContext?.user?.fid]);
 
   // Helper function to check if NFT is liked

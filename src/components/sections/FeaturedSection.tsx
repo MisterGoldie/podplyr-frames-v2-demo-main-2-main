@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NFTImage } from '../media/NFTImage';
 import type { NFT } from '../../types/user';
 import { getMediaKey, extractIPFSHash, IPFS_GATEWAYS, processMediaUrl } from '../../utils/media';
@@ -72,26 +72,33 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({
   onLikeToggle,
   isNFTLiked
 }) => {
-  // Track preload status
-  const [preloaded, setPreloaded] = React.useState(false);
+  // Preloading state
+  const [preloaded, setPreloaded] = useState(false); // Set to false to enable preloading
 
-  // Preload featured NFTs with high priority
-  React.useEffect(() => {
-    // Skip if already preloaded
+  // Disable preloading for now to fix the error
+  useEffect(() => {
     if (preloaded) return;
 
     const preloadFeaturedContent = async () => {
       console.log('🎵 Starting to preload featured NFTs...');
       
       try {
-        // Load all featured NFTs in parallel with high priority
-        await Promise.all(
-          FEATURED_NFTS.map(nft => preloadAudio(nft, 'high'))
-        );
+        // Load featured NFTs one by one to avoid overwhelming the browser
+        // This is more reliable than trying to load them all in parallel
+        for (const nft of FEATURED_NFTS) {
+          try {
+            await preloadAudio(nft, 'high');
+          } catch (error) {
+            // Log but continue with next NFT
+            console.warn(`Failed to preload NFT ${nft.name || nft.tokenId}:`, error);
+          }
+        }
         console.log('✨ All featured NFTs preloaded!');
         setPreloaded(true);
       } catch (error) {
         console.warn('Failed to preload some featured NFTs:', error);
+        // Still mark as preloaded to avoid repeated attempts
+        setPreloaded(true);
       }
     };
 

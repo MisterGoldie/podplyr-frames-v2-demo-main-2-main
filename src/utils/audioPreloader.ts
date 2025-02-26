@@ -163,8 +163,6 @@ export const getMuxAsset = (nft: NFT): MuxAssetResponse | null => {
   return muxAssetCache[mediaKey] || null;
 };
 
-import { mediaLoadManager } from './mediaLoadManager';
-
 // Preload audio and create Mux assets
 export const preloadAudio = async (nft: NFT, priority: 'high' | 'medium' | 'low' = 'medium'): Promise<void> => {
   if (!nft) return;
@@ -174,6 +172,9 @@ export const preloadAudio = async (nft: NFT, priority: 'high' | 'medium' | 'low'
   if (!mediaKey) return;
   
   try {
+    // IMPORTANT: This function now uses direct preloading without mediaLoadManager
+    // to avoid circular dependency issues. DO NOT add references to mediaLoadManager here.
+    
     // Check if we should preload based on device type and network
     const isMobile = typeof window !== 'undefined' && 
                     (navigator.userAgent.match(/Android/i) ||
@@ -222,9 +223,105 @@ export const preloadAudio = async (nft: NFT, priority: 'high' | 'medium' | 'low'
       return;
     }
     
-    // Use mediaLoadManager to preload the audio
-    mediaLoadManager.preloadMedia(nft, priority);
+    // Simple direct preloading without mediaLoadManager
+    const audioUrl = nft.audio || nft.metadata?.animation_url;
+    if (audioUrl) {
+      // Simple preloading with a timeout to avoid hanging
+      const preloadPromise = new Promise<void>((resolve) => {
+        try {
+          const audio = new Audio();
+          
+          // Set up event handlers
+          const onLoaded = () => {
+            audio.oncanplaythrough = null;
+            audio.onerror = null;
+            resolve();
+          };
+          
+          audio.oncanplaythrough = onLoaded;
+          audio.onerror = () => {
+            console.warn(`Failed to preload audio: ${audioUrl}`);
+            onLoaded(); // Resolve anyway to prevent hanging
+          };
+          
+          // Set timeout to avoid hanging
+          setTimeout(() => {
+            audio.oncanplaythrough = null;
+            audio.onerror = null;
+            resolve();
+          }, 10000);
+          
+          // Start loading
+          audio.src = audioUrl;
+          audio.load();
+          
+          // If it's already loaded, resolve immediately
+          if (audio.readyState >= 3) {
+            onLoaded();
+          }
+        } catch (err) {
+          console.warn(`Error setting up audio preload: ${err}`);
+          resolve(); // Resolve anyway to prevent hanging
+        }
+      });
+      
+      // Wait with timeout
+      await Promise.race([
+        preloadPromise,
+        new Promise(resolve => setTimeout(resolve, 15000))
+      ]);
+    }
+    
+    // Preload image if it exists
+    if (nft.image) {
+      const imgPreloadPromise = new Promise<void>((resolve) => {
+        try {
+          const img = new Image();
+          
+          img.onload = () => {
+            img.onload = null;
+            img.onerror = null;
+            resolve();
+          };
+          
+          img.onerror = () => {
+            console.warn(`Failed to preload image: ${nft.image}`);
+            img.onload = null;
+            img.onerror = null;
+            resolve(); // Resolve anyway to prevent hanging
+          };
+          
+          // Set timeout
+          setTimeout(() => {
+            img.onload = null;
+            img.onerror = null;
+            resolve();
+          }, 10000);
+          
+          // Start loading
+          img.src = nft.image;
+          
+          // If already complete, resolve immediately
+          if (img.complete) {
+            img.onload = null;
+            img.onerror = null;
+            resolve();
+          }
+        } catch (err) {
+          console.warn(`Error setting up image preload: ${err}`);
+          resolve(); // Resolve anyway to prevent hanging
+        }
+      });
+      
+      // Wait with timeout
+      await Promise.race([
+        imgPreloadPromise,
+        new Promise(resolve => setTimeout(resolve, 15000))
+      ]);
+    }
+    
   } catch (error) {
-    console.error(`Error in preloadAudio for ${mediaKey}:`, error);
+    console.warn(`Error in preloadAudio for ${mediaKey}:`, error);
+    // Don't rethrow - just log and continue
   }
 };
