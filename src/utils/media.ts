@@ -77,10 +77,25 @@ export const processMediaUrl = (url: string, fallbackUrl: string = '/default-nft
   // Remove any duplicate 'ipfs' in the path
   url = url.replace(/\/ipfs\/ipfs\//, '/ipfs/');
 
+  // Check for supported media types that might need special handling
+  const fileExt = url.split('.').pop()?.toLowerCase();
+  
   // Handle IPFS URLs
   if (url.startsWith('ipfs://')) {
     // Remove ipfs:// prefix and any trailing slashes
     const hash = url.replace('ipfs://', '').replace(/\/*$/, '');
+    
+    // For mobile devices, prioritize more reliable gateways
+    // Use cloudflare gateway for better global CDN coverage
+    const isMobile = typeof window !== 'undefined' && 
+                    (navigator.userAgent.match(/Android/i) ||
+                     navigator.userAgent.match(/iPhone/i) ||
+                     navigator.userAgent.match(/iPad/i));
+    
+    if (isMobile) {
+      return `https://cloudflare-ipfs.com/ipfs/${hash}`;
+    }
+    
     return `${IPFS_GATEWAYS[0]}${hash}`;
   }
 
@@ -89,6 +104,17 @@ export const processMediaUrl = (url: string, fallbackUrl: string = '/default-nft
   if (ipfsHash) {
     // Remove any trailing slashes from the hash
     const cleanHash = ipfsHash.replace(/\/*$/, '');
+    
+    // For mobile devices, prioritize more reliable gateways
+    const isMobile = typeof window !== 'undefined' && 
+                    (navigator.userAgent.match(/Android/i) ||
+                     navigator.userAgent.match(/iPhone/i) ||
+                     navigator.userAgent.match(/iPad/i));
+    
+    if (isMobile) {
+      return `https://cloudflare-ipfs.com/ipfs/${cleanHash}`;
+    }
+    
     return `${IPFS_GATEWAYS[0]}${cleanHash}`;
   }
 

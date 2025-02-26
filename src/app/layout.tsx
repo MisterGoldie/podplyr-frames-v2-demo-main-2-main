@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "~/app/globals.css";
+import "~/styles/mobile.css"; // Import mobile-specific styles
 import { Providers } from "~/app/providers";
 import Script from 'next/script';
 import { Space_Grotesk } from 'next/font/google';

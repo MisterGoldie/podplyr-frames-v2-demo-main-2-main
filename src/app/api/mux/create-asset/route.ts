@@ -64,6 +64,8 @@ export async function POST(req: Request) {
       passthrough: mediaKey, // Store mediaKey for future lookups
       mp4_support: 'standard',
       encoding_tier: 'baseline', // More optimized for mobile
+      normalize_audio: true, // Improve audio consistency
+      per_title_encode: true, // Optimize based on content
     });
 
     console.log('Mux asset created successfully:', {

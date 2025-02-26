@@ -167,64 +167,64 @@ import { mediaLoadManager } from './mediaLoadManager';
 
 // Preload audio and create Mux assets
 export const preloadAudio = async (nft: NFT, priority: 'high' | 'medium' | 'low' = 'medium'): Promise<void> => {
-  const url = nft.metadata?.animation_url || nft.audio;
-  if (!url) return;
-
+  if (!nft) return;
+  
+  // Get MediaKey for consistent identification
   const mediaKey = getMediaKey(nft);
-
-  // Check for existing Mux asset first
-  const existingAsset = getMuxAsset(nft);
-  if (existingAsset) {
-    console.log(`Using existing Mux asset for ${nft.name}:`, existingAsset);
-  } else {
-    // Create new Mux asset if none exists
-    try {
-      const muxAsset = await createMuxAsset(url, nft.name, mediaKey);
-      console.log(`✨ Created Mux asset for ${nft.name}:`, muxAsset);
-    } catch (error) {
-      console.error(`Failed to create Mux asset for ${nft.name} after ${MAX_RETRIES} attempts:`, error);
+  if (!mediaKey) return;
+  
+  try {
+    // Check if we should preload based on device type and network
+    const isMobile = typeof window !== 'undefined' && 
+                    (navigator.userAgent.match(/Android/i) ||
+                     navigator.userAgent.match(/iPhone/i) ||
+                     navigator.userAgent.match(/iPad/i));
+    
+    // Check connection type for mobile optimization
+    // @ts-ignore - Some browsers may not support navigator.connection
+    const connectionType = typeof navigator !== 'undefined' && navigator.connection?.type;
+    // @ts-ignore
+    const effectiveType = typeof navigator !== 'undefined' && navigator.connection?.effectiveType;
+    // @ts-ignore
+    const saveData = typeof navigator !== 'undefined' && navigator.connection?.saveData;
+    
+    // For mobile on limited connections, reduce preloading
+    if (isMobile) {
+      // Helper function to check if priority is low without type errors
+      const isPriorityLow = priority === 'low';
+      
+      // On very slow connections or with data saver enabled, 
+      // only preload high priority items
+      if (
+        saveData || 
+        effectiveType === 'slow-2g' || 
+        effectiveType === '2g' ||
+        isPriorityLow
+      ) {
+        console.log(`[Mobile] Skipping preload for ${mediaKey} due to limited connection`);
+        return;
+      }
+      
+      // On 3G, only preload high and medium priority
+      if (effectiveType === '3g' && isPriorityLow) {
+        console.log(`[Mobile] Skipping low priority preload for ${mediaKey} on 3G`);
+        return;
+      }
     }
+    
+    // Get cached metadata if available
+    const cached = getCachedAudioMetadata(nft);
+    
+    // If this is mobile, consider the cached version sufficient
+    // to prevent unnecessary network usage
+    if (cached && isMobile) {
+      console.log(`[Mobile] Using cached audio metadata for ${mediaKey}`);
+      return;
+    }
+    
+    // Use mediaLoadManager to preload the audio
+    mediaLoadManager.preloadMedia(nft, priority);
+  } catch (error) {
+    console.error(`Error in preloadAudio for ${mediaKey}:`, error);
   }
-
-  // Get fastest gateway
-  const fastestGateway = await getFastestGateway(nft);
-  if (!fastestGateway) {
-    throw new Error(`No working gateway found for ${nft.name}`);
-  }
-
-  // Create audio element and set properties
-  const audio = new Audio();
-  audio.preload = 'metadata';
-  audio.crossOrigin = 'anonymous';
-  audio.src = fastestGateway;
-
-  // Wait for metadata to load with timeout
-  await Promise.race([
-    new Promise((resolve, reject) => {
-      const cleanup = () => {
-        audio.removeEventListener('loadedmetadata', onLoad);
-        audio.removeEventListener('error', onError);
-        audio.src = ''; // Clear source to stop loading
-      };
-
-      const onLoad = () => {
-        cleanup();
-        resolve(true);
-      };
-
-      const onError = (e: Event) => {
-        cleanup();
-        reject(e);
-      };
-
-      audio.addEventListener('loadedmetadata', onLoad);
-      audio.addEventListener('error', onError);
-    }),
-    new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Audio metadata load timeout')), 10000)
-    )
-  ]);
-
-  // Cache the metadata
-  await cacheAudioMetadata(nft, audio);
 };

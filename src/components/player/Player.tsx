@@ -12,6 +12,7 @@ import Image from 'next/image';
 import { trackNFTPlay } from '../../lib/firebase';
 import { useNFTLikeState } from '../../hooks/useNFTLikeState';
 import { FarcasterContext } from '../../app/providers';
+import { isMobileDevice, getOptimalPreloadStrategy, getOptimalVideoResolution } from '../../utils/deviceDetection';
 
 // Augment the Document interface with Picture-in-Picture properties
 interface PictureInPictureWindow {}
@@ -292,6 +293,10 @@ export const Player: React.FC<PlayerProps> = ({
     const processedImageUrl = processMediaUrl(imageUrl, '/placeholder-image.jpg');
     const processedVideoUrl = videoUrl ? processMediaUrl(videoUrl) : null;
     
+    const isMobile = isMobileDevice();
+    const preloadStrategy = getOptimalPreloadStrategy();
+    const videoResolution = getOptimalVideoResolution();
+
     return (
       <div className="relative w-full h-auto aspect-square">
         {processedVideoUrl ? (
@@ -307,8 +312,10 @@ export const Player: React.FC<PlayerProps> = ({
                 isMinimized ? '' : 'transform transition-all duration-500 ease-in-out ' + (isPlaying ? 'scale-100' : 'scale-90')
               }`}
               playsInline
-              preload="metadata"
-              loop
+              webkit-playsinline="true"
+              x5-playsinline="true"
+              preload={preloadStrategy}
+              loop={false}
               muted={true}
               controls={false}
               poster={processedImageUrl}
@@ -316,6 +323,27 @@ export const Player: React.FC<PlayerProps> = ({
                 const video = e.target as HTMLVideoElement;
                 if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
                   video.currentTime = progress;
+                }
+              }}
+              onError={(e) => {
+                const target = e.target as HTMLVideoElement;
+                console.error('Video error:', {
+                  error: target.error,
+                  networkState: target.networkState,
+                  readyState: target.readyState,
+                  src: target.src
+                });
+                // Try to recover by using a different source format if available
+                if (nft.metadata?.animation_url_alternative) {
+                  const fallbackUrl = nft.metadata?.animation_url_alternative || 
+                                     nft?.audio ||
+                                     nft?.image; // Last resort: try showing image
+                  if (fallbackUrl && fallbackUrl !== target.src) {
+                    target.src = fallbackUrl;
+                    target.load();
+                  } else {
+                    console.log('No fallback source available');
+                  }
                 }
               }}
             />
@@ -392,7 +420,7 @@ export const Player: React.FC<PlayerProps> = ({
               aria-label="Close info panel"
             >
               <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
-                <path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/>
+                <path d="M256-200-56-56 224-224-224-224 56-56 224 224 224-224-56 56-224 224-224 224Z"/>
               </svg>
             </button>
           </div>
@@ -590,7 +618,7 @@ export const Player: React.FC<PlayerProps> = ({
                   aria-label="Toggle Picture-in-Picture"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
-                    <path d="M320-240h320v-240H320v240Zm-80 80v-400h480v400H240Zm80-480v-80h480v400h-80v-320H320Zm-160 0v-80h560v80H160Zm160 480v-240 240Z"/>
+                    <path d="M320-240h320v-240H320v240Zm-80 80v-400h480v400H240Zm80-480v-80h480v80H320Zm-160 0v-80h560v80H160Zm160 480v-240 240Z"/>
                   </svg>
                 </button>
               )}
@@ -816,7 +844,7 @@ export const Player: React.FC<PlayerProps> = ({
                   className="text-white hover:scale-110 transition-transform"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#ffffff">
-                    <path d="M280-400v-160l-80 80 80 80Zm200 120 80-80H400l80 80Zm-80-320h160l-80-80-80 80Zm280 200 80-80-80-80v160ZM160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Zm0-80h640v-480H160v480Zm0 0v-480 480Z"/>
+                    <path d="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Zm0-80h640v-480H160v480Zm0 0v-480 480Z"/>
                   </svg>
                 </button>
               )}
