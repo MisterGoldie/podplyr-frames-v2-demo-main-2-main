@@ -71,3 +71,41 @@ export const optimizeImage = async (file: File, maxWidth = 680, maxHeight = 560,
     img.src = URL.createObjectURL(file);
   });
 };
+
+export function getOptimizedImageUrl(url: string, options: {
+  width?: number;
+  height?: number;
+  quality?: number;
+  format?: 'webp' | 'jpeg' | 'png' | 'avif';
+  isMobile?: boolean;
+} = {}): string {
+  if (!url) return '';
+  
+  // Don't try to optimize data URLs or relative URLs
+  if (url.startsWith('data:') || url.startsWith('/')) {
+    return url;
+  }
+  
+  const {
+    width = options.isMobile ? 400 : 800,
+    height = options.isMobile ? 400 : 800,
+    quality = options.isMobile ? 70 : 85,
+    format = 'webp',
+    isMobile = false
+  } = options;
+
+  // For IPFS URLs: Use an IPFS gateway that supports image optimization
+  if (url.includes('ipfs://')) {
+    const ipfsHash = url.replace('ipfs://', '');
+    return `https://cloudflare-ipfs.com/ipfs/${ipfsHash}?img-width=${width}&img-height=${height}&img-format=${format}&img-quality=${quality}`;
+  }
+  
+  // For Arweave URLs
+  if (url.includes('ar://')) {
+    const arweaveHash = url.replace('ar://', '');
+    return `https://arweave.net/${arweaveHash}`;
+  }
+
+  // For normal HTTP URLs that don't support optimization parameters, just return the URL
+  return url;
+}

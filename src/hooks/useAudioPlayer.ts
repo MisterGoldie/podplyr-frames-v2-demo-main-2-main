@@ -120,6 +120,9 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs }: UseAudioPlaye
 
   // Define handlePlayAudio first, before it's used in other functions
   const handlePlayAudio = useCallback(async (nft: NFT, context?: { queue?: NFT[], queueType?: string }) => {
+    // Add mobile optimization
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
     // Always update queue context
     if (context?.queue) {
       setCurrentQueue(context.queue);
@@ -219,9 +222,48 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs }: UseAudioPlaye
       // Replace the current audio reference
       audioRef.current = audio;
 
+      // When setting up the audio element
+      if (isMobile) {
+        // Optimize for mobile
+        audio.preload = "metadata"; // Only preload metadata first
+        
+        // Set a lower volume initially to avoid popping on mobile
+        audio.volume = 0.7;
+        
+        // Use a smaller buffer size on mobile to reduce memory usage
+        if ('mozFragmentSize' in audio) {
+          (audio as any).mozFragmentSize = 1024; // Firefox-specific
+        }
+        
+        // Use low latency mode on Android Chrome if available
+        if ('webkitAudioContext' in window) {
+          audio.dataset.lowLatency = 'true';
+        }
+      }
+
       try {
-        await audio.play();
-        setIsPlaying(true);
+        if (isMobile) {
+          // On mobile, we need to handle autoplay restrictions
+          audio.muted = true; // Start muted to bypass autoplay restrictions
+          const playPromise = audio.play();
+          
+          if (playPromise !== undefined) {
+            playPromise.then(() => {
+              // Autoplay started successfully, now unmute
+              audio.muted = false;
+              setIsPlaying(true);
+            }).catch(error => {
+              // Autoplay was prevented
+              console.warn("Mobile autoplay prevented:", error);
+              setIsPlaying(false);
+            });
+          }
+        } else {
+          // Normal desktop play behavior
+          await audio.play();
+          setIsPlaying(true);
+        }
+        
         // Start the new video
         const newVideo = document.querySelector(`#video-${nft.contract}-${nft.tokenId}`);
         if (newVideo instanceof HTMLVideoElement) {

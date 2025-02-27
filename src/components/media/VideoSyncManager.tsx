@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import type { NFT } from '../../types/user';
 
 interface VideoSyncManagerProps {
@@ -18,107 +18,156 @@ export const VideoSyncManager: React.FC<VideoSyncManagerProps> = ({
   audioProgress,
   onPlayPause
 }) => {
+  const [isMobile, setIsMobile] = useState(false);
+  const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isVideoSwitchingRef = useRef(false);
+  const playAttemptTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isSyncingRef = useRef(false);
+  
+  // Detect mobile devices once on mount
+  useEffect(() => {
+    setIsMobile(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
+  }, []);
+
   // Handle video play/pause sync with audio
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !currentPlayingNFT?.isVideo) return;
 
-    let isVideoSwitching = false;
-    let playAttemptTimeout: NodeJS.Timeout;
-
-    const syncVideo = async () => {
-      if (isVideoSwitching) return;
-
-      try {
-        if (isPlaying) {
-          isVideoSwitching = true;
-          // Clear any pending play attempts
-          clearTimeout(playAttemptTimeout);
-          
-          // Add a small delay before playing to allow for quick switches
-          playAttemptTimeout = setTimeout(async () => {
-            try {
-              await video.play();
-            } catch (err) {
-              // Ignore AbortError as it's expected during quick switches
-              if (err instanceof Error && err.name !== 'AbortError') {
-                console.warn('Non-critical video sync warning:', err);
-              }
-            } finally {
-              isVideoSwitching = false;
-            }
-          }, 100);
-        } else {
-          video.pause();
-        }
-      } catch (err) {
-        // Ignore errors during video switching
-        isVideoSwitching = false;
+    // Clear any existing timeouts/intervals when dependencies change
+    return () => {
+      if (playAttemptTimeoutRef.current) {
+        clearTimeout(playAttemptTimeoutRef.current);
+        playAttemptTimeoutRef.current = null;
       }
     };
+  }, [currentPlayingNFT]);
 
-    syncVideo();
-
-    // Add event listeners to handle video state
-    const handlePlay = () => {
-      if (!isPlaying && !isVideoSwitching) onPlayPause();
-    };
-    const handlePause = () => {
-      if (isPlaying && !isVideoSwitching) onPlayPause();
-    };
-
-    video.addEventListener('play', handlePlay);
-    video.addEventListener('pause', handlePause);
-
-    return () => {
-      clearTimeout(playAttemptTimeout);
-      video.removeEventListener('play', handlePlay);
-      video.removeEventListener('pause', handlePause);
-    };
-  }, [isPlaying, currentPlayingNFT, onPlayPause, videoRef]);
-
-  // Keep video in sync with audio progress
+  // Effect for play/pause state changes
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !currentPlayingNFT?.isVideo) return;
 
-    let isSyncing = false;
-
     const syncVideo = async () => {
-      if (isSyncing) return;
-      
+      if (isVideoSwitchingRef.current) return;
+
       try {
-        isSyncing = true;
         if (isPlaying) {
-          try {
-            await video.play();
-          } catch (err) {
-            // Ignore AbortError as it's expected during quick switches
-            if (err instanceof Error && err.name !== 'AbortError') {
-              console.warn('Non-critical video sync warning:', err);
-            }
+          isVideoSwitchingRef.current = true;
+          
+          // Clear any pending play attempts
+          if (playAttemptTimeoutRef.current) {
+            clearTimeout(playAttemptTimeoutRef.current);
           }
+          
+          // Add a delay before playing - longer delay on mobile
+          const syncDelay = isMobile ? 300 : 100;
+          
+          playAttemptTimeoutRef.current = setTimeout(async () => {
+            try {
+              // On mobile, ensure video is muted first (to work around autoplay restrictions)
+              if (isMobile) {
+                video.muted = true;
+                // Use lower quality playback on mobile 
+                video.playsInline = true;
+                video.preload = "metadata";
+              }
+              
+              // Use a Promise based approach to handle play attempts
+              const playPromise = video.play();
+              if (playPromise !== undefined) {
+                playPromise.catch((error) => {
+                  // Autoplay was prevented - this is common on mobile
+                  if (error.name === 'NotAllowedError') {
+                    console.log('Autoplay prevented by browser - this is normal on mobile');
+                    // Don't change the audio state in this case
+                  } else if (error.name !== 'AbortError') {
+                    console.warn('Video playback error:', error.name);
+                  }
+                });
+              }
+            } catch (err) {
+              // Handle errors silently
+            } finally {
+              isVideoSwitchingRef.current = false;
+            }
+          }, syncDelay);
         } else {
           video.pause();
         }
-      } finally {
-        isSyncing = false;
+      } catch (err) {
+        // Reset state on error
+        isVideoSwitchingRef.current = false;
       }
     };
 
     syncVideo();
 
-    // Keep video in sync with audio progress
-    const syncInterval = setInterval(() => {
-      if (!isSyncing && video && Math.abs(video.currentTime - audioProgress) > 0.5) {
-        video.currentTime = audioProgress;
+    // Add event listeners to handle video state - but only when not on mobile
+    // Mobile browsers often have different event handling for media
+    if (!isMobile) {
+      const handlePlay = () => {
+        if (!isPlaying && !isVideoSwitchingRef.current) onPlayPause();
+      };
+      const handlePause = () => {
+        if (isPlaying && !isVideoSwitchingRef.current) onPlayPause();
+      };
+
+      video.addEventListener('play', handlePlay);
+      video.addEventListener('pause', handlePause);
+
+      return () => {
+        if (playAttemptTimeoutRef.current) {
+          clearTimeout(playAttemptTimeoutRef.current);
+        }
+        video.removeEventListener('play', handlePlay);
+        video.removeEventListener('pause', handlePause);
+      };
+    }
+    
+    return () => {
+      if (playAttemptTimeoutRef.current) {
+        clearTimeout(playAttemptTimeoutRef.current);
       }
-    }, 1000);
+    };
+  }, [isPlaying, currentPlayingNFT, onPlayPause, videoRef, isMobile]);
+
+  // Keep video in sync with audio progress - with optimizations for mobile
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !currentPlayingNFT?.isVideo) return;
+
+    // Ensure any existing interval is cleared
+    if (syncIntervalRef.current) {
+      clearInterval(syncIntervalRef.current);
+      syncIntervalRef.current = null;
+    }
+
+    // Sync less frequently on mobile to reduce CPU usage
+    const syncFrequency = isMobile ? 2000 : 1000;
+    // Allow more drift on mobile before correcting
+    const allowedDrift = isMobile ? 1.0 : 0.5;
+
+    // Create a new sync interval
+    syncIntervalRef.current = setInterval(() => {
+      if (!isSyncingRef.current && video) {
+        const currentDrift = Math.abs(video.currentTime - audioProgress);
+        if (currentDrift > allowedDrift) {
+          isSyncingRef.current = true;
+          // Set the video time to match audio progress
+          video.currentTime = audioProgress;
+          isSyncingRef.current = false;
+        }
+      }
+    }, syncFrequency);
 
     return () => {
-      clearInterval(syncInterval);
+      if (syncIntervalRef.current) {
+        clearInterval(syncIntervalRef.current);
+        syncIntervalRef.current = null;
+      }
     };
-  }, [isPlaying, currentPlayingNFT, audioProgress, videoRef]);
+  }, [isPlaying, currentPlayingNFT, audioProgress, videoRef, isMobile]);
 
   return null;
 };

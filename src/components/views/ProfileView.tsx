@@ -10,6 +10,8 @@ import { uploadProfileBackground } from '../../firebase';
 import { fetchUserNFTs } from '../../lib/nft';
 import { optimizeImage } from '../../utils/imageOptimizer';
 import { useUserImages } from '../../contexts/UserImageContext';
+import { FixedSizeGrid } from 'react-window';
+import AutoSizer from 'react-virtualized-auto-sizer';
 
 interface ProfileViewProps {
   userContext: UserContext;
@@ -287,27 +289,53 @@ disabled={isUploading}
               <p className="text-gray-400">{error}</p>
             </div>
           ) : nfts.length > 0 ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {nfts.map((nft, index) => {
-                const nftKey = nft.contract && nft.tokenId ? 
-                  `${nft.contract}-${nft.tokenId}` : 
-                  `nft-${index}-${nft.name}`;
-                
-                return (
-                  <NFTCard
-                    key={nftKey}
-                    nft={nft}
-                    onPlay={() => handlePlayAudio(nft)}
-                    isPlaying={isPlaying && currentlyPlaying === nftKey}
-                    currentlyPlaying={currentlyPlaying}
-                    handlePlayPause={handlePlayPause}
-                    onLikeToggle={() => onLikeToggle(nft)}
-                    showTitleOverlay={true}
-                    useCenteredPlay={true}
-                    userFid={userContext.user?.fid}
-                  />
-                );
-              })}
+            <div className="h-[80vh]">
+              <AutoSizer>
+                {({ height, width }) => {
+                  const columnCount = width < 768 ? 2 : width < 1024 ? 3 : 4;
+                  const columnWidth = width / columnCount;
+                  const rowCount = Math.ceil(nfts.length / columnCount);
+                  const rowHeight = columnWidth;
+                  
+                  return (
+                    <FixedSizeGrid
+                      columnCount={columnCount}
+                      columnWidth={columnWidth}
+                      height={height}
+                      rowCount={rowCount}
+                      rowHeight={rowHeight}
+                      width={width}
+                    >
+                      {({ columnIndex, rowIndex, style }) => {
+                        const index = rowIndex * columnCount + columnIndex;
+                        if (index >= nfts.length) return null;
+                        
+                        const nft = nfts[index];
+                        const nftKey = nft.contract && nft.tokenId ? 
+                          `${nft.contract}-${nft.tokenId}` : 
+                          `nft-${index}-${nft.name}`;
+                        
+                        return (
+                          <div style={style}>
+                            <NFTCard
+                              key={nftKey}
+                              nft={nft}
+                              onPlay={() => handlePlayAudio(nft)}
+                              isPlaying={isPlaying && currentlyPlaying === nftKey}
+                              currentlyPlaying={currentlyPlaying}
+                              handlePlayPause={handlePlayPause}
+                              onLikeToggle={() => onLikeToggle(nft)}
+                              showTitleOverlay={true}
+                              useCenteredPlay={true}
+                              userFid={userContext.user?.fid}
+                            />
+                          </div>
+                        );
+                      }}
+                    </FixedSizeGrid>
+                  );
+                }}
+              </AutoSizer>
             </div>
           ) : (
             <div className="text-center py-12">
