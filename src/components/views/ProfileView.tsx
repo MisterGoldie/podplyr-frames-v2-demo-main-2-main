@@ -255,14 +255,16 @@ const ProfileView: React.FC<ProfileViewProps> = ({
             </div>
           </div>
           <div className="space-y-2 relative z-10">
-            <h2 className="text-2xl font-mono text-purple-400 text-shadow">
-              {userContext?.user?.username ? `@${userContext.user.username}` : 'Welcome to PODPlayr'}
-            </h2>
-            {!isLoading && userContext?.user?.fid && (
-              <p className="font-mono text-sm text-purple-300/60 text-shadow">
-                {nfts.length} {nfts.length === 1 ? 'NFT' : 'NFTs'} found
-              </p>
-            )}
+            <div className="bg-black/70 px-3 py-2 rounded-lg inline-block">
+              <h2 className="text-2xl font-mono text-purple-400 text-shadow">
+                {userContext?.user?.username ? `@${userContext.user.username}` : 'Welcome to PODPlayr'}
+              </h2>
+              {!isLoading && userContext?.user?.fid && (
+                <p className="font-mono text-sm text-purple-300/60 text-shadow mt-1">
+                  {nfts.length} {nfts.length === 1 ? 'NFT' : 'NFTs'} found
+                </p>
+              )}
+            </div>
           </div>
         </div>
 
