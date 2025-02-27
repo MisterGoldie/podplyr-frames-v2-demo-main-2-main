@@ -293,6 +293,40 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs }: UseAudioPlaye
         }
       }
     }
+
+    // iOS-specific audio-video sync fix
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isIOS && nft.isVideo) {
+      // iOS often needs a user interaction to properly sync audio and video
+      // Create a silent audio context to unlock audio
+      const unlockAudio = () => {
+        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioContext) {
+          const audioCtx = new AudioContext();
+          // Create buffer for short sound
+          const buffer = audioCtx.createBuffer(1, 1, 22050);
+          const source = audioCtx.createBufferSource();
+          source.buffer = buffer;
+          source.connect(audioCtx.destination);
+          source.start(0);
+          
+          // Resume audio context
+          if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+          }
+        }
+      };
+      
+      unlockAudio();
+      
+      // For iOS, we need to ensure the video element is properly reset
+      const videoElement = document.querySelector(`#video-${nft.contract}-${nft.tokenId}`);
+      if (videoElement instanceof HTMLVideoElement) {
+        // Reset video element for iOS
+        videoElement.currentTime = 0;
+        videoElement.load();
+      }
+    }
   }, [currentlyPlaying, handlePlayPause, fid, setRecentlyPlayedNFTs]);
   
   // Now define handlePlayNext and handlePlayPrevious which use handlePlayAudio

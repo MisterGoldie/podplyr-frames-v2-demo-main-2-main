@@ -71,23 +71,66 @@ export const VideoSyncManager: React.FC<VideoSyncManagerProps> = ({
                 // Use lower quality playback on mobile 
                 video.playsInline = true;
                 video.preload = "metadata";
+                
+                // For iOS specific optimizations
+                if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+                  // iOS sometimes needs this extra hint
+                  video.setAttribute('webkit-playsinline', 'true');
+                  video.setAttribute('playsinline', 'true');
+                  
+                  // Lower resolution for iOS to improve performance
+                  if (video.videoHeight > 720) {
+                    console.log('Large video detected on iOS, reducing quality');
+                    video.style.objectFit = 'contain'; // Helps with performance
+                  }
+                }
+                
+                // For Android specific optimizations
+                if (/Android/i.test(navigator.userAgent)) {
+                  // Some Android browsers need this
+                  video.setAttribute('x5-playsinline', 'true');
+                  
+                  // Reduce CPU usage on Android
+                  if (video.style) {
+                    video.style.willChange = 'auto';
+                  }
+                }
               }
               
-              // Use a Promise based approach to handle play attempts
-              const playPromise = video.play();
-              if (playPromise !== undefined) {
-                playPromise.catch((error) => {
-                  // Autoplay was prevented - this is common on mobile
-                  if (error.name === 'NotAllowedError') {
-                    console.log('Autoplay prevented by browser - this is normal on mobile');
-                    // Don't change the audio state in this case
-                  } else if (error.name !== 'AbortError') {
-                    console.warn('Video playback error:', error.name);
+              // Better error handling with retry logic
+              const maxRetries = isMobile ? 2 : 1;
+              let retries = 0;
+              let playSuccess = false;
+              
+              while (retries <= maxRetries && !playSuccess) {
+                try {
+                  // Use a Promise based approach to handle play attempts
+                  const playPromise = video.play();
+                  if (playPromise !== undefined) {
+                    await playPromise;
+                    playSuccess = true;
+                    console.log('Video play successful on attempt', retries + 1);
                   }
-                });
+                } catch (error: any) {
+                  retries++;
+                  if (retries > maxRetries) {
+                    // Autoplay was prevented - this is common on mobile
+                    if (error.name === 'NotAllowedError') {
+                      console.log('Autoplay prevented by browser after retries - this is normal on mobile');
+                      // Don't change the audio state in this case
+                    } else if (error.name !== 'AbortError') {
+                      console.warn('Video playback error after retries:', error.name);
+                    }
+                  } else {
+                    // Short delay before retrying
+                    await new Promise(r => setTimeout(r, 100));
+                    console.log(`Retrying video play, attempt ${retries + 1}`);
+                  }
+                }
               }
             } catch (err) {
               // Handle errors silently
+              console.log('General video sync error:', err);
             } finally {
               isVideoSwitchingRef.current = false;
             }
@@ -98,6 +141,7 @@ export const VideoSyncManager: React.FC<VideoSyncManagerProps> = ({
       } catch (err) {
         // Reset state on error
         isVideoSwitchingRef.current = false;
+        console.error('Error in syncVideo:', err);
       }
     };
 

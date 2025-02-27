@@ -97,6 +97,60 @@ export const OptimizedVideoPlayer: React.FC<OptimizedVideoPlayerProps> = ({
     };
   }, [isVisible, onLoadStart, onLoadComplete, onError]);
   
+  // Enhance video loading to be more efficient on mobile
+  useEffect(() => {
+    if (!videoRef.current || !isVisible) return;
+    
+    const video = videoRef.current;
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    // Implement staged loading for better performance on mobile
+    if (isMobile) {
+      // Stage 1: Just load metadata
+      video.preload = 'metadata';
+      
+      // Stage 2: Use intersection observer to improve when we start loading
+      const loadObserver = new IntersectionObserver(
+        (entries) => {
+          entries.forEach(entry => {
+            // Only start loading when video is visible for a moment
+            if (entry.isIntersecting && entry.intersectionRatio > 0.5) {
+              // We're definitely visible, start loading
+              if (!video.paused && !video.ended) {
+                // If already playing, don't interrupt
+                return;
+              }
+              
+              // Determine if we're on a fast connection
+              let isFastConnection = false;
+              if ('connection' in navigator) {
+                const conn = (navigator as any).connection;
+                isFastConnection = conn?.effectiveType === '4g' || conn?.downlink > 1.5;
+              }
+              
+              // For fast connections, allow auto loading
+              // For slow connections, keep it at metadata
+              video.preload = isFastConnection ? 'auto' : 'metadata';
+              
+              // Disconnect after deciding
+              loadObserver.disconnect();
+            }
+          });
+        },
+        { threshold: [0.5] }
+      );
+      
+      loadObserver.observe(video);
+      
+      return () => {
+        loadObserver.disconnect();
+      };
+    }
+    
+    // Regular handling for non-mobile
+    return undefined;
+  }, [isVisible]);
+  
   // Generate poster image URL
   const posterUrl = processMediaUrl(nft.image || nft.metadata?.image || '');
   

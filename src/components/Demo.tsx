@@ -44,6 +44,7 @@ import {
 import { db } from '../lib/firebase';
 import { UserDataLoader } from './data/UserDataLoader';
 import { VideoSyncManager } from './media/VideoSyncManager';
+import { videoPerformanceMonitor } from '../utils/videoPerformanceMonitor';
 
 const NFT_CACHE_KEY = 'podplayr_nft_cache_';
 const TWO_HOURS = 2 * 60 * 60 * 1000;
@@ -269,8 +270,6 @@ const Demo: React.FC = () => {
       setIsPlayerMinimized(true);
     }
   }, [isInitialPlay]);
-
-
 
   const formatTime = (time: number): string => {
     const minutes = Math.floor(time / 60);
@@ -830,6 +829,52 @@ const Demo: React.FC = () => {
     // Play the previous NFT
     await prepareAndPlayAudio(prevNFT);
   };
+
+  // Add this helper function to release resources from videos
+  const releaseVideoResources = useCallback(() => {
+    // Find all video elements that aren't the currently playing one
+    const allVideos = document.querySelectorAll('video');
+    const currentId = currentPlayingNFT ? `video-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}` : null;
+    
+    allVideos.forEach(video => {
+      if (video.id !== currentId && !video.paused) {
+        try {
+          // Pause video
+          video.pause();
+          
+          // Remove source to fully unload it
+          if (video.src) {
+            video.removeAttribute('src');
+          }
+          
+          // Remove all source elements
+          while (video.firstChild) {
+            video.removeChild(video.firstChild);
+          }
+          
+          // Force browser to release resources
+          video.load();
+          
+          console.log('Released resources for video:', video.id);
+        } catch (e) {
+          console.error('Error releasing video resources:', e);
+        }
+      }
+    });
+  }, [currentPlayingNFT]);
+
+  // Then add this effect to use it
+  useEffect(() => {
+    if (currentPlayingNFT) {
+      // When a new NFT starts playing, release others
+      releaseVideoResources();
+    }
+  }, [currentPlayingNFT, releaseVideoResources]);
+
+  useEffect(() => {
+    // Initialize video performance monitor on mount
+    videoPerformanceMonitor.init();
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col no-select">
