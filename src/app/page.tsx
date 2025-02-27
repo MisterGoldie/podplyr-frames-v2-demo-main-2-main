@@ -41,7 +41,7 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     other: {
       "fc:frame": JSON.stringify(frame),
-      "fc:frame:image": `${appUrl}/og-image.png`,
+      "fc:frame:image": `${appUrl}/og-image.jpg`,
       "fc:frame:post_url": appUrl,
       "fc:frame:button:1": "Launch PODPlayr",
     },
