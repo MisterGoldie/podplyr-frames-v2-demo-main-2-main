@@ -127,7 +127,7 @@ const HomeView: React.FC<HomeViewProps> = ({
             />
         </button>
       </header>
-      <div className="space-y-8 pt-20 pb-32 overflow-y-auto h-screen overscroll-y-contain">
+      <div className="space-y-8 pt-20 pb-40 overflow-y-auto h-screen overscroll-y-contain">
         {/* Recently Played Section */}
         <section>
           {recentlyPlayedNFTs.length > 0 && (
