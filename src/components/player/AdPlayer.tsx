@@ -50,6 +50,7 @@ const AD_CONFIG = [
 
 export const AdPlayer: React.FC<AdPlayerProps> = ({ onAdComplete }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
   const [audioDuration, setAudioDuration] = useState<number>(0);
   const [elapsedTime, setElapsedTime] = useState<number>(0);
@@ -142,15 +143,19 @@ export const AdPlayer: React.FC<AdPlayerProps> = ({ onAdComplete }) => {
   }, [onAdComplete]);
 
   return (
-    <div className="fixed inset-0 bg-black z-50 flex items-center justify-center">
-      <video
-        ref={videoRef}
-        src={selectedAd.video}
-        className={videoOrientation === 'portrait' 
-          ? "h-full object-contain" // For vertical videos, use full height
-          : "w-full h-full object-contain"} // For landscape videos
-        playsInline
-      />
+    <div ref={containerRef} className="fixed inset-0 bg-black z-50 flex items-center justify-center overflow-hidden">
+      <div className={videoOrientation === 'portrait' 
+        ? "w-full h-full flex items-center justify-center" 
+        : "w-full h-full"}>
+        <video
+          ref={videoRef}
+          src={selectedAd.video}
+          className={videoOrientation === 'portrait' 
+            ? "w-full max-h-full object-cover" // For vertical videos, fill width and cover
+            : "w-full h-full object-contain"} // For landscape videos
+          playsInline
+        />
+      </div>
       <div className="absolute top-4 right-4 flex flex-col items-end gap-2">
         {canSkip && (
           <button
