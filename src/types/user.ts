@@ -10,6 +10,7 @@ export interface FarcasterUser {
     location?: string;
   };
   custody_address?: string;
+  warpcast_address?: string;
   verified_addresses?: {
     eth_addresses?: string[];
   };
@@ -24,6 +25,7 @@ export interface SearchedUser {
   follower_count: number;
   following_count: number;
   custody_address?: string;
+  warpcast_address?: string;
   verifiedAddresses?: string[];
   searchCount: number;
   lastSearched?: any; // FirebaseTimestamp
@@ -36,6 +38,7 @@ export interface NFTMetadata {
   image?: string;
   image_url?: string;
   animation_url?: string;
+  animation_url_alternative?: string;
   audio?: string;
   audio_url?: string;
   uri?: string;
@@ -130,6 +133,7 @@ export interface ExtendedFrameContext {
     displayName?: string;
     pfpUrl?: string;
     custody_address?: string;
+    warpcast_address?: string;
     verified_addresses?: {
       eth_addresses?: string[];
     };
@@ -169,6 +173,7 @@ export interface UserContext {
     displayName?: string;
     pfpUrl?: string;
     custody_address?: string;
+    warpcast_address?: string;
     verified_addresses?: {
       eth_addresses?: string[];
     };

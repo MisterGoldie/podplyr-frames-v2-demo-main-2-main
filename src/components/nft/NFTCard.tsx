@@ -1,10 +1,13 @@
 import { useState, useEffect, useRef, useContext } from 'react';
 import { NFT } from '../../types/user';
 import { NFTImage } from '../media/NFTImage';
-import { processMediaUrl } from '../../utils/media';
+import { MuxPlayer } from '../media/MuxPlayer';
+import { processMediaUrl, getMediaKey } from '../../utils/media';
 import { useNFTLikeState } from '../../hooks/useNFTLikeState';
 import { useNFTPlayCount } from '../../hooks/useNFTPlayCount';
 import { FarcasterContext } from '../../app/providers';
+import { DirectVideoPlayer } from '../media/DirectVideoPlayer';
+import { UltraDirectPlayer } from '../media/UltraDirectPlayer';
 
 interface NFTCardProps {
   nft: NFT;
@@ -60,7 +63,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   const [showCollectionMenu, setShowCollectionMenu] = useState(false);
   const [showOverlay, setShowOverlay] = useState(false);
   const overlayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const isCurrentTrack = currentlyPlaying === `${nft.contract}-${nft.tokenId}`;
+  const isCurrentTrack = currentlyPlaying === getMediaKey(nft);
 
   const startOverlayTimer = (e: React.MouseEvent | React.TouchEvent) => {
     // Clear any existing timeout
@@ -107,14 +110,23 @@ export const NFTCard: React.FC<NFTCardProps> = ({
     return (
       <div className="group flex items-center gap-4 bg-gradient-to-br from-gray-800/30 to-gray-800/10 p-3 rounded-lg active:bg-gray-800/60 hover:bg-gray-800/40 transition-colors touch-manipulation shadow-xl shadow-purple-900/30 border border-purple-400/10">
         <div className="relative w-16 h-16 flex-shrink-0">
-          <NFTImage
-            nft={nft}
-            src={processMediaUrl(nft.image || nft.metadata?.image || '')}
-            alt={nft.name || 'NFT'}
-            className="w-full h-full object-cover rounded-md"
-            width={64}
-            height={64}
-          />
+          {nft.metadata?.animation_url?.toLowerCase().endsWith('.mp4') || 
+           nft.metadata?.animation_url?.toLowerCase().endsWith('.webm') ? (
+            <DirectVideoPlayer
+              nft={nft}
+              onLoadComplete={() => {}}
+              onError={() => {}}
+            />
+          ) : (
+            <NFTImage
+              nft={nft}
+              src={processMediaUrl(nft.image || nft.metadata?.image || '')}
+              alt={nft.name || 'NFT'}
+              className="w-full h-full object-cover rounded-md"
+              width={64}
+              height={64}
+            />
+          )}
           {shouldShowBadge && (
             <div className="absolute top-1 right-1 bg-purple-400 text-white text-xs px-1.5 py-0.5 rounded-full font-medium">
               {badge}
@@ -154,15 +166,23 @@ export const NFTCard: React.FC<NFTCardProps> = ({
       }}
     >
       <div className="aspect-square relative">
-        <NFTImage
-          nft={nft}
-          src={processMediaUrl(nft.image || nft.metadata?.image || '')}
-          alt={nft.name || 'NFT'}
-          className="w-full h-full object-cover"
-          width={300}
-          height={300}
-        />
-        {/* Show play count pill if provided */}
+        {nft.metadata?.animation_url?.toLowerCase().endsWith('.mp4') || 
+         nft.metadata?.animation_url?.toLowerCase().endsWith('.webm') ? (
+          <DirectVideoPlayer
+            nft={nft}
+            onLoadComplete={() => {}}
+            onError={() => {}}
+          />
+        ) : (
+          <NFTImage
+            nft={nft}
+            src={processMediaUrl(nft.image || nft.metadata?.image || '')}
+            alt={nft.name || 'NFT'}
+            className="w-full h-full object-cover"
+            width={300}
+            height={300}
+          />
+        )}
         {shouldShowPlayCount && (
           <div className="absolute top-2 left-2 bg-purple-400 text-white text-xs px-2 py-1 rounded-full font-medium">
             {playCountBadge}

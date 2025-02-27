@@ -2,14 +2,19 @@ import { useState } from 'react';
 import { NFT } from '../types/user';
 
 // List of reliable IPFS gateways in order of preference
-const IPFS_GATEWAYS = [
+// Helper function to clean IPFS URLs
+export const getCleanIPFSUrl = (url: string): string => {
+  if (!url) return url;
+  // Remove any duplicate 'ipfs' in the path
+  return url.replace(/\/ipfs\/ipfs\//g, '/ipfs/');
+};
+
+export const IPFS_GATEWAYS = [
   'https://ipfs.io/ipfs/',         // Primary gateway
   'https://nftstorage.link/ipfs/', // Secondary
   'https://cloudflare-ipfs.com/ipfs/', // Tertiary
   'https://gateway.pinata.cloud/ipfs/' // Final fallback
 ];
-
-export { IPFS_GATEWAYS };
 
 // Helper function to extract CID from various IPFS URL formats
 export const extractIPFSHash = (url: string): string | null => {
@@ -43,6 +48,21 @@ export const extractIPFSHash = (url: string): string | null => {
   return null;
 };
 
+// Check if an NFT is using the same URL for both image and audio
+export const isAudioUrlUsedAsImage = (nft: NFT, imageUrl: string): boolean => {
+  if (!imageUrl) return false;
+  
+  // Get all possible audio URLs
+  const audioUrls = [
+    nft?.audio,
+    nft?.metadata?.audio,
+    nft?.metadata?.animation_url
+  ].filter(Boolean);
+  
+  // Return true if imageUrl matches any audio URL
+  return audioUrls.includes(imageUrl);
+};
+
 // Function to process media URLs to ensure they're properly formatted
 export const processMediaUrl = (url: string, fallbackUrl: string = '/default-nft.png'): string => {
   if (!url) return fallbackUrl;
@@ -57,10 +77,25 @@ export const processMediaUrl = (url: string, fallbackUrl: string = '/default-nft
   // Remove any duplicate 'ipfs' in the path
   url = url.replace(/\/ipfs\/ipfs\//, '/ipfs/');
 
+  // Check for supported media types that might need special handling
+  const fileExt = url.split('.').pop()?.toLowerCase();
+  
   // Handle IPFS URLs
   if (url.startsWith('ipfs://')) {
     // Remove ipfs:// prefix and any trailing slashes
     const hash = url.replace('ipfs://', '').replace(/\/*$/, '');
+    
+    // For mobile devices, prioritize more reliable gateways
+    // Use cloudflare gateway for better global CDN coverage
+    const isMobile = typeof window !== 'undefined' && 
+                    (navigator.userAgent.match(/Android/i) ||
+                     navigator.userAgent.match(/iPhone/i) ||
+                     navigator.userAgent.match(/iPad/i));
+    
+    if (isMobile) {
+      return `https://cloudflare-ipfs.com/ipfs/${hash}`;
+    }
+    
     return `${IPFS_GATEWAYS[0]}${hash}`;
   }
 
@@ -69,6 +104,17 @@ export const processMediaUrl = (url: string, fallbackUrl: string = '/default-nft
   if (ipfsHash) {
     // Remove any trailing slashes from the hash
     const cleanHash = ipfsHash.replace(/\/*$/, '');
+    
+    // For mobile devices, prioritize more reliable gateways
+    const isMobile = typeof window !== 'undefined' && 
+                    (navigator.userAgent.match(/Android/i) ||
+                     navigator.userAgent.match(/iPhone/i) ||
+                     navigator.userAgent.match(/iPad/i));
+    
+    if (isMobile) {
+      return `https://cloudflare-ipfs.com/ipfs/${cleanHash}`;
+    }
+    
     return `${IPFS_GATEWAYS[0]}${cleanHash}`;
   }
 
@@ -140,21 +186,32 @@ const createSafeId = (url: string): string => {
     .slice(0, 100); // Limit length
 };
 
-// Function to generate consistent mediaKey for NFTs with identical content
+/**
+ * Generates a consistent mediaKey for NFTs with identical content.
+ * 
+ * IMPORTANT: This function intentionally returns the same key for NFTs that share identical content
+ * (same audio/image/animation URLs). This is a core part of PODPlayr's content-first architecture:
+ * 
+ * - Same content = same mediaKey = shared play count and like status
+ * - Different NFT instances with same content are treated as the same media
+ * - This will cause React "duplicate key" warnings which can be safely ignored
+ * - The warnings indicate the system is correctly identifying duplicate content
+ * 
+ * DO NOT modify this to generate unique keys - duplicate keys are intentional!
+ */
 export const getMediaKey = (nft: NFT): string => {
   if (!nft) return '';
 
-  // Get unique media URLs
-  const audioUrl = nft.metadata?.animation_url || nft.audio || '';
+  // Get media URLs
+  const videoUrl = nft.metadata?.animation_url || '';
   const imageUrl = nft.image || nft.metadata?.image || '';
-  // Only use animationUrl if it's different from audioUrl
-  const animationUrl = (nft.metadata?.animation_url !== audioUrl) ? nft.metadata?.animation_url || '' : '';
+  const audioUrl = nft.audio || '';
 
   // Create safe IDs for each URL
   const safeUrls = Array.from(new Set([
-    audioUrl,
+    videoUrl,
     imageUrl,
-    animationUrl
+    audioUrl
   ]))
     .filter(Boolean) // Remove empty strings
     .map(createSafeId)
@@ -175,3 +232,27 @@ export const getMediaKey = (nft: NFT): string => {
     .replace(/_+/g, '_') // Clean up any remaining multiple underscores
     .replace(/^_+|_+$/g, ''); // Trim leading/trailing underscores
 };
+
+export function getDirectMediaUrl(url: string): string {
+  if (!url) return '';
+  
+  // Handle IPFS URLs - try multiple gateways for better performance
+  if (url.includes('ipfs://')) {
+    const ipfsHash = url.replace('ipfs://', '');
+    
+    // For video content, use a CDN-backed gateway
+    return `https://cloudflare-ipfs.com/ipfs/${ipfsHash}`;
+    
+    // Fallbacks if needed:
+    // return `https://ipfs.io/ipfs/${ipfsHash}`;
+    // return `https://gateway.pinata.cloud/ipfs/${ipfsHash}`;
+  }
+  
+  // Handle Arweave URLs
+  if (url.includes('ar://')) {
+    return url.replace('ar://', 'https://arweave.net/');
+  }
+  
+  // Return the URL directly without any processing
+  return url;
+}

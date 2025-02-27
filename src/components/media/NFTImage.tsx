@@ -1,16 +1,10 @@
 import { useState, useEffect } from 'react';
-import { processMediaUrl, IPFS_GATEWAYS } from '../../utils/media';
+import { processMediaUrl, IPFS_GATEWAYS, isAudioUrlUsedAsImage, getCleanIPFSUrl } from '../../utils/media';
 import Image from 'next/image';
 import type { SyntheticEvent } from 'react';
 import type { NFT } from '../../types/user';
 import { useNFTPreloader } from '../../hooks/useNFTPreloader';
 
-// Helper function to clean IPFS URLs
-const getCleanIPFSUrl = (url: string): string => {
-  if (!url) return url;
-  // Remove any duplicate 'ipfs' in the path
-  return url.replace(/\/ipfs\/ipfs\//g, '/ipfs/');
-};
 
 interface NFTImageProps {
   src: string;
@@ -20,6 +14,10 @@ interface NFTImageProps {
   height?: number;
   priority?: boolean;
   nft?: NFT;
+  sizes?: string;
+  quality?: number;
+  loading?: 'lazy' | 'eager';
+  placeholder?: 'empty';
 }
 
 const extractIPFSHash = (url: string): string | null => {
@@ -57,8 +55,12 @@ export const NFTImage: React.FC<NFTImageProps> = ({
   className, 
   width = 300, 
   height = 300, 
-  priority,
-  nft 
+  priority = false,
+  nft,
+  sizes = '(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw',
+  quality = 75,
+  loading = 'lazy',
+  placeholder = 'empty'
 }) => {
   const fallbackSrc = '/default-nft.png';
   const [isVideo, setIsVideo] = useState(false);
@@ -69,8 +71,39 @@ export const NFTImage: React.FC<NFTImageProps> = ({
   const [isLoadingFallback, setIsLoadingFallback] = useState(false);
 
   useEffect(() => {
-    const detectVideoContent = (url: string) => {
+    const isAudioUrl = (url: string): boolean => {
       if (!url) return false;
+      
+      // Check for common audio extensions
+      const audioExtensions = /\.(mp3|wav|ogg|m4a|aac)$/i;
+      
+      // Check for audio MIME types
+      const audioMimeTypes = /(audio\/|application\/ogg)/i;
+      
+      return (
+        audioExtensions.test(url) || 
+        audioMimeTypes.test(url) || 
+        url.includes('/audio/')
+      );
+    };
+
+    const detectMediaContent = (url: string) => {
+      if (!url) return false;
+      
+      // Check metadata mime types first
+      if (nft?.metadata?.mimeType) {
+        if (nft.metadata.mimeType.startsWith('audio/') || 
+            nft.metadata.mimeType.startsWith('video/')) {
+          return true;
+        }
+      }
+
+      if (nft?.metadata?.properties?.mimeType) {
+        if (nft.metadata.properties.mimeType.startsWith('audio/') || 
+            nft.metadata.properties.mimeType.startsWith('video/')) {
+          return true;
+        }
+      }
       
       // Check for common video extensions
       const videoExtensions = /\.(mp4|webm|ogg|mov|m4v)$/i;
@@ -82,7 +115,7 @@ export const NFTImage: React.FC<NFTImageProps> = ({
         videoExtensions.test(url) || 
         videoMimeTypes.test(url) || 
         url.includes('/video/') ||
-        (nft?.metadata?.mimeType && nft.metadata.mimeType.startsWith('video/'))
+        isAudioUrl(url)
       );
     };
 
@@ -93,17 +126,39 @@ export const NFTImage: React.FC<NFTImageProps> = ({
     if (nft?.metadata?.image || nft?.image) {
       setIsVideo(false);
       const thumbnailUrl = nft.metadata?.image || nft.image;
-      setImgSrc(processMediaUrl(thumbnailUrl, fallbackSrc));
+      
+      // Check if image URL matches any audio URL
+      if (nft && isAudioUrlUsedAsImage(nft, thumbnailUrl)) {
+        console.warn('NFT using audio URL as image, using fallback:', {
+          contract: nft.contract,
+          tokenId: nft.tokenId
+        });
+        setImgSrc(fallbackSrc);
+        return;
+      }
+      
+      setImgSrc(processMediaUrl(thumbnailUrl));
       return;
     }
 
     // For NFTs with image
     if (src) {
+      // Check if image URL matches any audio URL
+      if (nft && isAudioUrlUsedAsImage(nft, src)) {
+        setIsVideo(false);
+        setImgSrc(fallbackSrc);
+        console.warn('NFT using audio URL as image, using fallback:', {
+          contract: nft.contract,
+          tokenId: nft.tokenId
+        });
+        return;
+      }
+      
       setIsVideo(false);
       // Clean and process the URL
       if (src.includes('ipfs') || src.includes('nftstorage.link')) {
         const cleanedUrl = getCleanIPFSUrl(src);
-        setImgSrc(processMediaUrl(cleanedUrl, fallbackSrc));
+        setImgSrc(processMediaUrl(cleanedUrl));
       } else {
         setImgSrc(src);
       }
@@ -117,11 +172,17 @@ export const NFTImage: React.FC<NFTImageProps> = ({
 
   const handleError = async (error: SyntheticEvent<HTMLVideoElement | HTMLImageElement>) => {
     // Prevent infinite retry loops
-    if (retryCount >= IPFS_GATEWAYS.length) {
+    if (retryCount >= IPFS_GATEWAYS.length || isVideo) {
       if (!isLoadingFallback) {
         setIsLoadingFallback(true);
         setError(true);
         setImgSrc(fallbackSrc);
+        
+        // Log only on first fallback
+        console.debug('Using fallback image for NFT:', { 
+          nftId: nft ? `${nft.contract}-${nft.tokenId}` : 'unknown',
+          reason: isVideo ? 'Media is video/audio' : 'All gateways failed'
+        });
       }
       return;
     }
@@ -167,7 +228,10 @@ export const NFTImage: React.FC<NFTImageProps> = ({
         className={className}
         width={width || 300}
         height={height || 300}
-        priority={priority}
+        quality={quality}
+        sizes={sizes}
+        loading={priority ? 'eager' : loading}
+        placeholder={placeholder}
         onError={handleError}
       />
     );
@@ -181,7 +245,8 @@ export const NFTImage: React.FC<NFTImageProps> = ({
       width={width || 300}
       height={height || 300}
       onError={handleError}
-      loading={priority ? 'eager' : 'lazy'}
+      loading={priority ? 'eager' : loading}
+      sizes={sizes}
     />
   );
 };

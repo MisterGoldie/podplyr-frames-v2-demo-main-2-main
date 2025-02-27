@@ -118,43 +118,11 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs }: UseAudioPlaye
     }
   }, [isPlaying]);
 
-  const handlePlayNext = useCallback(async () => {
-    if (!currentPlayingNFT || !currentQueue.length) return;
-    
-    const currentIndex = currentQueue.findIndex(
-      (nft: NFT) => nft.contract === currentPlayingNFT.contract && nft.tokenId === currentPlayingNFT.tokenId
-    );
-
-    if (currentIndex === -1) return;
-
-    const nextIndex = (currentIndex + 1) % currentQueue.length;
-    const nextNFT = currentQueue[nextIndex];
-
-    if (nextNFT) await handlePlayAudio(nextNFT, { queue: currentQueue, queueType });
-  }, [currentPlayingNFT, currentQueue, queueType]);
-
-  const handlePlayPrevious = useCallback(async () => {
-    if (!currentPlayingNFT || !currentQueue.length) return;
-
-    const currentIndex = currentQueue.findIndex(
-      (nft: NFT) => nft.contract === currentPlayingNFT.contract && nft.tokenId === currentPlayingNFT.tokenId
-    );
-
-    if (currentIndex === -1) return;
-
-    const prevIndex = (currentIndex - 1 + currentQueue.length) % currentQueue.length;
-    const prevNFT = currentQueue[prevIndex];
-
-    if (prevNFT) await handlePlayAudio(prevNFT, { queue: currentQueue, queueType });
-  }, [currentPlayingNFT, currentQueue, queueType]);
-
-  const handleSeek = useCallback((time: number) => {
-    if (!audioRef.current) return;
-    audioRef.current.currentTime = time;
-    setAudioProgress(time);
-  }, []);
-
+  // Define handlePlayAudio first, before it's used in other functions
   const handlePlayAudio = useCallback(async (nft: NFT, context?: { queue?: NFT[], queueType?: string }) => {
+    // Add mobile optimization
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
     // Always update queue context
     if (context?.queue) {
       setCurrentQueue(context.queue);
@@ -254,9 +222,48 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs }: UseAudioPlaye
       // Replace the current audio reference
       audioRef.current = audio;
 
+      // When setting up the audio element
+      if (isMobile) {
+        // Optimize for mobile
+        audio.preload = "metadata"; // Only preload metadata first
+        
+        // Set a lower volume initially to avoid popping on mobile
+        audio.volume = 0.7;
+        
+        // Use a smaller buffer size on mobile to reduce memory usage
+        if ('mozFragmentSize' in audio) {
+          (audio as any).mozFragmentSize = 1024; // Firefox-specific
+        }
+        
+        // Use low latency mode on Android Chrome if available
+        if ('webkitAudioContext' in window) {
+          audio.dataset.lowLatency = 'true';
+        }
+      }
+
       try {
-        await audio.play();
-        setIsPlaying(true);
+        if (isMobile) {
+          // On mobile, we need to handle autoplay restrictions
+          audio.muted = true; // Start muted to bypass autoplay restrictions
+          const playPromise = audio.play();
+          
+          if (playPromise !== undefined) {
+            playPromise.then(() => {
+              // Autoplay started successfully, now unmute
+              audio.muted = false;
+              setIsPlaying(true);
+            }).catch(error => {
+              // Autoplay was prevented
+              console.warn("Mobile autoplay prevented:", error);
+              setIsPlaying(false);
+            });
+          }
+        } else {
+          // Normal desktop play behavior
+          await audio.play();
+          setIsPlaying(true);
+        }
+        
         // Start the new video
         const newVideo = document.querySelector(`#video-${nft.contract}-${nft.tokenId}`);
         if (newVideo instanceof HTMLVideoElement) {
@@ -286,7 +293,126 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs }: UseAudioPlaye
         }
       }
     }
+
+    // iOS-specific audio-video sync fix
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isIOS && nft.isVideo) {
+      // iOS often needs a user interaction to properly sync audio and video
+      // Create a silent audio context to unlock audio
+      const unlockAudio = () => {
+        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioContext) {
+          const audioCtx = new AudioContext();
+          // Create buffer for short sound
+          const buffer = audioCtx.createBuffer(1, 1, 22050);
+          const source = audioCtx.createBufferSource();
+          source.buffer = buffer;
+          source.connect(audioCtx.destination);
+          source.start(0);
+          
+          // Resume audio context
+          if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+          }
+        }
+      };
+      
+      unlockAudio();
+      
+      // For iOS, we need to ensure the video element is properly reset
+      const videoElement = document.querySelector(`#video-${nft.contract}-${nft.tokenId}`);
+      if (videoElement instanceof HTMLVideoElement) {
+        // Reset video element for iOS
+        videoElement.currentTime = 0;
+        videoElement.load();
+      }
+    }
   }, [currentlyPlaying, handlePlayPause, fid, setRecentlyPlayedNFTs]);
+  
+  // Now define handlePlayNext and handlePlayPrevious which use handlePlayAudio
+  const handlePlayNext = useCallback(async () => {
+    if (!currentPlayingNFT) return;
+    
+    // Get the current queue from window.nftList which is set by the Demo component
+    // based on the current page/category
+    const currentPageQueue = window.nftList || [];
+    
+    if (!currentPageQueue.length) {
+      console.log('No queue available for next track');
+      return;
+    }
+
+    console.log('Next button pressed. Current queue length:', currentPageQueue.length);
+    
+    // Find current index in the current page queue
+    const currentIndex = currentPageQueue.findIndex(
+      (nft: NFT) => nft.contract === currentPlayingNFT.contract && nft.tokenId === currentPlayingNFT.tokenId
+    );
+
+    console.log('Current index in queue:', currentIndex);
+
+    if (currentIndex === -1) {
+      console.log('Current NFT not found in queue');
+      return;
+    }
+
+    // Get next NFT in queue with wraparound
+    const nextIndex = (currentIndex + 1) % currentPageQueue.length;
+    const nextNFT = currentPageQueue[nextIndex];
+
+    console.log('Playing next NFT:', nextNFT.name, 'at index:', nextIndex);
+    
+    if (nextNFT) {
+      // Update our internal queue to match the page queue
+      setCurrentQueue(currentPageQueue);
+      await handlePlayAudio(nextNFT);
+    }
+  }, [currentPlayingNFT, handlePlayAudio]);
+
+  const handlePlayPrevious = useCallback(async () => {
+    if (!currentPlayingNFT) return;
+    
+    // Get the current queue from window.nftList which is set by the Demo component
+    // based on the current page/category
+    const currentPageQueue = window.nftList || [];
+    
+    if (!currentPageQueue.length) {
+      console.log('No queue available for previous track');
+      return;
+    }
+
+    console.log('Previous button pressed. Current queue length:', currentPageQueue.length);
+    
+    // Find current index in the current page queue
+    const currentIndex = currentPageQueue.findIndex(
+      (nft: NFT) => nft.contract === currentPlayingNFT.contract && nft.tokenId === currentPlayingNFT.tokenId
+    );
+
+    console.log('Current index in queue:', currentIndex);
+
+    if (currentIndex === -1) {
+      console.log('Current NFT not found in queue');
+      return;
+    }
+
+    // Get previous NFT in queue with wraparound
+    const prevIndex = (currentIndex - 1 + currentPageQueue.length) % currentPageQueue.length;
+    const prevNFT = currentPageQueue[prevIndex];
+
+    console.log('Playing previous NFT:', prevNFT.name, 'at index:', prevIndex);
+    
+    if (prevNFT) {
+      // Update our internal queue to match the page queue
+      setCurrentQueue(currentPageQueue);
+      await handlePlayAudio(prevNFT);
+    }
+  }, [currentPlayingNFT, handlePlayAudio]);
+
+  const handleSeek = useCallback((time: number) => {
+    if (!audioRef.current) return;
+    audioRef.current.currentTime = time;
+    setAudioProgress(time);
+  }, []);
 
   return {
     isPlaying,

@@ -8,6 +8,8 @@ interface PlayerControlsProps {
   onNext: () => void;
   onPrevious: () => void;
   disabled?: boolean;
+  onPictureInPicture?: () => void;
+  showPiP?: boolean;
 }
 
 export const PlayerControls: React.FC<PlayerControlsProps> = ({
@@ -16,6 +18,8 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
   onNext,
   onPrevious,
   disabled = false,
+  onPictureInPicture,
+  showPiP = false,
 }) => {
   return (
     <div className="flex items-center gap-4">
@@ -57,6 +61,20 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
           <path d="M660-240v-480h80v480h-80ZM140-240v-480l360 240-360 240Z" />
         </svg>
       </button>
+
+      {/* Picture-in-Picture Toggle */}
+      {showPiP && onPictureInPicture && (
+        <button
+          onClick={onPictureInPicture}
+          disabled={disabled}
+          className={`text-purple-400 hover:text-purple-300 transition-colors ${disabled ? 'opacity-50 cursor-not-allowed' : ''} touch-manipulation ml-2`}
+          aria-label="Toggle Picture-in-Picture"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+            <path d="M320-240h320v-240H320v240Zm-80 80v-400h480v400H240Zm80-480v-80h480v400h-80v-320H320Zm-160 0v-80h560v80H160Zm160 480v-240 240Z"/>
+          </svg>
+        </button>
+      )}
     </div>
   );
 };

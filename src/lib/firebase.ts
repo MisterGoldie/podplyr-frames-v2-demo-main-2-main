@@ -836,46 +836,63 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
 
     const likedNFTs: NFT[] = [];
     const seenMediaKeys = new Set<string>();
+    const missingGlobalLikes = new Set<string>();
     
-    for (const docSnapshot of querySnapshot.docs) {
-      const data = docSnapshot.data();
+    // First, collect all media keys
+    const mediaKeys = querySnapshot.docs.map(doc => doc.id);
+    
+    // Batch get all global likes to reduce number of requests
+    const batchSize = 10;
+    for (let i = 0; i < mediaKeys.length; i += batchSize) {
+      const batch = mediaKeys.slice(i, i + batchSize);
+      const promises = batch.map(mediaKey => {
+        if (seenMediaKeys.has(mediaKey)) return null;
+        seenMediaKeys.add(mediaKey);
+        
+        return getDoc(doc(db, 'global_likes', mediaKey))
+          .then(globalLikeDoc => {
+            if (!globalLikeDoc.exists()) {
+              missingGlobalLikes.add(mediaKey);
+              return null;
+            }
+            
+            const globalData = globalLikeDoc.data();
+            const nft: NFT = {
+              contract: globalData.nftContract,
+              tokenId: globalData.tokenId,
+              name: globalData.name || 'Untitled',
+              description: globalData.description || '',
+              image: globalData.image || '',
+              audio: globalData.audioUrl || '',
+              hasValidAudio: Boolean(globalData.audioUrl),
+              metadata: {
+                name: globalData.name || 'Untitled',
+                description: globalData.description || '',
+                image: globalData.image || '',
+                animation_url: globalData.audioUrl || ''
+              },
+              collection: {
+                name: globalData.collection || 'Unknown Collection'
+              },
+              network: globalData.network || 'ethereum'
+            };
+            
+            return nft;
+          })
+          .catch(err => {
+            console.warn(`Error fetching global like for ${mediaKey}:`, err);
+            return null;
+          });
+      });
       
-      const mediaKey = docSnapshot.id;
-      // Skip duplicates
-      if (seenMediaKeys.has(mediaKey)) continue;
-      seenMediaKeys.add(mediaKey);
-      
-      // Get the global like document to get NFT details
-      const globalLikeRef = doc(db, 'global_likes', mediaKey);
-      const globalLikeDoc = await getDoc(globalLikeRef);
-      
-      if (!globalLikeDoc.exists()) {
-        console.warn('Global like document not found for mediaKey:', mediaKey);
-        continue;
-      }
-      
-      const globalData = globalLikeDoc.data();
-      const nft: NFT = {
-        contract: globalData.nftContract,
-        tokenId: globalData.tokenId,
-        name: globalData.name || 'Untitled',
-        description: globalData.description || '',
-        image: globalData.image || '',
-        audio: globalData.audioUrl || '',
-        hasValidAudio: Boolean(globalData.audioUrl),
-        metadata: {
-          name: globalData.name || 'Untitled',
-          description: globalData.description || '',
-          image: globalData.image || '',
-          animation_url: globalData.audioUrl || ''
-        },
-        collection: {
-          name: globalData.collection || 'Unknown Collection'
-        },
-        network: globalData.network || 'ethereum'
-      };
-      
-      likedNFTs.push(nft);
+      const results = await Promise.all(promises);
+      likedNFTs.push(...results.filter(Boolean) as NFT[]);
+    }
+    
+    // Log missing global likes once at the end instead of for each one
+    if (missingGlobalLikes.size > 0) {
+      console.warn(`Missing ${missingGlobalLikes.size} global like documents. First few:`, 
+        [...missingGlobalLikes].slice(0, 3));
     }
 
     console.log('Processed liked NFTs:', likedNFTs);
@@ -1390,8 +1407,8 @@ export const ensureFeaturedNFTsExist = async (nfts: NFT[]): Promise<void> => {
   }
 };
 
-// Debounce search requests
-let searchTimeout: NodeJS.Timeout;
+// Declare searchTimeout at module level
+let searchTimeout: NodeJS.Timeout | undefined;
 
 export const searchUsers = async (query: string): Promise<FarcasterUser[]> => {
   // Clear any pending search

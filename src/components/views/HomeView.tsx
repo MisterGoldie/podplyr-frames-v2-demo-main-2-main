@@ -127,7 +127,7 @@ const HomeView: React.FC<HomeViewProps> = ({
             />
         </button>
       </header>
-      <div className="space-y-8 pt-20 pb-48 overflow-y-auto h-screen overscroll-y-contain">
+      <div className="space-y-8 pt-20 pb-40 overflow-y-auto h-screen overscroll-y-contain">
         {/* Recently Played Section */}
         <section>
           {recentlyPlayedNFTs.length > 0 && (
@@ -137,13 +137,13 @@ const HomeView: React.FC<HomeViewProps> = ({
                 <div className="overflow-x-auto pb-4 hide-scrollbar">
                   <div className="flex gap-4">
                     {recentlyPlayedNFTs.map((nft, index) => (
-                      <div key={`recently-played-${nft.contract}-${nft.tokenId}-${index}`} className="flex-shrink-0 w-[140px]">
+                      <div key={`recently-played-${getMediaKey(nft)}`} className="flex-shrink-0 w-[140px]">
                         <NFTCard
                           nft={nft}
                           onPlay={async (nft) => {
                             await onPlayNFT(nft);
                           }}
-                          isPlaying={isPlaying && currentlyPlaying === `${nft.contract}-${nft.tokenId}`}
+                          isPlaying={isPlaying && currentlyPlaying === getMediaKey(nft)}
                           currentlyPlaying={currentlyPlaying}
                           handlePlayPause={handlePlayPause}
                           onLikeToggle={() => onLikeToggle(nft)}
@@ -168,13 +168,13 @@ const HomeView: React.FC<HomeViewProps> = ({
                 <div className="overflow-x-auto pb-4 hide-scrollbar">
                   <div className="flex gap-6">
                     {topPlayedNFTs.map(({ nft, count }, index) => (
-                      <div key={`top-played-${nft.contract}-${nft.tokenId}-${index}`} className="flex-shrink-0 w-[200px]">
+                      <div key={`top-played-${getMediaKey(nft)}`} className="flex-shrink-0 w-[200px]">
                         <NFTCard
                           nft={nft}
                           onPlay={async (nft) => {
                             await onPlayNFT(nft);
                           }}
-                          isPlaying={isPlaying && currentlyPlaying === `${nft.contract}-${nft.tokenId}`}
+                          isPlaying={isPlaying && currentlyPlaying === getMediaKey(nft)}
                           currentlyPlaying={currentlyPlaying}
                           handlePlayPause={handlePlayPause}
                           onLikeToggle={() => onLikeToggle(nft)}

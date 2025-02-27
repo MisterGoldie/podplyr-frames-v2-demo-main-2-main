@@ -1,40 +1,54 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NFTImage } from '../media/NFTImage';
 import type { NFT } from '../../types/user';
-import { IPFS_GATEWAYS, extractIPFSHash, processMediaUrl } from '../../utils/media';
+import { getMediaKey, extractIPFSHash, IPFS_GATEWAYS, processMediaUrl } from '../../utils/media';
+import { preloadAudio } from '../../utils/audioPreloader';
 
 // Hardcoded featured NFTs
 export const FEATURED_NFTS: NFT[] = [
   {
     name: 'Seasoning with Sazón - COD Zombies Terminus EP1',
-    image: 'https://arweave.net/RvFQ8lrX3vRnnbbeA7eBoOvVsW5zOeqPXGOtZY_FXbw',
+    image: 'https://arweave.net/HvZ4oE2mDf6G1o1rX9Y_lkqegYA_0ZsRyY1JxQpL2v0',
     contract: '0x27430c3ef4b04f7d223df7f280ae8fc0b3a407b7',
     tokenId: '50dc9fb449e0', // Already in correct format
     audio: 'https://arweave.net/noYvGupxQyo2P7C2GMNNUseml29HEN6HLyvXOBD7jYQ',
     metadata: {
-      animation_url: 'https://arweave.net/noYvGupxQyo2P7C2GMNNUseml29HEN6HLyvXOBD7jYQ'
+      animation_url: 'https://arweave.net/noYvGupxQyo2P7C2GMNNUseml29HEN6HLyvXOBD7jYQ',
+      description: 'Seasoning with Sazón, Call of Duty Black Ops 6 - Zombies - Terminus Episode 1 of 5',
+      attributes: [
+        {"trait_type":"Game","value":"Call of Duty Black Ops 6"},
+        {"trait_type":"Map","value":"Terminus"}
+      ]
     }
   },
   {
-    name: 'NEON NIGHTS ft Jadyn Violet #5',
-    image: 'https://arweave.net/EGQzuCvDtPVzuKVOJpu4gt2eh642PyOdrk5m2S1iAYw',
-    contract: '0x260944f3c90c982801dd0caca58314bf0007ebda',
-    tokenId: '2ecfda1dbf54', // Already in correct format
-    audio: 'https://arweave.net/kTdSRwNVqTcFBGJ3uqhApAiZMhBOu71UNnoOax-C6YM',
+    name: 'I Found It',
+    image: 'https://arweave.net/Wvad7CgtidFMH3mOBjRHOeV5_bKvvAR9zZH2BhQSl7M',
+    contract: '0x27430c3ef4b04f7d223df7f280ae8fc0b3a407b7',
+    tokenId: '50dc9fb449e1',
+    audio: 'https://arweave.net/qsVEbTD0FUZ8VebK4yxOrKWDQtW8BpNWj7o46HzKsV8',
     metadata: {
-      animation_url: 'https://arweave.net/kTdSRwNVqTcFBGJ3uqhApAiZMhBOu71UNnoOax-C6YM'
+      animation_url: 'https://arweave.net/qsVEbTD0FUZ8VebK4yxOrKWDQtW8BpNWj7o46HzKsV8',
+      description: 'A Charles Fox Film (ACYL)',
+      attributes: [
+        {"trait_type":"Director","value":"Charles Fox"}
+      ]
     }
   },
   {
-    name: 'Isolation(2020)',
-    image: 'https://nftstorage.link/ipfs/bafybeibjen3vz5bbw7e3u5sj3x65dyg3k5bqznrmq4ctylvxadkazgnkli',
+    name: 'ACYL RADIO - WILL01',
+    image: 'https://arweave.net/9MMNoTZJecFZTWL3AaebXDRq7UKcO2N4orYH6ZPzsYU',
     contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb',
-    tokenId: '79428737e6', // Removed 0x prefix
-    audio: 'https://nftstorage.link/ipfs/bafybeibops7cqqf5ssqvueexmsyyrf6q4x6jbeaicymrnnzbg7dx34k2jq',
+    tokenId: '79428737e6',
+    audio: 'https://arweave.net/FXMkBkgV79p3QIL8589uh68-sKuXbmuBzQwvWH10v74',
     metadata: {
-      animation_url: 'https://nftstorage.link/ipfs/bafybeibops7cqqf5ssqvueexmsyyrf6q4x6jbeaicymrnnzbg7dx34k2jq'
+      animation_url: 'https://arweave.net/FXMkBkgV79p3QIL8589uh68-sKuXbmuBzQwvWH10v74',
+      description: 'Episode 1 from the founder of ACYL',
+      attributes: [
+        {"trait_type":"Host","value":"WiLL"}
+      ]
     }
   }
 ];
@@ -48,67 +62,7 @@ interface FeaturedSectionProps {
   isNFTLiked: (nft: NFT) => boolean;
 }
 
-const preloadAudio = async (url: string, nftName: string): Promise<void> => {
-  const ipfsHash = extractIPFSHash(url);
-  const urlsToTry = ipfsHash 
-    ? IPFS_GATEWAYS.map(gateway => `${gateway}${ipfsHash}`) // Try all IPFS gateways if it's an IPFS URL
-    : [url]; // Otherwise just try the original URL
 
-  let lastError: Error | null = null;
-
-  // Try each URL until one works
-  for (const currentUrl of urlsToTry) {
-    try {
-      const audio = new Audio();
-      audio.preload = 'auto';
-      audio.crossOrigin = 'anonymous';
-      
-      const loadPromise = new Promise((resolve, reject) => {
-        audio.addEventListener('canplaythrough', () => resolve(true), { once: true });
-        audio.addEventListener('error', (e) => {
-          const error = e as ErrorEvent;
-          if (error.target instanceof HTMLAudioElement) {
-            switch (error.target.error?.code) {
-              case MediaError.MEDIA_ERR_ABORTED:
-                reject(new Error('Audio loading aborted'));
-                break;
-              case MediaError.MEDIA_ERR_NETWORK:
-                reject(new Error('Network error while loading audio'));
-                break;
-              case MediaError.MEDIA_ERR_DECODE:
-                reject(new Error('Audio decode error'));
-                break;
-              case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
-                reject(new Error('Audio format not supported'));
-                break;
-              default:
-                reject(new Error('Unknown audio loading error'));
-            }
-          } else {
-            reject(error);
-          }
-        }, { once: true });
-      });
-
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Audio preload timeout')), 15000); // 15 second timeout per gateway
-      });
-
-      audio.src = currentUrl;
-      audio.load();
-      
-      await Promise.race([loadPromise, timeoutPromise]);
-      console.log(`✅ Featured NFT preloaded successfully: ${nftName} using ${currentUrl}`);
-      return; // Success! Exit the function
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error('Unknown error');
-      console.warn(`⚠️ Failed to preload "${nftName}" using ${currentUrl}: ${lastError.message}. Trying next gateway...`);
-    }
-  }
-
-  // If we get here, all attempts failed
-  console.warn(`⚠️ Could not preload "${nftName}" using any gateway: ${lastError?.message}. Playback will still be attempted when needed.`);
-};
 
 const FeaturedSection: React.FC<FeaturedSectionProps> = ({
   onPlayNFT,
@@ -118,25 +72,38 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({
   onLikeToggle,
   isNFTLiked
 }) => {
-  // Preload featured NFTs audio
-  React.useEffect(() => {
+  // Preloading state
+  const [preloaded, setPreloaded] = useState(false); // Set to false to enable preloading
+
+  // Disable preloading for now to fix the error
+  useEffect(() => {
+    if (preloaded) return;
+
     const preloadFeaturedContent = async () => {
       console.log('🎵 Starting to preload featured NFTs...');
-      // Load all featured NFTs in parallel
-      await Promise.all(
-        FEATURED_NFTS.map(nft => {
-          const audioUrl = nft.audio || nft.metadata?.animation_url;
-          if (audioUrl) {
-            return preloadAudio(audioUrl, nft.name);
+      
+      try {
+        // Load featured NFTs one by one to avoid overwhelming the browser
+        // This is more reliable than trying to load them all in parallel
+        for (const nft of FEATURED_NFTS) {
+          try {
+            await preloadAudio(nft, 'high');
+          } catch (error) {
+            // Log but continue with next NFT
+            console.warn(`Failed to preload NFT ${nft.name || nft.tokenId}:`, error);
           }
-          return Promise.resolve();
-        })
-      );
-      console.log('✨ All featured NFTs preloaded!');
+        }
+        console.log('✨ All featured NFTs preloaded!');
+        setPreloaded(true);
+      } catch (error) {
+        console.warn('Failed to preload some featured NFTs:', error);
+        // Still mark as preloaded to avoid repeated attempts
+        setPreloaded(true);
+      }
     };
 
     preloadFeaturedContent();
-  }, []); // Empty dependency array means this runs once on mount
+  }, [preloaded]); // Only run if not yet preloaded
 
   return (
     <div className="mb-8">
@@ -145,7 +112,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({
         <div className="overflow-x-auto pb-4 hide-scrollbar">
           <div className="flex gap-6">
             {FEATURED_NFTS.map((nft) => (
-              <div key={`${nft.contract}-${nft.tokenId}`} className="flex-shrink-0 w-[200px] group">
+              <div key={getMediaKey(nft)} className="flex-shrink-0 w-[200px] group">
                 <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-gray-800/20">
                   <NFTImage
                     src={nft.image}

@@ -60,22 +60,36 @@ const ProfileView: React.FC<ProfileViewProps> = ({
 
   useEffect(() => {
     const loadNFTs = async () => {
-      if (!userContext.user?.fid) return;
+      if (!userContext.user?.fid) {
+        console.log('🚫 No FID found in userContext:', userContext);
+        return;
+      }
       
+      console.log('🔄 Loading NFTs for FID:', userContext.user.fid);
       try {
         setIsLoading(true);
         setError(null);
         
+        console.log('📡 Calling fetchUserNFTs...');
         const nfts = await fetchUserNFTs(userContext.user.fid);
+        console.log('✨ NFTs loaded:', {
+          count: nfts.length,
+          nfts: nfts.map(nft => ({
+            contract: nft.contract,
+            tokenId: nft.tokenId,
+            hasAudio: nft.hasValidAudio
+          }))
+        });
         onNFTsLoaded(nfts);
       } catch (err) {
-        console.error('Error loading NFTs:', err);
+        console.error('❌ Error loading NFTs:', err);
         setError(err instanceof Error ? err.message : 'Failed to load NFTs');
       } finally {
         setIsLoading(false);
       }
     };
 
+    console.log('🎯 ProfileView useEffect triggered with FID:', userContext.user?.fid);
     loadNFTs();
   }, [userContext.user?.fid, onNFTsLoaded]);
   return (
@@ -179,7 +193,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
           <button
             onClick={() => fileInputRef.current?.click()}
             className={`absolute top-4 right-4 p-2 rounded-full transition-colors duration-200 z-10 ${isUploading ? 'bg-purple-500/40 cursor-not-allowed' : 'bg-purple-500/20 hover:bg-purple-500/30 cursor-pointer'}`}
-disabled={isUploading}
+            disabled={isUploading}
             title="Change background"
           >
             {isUploading ? (
@@ -209,44 +223,48 @@ disabled={isUploading}
             </div>
           </div>
           <div className="relative z-10">
-            {userContext?.user?.username ? (
-              <a 
-                href={`https://warpcast.com/${userContext.user.username}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block transition-transform hover:scale-105 active:scale-95"
-              >
+            <div className="rounded-full ring-4 ring-purple-400/20 overflow-hidden w-[120px] h-[120px]">
+              {userContext?.user?.username ? (
+                <a 
+                  href={`https://warpcast.com/${userContext.user.username}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block w-full h-full transition-transform hover:scale-105 active:scale-95"
+                >
+                  <Image
+                    src={userContext.user?.pfpUrl || '/default-avatar.png'}
+                    alt={userContext.user?.username}
+                    width={120}
+                    height={120}
+                    className="w-full h-full"
+                    style={{ objectFit: 'cover' }}
+                    priority={true}
+                  />
+                </a>
+              ) : (
                 <Image
-                  src={userContext.user?.pfpUrl || '/default-avatar.png'}
-                  alt={userContext.user?.username}
+                  src='/default-avatar.png'
+                  alt='User'
                   width={120}
                   height={120}
-                  className="rounded-full ring-4 ring-purple-400/20 cursor-pointer"
+                  className="w-full h-full"
                   style={{ objectFit: 'cover' }}
                   priority={true}
                 />
-              </a>
-            ) : (
-              <Image
-                src='/default-avatar.png'
-                alt='User'
-                width={120}
-                height={120}
-                className="rounded-full ring-4 ring-purple-400/20"
-                style={{ objectFit: 'cover' }}
-                priority={true}
-              />
-            )}
+              )}
+            </div>
           </div>
           <div className="space-y-2 relative z-10">
-            <h2 className="text-2xl font-mono text-purple-400 text-shadow">
-              {userContext?.user?.username ? `@${userContext.user.username}` : 'Welcome to PODPlayr'}
-            </h2>
+            <div className="bg-black/70 px-3 py-2 rounded-lg inline-block">
+              <h2 className="text-2xl font-mono text-purple-400 text-shadow">
+                {userContext?.user?.username ? `@${userContext.user.username}` : 'Welcome to PODPlayr'}
+              </h2>
               {!isLoading && userContext?.user?.fid && (
-                <p className="font-mono text-sm text-purple-300/60 text-shadow">
+                <p className="font-mono text-sm text-purple-300/60 text-shadow mt-1">
                   {nfts.length} {nfts.length === 1 ? 'NFT' : 'NFTs'} found
                 </p>
               )}
+            </div>
           </div>
         </div>
 

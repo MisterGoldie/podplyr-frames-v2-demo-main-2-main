@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback, useContext } from 'rea
 import { FarcasterContext } from '~/app/providers';
 import { PlayerWithAds } from './player/PlayerWithAds';
 import { getMediaKey } from '~/utils/media';
+import { FEATURED_NFTS } from './sections/FeaturedSection';
 import { BottomNav } from './navigation/BottomNav';
 import HomeView from './views/HomeView';
 import ExploreView from './views/ExploreView';
@@ -43,6 +44,7 @@ import {
 import { db } from '../lib/firebase';
 import { UserDataLoader } from './data/UserDataLoader';
 import { VideoSyncManager } from './media/VideoSyncManager';
+import { videoPerformanceMonitor } from '../utils/videoPerformanceMonitor';
 
 const NFT_CACHE_KEY = 'podplayr_nft_cache_';
 const TWO_HOURS = 2 * 60 * 60 * 1000;
@@ -269,8 +271,6 @@ const Demo: React.FC = () => {
     }
   }, [isInitialPlay]);
 
-
-
   const formatTime = (time: number): string => {
     const minutes = Math.floor(time / 60);
     const seconds = Math.floor(time % 60);
@@ -280,37 +280,42 @@ const Demo: React.FC = () => {
   const findAdjacentNFT = (direction: 'next' | 'previous'): NFT | null => {
     if (!currentPlayingNFT) return null;
     
-    // Determine which list of NFTs we're currently playing from
+    // Determine which list to use based on the current context
     let currentList: NFT[] = [];
     
-    // Check which section the current NFT is from
-    if (recentlyPlayedNFTs.some(nft => 
-      nft.contract === currentPlayingNFT.contract && 
-      nft.tokenId === currentPlayingNFT.tokenId
-    )) {
-      currentList = recentlyPlayedNFTs;
-    } else if (topPlayedNFTs.some(item => 
-      item.nft.contract === currentPlayingNFT.contract && 
-      item.nft.tokenId === currentPlayingNFT.tokenId
+    // Check if we're playing from top played section
+    if (topPlayedNFTs.some(item => 
+      getMediaKey(item.nft) === getMediaKey(currentPlayingNFT)
     )) {
       currentList = topPlayedNFTs.map(item => item.nft);
-    } else if (likedNFTs.some(nft => 
-      nft.contract === currentPlayingNFT.contract && 
-      nft.tokenId === currentPlayingNFT.tokenId
+      console.log('Playing from Top Played section');
+    }
+    // Check if we're playing from featured section
+    else if (FEATURED_NFTS.some((nft: NFT) => 
+      getMediaKey(nft) === getMediaKey(currentPlayingNFT)
     )) {
-      currentList = likedNFTs;
-    } else {
-      currentList = userNFTs.filter(nft => nft.hasValidAudio);
+      currentList = FEATURED_NFTS;
+      console.log('Playing from Featured section');
+    }
+    // Otherwise use the window.nftList for other views
+    else if (window.nftList) {
+      currentList = window.nftList;
+      console.log('Playing from main list');
+    }
+    
+    if (!currentList.length) {
+      console.log('No NFTs in current list');
+      return null;
     }
 
-    if (!currentList.length) return null;
+    // Find the current NFT in the list using mediaKey for consistent matching
+    const currentMediaKey = getMediaKey(currentPlayingNFT);
+    const currentIndex = currentList.findIndex(nft => getMediaKey(nft) === currentMediaKey);
 
-    const currentIndex = currentList.findIndex(
-      nft => nft.contract === currentPlayingNFT.contract && 
-             nft.tokenId === currentPlayingNFT.tokenId
-    );
-
-    if (currentIndex === -1) return null;
+    if (currentIndex === -1) {
+      console.log('Current NFT not found in list');
+      return null;
+    }
 
     const adjacentIndex = direction === 'next' ? 
       currentIndex + 1 : 
@@ -706,19 +711,239 @@ const Demo: React.FC = () => {
     fetchRecentlyPlayed();
   }, [fetchRecentlyPlayed]);
 
-  const handlePlayNext = async () => {
-    const nextNFT = findAdjacentNFT('next');
-    if (nextNFT) {
-      await handlePlayAudio(nextNFT);
+  const prepareAndPlayAudio = async (nft: NFT) => {
+    console.log('Demo: prepareAndPlayAudio called with NFT:', nft.name);
+    
+    // Set the current queue based on the active view
+    let currentQueue: NFT[] = [];
+    
+    if (currentPage.isExplore) {
+      currentQueue = filteredNFTs;
+      console.log('Setting queue from Explore page with', currentQueue.length, 'NFTs');
+    } else if (currentPage.isLibrary) {
+      currentQueue = likedNFTs;
+      console.log('Setting queue from Library page with', currentQueue.length, 'NFTs');
+    } else if (currentPage.isProfile) {
+      currentQueue = userNFTs;
+      console.log('Setting queue from Profile page with', currentQueue.length, 'NFTs');
+    } else if (currentPage.isHome) {
+      currentQueue = [...recentlyPlayedNFTs, ...topPlayedNFTs.map(item => item.nft)];
+      console.log('Setting queue from Home page with', currentQueue.length, 'NFTs');
+    }
+    
+    // Update the global nftList for next/previous navigation
+    window.nftList = currentQueue;
+    
+    try {
+      // Call the original handlePlayAudio from useAudioPlayer
+      await handlePlayAudio(nft);
+    } catch (error) {
+      console.error('Error playing audio:', error);
     }
   };
 
-  const handlePlayPrevious = async () => {
-    const previousNFT = findAdjacentNFT('previous');
-    if (previousNFT) {
-      await handlePlayAudio(previousNFT);
+  const handlePlayNext = async () => {
+    console.log('Demo: handlePlayNext called');
+    
+    if (!currentPlayingNFT) return;
+    
+    // Get the appropriate queue based on current page
+    let currentQueue: NFT[] = [];
+    
+    if (currentPage.isExplore) {
+      currentQueue = filteredNFTs;
+      console.log('Using Explore page queue with', currentQueue.length, 'NFTs');
+    } else if (currentPage.isLibrary) {
+      currentQueue = likedNFTs;
+      console.log('Using Library page queue with', currentQueue.length, 'NFTs');
+    } else if (currentPage.isProfile) {
+      currentQueue = userNFTs;
+      console.log('Using Profile page queue with', currentQueue.length, 'NFTs');
+    } else if (currentPage.isHome) {
+      currentQueue = [...recentlyPlayedNFTs, ...topPlayedNFTs.map(item => item.nft)];
+      console.log('Using Home page queue with', currentQueue.length, 'NFTs');
     }
+    
+    // Find current NFT index in the queue
+    const currentIndex = currentQueue.findIndex(
+      nft => nft.contract === currentPlayingNFT.contract && nft.tokenId === currentPlayingNFT.tokenId
+    );
+    
+    console.log('Current NFT index in queue:', currentIndex);
+    
+    if (currentIndex === -1 || currentQueue.length === 0) {
+      console.log('Current NFT not found in queue or queue is empty');
+      return;
+    }
+    
+    // Get next NFT with wraparound
+    const nextIndex = (currentIndex + 1) % currentQueue.length;
+    const nextNFT = currentQueue[nextIndex];
+    
+    console.log('Playing next NFT:', nextNFT.name, 'at index', nextIndex);
+    
+    // Play the next NFT
+    await prepareAndPlayAudio(nextNFT);
   };
+
+  const handlePlayPrevious = async () => {
+    console.log('Demo: handlePlayPrevious called');
+    
+    if (!currentPlayingNFT) return;
+    
+    // Get the appropriate queue based on current page
+    let currentQueue: NFT[] = [];
+    
+    if (currentPage.isExplore) {
+      currentQueue = filteredNFTs;
+      console.log('Using Explore page queue with', currentQueue.length, 'NFTs');
+    } else if (currentPage.isLibrary) {
+      currentQueue = likedNFTs;
+      console.log('Using Library page queue with', currentQueue.length, 'NFTs');
+    } else if (currentPage.isProfile) {
+      currentQueue = userNFTs;
+      console.log('Using Profile page queue with', currentQueue.length, 'NFTs');
+    } else if (currentPage.isHome) {
+      currentQueue = [...recentlyPlayedNFTs, ...topPlayedNFTs.map(item => item.nft)];
+      console.log('Using Home page queue with', currentQueue.length, 'NFTs');
+    }
+    
+    // Find current NFT index in the queue
+    const currentIndex = currentQueue.findIndex(
+      nft => nft.contract === currentPlayingNFT.contract && nft.tokenId === currentPlayingNFT.tokenId
+    );
+    
+    console.log('Current NFT index in queue:', currentIndex);
+    
+    if (currentIndex === -1 || currentQueue.length === 0) {
+      console.log('Current NFT not found in queue or queue is empty');
+      return;
+    }
+    
+    // Get previous NFT with wraparound
+    const prevIndex = (currentIndex - 1 + currentQueue.length) % currentQueue.length;
+    const prevNFT = currentQueue[prevIndex];
+    
+    console.log('Playing previous NFT:', prevNFT.name, 'at index', prevIndex);
+    
+    // Play the previous NFT
+    await prepareAndPlayAudio(prevNFT);
+  };
+
+  // Add this helper function to release resources from videos
+  const releaseVideoResources = useCallback(() => {
+    // Just pause videos that aren't playing, don't try to unload resources
+    const allVideos = document.querySelectorAll('video');
+    const currentId = currentPlayingNFT ? `video-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}` : null;
+    
+    allVideos.forEach(video => {
+      if (video.id !== currentId && !video.paused) {
+        try {
+          // Just pause the video - don't overcomplicate
+          video.pause();
+        } catch (e) {
+          // Ignore errors
+        }
+      }
+    });
+  }, [currentPlayingNFT]);
+
+  // Add a function to handle direct video playback
+  const handleDirectVideoPlayback = useCallback((nft: NFT) => {
+    if (!nft.isVideo) return;
+    
+    // Find all video elements
+    const videos = document.querySelectorAll('video');
+    const targetVideoId = `video-${nft.contract}-${nft.tokenId}`;
+    
+    // Simply pause all other videos and play the target
+    videos.forEach(video => {
+      const isTarget = video.id === targetVideoId;
+      
+      if (isTarget) {
+        // For the target video, just try to play it directly
+        try {
+          // First try unmuted
+          video.muted = false;
+          video.play().catch(() => {
+            // If that fails (expected on mobile), fall back to muted
+            video.muted = true;
+            video.play().catch(() => {
+              console.log('Failed to play video even when muted');
+            });
+          });
+        } catch (e) {
+          console.log('Error playing video:', e);
+        }
+      } else {
+        // Just pause other videos
+        try {
+          if (!video.paused) {
+            video.pause();
+          }
+        } catch (e) {
+          // Ignore errors
+        }
+      }
+    });
+  }, []);
+
+  // IMPORTANT: Instead of replacing handlePlayAudio, modify the existing useAudioPlayer hook's function
+  // Find the useEffect that runs when currentPlayingNFT changes, and add this code:
+  useEffect(() => {
+    if (currentPlayingNFT) {
+      // When a new NFT starts playing, pause others
+      releaseVideoResources();
+      
+      // Add direct video playback handling
+      if (currentPlayingNFT.isVideo) {
+        handleDirectVideoPlayback(currentPlayingNFT);
+      }
+    }
+  }, [currentPlayingNFT, releaseVideoResources, handleDirectVideoPlayback]);
+
+  useEffect(() => {
+    // Initialize video performance monitor on mount
+    videoPerformanceMonitor.init();
+  }, []);
+  // Add this near your NFT processing code to reduce redundant checks
+  const processNFTs = useCallback((nfts: any[]) => {
+    // Use a Set to track media keys we've already processed
+    const processedMediaKeys = new Set();
+    const mediaOnly = [];
+
+    // Process each NFT just once with a single pass
+    for (const nft of nfts) {
+      const mediaKey = getMediaKey(nft);
+      
+      // Skip if we've already processed this NFT
+      if (processedMediaKeys.has(mediaKey)) continue;
+      processedMediaKeys.add(mediaKey);
+      
+      // Determine if it's a media NFT with a single consolidated check
+      const isMediaNFT = (
+        (nft.animation_url || nft.metadata?.animation_url || nft.audio) && 
+        (
+          nft.audio || 
+          (nft.animation_url?.toLowerCase().match(/\.(mp3|wav|ogg|mp4|webm)$/)) ||
+          (nft.metadata?.animation_url?.toLowerCase().match(/\.(mp3|wav|ogg|mp4|webm)$/))
+        )
+      );
+      
+      if (isMediaNFT) {
+        // Configure NFT properties in one pass
+        nft.isVideo = nft.animation_url?.toLowerCase().match(/\.(mp4|webm)$/) || 
+                      nft.metadata?.animation_url?.toLowerCase().match(/\.(mp4|webm)$/);
+        nft.hasValidAudio = Boolean(nft.audio || 
+                           nft.animation_url?.toLowerCase().match(/\.(mp3|wav|ogg)$/) ||
+                           nft.metadata?.animation_url?.toLowerCase().match(/\.(mp3|wav|ogg)$/));
+        
+        mediaOnly.push(nft);
+      }
+    }
+    
+    return mediaOnly;
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col no-select">
@@ -731,15 +956,6 @@ const Demo: React.FC = () => {
           onError={setError}
         />
       )}
-      {currentPlayingNFT?.isVideo && (
-        <VideoSyncManager
-          videoRef={videoRef}
-          currentPlayingNFT={currentPlayingNFT}
-          isPlaying={isPlaying}
-          audioProgress={audioProgress}
-          onPlayPause={handlePlayPause}
-        />
-      )}
       <div className="flex-1 container mx-auto px-4 py-6 pb-40">
         {renderCurrentView()}
       </div>
@@ -747,7 +963,7 @@ const Demo: React.FC = () => {
       {/* Audio Element */}
       {currentPlayingNFT && (
         <audio
-          ref={audioRef}
+          ref={audioRef as React.RefObject<HTMLAudioElement>}
           src={processMediaUrl(currentPlayingNFT.audio || currentPlayingNFT.metadata?.animation_url || '')}
         />
       )}
@@ -770,6 +986,16 @@ const Demo: React.FC = () => {
         />
       )}
 
+      {currentPlayingNFT?.isVideo && (
+        <VideoSyncManager
+          videoRef={videoRef}
+          currentPlayingNFT={currentPlayingNFT}
+          isPlaying={isPlaying}
+          audioProgress={audioProgress}
+          onPlayPause={handlePlayPause}
+        />
+      )}
+
       <BottomNav
         currentPage={currentPage}
         onNavigate={switchPage}
@@ -780,4 +1006,3 @@ const Demo: React.FC = () => {
 };
 
 export default Demo;
-//

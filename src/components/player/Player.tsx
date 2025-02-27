@@ -13,7 +13,7 @@ import { trackNFTPlay } from '../../lib/firebase';
 import { useNFTLikeState } from '../../hooks/useNFTLikeState';
 import { FarcasterContext } from '../../app/providers';
 
-// Augment the Document interface with Picture-in-Picture properties
+// Remove the custom HTMLVideoElement interface and use the built-in one
 interface PictureInPictureWindow {}
 
 interface Document {
@@ -22,17 +22,11 @@ interface Document {
   exitPictureInPicture(): Promise<void>;
 }
 
-interface HTMLVideoElement extends HTMLMediaElement {
-  requestPictureInPicture(): Promise<PictureInPictureWindow>;
-  currentTime: number;
-  play(): Promise<void>;
-  pause(): void;
-}
-
+// @ts-ignore - These are client-side only props
 interface PlayerProps {
   nft?: NFT | null;
   isPlaying: boolean;
-  onPlayPause: () => void;
+  onPlayPause: () => void;  // This is fine in client components
   onNext?: () => void;
   onPrevious?: () => void;
   isMinimized: boolean;
@@ -67,7 +61,7 @@ export const Player: React.FC<PlayerProps> = ({
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
   const [swipeDistance, setSwipeDistance] = useState(0);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
   const [showControls, setShowControls] = useState(true);
   const hideControlsTimer = useRef<NodeJS.Timeout | undefined>(undefined);
@@ -247,8 +241,9 @@ export const Player: React.FC<PlayerProps> = ({
   const handlePictureInPicture = async () => {
     if (!videoElement || !nft) return;
     
-    // Check if this is an audio-only NFT
-    if (!nft.isVideo) {
+    // Check if this NFT has video content
+    const hasVideo = nft.metadata?.animation_url || nft.isVideo;
+    if (!hasVideo) {
       console.log('Picture-in-Picture mode is not available for audio-only content');
       return;
     }
@@ -259,10 +254,11 @@ export const Player: React.FC<PlayerProps> = ({
           await document.exitPictureInPicture();
         }
       } else if (videoElement.requestPictureInPicture) {
-        // Check if video has started loading
+        // Ensure video is loaded
         if (videoElement.readyState < HTMLMediaElement.HAVE_METADATA) {
-          console.log('Video content is not yet available for Picture-in-Picture mode');
-          return;
+          await new Promise((resolve) => {
+            videoElement.addEventListener('loadedmetadata', resolve, { once: true });
+          });
         }
         await videoElement.requestPictureInPicture();
       }
@@ -296,10 +292,7 @@ export const Player: React.FC<PlayerProps> = ({
           // Show video if available
           <div className="relative w-full h-full">
             <video
-              ref={(el) => {
-                videoRef.current = el;
-                setVideoElement(el);
-              }}
+              ref={videoRef}
               src={processedVideoUrl}
               className={`w-full h-full object-contain rounded-lg transition-transform duration-500 ${
                 isMinimized ? '' : 'transform transition-all duration-500 ease-in-out ' + (isPlaying ? 'scale-100' : 'scale-90')
@@ -310,6 +303,13 @@ export const Player: React.FC<PlayerProps> = ({
               muted={true}
               controls={false}
               poster={processedImageUrl}
+              onLoadedMetadata={(e) => {
+                const video = e.target as HTMLVideoElement;
+                if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
+                  video.currentTime = progress;
+                }
+                setVideoElement(video);
+              }}
             />
           </div>
         ) : (
@@ -384,7 +384,7 @@ export const Player: React.FC<PlayerProps> = ({
               aria-label="Close info panel"
             >
               <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
-                <path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/>
+                <path d="M480-424 284-228q-11 11-28 11t-28-11q-11-11-11-28t11-28l196-196-196-196q-11-11-11-28t11-28q11-11 28-11t28 11l196 196 196-196q11-11 28-11t28 11q11 11 11 28t-11 28L536-480l196 196q11 11 11 28t-11 28q-11 11-28 11t-28-11L480-424Z"/>
               </svg>
             </button>
           </div>
@@ -575,6 +575,18 @@ export const Player: React.FC<PlayerProps> = ({
                 </button>
               )}
 
+              {nft?.isVideo && document.pictureInPictureEnabled && (
+                <button
+                  onClick={handlePictureInPicture}
+                  className="text-purple-400 hover:text-purple-300"
+                  aria-label="Toggle Picture-in-Picture"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                    <path d="M320-240h320v-240H320v240Zm-80 80v-400h480v400H240Zm80-480v-80h480v80H320Zm-160 0v-80h560v80H160Zm160 480v-240 240Z"/>
+                  </svg>
+                </button>
+              )}
+
               <button
                 onClick={handleMinimizeToggle}
                 className="text-purple-400 hover:text-purple-300"
@@ -676,7 +688,7 @@ export const Player: React.FC<PlayerProps> = ({
                   className="text-white hover:text-white/80 p-2 bg-black/40 rounded-full backdrop-blur-sm"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                    <path d="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Zm0-80h640v-480H160v480Zm0 0v-480 480Zm280-200h320v-240H440v240Zm80-80v-80h160v80H520Z"/>
+                    <path d="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Zm0-80h640v-480H160v480Zm0 0v-480 480Zm280-200h320v-240H440v240Zm80-80v-80h160l-80-80-80 80Z"/>
                   </svg>
                 </button>
               )}
@@ -809,17 +821,19 @@ export const Player: React.FC<PlayerProps> = ({
       {/* Now Playing Bar */}
       <div className="fixed bottom-0 left-0 right-0 bg-black/80 backdrop-blur-sm border-t border-purple-400/20">
         <div className="container mx-auto flex items-center justify-between px-4 py-5">
-          <div className="flex items-center gap-4">
-            <span className="text-sm font-mono text-purple-400 truncate">{nft.name}</span>
+          <div className="flex-1 min-w-0 mr-4">
+            <div className="text-sm font-mono text-purple-400 truncate">{nft.name}</div>
           </div>
-          <button 
-            onClick={handleMinimizeToggle}
-            className="text-purple-400 hover:text-purple-300 p-1 transition-colors"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor">
-              <path d="M480-345 240-585l56-56 184 184 184-184 56 56-240 240Z"/>
-            </svg>
-          </button>
+          <div className="flex-shrink-0">
+            <button 
+              onClick={handleMinimizeToggle}
+              className="text-purple-400 hover:text-purple-300 p-1 transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor">
+                <path d="M480-345 240-585l56-56 184 184 184-184 56 56-240 240Z"/>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
       </div>

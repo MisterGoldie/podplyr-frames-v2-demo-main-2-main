@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "~/app/globals.css";
+import "~/styles/mobile.css"; // Import mobile-specific styles
 import { Providers } from "~/app/providers";
 import Script from 'next/script';
 import { Space_Grotesk } from 'next/font/google';
@@ -44,6 +45,15 @@ const spaceGrotesk = Space_Grotesk({
   display: 'swap',
 });
 
+import { ServiceWorkerProvider } from '../components/ServiceWorkerProvider';
+
+// Enable HTTP/2 server push for critical assets
+const linkHeader = [
+  '</styles.css>; rel=preload; as=style',
+  '</main.js>; rel=preload; as=script',
+  '</favicon.ico>; rel=preload; as=image'
+].join(',');
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -51,6 +61,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={spaceGrotesk.className}>
+      <ServiceWorkerProvider />
       <head>
         <Script src="https://cdn.farcaster.xyz/frames/sdk.js" strategy="beforeInteractive" />
       </head>

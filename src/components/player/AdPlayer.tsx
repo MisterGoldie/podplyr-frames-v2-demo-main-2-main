@@ -10,49 +10,53 @@ interface AdPlayerProps {
 const AD_CONFIG = [
   {
     video: '/ad-video.mp4',
-    url: 'https://acyl.world/TV',
+    url: 'https://acyl.world',  
     title: 'ACYL TV',
     domain: 'acyl.world'
   },
   {
     video: '/ad-video-2.mp4',
-    url: 'https://acyl.world/TV',
+    url: 'https://acyl.world',  
     title: 'ACYL Radio',
     domain: 'acyl.world'
   },
   {
     video: '/ad-video-3.mp4',
-    url: 'https://acyl.world/TV',
+    url: 'https://acyl.world/TV',  
     title: 'Art House',
-    domain: 'acyl.world'
+    domain: 'acyl.world/TV'
   },
   {
     video: '/ad-video-4.mp4',
     url: 'https://www.coinbase.com/',
     title: 'More Bitcoin',
-    domain: 'coinbase.com'
+    domain: 'coinbase.com/learn'
   },
   {
     video: '/ad-video-5.mp4',
-    url: 'https://acyl.world/TV',
+    url: 'https://acyl.world',
     title: 'ACYL Radio',
-    domain: 'acyl.world'
+    domain: 'acyl.world',
+    isVertical: true
   },
   {
     video: '/ad-video-6.mp4',
-    url: 'https://acyl.world/TV',
-    title: 'Visit ACYL',
-    domain: 'acyl.world'
+    url: 'https://acyl.world',
+    title: 'ACYL',
+    domain: 'acyl.world',
+    isVertical: true
   }
 ];
 
 export const AdPlayer: React.FC<AdPlayerProps> = ({ onAdComplete }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
   const [audioDuration, setAudioDuration] = useState<number>(0);
   const [elapsedTime, setElapsedTime] = useState<number>(0);
   const [canSkip, setCanSkip] = useState<boolean>(false);
   const [error, setError] = useState<boolean>(false);
+  const [videoOrientation, setVideoOrientation] = useState<'landscape' | 'portrait'>('landscape');
   
   // Function to check if a video format is supported
   const isVideoFormatSupported = (videoPath: string) => {
@@ -72,6 +76,13 @@ export const AdPlayer: React.FC<AdPlayerProps> = ({ onAdComplete }) => {
     const randomIndex = Math.floor(Math.random() * supportedAds.length);
     return supportedAds[randomIndex];
   });
+
+  // Set initial orientation based on selected ad
+  useEffect(() => {
+    if (selectedAd.isVertical) {
+      setVideoOrientation('portrait');
+    }
+  }, [selectedAd]);
 
   // Track elapsed time and enable skip after 5 seconds
   useEffect(() => {
@@ -106,6 +117,16 @@ export const AdPlayer: React.FC<AdPlayerProps> = ({ onAdComplete }) => {
       if (video) {
         setTimeRemaining(Math.round(video.duration));
         setAudioDuration(video.duration);
+        
+        // Check video dimensions to confirm orientation
+        if (video.videoWidth < video.videoHeight) {
+          setVideoOrientation('portrait');
+        } else {
+          setVideoOrientation('landscape');
+        }
+        
+        // Log video dimensions for debugging
+        console.log('Video dimensions:', video.videoWidth, 'x', video.videoHeight);
       }
     };
 
@@ -122,13 +143,19 @@ export const AdPlayer: React.FC<AdPlayerProps> = ({ onAdComplete }) => {
   }, [onAdComplete]);
 
   return (
-    <div className="fixed inset-0 bg-black z-50 flex items-center justify-center">
-      <video
-        ref={videoRef}
-        src={selectedAd.video}
-        className="w-full h-full object-contain"
-        playsInline
-      />
+    <div ref={containerRef} className="fixed inset-0 bg-black z-50 flex items-center justify-center overflow-hidden">
+      <div className={videoOrientation === 'portrait' 
+        ? "w-full h-full flex items-center justify-center" 
+        : "w-full h-full"}>
+        <video
+          ref={videoRef}
+          src={selectedAd.video}
+          className={videoOrientation === 'portrait' 
+            ? "w-full max-h-full object-cover" // For vertical videos, fill width and cover
+            : "w-full h-full object-contain"} // For landscape videos
+          playsInline
+        />
+      </div>
       <div className="absolute top-4 right-4 flex flex-col items-end gap-2">
         {canSkip && (
           <button
