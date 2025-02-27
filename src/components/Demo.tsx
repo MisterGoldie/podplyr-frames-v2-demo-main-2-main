@@ -906,6 +906,44 @@ const Demo: React.FC = () => {
     // Initialize video performance monitor on mount
     videoPerformanceMonitor.init();
   }, []);
+  // Add this near your NFT processing code to reduce redundant checks
+  const processNFTs = useCallback((nfts: any[]) => {
+    // Use a Set to track media keys we've already processed
+    const processedMediaKeys = new Set();
+    const mediaOnly = [];
+
+    // Process each NFT just once with a single pass
+    for (const nft of nfts) {
+      const mediaKey = getMediaKey(nft);
+      
+      // Skip if we've already processed this NFT
+      if (processedMediaKeys.has(mediaKey)) continue;
+      processedMediaKeys.add(mediaKey);
+      
+      // Determine if it's a media NFT with a single consolidated check
+      const isMediaNFT = (
+        (nft.animation_url || nft.metadata?.animation_url || nft.audio) && 
+        (
+          nft.audio || 
+          (nft.animation_url?.toLowerCase().match(/\.(mp3|wav|ogg|mp4|webm)$/)) ||
+          (nft.metadata?.animation_url?.toLowerCase().match(/\.(mp3|wav|ogg|mp4|webm)$/))
+        )
+      );
+      
+      if (isMediaNFT) {
+        // Configure NFT properties in one pass
+        nft.isVideo = nft.animation_url?.toLowerCase().match(/\.(mp4|webm)$/) || 
+                      nft.metadata?.animation_url?.toLowerCase().match(/\.(mp4|webm)$/);
+        nft.hasValidAudio = Boolean(nft.audio || 
+                           nft.animation_url?.toLowerCase().match(/\.(mp3|wav|ogg)$/) ||
+                           nft.metadata?.animation_url?.toLowerCase().match(/\.(mp3|wav|ogg)$/));
+        
+        mediaOnly.push(nft);
+      }
+    }
+    
+    return mediaOnly;
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col no-select">
