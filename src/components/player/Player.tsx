@@ -22,10 +22,11 @@ interface Document {
   exitPictureInPicture(): Promise<void>;
 }
 
+// @ts-ignore - These are client-side only props
 interface PlayerProps {
   nft?: NFT | null;
   isPlaying: boolean;
-  onPlayPause: () => void;
+  onPlayPause: () => void;  // This is fine in client components
   onNext?: () => void;
   onPrevious?: () => void;
   isMinimized: boolean;

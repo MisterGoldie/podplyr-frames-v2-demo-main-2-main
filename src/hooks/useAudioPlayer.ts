@@ -118,42 +118,7 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs }: UseAudioPlaye
     }
   }, [isPlaying]);
 
-  const handlePlayNext = useCallback(async () => {
-    if (!currentPlayingNFT || !currentQueue.length) return;
-    
-    const currentIndex = currentQueue.findIndex(
-      (nft: NFT) => nft.contract === currentPlayingNFT.contract && nft.tokenId === currentPlayingNFT.tokenId
-    );
-
-    if (currentIndex === -1) return;
-
-    const nextIndex = (currentIndex + 1) % currentQueue.length;
-    const nextNFT = currentQueue[nextIndex];
-
-    if (nextNFT) await handlePlayAudio(nextNFT, { queue: currentQueue, queueType });
-  }, [currentPlayingNFT, currentQueue, queueType]);
-
-  const handlePlayPrevious = useCallback(async () => {
-    if (!currentPlayingNFT || !currentQueue.length) return;
-
-    const currentIndex = currentQueue.findIndex(
-      (nft: NFT) => nft.contract === currentPlayingNFT.contract && nft.tokenId === currentPlayingNFT.tokenId
-    );
-
-    if (currentIndex === -1) return;
-
-    const prevIndex = (currentIndex - 1 + currentQueue.length) % currentQueue.length;
-    const prevNFT = currentQueue[prevIndex];
-
-    if (prevNFT) await handlePlayAudio(prevNFT, { queue: currentQueue, queueType });
-  }, [currentPlayingNFT, currentQueue, queueType]);
-
-  const handleSeek = useCallback((time: number) => {
-    if (!audioRef.current) return;
-    audioRef.current.currentTime = time;
-    setAudioProgress(time);
-  }, []);
-
+  // Define handlePlayAudio first, before it's used in other functions
   const handlePlayAudio = useCallback(async (nft: NFT, context?: { queue?: NFT[], queueType?: string }) => {
     // Always update queue context
     if (context?.queue) {
@@ -287,6 +252,91 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs }: UseAudioPlaye
       }
     }
   }, [currentlyPlaying, handlePlayPause, fid, setRecentlyPlayedNFTs]);
+  
+  // Now define handlePlayNext and handlePlayPrevious which use handlePlayAudio
+  const handlePlayNext = useCallback(async () => {
+    if (!currentPlayingNFT) return;
+    
+    // Get the current queue from window.nftList which is set by the Demo component
+    // based on the current page/category
+    const currentPageQueue = window.nftList || [];
+    
+    if (!currentPageQueue.length) {
+      console.log('No queue available for next track');
+      return;
+    }
+
+    console.log('Next button pressed. Current queue length:', currentPageQueue.length);
+    
+    // Find current index in the current page queue
+    const currentIndex = currentPageQueue.findIndex(
+      (nft: NFT) => nft.contract === currentPlayingNFT.contract && nft.tokenId === currentPlayingNFT.tokenId
+    );
+
+    console.log('Current index in queue:', currentIndex);
+
+    if (currentIndex === -1) {
+      console.log('Current NFT not found in queue');
+      return;
+    }
+
+    // Get next NFT in queue with wraparound
+    const nextIndex = (currentIndex + 1) % currentPageQueue.length;
+    const nextNFT = currentPageQueue[nextIndex];
+
+    console.log('Playing next NFT:', nextNFT.name, 'at index:', nextIndex);
+    
+    if (nextNFT) {
+      // Update our internal queue to match the page queue
+      setCurrentQueue(currentPageQueue);
+      await handlePlayAudio(nextNFT);
+    }
+  }, [currentPlayingNFT, handlePlayAudio]);
+
+  const handlePlayPrevious = useCallback(async () => {
+    if (!currentPlayingNFT) return;
+    
+    // Get the current queue from window.nftList which is set by the Demo component
+    // based on the current page/category
+    const currentPageQueue = window.nftList || [];
+    
+    if (!currentPageQueue.length) {
+      console.log('No queue available for previous track');
+      return;
+    }
+
+    console.log('Previous button pressed. Current queue length:', currentPageQueue.length);
+    
+    // Find current index in the current page queue
+    const currentIndex = currentPageQueue.findIndex(
+      (nft: NFT) => nft.contract === currentPlayingNFT.contract && nft.tokenId === currentPlayingNFT.tokenId
+    );
+
+    console.log('Current index in queue:', currentIndex);
+
+    if (currentIndex === -1) {
+      console.log('Current NFT not found in queue');
+      return;
+    }
+
+    // Get previous NFT in queue with wraparound
+    const prevIndex = (currentIndex - 1 + currentPageQueue.length) % currentPageQueue.length;
+    const prevNFT = currentPageQueue[prevIndex];
+
+    console.log('Playing previous NFT:', prevNFT.name, 'at index:', prevIndex);
+    
+    if (prevNFT) {
+      // Update our internal queue to match the page queue
+      setCurrentQueue(currentPageQueue);
+      await handlePlayAudio(prevNFT);
+    }
+  }, [currentPlayingNFT, handlePlayAudio]);
+
+  const handleSeek = useCallback((time: number) => {
+    if (!audioRef.current) return;
+    audioRef.current.currentTime = time;
+    setAudioProgress(time);
+  }, []);
 
   return {
     isPlaying,
