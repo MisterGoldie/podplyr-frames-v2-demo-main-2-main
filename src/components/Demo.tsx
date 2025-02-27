@@ -832,44 +832,75 @@ const Demo: React.FC = () => {
 
   // Add this helper function to release resources from videos
   const releaseVideoResources = useCallback(() => {
-    // Find all video elements that aren't the currently playing one
+    // Just pause videos that aren't playing, don't try to unload resources
     const allVideos = document.querySelectorAll('video');
     const currentId = currentPlayingNFT ? `video-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}` : null;
     
     allVideos.forEach(video => {
       if (video.id !== currentId && !video.paused) {
         try {
-          // Pause video
+          // Just pause the video - don't overcomplicate
           video.pause();
-          
-          // Remove source to fully unload it
-          if (video.src) {
-            video.removeAttribute('src');
-          }
-          
-          // Remove all source elements
-          while (video.firstChild) {
-            video.removeChild(video.firstChild);
-          }
-          
-          // Force browser to release resources
-          video.load();
-          
-          console.log('Released resources for video:', video.id);
         } catch (e) {
-          console.error('Error releasing video resources:', e);
+          // Ignore errors
         }
       }
     });
   }, [currentPlayingNFT]);
 
-  // Then add this effect to use it
+  // Add a function to handle direct video playback
+  const handleDirectVideoPlayback = useCallback((nft: NFT) => {
+    if (!nft.isVideo) return;
+    
+    // Find all video elements
+    const videos = document.querySelectorAll('video');
+    const targetVideoId = `video-${nft.contract}-${nft.tokenId}`;
+    
+    // Simply pause all other videos and play the target
+    videos.forEach(video => {
+      const isTarget = video.id === targetVideoId;
+      
+      if (isTarget) {
+        // For the target video, just try to play it directly
+        try {
+          // First try unmuted
+          video.muted = false;
+          video.play().catch(() => {
+            // If that fails (expected on mobile), fall back to muted
+            video.muted = true;
+            video.play().catch(() => {
+              console.log('Failed to play video even when muted');
+            });
+          });
+        } catch (e) {
+          console.log('Error playing video:', e);
+        }
+      } else {
+        // Just pause other videos
+        try {
+          if (!video.paused) {
+            video.pause();
+          }
+        } catch (e) {
+          // Ignore errors
+        }
+      }
+    });
+  }, []);
+
+  // IMPORTANT: Instead of replacing handlePlayAudio, modify the existing useAudioPlayer hook's function
+  // Find the useEffect that runs when currentPlayingNFT changes, and add this code:
   useEffect(() => {
     if (currentPlayingNFT) {
-      // When a new NFT starts playing, release others
+      // When a new NFT starts playing, pause others
       releaseVideoResources();
+      
+      // Add direct video playback handling
+      if (currentPlayingNFT.isVideo) {
+        handleDirectVideoPlayback(currentPlayingNFT);
+      }
     }
-  }, [currentPlayingNFT, releaseVideoResources]);
+  }, [currentPlayingNFT, releaseVideoResources, handleDirectVideoPlayback]);
 
   useEffect(() => {
     // Initialize video performance monitor on mount
@@ -885,15 +916,6 @@ const Demo: React.FC = () => {
           onNFTsLoaded={setUserNFTs}
           onLikedNFTsLoaded={setLikedNFTs}
           onError={setError}
-        />
-      )}
-      {currentPlayingNFT?.isVideo && (
-        <VideoSyncManager
-          videoRef={videoRef}
-          currentPlayingNFT={currentPlayingNFT}
-          isPlaying={isPlaying}
-          audioProgress={audioProgress}
-          onPlayPause={handlePlayPause}
         />
       )}
       <div className="flex-1 container mx-auto px-4 py-6 pb-40">
@@ -923,6 +945,16 @@ const Demo: React.FC = () => {
           onLikeToggle={handleLikeToggle}
           isLiked={isNFTLiked(currentPlayingNFT, true)} // Always check actual liked state for Player
           onPictureInPicture={togglePictureInPicture}
+        />
+      )}
+
+      {currentPlayingNFT?.isVideo && (
+        <VideoSyncManager
+          videoRef={videoRef}
+          currentPlayingNFT={currentPlayingNFT}
+          isPlaying={isPlaying}
+          audioProgress={audioProgress}
+          onPlayPause={handlePlayPause}
         />
       )}
 

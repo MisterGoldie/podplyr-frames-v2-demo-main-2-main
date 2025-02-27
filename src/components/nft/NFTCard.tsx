@@ -6,6 +6,8 @@ import { processMediaUrl, getMediaKey } from '../../utils/media';
 import { useNFTLikeState } from '../../hooks/useNFTLikeState';
 import { useNFTPlayCount } from '../../hooks/useNFTPlayCount';
 import { FarcasterContext } from '../../app/providers';
+import { DirectVideoPlayer } from '../media/DirectVideoPlayer';
+import { UltraDirectPlayer } from '../media/UltraDirectPlayer';
 
 interface NFTCardProps {
   nft: NFT;
@@ -110,11 +112,10 @@ export const NFTCard: React.FC<NFTCardProps> = ({
         <div className="relative w-16 h-16 flex-shrink-0">
           {nft.metadata?.animation_url?.toLowerCase().endsWith('.mp4') || 
            nft.metadata?.animation_url?.toLowerCase().endsWith('.webm') ? (
-            <MuxPlayer
+            <DirectVideoPlayer
               nft={nft}
-              muted={true}
-              loop={true}
-              autoPlay={false}
+              onLoadComplete={() => {}}
+              onError={() => {}}
             />
           ) : (
             <NFTImage
@@ -165,15 +166,23 @@ export const NFTCard: React.FC<NFTCardProps> = ({
       }}
     >
       <div className="aspect-square relative">
-        <NFTImage
-          nft={nft}
-          src={processMediaUrl(nft.image || nft.metadata?.image || '')}
-          alt={nft.name || 'NFT'}
-          className="w-full h-full object-cover"
-          width={300}
-          height={300}
-        />
-        {/* Show play count pill if provided */}
+        {nft.metadata?.animation_url?.toLowerCase().endsWith('.mp4') || 
+         nft.metadata?.animation_url?.toLowerCase().endsWith('.webm') ? (
+          <DirectVideoPlayer
+            nft={nft}
+            onLoadComplete={() => {}}
+            onError={() => {}}
+          />
+        ) : (
+          <NFTImage
+            nft={nft}
+            src={processMediaUrl(nft.image || nft.metadata?.image || '')}
+            alt={nft.name || 'NFT'}
+            className="w-full h-full object-cover"
+            width={300}
+            height={300}
+          />
+        )}
         {shouldShowPlayCount && (
           <div className="absolute top-2 left-2 bg-purple-400 text-white text-xs px-2 py-1 rounded-full font-medium">
             {playCountBadge}

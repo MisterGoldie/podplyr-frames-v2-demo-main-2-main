@@ -232,3 +232,27 @@ export const getMediaKey = (nft: NFT): string => {
     .replace(/_+/g, '_') // Clean up any remaining multiple underscores
     .replace(/^_+|_+$/g, ''); // Trim leading/trailing underscores
 };
+
+export function getDirectMediaUrl(url: string): string {
+  if (!url) return '';
+  
+  // Handle IPFS URLs - try multiple gateways for better performance
+  if (url.includes('ipfs://')) {
+    const ipfsHash = url.replace('ipfs://', '');
+    
+    // For video content, use a CDN-backed gateway
+    return `https://cloudflare-ipfs.com/ipfs/${ipfsHash}`;
+    
+    // Fallbacks if needed:
+    // return `https://ipfs.io/ipfs/${ipfsHash}`;
+    // return `https://gateway.pinata.cloud/ipfs/${ipfsHash}`;
+  }
+  
+  // Handle Arweave URLs
+  if (url.includes('ar://')) {
+    return url.replace('ar://', 'https://arweave.net/');
+  }
+  
+  // Return the URL directly without any processing
+  return url;
+}
