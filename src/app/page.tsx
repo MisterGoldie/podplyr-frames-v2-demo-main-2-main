@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import Demo from '../components/Demo';
 
-const appUrl = process.env.NEXT_PUBLIC_URL || "https://podplayr.xyz";
+const appUrl = process.env.NEXT_PUBLIC_URL || "https://podplayr.vercel.app";
 
 const frame = {
   version: "vNext",
