@@ -8,7 +8,7 @@ const appUrl = process.env.NEXT_PUBLIC_URL || "https://podplayr.vercel.app";
 
 const frame = {
   version: "vNext",
-  imageUrl: `${appUrl}/og-image.png`,
+  imageUrl: `${appUrl}/og-image.jpg`,
   button: {
     title: "Launch PODPlayr",
     action: {
