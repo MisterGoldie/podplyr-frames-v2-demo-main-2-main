@@ -333,8 +333,12 @@ const fetchFromNetwork = async (address: string, client: Alchemy, network: strin
           network
         } as NFT;
 
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error fetching NFT metadata:', error);
+        if (error.toString().includes('500')) {
+          console.warn('Alchemy API returned a 500 error - this is likely a temporary issue');
+          return [];
+        }
         return null;
       }
     });
