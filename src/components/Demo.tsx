@@ -753,7 +753,7 @@ const Demo: React.FC = () => {
       {/* Audio Element */}
       {currentPlayingNFT && (
         <audio
-          ref={audioRef}
+          ref={audioRef as React.RefObject<HTMLAudioElement>}
           src={processMediaUrl(currentPlayingNFT.audio || currentPlayingNFT.metadata?.animation_url || '')}
         />
       )}
