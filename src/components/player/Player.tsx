@@ -13,20 +13,13 @@ import { trackNFTPlay } from '../../lib/firebase';
 import { useNFTLikeState } from '../../hooks/useNFTLikeState';
 import { FarcasterContext } from '../../app/providers';
 
-// Augment the Document interface with Picture-in-Picture properties
+// Remove the custom HTMLVideoElement interface and use the built-in one
 interface PictureInPictureWindow {}
 
 interface Document {
   pictureInPictureEnabled: boolean;
   pictureInPictureElement: Element | null;
   exitPictureInPicture(): Promise<void>;
-}
-
-interface HTMLVideoElement extends HTMLMediaElement {
-  requestPictureInPicture(): Promise<PictureInPictureWindow>;
-  currentTime: number;
-  play(): Promise<void>;
-  pause(): void;
 }
 
 interface PlayerProps {
@@ -67,7 +60,7 @@ export const Player: React.FC<PlayerProps> = ({
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
   const [swipeDistance, setSwipeDistance] = useState(0);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
   const [showControls, setShowControls] = useState(true);
   const hideControlsTimer = useRef<NodeJS.Timeout | undefined>(undefined);
@@ -298,10 +291,7 @@ export const Player: React.FC<PlayerProps> = ({
           // Show video if available
           <div className="relative w-full h-full">
             <video
-              ref={(el) => {
-                videoRef.current = el;
-                setVideoElement(el);
-              }}
+              ref={videoRef}
               src={processedVideoUrl}
               className={`w-full h-full object-contain rounded-lg transition-transform duration-500 ${
                 isMinimized ? '' : 'transform transition-all duration-500 ease-in-out ' + (isPlaying ? 'scale-100' : 'scale-90')
@@ -317,6 +307,7 @@ export const Player: React.FC<PlayerProps> = ({
                 if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
                   video.currentTime = progress;
                 }
+                setVideoElement(video);
               }}
             />
           </div>
@@ -696,7 +687,7 @@ export const Player: React.FC<PlayerProps> = ({
                   className="text-white hover:text-white/80 p-2 bg-black/40 rounded-full backdrop-blur-sm"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                    <path d="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Zm0-80h640v-480H160v480Zm0 0v-480 480Zm280-200h320v-240H440v240Zm80-80v-80h160v80H520Z"/>
+                    <path d="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Zm0-80h640v-480H160v480Zm0 0v-480 480Zm280-200h320v-240H440v240Zm80-80v-80h160l-80-80-80 80Z"/>
                   </svg>
                 </button>
               )}
