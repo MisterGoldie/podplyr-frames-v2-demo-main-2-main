@@ -148,10 +148,25 @@ class LibraryView extends React.Component<LibraryViewProps> {
   state = {
     viewMode: 'grid' as 'grid' | 'list',
     searchFilter: '',
-    filterSort: 'recent' as 'recent' | 'name'
+    filterSort: 'recent' as 'recent' | 'name',
+    isLoading: true // Add loading state, initially true
   };
 
+  componentDidMount() {
+    // Set a short timeout to simulate loading
+    // In a real app, this would be tied to when your data actually loads
+    setTimeout(() => {
+      this.setState({ isLoading: false });
+    }, 1500);
+  }
+
   componentDidUpdate(prevProps: LibraryViewProps) {
+    // If likedNFTs changes, we might want to show loading again
+    if (prevProps.likedNFTs !== this.props.likedNFTs) {
+      // Optional: you could set isLoading to true here and then false after processing
+      // this.setState({ isLoading: false });
+    }
+
     // Update liked status for currently playing NFT
     if (this.props.currentPlayingNFT !== prevProps.currentPlayingNFT && 
         this.props.currentPlayingNFT && 
@@ -204,10 +219,9 @@ class LibraryView extends React.Component<LibraryViewProps> {
       onLikeToggle 
     } = this.props;
     
-    const { viewMode, searchFilter, filterSort } = this.state;
+    const { viewMode, searchFilter, filterSort, isLoading } = this.state;
     const uniqueNFTs = this.getUniqueNFTs();
     const filteredNFTs = this.getFilteredNFTs();
-    const isLoading = false; // We're not loading in this version
 
     return (
       <>
