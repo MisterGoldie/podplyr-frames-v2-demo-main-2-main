@@ -113,7 +113,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({
           <div className="flex gap-6">
             {FEATURED_NFTS.map((nft) => (
               <div key={getMediaKey(nft)} className="flex-shrink-0 w-[200px] group">
-                <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-gray-800/20">
+                <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-gray-800/20 shadow-purple-500/20 shadow-lg transition-all">
                   <NFTImage
                     src={nft.image}
                     alt={nft.name}
