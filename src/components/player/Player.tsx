@@ -721,35 +721,6 @@ export const Player: React.FC<PlayerProps> = ({
         </div>
         {/* Controls Section */}
         <div className="px-4 py-6 sm:py-8 w-full max-w-screen-lg mx-auto">
-          {/* NFT info row */}
-          <div className="flex items-center gap-4 mb-6">
-            <div className="w-16 h-16 flex-shrink-0 rounded overflow-hidden">
-              <NFTImage
-                src={nft?.image || ''}
-                alt={nft?.name || 'NFT Image'}
-                className="w-full h-full object-cover"
-                width={64}
-                height={64}
-              />
-            </div>
-            <div className="flex-grow">
-              <h2 className="text-lg md:text-xl font-bold text-white mb-1 truncate">{nft.name}</h2>
-              <p className="text-purple-300 text-sm truncate">
-                {nft?.metadata?.description?.slice(0, 60)}
-                {nft?.metadata?.description && nft.metadata.description.length > 60 ? '...' : ''}
-              </p>
-            </div>
-            {/* Desktop close button */}
-            <button
-              onClick={handleMinimizeToggle}
-              className="text-white hover:text-purple-300 transition-colors md:mr-4"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" height="28" viewBox="0 -960 960 960" width="28" fill="currentColor">
-                <path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/>
-              </svg>
-            </button>
-          </div>
-
           {/* Progress Bar */}
           <div className="mb-6">
             <div 
