@@ -1,4 +1,5 @@
-import { getMediaKey } from './media';
+import { getMediaKey, processMediaUrl } from './media';
+import { isHlsUrl } from './hlsUtils';
 import type { NFT } from '../types/user';
 
 interface MuxAssetMetadata {
@@ -47,15 +48,28 @@ const getMuxPlaybackId = async (nft: NFT): Promise<string | null> => {
   }
 };
 
-// Get optimized video URL
+// Update this function to more consistently return HLS URLs
 export const getOptimizedVideoUrl = async (nft: NFT): Promise<string> => {
+  // First try Mux
   const playbackId = await getMuxPlaybackId(nft);
   if (playbackId) {
-    // Use Mux's optimized playback URL
     return `https://stream.mux.com/${playbackId}.m3u8`;
   }
-  // Fallback to original URL
-  return nft.metadata?.animation_url || '';
+  
+  // Then try Livepeer (if you integrate with them)
+  // const livepeerPlaybackId = await getLivepeerPlaybackId(nft);
+  // if (livepeerPlaybackId) {
+  //   return `https://livepeercdn.com/hls/${livepeerPlaybackId}/index.m3u8`;
+  // }
+  
+  // Otherwise, check if we have a direct HLS URL
+  const directUrl = processMediaUrl(nft.metadata?.animation_url || '');
+  if (isHlsUrl(directUrl)) {
+    return directUrl;
+  }
+  
+  // No HLS available, return original
+  return directUrl;
 };
 
 // Preload video metadata
