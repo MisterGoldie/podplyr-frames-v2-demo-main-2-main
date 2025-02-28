@@ -165,3 +165,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Built with [Next.js](https://nextjs.org/)
 - Web3 integration powered by [Wagmi](https://wagmi.sh/)
 - Social features by [Farcaster](https://www.farcaster.xyz/)
+- Built Primarily by [MisterGoldie](https://github.com/MisterGoldie) at /thepod
