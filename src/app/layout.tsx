@@ -65,7 +65,7 @@ export default function RootLayout({
       <head>
         <Script src="https://cdn.farcaster.xyz/frames/sdk.js" strategy="beforeInteractive" />
       </head>
-      <body className="bg-purple-900">
+      <body>
         <Providers>{children}</Providers>
       </body>
     </html>
