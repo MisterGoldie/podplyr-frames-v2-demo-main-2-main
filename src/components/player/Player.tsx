@@ -307,20 +307,20 @@ export const Player: React.FC<PlayerProps> = ({
           playsInline
           loop
           muted
-          className="w-full h-auto object-contain rounded-lg max-h-[70vh] md:max-w-[800px] mx-auto"
-          onLoadStart={() => setVideoLoading(true)}
+          autoPlay={isPlaying}
+          className="w-auto h-auto object-contain rounded-lg max-h-[60vh] max-w-full"
+          style={{ opacity: 1 }}
           onLoadedData={() => {
+            console.log("Video loaded data event fired");
             setVideoLoading(false);
+            
             if (isPlaying && videoRef.current) {
+              console.log("Force playing video on load");
+              videoRef.current.currentTime = progress;
               videoRef.current.play().catch(e => console.error("Video play error:", e));
             }
           }}
         />
-        {videoLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent"></div>
-          </div>
-        )}
       </div>
     );
   };
@@ -450,6 +450,57 @@ export const Player: React.FC<PlayerProps> = ({
     const seconds = Math.floor(time % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
+
+  // Add this effect to force video playback on mount
+  useEffect(() => {
+    // Use a short timeout to ensure the DOM is fully rendered
+    const timer = setTimeout(() => {
+      if (nft?.isVideo || nft?.metadata?.animation_url) {
+        // First, try using our ref
+        if (videoRef.current) {
+          console.log("DIRECT PLAY: Using videoRef to play video");
+          videoRef.current.currentTime = progress;
+          
+          // Force muted first to bypass autoplay restrictions
+          videoRef.current.muted = true;
+          videoRef.current.play()
+            .then(() => {
+              console.log("DIRECT PLAY: Video started playing successfully");
+            })
+            .catch(e => {
+              console.error("DIRECT PLAY: Failed with videoRef:", e);
+              
+              // As a backup, try direct DOM access
+              const videoId = `video-${nft.contract}-${nft.tokenId}`;
+              const videoElement = document.getElementById(videoId) as HTMLVideoElement;
+              
+              if (videoElement) {
+                console.log("DIRECT PLAY: Trying with direct DOM access");
+                videoElement.currentTime = progress;
+                videoElement.muted = true;
+                videoElement.play()
+                  .then(() => console.log("DIRECT PLAY: Video started with DOM access"))
+                  .catch(e2 => console.error("DIRECT PLAY: All attempts failed:", e2));
+              }
+            });
+        } else {
+          // If ref isn't available, try direct DOM access
+          console.log("DIRECT PLAY: videoRef not available, trying DOM access");
+          const videoId = `video-${nft.contract}-${nft.tokenId}`;
+          const videoElement = document.getElementById(videoId) as HTMLVideoElement;
+          
+          if (videoElement) {
+            videoElement.currentTime = progress;
+            videoElement.muted = true;
+            videoElement.play()
+              .catch(e => console.error("DIRECT PLAY: DOM access failed:", e));
+          }
+        }
+      }
+    }, 300); // Small delay to ensure DOM is ready
+    
+    return () => clearTimeout(timer);
+  }, [nft, progress]); // Only run when nft or progress changes
 
   if (isMinimized) {
     return (
@@ -683,20 +734,20 @@ export const Player: React.FC<PlayerProps> = ({
                     playsInline
                     loop
                     muted
+                    autoPlay={isPlaying}
                     className="w-auto h-auto object-contain rounded-lg max-h-[60vh] max-w-full"
-                    onLoadStart={() => setVideoLoading(true)}
+                    style={{ opacity: 1 }}
                     onLoadedData={() => {
+                      console.log("Video loaded data event fired");
                       setVideoLoading(false);
+                      
                       if (isPlaying && videoRef.current) {
+                        console.log("Force playing video on load");
+                        videoRef.current.currentTime = progress;
                         videoRef.current.play().catch(e => console.error("Video play error:", e));
                       }
                     }}
                   />
-                  {videoLoading && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                      <div className="animate-spin rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent"></div>
-                    </div>
-                  )}
                 </div>
               ) : (
                 <NFTImage

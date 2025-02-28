@@ -21,7 +21,7 @@ export const VideoSyncManager: React.FC<VideoSyncManagerProps> = ({
 }) => {
   const hlsInitializedRef = useRef(false);
   
-  // Ultra-simplified sync approach
+  // Update VideoSyncManager to ensure immediate playback and sync
   useEffect(() => {
     if (!currentPlayingNFT?.isVideo) return;
     
@@ -34,7 +34,23 @@ export const VideoSyncManager: React.FC<VideoSyncManagerProps> = ({
       return;
     }
     
-    console.log("VideoSyncManager found video element:", videoElement);
+    console.log("VideoSyncManager sync state:", isPlaying);
+    
+    // Immediately sync play state
+    if (isPlaying) {
+      videoElement.play().catch(e => {
+        console.error("Failed to play video in sync manager:", e);
+        videoElement.muted = true;
+        videoElement.play().catch(e2 => console.error("Failed even with muted:", e2));
+      });
+    } else {
+      videoElement.pause();
+    }
+    
+    // Also sync time
+    if (Math.abs(videoElement.currentTime - audioProgress) > 0.3) {
+      videoElement.currentTime = audioProgress;
+    }
     
     // Try to use HLS when possible for Farcaster Frame compatibility
     const rawVideoUrl = processMediaUrl(currentPlayingNFT.metadata?.animation_url || '');
@@ -47,38 +63,69 @@ export const VideoSyncManager: React.FC<VideoSyncManagerProps> = ({
         .then(() => {
           hlsInitializedRef.current = true;
           console.log('HLS initialized for synced video');
+          
+          // Critical: After HLS init, force sync with audio state
+          syncVideoWithAudio(videoElement);
         })
         .catch((error) => {
           console.error('Error setting up HLS for synced video:', error);
           // Fall back to direct URL
           videoElement.src = rawVideoUrl;
           videoElement.load();
+          
+          // Add loadeddata event to ensure sync after manual load
+          videoElement.addEventListener('loadeddata', () => syncVideoWithAudio(videoElement), { once: true });
         });
     } else if (!shouldUseHls && videoElement.src !== rawVideoUrl) {
       videoElement.src = rawVideoUrl;
       videoElement.load();
-    }
-    
-    // Direct approach: just set state and let browser handle it
-    if (isPlaying) {
-      videoElement.play().catch(() => {
-        // If play fails, try muted (for mobile)
-        videoElement.muted = true;
-        videoElement.play().catch(() => {
-          console.log('Cannot play video even when muted');
-        });
-      });
+      
+      // Add loadeddata event to ensure sync after manual load
+      videoElement.addEventListener('loadeddata', () => syncVideoWithAudio(videoElement), { once: true });
     } else {
-      videoElement.pause();
+      // If no loading needed, sync immediately
+      syncVideoWithAudio(videoElement);
     }
     
-    // Very basic time sync
-    if (Math.abs(videoElement.currentTime - audioProgress) > 0.5) {
-      videoElement.currentTime = audioProgress;
+    // Helper function to sync video with audio state
+    function syncVideoWithAudio(video: HTMLVideoElement) {
+      // Always force time sync first
+      if (Math.abs(video.currentTime - audioProgress) > 0.2) {
+        console.log("Syncing video time to:", audioProgress);
+        video.currentTime = audioProgress;
+      }
+      
+      // Then sync play state
+      if (isPlaying) {
+        console.log("Starting video playback");
+        video.play().catch((e) => {
+          console.error("Failed to play video:", e);
+          // If play fails, try muted (for mobile)
+          video.muted = true;
+          video.play().catch((e2) => {
+            console.error("Failed to play muted video:", e2);
+          });
+        });
+      } else {
+        console.log("Pausing video");
+        video.pause();
+      }
     }
     
-    // Clean up HLS when component unmounts or NFT changes
+    // Add continuous sync for time
+    const handleTimeUpdate = () => {
+      if (Math.abs(videoElement.currentTime - audioProgress) > 0.3) {
+        videoElement.currentTime = audioProgress;
+      }
+    };
+    
+    // Use a dedicated timeupdate listener for continuous sync
+    videoElement.addEventListener('timeupdate', handleTimeUpdate);
+    
+    // Clean up
     return () => {
+      videoElement.removeEventListener('timeupdate', handleTimeUpdate);
+      
       if (hlsInitializedRef.current) {
         destroyHls(videoId);
         hlsInitializedRef.current = false;
