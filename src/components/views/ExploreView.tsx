@@ -145,7 +145,9 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
             {/* Recently Searched Users Section */}
             {!searchResults.length && !selectedUser && recentSearches.length > 0 && (
               <div className="mb-8">
-                <h2 className="text-xl font-mono text-green-400 mb-4">Recently Searched</h2>
+                <h2 className="text-xl font-mono text-green-400 mb-4">
+                  {userFid ? "Recently Searched" : "Popular Users"}
+                </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                   {recentSearches.map((user) => (
                     <button
@@ -182,7 +184,7 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                         // The subscription in Demo.tsx will handle it
                         handleUserSelect(farcasterUser);
                       }}
-                      className="bg-gray-800/30 backdrop-blur-sm p-4 rounded-lg text-left hover:bg-gray-800/50 transition-colors"
+                      className="group relative bg-gray-800/20 backdrop-blur-sm rounded-xl p-4 hover:bg-gray-800/40 transition-all cursor-pointer border border-gray-800/40 hover:border-green-400/40"
                     >
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 relative">
