@@ -299,7 +299,7 @@ export const Player: React.FC<PlayerProps> = ({
   // Update the renderVideo function to remove the useEffect
   const renderVideo = () => {
     return (
-      <div className="relative">
+      <div className="relative w-full h-full flex items-center justify-center">
         <video
           ref={videoRef}
           id={`video-${nft.contract}-${nft.tokenId}`}
@@ -308,16 +308,36 @@ export const Player: React.FC<PlayerProps> = ({
           loop
           muted
           autoPlay={isPlaying}
-          className="w-auto h-auto object-contain rounded-lg max-h-[60vh] max-w-full"
-          style={{ opacity: 1 }}
+          preload="auto"
+          className="w-auto h-auto object-contain rounded-lg max-h-[60vh] min-h-[40vh] min-w-[60%] max-w-full"
+          style={{ 
+            opacity: 1, 
+            willChange: 'transform',
+            objectFit: 'contain'
+          }}
           onLoadedData={() => {
             console.log("Video loaded data event fired");
             setVideoLoading(false);
             
-            if (isPlaying && videoRef.current) {
-              console.log("Force playing video on load");
-              videoRef.current.currentTime = progress;
-              videoRef.current.play().catch(e => console.error("Video play error:", e));
+            // Dynamically adjust video size based on its intrinsic dimensions
+            if (videoRef.current) {
+              const video = videoRef.current;
+              const aspectRatio = video.videoWidth / video.videoHeight;
+              
+              // For very small videos (less than 400px wide), scale them up
+              if (video.videoWidth < 400) {
+                video.style.minWidth = '80%';
+              }
+              
+              // For very wide videos, ensure they don't get too tall
+              if (aspectRatio > 2) {
+                video.style.maxHeight = '50vh';
+              }
+              
+              if (isPlaying) {
+                video.currentTime = progress;
+                video.play().catch(e => console.error("Video play error:", e));
+              }
             }
           }}
         />
@@ -735,16 +755,36 @@ export const Player: React.FC<PlayerProps> = ({
                     loop
                     muted
                     autoPlay={isPlaying}
-                    className="w-auto h-auto object-contain rounded-lg max-h-[60vh] max-w-full"
-                    style={{ opacity: 1 }}
+                    preload="auto"
+                    className="w-auto h-auto object-contain rounded-lg max-h-[60vh] min-h-[40vh] min-w-[60%] max-w-full"
+                    style={{ 
+                      opacity: 1, 
+                      willChange: 'transform',
+                      objectFit: 'contain'
+                    }}
                     onLoadedData={() => {
                       console.log("Video loaded data event fired");
                       setVideoLoading(false);
                       
-                      if (isPlaying && videoRef.current) {
-                        console.log("Force playing video on load");
-                        videoRef.current.currentTime = progress;
-                        videoRef.current.play().catch(e => console.error("Video play error:", e));
+                      // Dynamically adjust video size based on its intrinsic dimensions
+                      if (videoRef.current) {
+                        const video = videoRef.current;
+                        const aspectRatio = video.videoWidth / video.videoHeight;
+                        
+                        // For very small videos (less than 400px wide), scale them up
+                        if (video.videoWidth < 400) {
+                          video.style.minWidth = '80%';
+                        }
+                        
+                        // For very wide videos, ensure they don't get too tall
+                        if (aspectRatio > 2) {
+                          video.style.maxHeight = '50vh';
+                        }
+                        
+                        if (isPlaying) {
+                          video.currentTime = progress;
+                          video.play().catch(e => console.error("Video play error:", e));
+                        }
                       }
                     }}
                   />
