@@ -400,21 +400,20 @@ const Demo: React.FC = () => {
     }
   };
 
-  const handleSearch = async (query: string) => {
+  const handleSearch = async (username: string) => {
     setIsSearching(true);
     try {
-      // Search for users
-      const results = await searchUsers(query);
-      setSearchResults(results);
-
-      // Track search for first result if any
-      if (results.length > 0 && userFid) {
-        await trackUserSearch(results[0].username, userFid);
-        
-        // After tracking search, refresh recent searches
-        const searches = await getRecentSearches(userFid);
-        setRecentSearches(searches);
+      const results = await searchUsers(username);
+      
+      // IMPORTANT: If there's only one result, bypass search results completely
+      if (results.length === 1) {
+        await handleDirectUserSelect(results[0]);
+        return; // Skip setting searchResults at all
       }
+      
+      // Otherwise, if multiple results
+      setSearchResults(results);
+      setSelectedUser(null); // Clear any selected user
     } catch (error) {
       console.error('Error searching users:', error);
       setError('Error searching users');
@@ -540,6 +539,7 @@ const Demo: React.FC = () => {
             }
           }}
           onReset={handleReset}
+          handleDirectUserSelect={handleDirectUserSelect}
         />
       );
     }
@@ -944,6 +944,49 @@ const Demo: React.FC = () => {
     
     return mediaOnly;
   }, []);
+
+  // Add a direct wallet search function that bypasses search results
+  const handleDirectUserSelect = async (user: FarcasterUser) => {
+    console.log('=== DEMO: Direct wallet search ===');
+    console.log('Selected user:', user);
+    
+    // IMPORTANT: First set search results to empty array
+    // This must be done before setting selectedUser
+    setSearchResults([]);
+    
+    // Then track the search
+    if (userFid) {
+      await trackUserSearch(user.username, userFid);
+      
+      // Get updated recent searches
+      const searches = await getRecentSearches(userFid);
+      setRecentSearches(searches);
+    }
+    
+    // Now set selected user AFTER clearing search results
+    setSelectedUser(user);
+    
+    // Continue with wallet search
+    setIsLoading(true);
+    try {
+      // Load NFTs for this user directly from Farcaster API/database
+      // You'll need to identify which function handles loading NFTs for a user
+      // For example, you might have something like:
+      const nfts = await fetchUserNFTs(user.fid);  // Replace with your actual NFT loading function
+      setUserNFTs(nfts);
+      setFilteredNFTs(nfts);
+      
+      // Update global NFT list for player
+      window.nftList = nfts;
+      
+      setError(null);
+    } catch (error) {
+      console.error('Error loading user NFTs:', error);
+      setError('Error loading NFTs');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col no-select">

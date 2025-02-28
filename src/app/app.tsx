@@ -15,7 +15,7 @@ const Demo = dynamic(() => import("../components/Demo"), {
 export default function App() {
   return (
     <PlayerProvider>
-      <main className="min-h-screen flex flex-col bg-gradient-to-br from-[#2D1B3D] to-[#151515]">
+      <main className="min-h-screen flex flex-col">
         <Demo />
       </main>
     </PlayerProvider>

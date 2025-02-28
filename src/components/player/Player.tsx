@@ -12,6 +12,7 @@ import Image from 'next/image';
 import { trackNFTPlay } from '../../lib/firebase';
 import { useNFTLikeState } from '../../hooks/useNFTLikeState';
 import { FarcasterContext } from '../../app/providers';
+import sdk from '@farcaster/frame-sdk';
 
 // Remove the custom HTMLVideoElement interface and use the built-in one
 interface PictureInPictureWindow {}
@@ -65,6 +66,7 @@ export const Player: React.FC<PlayerProps> = ({
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
   const [showControls, setShowControls] = useState(true);
   const hideControlsTimer = useRef<NodeJS.Timeout | undefined>(undefined);
+  const [videoLoading, setVideoLoading] = useState(false);
 
   // Auto-hide controls after 3 seconds of inactivity (only in maximized state)
   useEffect(() => {
@@ -239,7 +241,7 @@ export const Player: React.FC<PlayerProps> = ({
 
   // Handle Picture-in-Picture mode
   const handlePictureInPicture = async () => {
-    if (!videoElement || !nft) return;
+    if (!videoRef.current || !nft) return;
     
     // Check if this NFT has video content
     const hasVideo = nft.metadata?.animation_url || nft.isVideo;
@@ -253,21 +255,27 @@ export const Player: React.FC<PlayerProps> = ({
         if (document.exitPictureInPicture) {
           await document.exitPictureInPicture();
         }
-      } else if (videoElement.requestPictureInPicture) {
+      } else if (videoRef.current && videoRef.current.requestPictureInPicture) {
         // Ensure video is loaded
-        if (videoElement.readyState < HTMLMediaElement.HAVE_METADATA) {
-          await new Promise((resolve) => {
-            videoElement.addEventListener('loadedmetadata', resolve, { once: true });
+        if (videoRef.current && videoRef.current.readyState < HTMLMediaElement.HAVE_METADATA) {
+          await new Promise<void>((resolve) => {
+            if (!videoRef.current) {
+              resolve();
+              return;
+            }
+            videoRef.current.addEventListener('loadedmetadata', () => resolve(), { once: true });
           });
         }
-        await videoElement.requestPictureInPicture();
+        
+        // Final check before requesting PIP
+        if (videoRef.current) {
+          await videoRef.current.requestPictureInPicture();
+        }
       }
     } catch (error) {
       console.error('Error toggling Picture-in-Picture mode:', error);
     }
   };
-
-
 
   if (!nft) return null;
 
@@ -277,54 +285,62 @@ export const Player: React.FC<PlayerProps> = ({
     console.log('After toggle called. New state will be:', !isMinimized);
   };
 
+  // Move the useEffect out of renderVideo and into the main component body
+  useEffect(() => {
+    if (videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.play().catch(e => console.error("Video play error:", e));
+      } else {
+        videoRef.current.pause();
+      }
+    }
+  }, [isPlaying]);
+
+  // Update the renderVideo function to remove the useEffect
   const renderVideo = () => {
-    // Get the video URL from metadata.animation_url or audio
-    const videoUrl = nft.metadata?.animation_url || nft.audio;
-    const imageUrl = nft.image || nft.metadata?.image || '/placeholder-image.jpg';
-    
-    // Process both URLs through our IPFS gateway system
-    const processedImageUrl = processMediaUrl(imageUrl, '/placeholder-image.jpg');
-    const processedVideoUrl = videoUrl ? processMediaUrl(videoUrl) : null;
-    
     return (
-      <div className="relative w-full h-auto aspect-square">
-        {processedVideoUrl ? (
-          // Show video if available
-          <div className="relative w-full h-full">
-            <video
-              ref={videoRef}
-              src={processedVideoUrl}
-              className={`w-full h-full object-contain rounded-lg transition-transform duration-500 ${
-                isMinimized ? '' : 'transform transition-all duration-500 ease-in-out ' + (isPlaying ? 'scale-100' : 'scale-90')
-              }`}
-              playsInline
-              preload="metadata"
-              loop
-              muted={true}
-              controls={false}
-              poster={processedImageUrl}
-              onLoadedMetadata={(e) => {
-                const video = e.target as HTMLVideoElement;
-                if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
-                  video.currentTime = progress;
-                }
-                setVideoElement(video);
-              }}
-            />
-          </div>
-        ) : (
-          // Fallback to image
-          <Image
-            src={processedImageUrl}
-            alt={nft.name || 'NFT Image'}
-            className={`w-full h-auto object-contain rounded-lg transition-transform duration-500 ${
-              isMinimized ? '' : 'transform transition-all duration-500 ease-in-out ' + (isPlaying ? 'scale-100' : 'scale-90')
-            }`}
-            fill
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-            priority={true}
-          />
-        )}
+      <div className="relative w-full h-full flex items-center justify-center">
+        <video
+          ref={videoRef}
+          id={`video-${nft.contract}-${nft.tokenId}`}
+          src={processMediaUrl(nft.metadata?.animation_url || '')}
+          playsInline
+          loop
+          muted
+          autoPlay={isPlaying}
+          preload="auto"
+          className="w-auto h-auto object-contain rounded-lg max-h-[60vh] min-h-[40vh] min-w-[60%] max-w-full"
+          style={{ 
+            opacity: 1, 
+            willChange: 'transform',
+            objectFit: 'contain'
+          }}
+          onLoadedData={() => {
+            console.log("Video loaded data event fired");
+            setVideoLoading(false);
+            
+            // Dynamically adjust video size based on its intrinsic dimensions
+            if (videoRef.current) {
+              const video = videoRef.current;
+              const aspectRatio = video.videoWidth / video.videoHeight;
+              
+              // For very small videos (less than 400px wide), scale them up
+              if (video.videoWidth < 400) {
+                video.style.minWidth = '80%';
+              }
+              
+              // For very wide videos, ensure they don't get too tall
+              if (aspectRatio > 2) {
+                video.style.maxHeight = '50vh';
+              }
+              
+              if (isPlaying) {
+                video.currentTime = progress;
+                video.play().catch(e => console.error("Video play error:", e));
+              }
+            }
+          }}
+        />
       </div>
     );
   };
@@ -454,6 +470,57 @@ export const Player: React.FC<PlayerProps> = ({
     const seconds = Math.floor(time % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
+
+  // Add this effect to force video playback on mount
+  useEffect(() => {
+    // Use a short timeout to ensure the DOM is fully rendered
+    const timer = setTimeout(() => {
+      if (nft?.isVideo || nft?.metadata?.animation_url) {
+        // First, try using our ref
+        if (videoRef.current) {
+          console.log("DIRECT PLAY: Using videoRef to play video");
+          videoRef.current.currentTime = progress;
+          
+          // Force muted first to bypass autoplay restrictions
+          videoRef.current.muted = true;
+          videoRef.current.play()
+            .then(() => {
+              console.log("DIRECT PLAY: Video started playing successfully");
+            })
+            .catch(e => {
+              console.error("DIRECT PLAY: Failed with videoRef:", e);
+              
+              // As a backup, try direct DOM access
+              const videoId = `video-${nft.contract}-${nft.tokenId}`;
+              const videoElement = document.getElementById(videoId) as HTMLVideoElement;
+              
+              if (videoElement) {
+                console.log("DIRECT PLAY: Trying with direct DOM access");
+                videoElement.currentTime = progress;
+                videoElement.muted = true;
+                videoElement.play()
+                  .then(() => console.log("DIRECT PLAY: Video started with DOM access"))
+                  .catch(e2 => console.error("DIRECT PLAY: All attempts failed:", e2));
+              }
+            });
+        } else {
+          // If ref isn't available, try direct DOM access
+          console.log("DIRECT PLAY: videoRef not available, trying DOM access");
+          const videoId = `video-${nft.contract}-${nft.tokenId}`;
+          const videoElement = document.getElementById(videoId) as HTMLVideoElement;
+          
+          if (videoElement) {
+            videoElement.currentTime = progress;
+            videoElement.muted = true;
+            videoElement.play()
+              .catch(e => console.error("DIRECT PLAY: DOM access failed:", e));
+          }
+        }
+      }
+    }, 300); // Small delay to ensure DOM is ready
+    
+    return () => clearTimeout(timer);
+  }, [nft, progress]); // Only run when nft or progress changes
 
   if (isMinimized) {
     return (
@@ -611,7 +678,7 @@ export const Player: React.FC<PlayerProps> = ({
       >
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex-1 flex items-center justify-center max-h-[70vh] px-4 py-4">
+        <div className="flex-1 flex items-center justify-center max-h-[70vh] px-4 py-4 overflow-hidden">
           {/* Title Bar */}
           <div className="fixed bottom-0 left-0 right-0 bg-black/80 backdrop-blur-sm border-t border-purple-400/20">
             <div className="container mx-auto flex items-center justify-between px-4 py-3">
@@ -627,23 +694,8 @@ export const Player: React.FC<PlayerProps> = ({
             </div>
           </div>
           {/* NFT Image/Video Container */}
-          <div 
-            className="relative w-full max-w-2xl mx-auto group"
-            onMouseEnter={() => {
-              // Reset the timer on mouse enter
-              if (hideControlsTimer.current) {
-                clearTimeout(hideControlsTimer.current);
-              }
-              setShowControls(true);
-            }}
-            onMouseLeave={() => {
-              // Start the timer to hide controls
-              hideControlsTimer.current = setTimeout(() => {
-                setShowControls(false);
-              }, 3000); // Hide after 3 seconds
-            }}
-          >
-            {/* Action Icons Overlay */}
+          <div className="relative w-full h-full flex items-center justify-center">
+            {/* Action Icons Overlay - RESTORED */}
             <div className={`absolute top-4 left-4 right-4 flex justify-between z-10 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
               <div className="flex gap-2">
                 {onLikeToggle && (
@@ -665,14 +717,12 @@ export const Player: React.FC<PlayerProps> = ({
                 {nft && (
                   <button
                     onClick={() => {
-                      try {
-                        const appUrl = process.env.NEXT_PUBLIC_URL || window.location.origin;
-                        const shareText = `Check out this NFT on PODPlayr 🎵`;
-                        // Share base domain but Frame endpoint will show NFT image
-                        window.open(`https://warpcast.com/~/compose?text=${encodeURIComponent(shareText)}&embeds[]=${encodeURIComponent(appUrl)}`, '_blank', 'noopener,noreferrer');
-                      } catch (error) {
-                        console.error('Error sharing NFT:', error);
-                      }
+                      // Personalize the share message with the NFT name
+                      const shareText = `Check out "${nft.name}" on PODPlayr! 📺`;
+                      const shareUrl = 'podplayr.vercel.app';
+                      
+                      // Use the imported SDK directly
+                      sdk.actions.openUrl(`https://warpcast.com/~/compose?text=${encodeURIComponent(shareText)}&embeds[]=${encodeURIComponent(shareUrl)}`);
                     }}
                     className="text-purple-400 hover:text-purple-300 p-2 bg-black/40 rounded-full backdrop-blur-sm"
                   >
@@ -693,14 +743,57 @@ export const Player: React.FC<PlayerProps> = ({
                 </button>
               )}
             </div>
-            <div className={`transition-all duration-500 ease-in-out transform ${isPlaying ? 'scale-100' : 'scale-90'}`}>
+
+            <div className={`transition-all duration-500 ease-in-out transform ${isPlaying ? 'scale-100' : 'scale-90'} max-h-[60vh] flex items-center justify-center`}>
               {nft.isVideo || nft.metadata?.animation_url ? (
-                renderVideo()
+                <div className="relative w-full h-full flex items-center justify-center">
+                  <video
+                    ref={videoRef}
+                    id={`video-${nft.contract}-${nft.tokenId}`}
+                    src={processMediaUrl(nft.metadata?.animation_url || '')}
+                    playsInline
+                    loop
+                    muted
+                    autoPlay={isPlaying}
+                    preload="auto"
+                    className="w-auto h-auto object-contain rounded-lg max-h-[60vh] min-h-[40vh] min-w-[60%] max-w-full"
+                    style={{ 
+                      opacity: 1, 
+                      willChange: 'transform',
+                      objectFit: 'contain'
+                    }}
+                    onLoadedData={() => {
+                      console.log("Video loaded data event fired");
+                      setVideoLoading(false);
+                      
+                      // Dynamically adjust video size based on its intrinsic dimensions
+                      if (videoRef.current) {
+                        const video = videoRef.current;
+                        const aspectRatio = video.videoWidth / video.videoHeight;
+                        
+                        // For very small videos (less than 400px wide), scale them up
+                        if (video.videoWidth < 400) {
+                          video.style.minWidth = '80%';
+                        }
+                        
+                        // For very wide videos, ensure they don't get too tall
+                        if (aspectRatio > 2) {
+                          video.style.maxHeight = '50vh';
+                        }
+                        
+                        if (isPlaying) {
+                          video.currentTime = progress;
+                          video.play().catch(e => console.error("Video play error:", e));
+                        }
+                      }
+                    }}
+                  />
+                </div>
               ) : (
                 <NFTImage
                   src={nft.metadata?.image || ''}
                   alt={nft.name}
-                  className="w-full h-auto object-contain rounded-lg transition-transform duration-500"
+                  className="w-auto h-auto object-contain rounded-lg transition-transform duration-500 max-h-[60vh]"
                   width={500}
                   height={500}
                   priority={true}
@@ -708,33 +801,10 @@ export const Player: React.FC<PlayerProps> = ({
                 />
               )}
             </div>
-
-            {/* Play/Pause Overlay */}
-            <div 
-              className={`absolute inset-0 flex items-center justify-center bg-black/40 transition-opacity duration-300 ${
-                isPlaying ? 'opacity-0' : 'opacity-100'
-              }`}
-              onClick={onPlayPause}
-            >
-              <div className="transform transition-transform duration-300 hover:scale-110">
-                {isPlaying ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" height="64px" viewBox="0 -960 960 960" width="64px" fill="currentColor" className="text-white">
-                    <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
-                  </svg>
-                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" height="64px" viewBox="0 -960 960 960" width="64px" fill="currentColor" className="text-white">
-                    <path d="M320-200v-560l440 280-440 280Z"/>
-                  </svg>
-                )}
-              </div>
-            </div>
           </div>
-
-
-
         </div>
         {/* Controls Section */}
-        <div className="px-4 py-6 bg-black/40">
+        <div className="px-4 py-6 sm:py-8 w-full max-w-screen-lg mx-auto">
           {/* Progress Bar */}
           <div className="mb-6">
             <div 

@@ -9,7 +9,7 @@ const appUrl = process.env.NEXT_PUBLIC_URL;
 
 const frame = {
   version: 'vNext',
-  image: `${appUrl}/og-image.jpg`,
+  image: `${appUrl}/image.png`,
   title: 'PODPlayr',
   description: 'Listen & Watch NFTs on PODPlayr',
   buttons: [{

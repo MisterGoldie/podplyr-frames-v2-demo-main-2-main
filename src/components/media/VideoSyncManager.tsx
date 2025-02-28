@@ -21,62 +21,63 @@ export const VideoSyncManager: React.FC<VideoSyncManagerProps> = ({
 }) => {
   const hlsInitializedRef = useRef(false);
   
-  // Ultra-simplified sync approach
+  // Optimize the video sync manager for better performance
   useEffect(() => {
-    if (!videoRef.current || !currentPlayingNFT?.isVideo) return;
+    if (!currentPlayingNFT?.isVideo) return;
     
-    const video = videoRef.current;
-    const videoId = `video-sync-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`;
+    // Find the video element directly by a unique ID based on the NFT
+    const videoId = `video-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`;
+    const videoElement = document.getElementById(videoId) as HTMLVideoElement;
     
-    // Try to use HLS when possible for Farcaster Frame compatibility
-    const rawVideoUrl = processMediaUrl(currentPlayingNFT.metadata?.animation_url || '');
-    const hlsUrl = getHlsUrl(rawVideoUrl);
-    const shouldUseHls = isHlsUrl(hlsUrl);
-    
-    // Set up HLS for better Farcaster Frame compatibility if available
-    if (shouldUseHls && !hlsInitializedRef.current) {
-      setupHls(videoId, video, hlsUrl)
-        .then(() => {
-          hlsInitializedRef.current = true;
-          console.log('HLS initialized for synced video');
-        })
-        .catch((error) => {
-          console.error('Error setting up HLS for synced video:', error);
-          // Fall back to direct URL
-          video.src = rawVideoUrl;
-          video.load();
-        });
-    } else if (!shouldUseHls && video.src !== rawVideoUrl) {
-      video.src = rawVideoUrl;
-      video.load();
+    if (!videoElement) {
+      console.error(`VideoSyncManager: Could not find video element with ID ${videoId}`);
+      return;
     }
     
-    // Direct approach: just set state and let browser handle it
-    if (isPlaying) {
-      video.play().catch(() => {
-        // If play fails, try muted (for mobile)
-        video.muted = true;
-        video.play().catch(() => {
-          console.log('Cannot play video even when muted');
-        });
-      });
-    } else {
-      video.pause();
-    }
+    // Use requestAnimationFrame for smoother sync
+    let animationFrameId: number;
+    let lastSyncTime = 0;
     
-    // Very basic time sync
-    if (Math.abs(video.currentTime - audioProgress) > 0.5) {
-      video.currentTime = audioProgress;
-    }
+    const syncVideoState = (timestamp: number) => {
+      // Only sync every 100ms for efficiency
+      if (timestamp - lastSyncTime > 100) {
+        // Sync play state immediately
+        if (isPlaying && videoElement.paused) {
+          videoElement.play().catch(e => {
+            if (e.name !== 'AbortError') {
+              console.error("Failed to play video in sync manager:", e);
+              videoElement.muted = true;
+              videoElement.play().catch(e2 => console.error("Failed even with muted:", e2));
+            }
+          });
+        } else if (!isPlaying && !videoElement.paused) {
+          videoElement.pause();
+        }
+        
+        // Sync time only if difference is significant
+        if (Math.abs(videoElement.currentTime - audioProgress) > 0.3) {
+          videoElement.currentTime = audioProgress;
+        }
+        
+        lastSyncTime = timestamp;
+      }
+      
+      animationFrameId = requestAnimationFrame(syncVideoState);
+    };
     
-    // Clean up HLS when component unmounts or NFT changes
+    // Start the sync loop
+    animationFrameId = requestAnimationFrame(syncVideoState);
+    
+    // Clean up
     return () => {
+      cancelAnimationFrame(animationFrameId);
+      
       if (hlsInitializedRef.current) {
         destroyHls(videoId);
         hlsInitializedRef.current = false;
       }
     };
-  }, [isPlaying, audioProgress, currentPlayingNFT, videoRef]);
+  }, [isPlaying, audioProgress, currentPlayingNFT]);
 
   return null;
 };
