@@ -599,7 +599,7 @@ export const Player: React.FC<PlayerProps> = ({
       >
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex-1 flex items-center justify-center max-h-[70vh] px-4 py-4">
+        <div className="flex-1 flex items-center justify-center max-h-[70vh] px-4 py-4 overflow-hidden">
           {/* Title Bar */}
           <div className="fixed bottom-0 left-0 right-0 bg-black/80 backdrop-blur-sm border-t border-purple-400/20">
             <div className="container mx-auto flex items-center justify-between px-4 py-3">
@@ -615,78 +615,37 @@ export const Player: React.FC<PlayerProps> = ({
             </div>
           </div>
           {/* NFT Image/Video Container */}
-          <div 
-            className="relative w-full max-w-2xl mx-auto group"
-            onMouseEnter={() => {
-              // Reset the timer on mouse enter
-              if (hideControlsTimer.current) {
-                clearTimeout(hideControlsTimer.current);
-              }
-              setShowControls(true);
-            }}
-            onMouseLeave={() => {
-              // Start the timer to hide controls
-              hideControlsTimer.current = setTimeout(() => {
-                setShowControls(false);
-              }, 3000); // Hide after 3 seconds
-            }}
-          >
-            {/* Action Icons Overlay */}
-            <div className={`absolute top-4 left-4 right-4 flex justify-between z-10 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
-              <div className="flex gap-2">
-                {onLikeToggle && (
-                  <button 
-                    onClick={() => onLikeToggle(nft)}
-                    className={`${isLiked ? 'text-red-500' : 'text-purple-400'} hover:text-purple-300 p-2 bg-black/40 rounded-full backdrop-blur-sm`}
-                  >
-                    {isLiked ? (
-                      <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
-                        <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
-                      </svg>
-                    ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
-                        <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Zm0-108q96-86 158-147.5t98-107q36-45.5 50-81t14-70.5q0-60-40-100t-100-40q-47 0-87 26.5T518-680h-76q-15-41-55-67.5T300-774q-60 0-100 40t-40 100q0 35 14 70.5t50 81q36 45.5 98 107T480-228Zm0-273Z"/>
-                      </svg>
-                    )}
-                  </button>
-                )}
-                {nft && (
-                  <button
-                    onClick={() => {
-                      // Personalize the share message with the NFT name
-                      const shareText = `Check out "${nft.name}" on PODPlayr! 📺`;
-                      const shareUrl = 'podplayr.vercel.app';
-                      
-                      // Use the imported SDK directly
-                      sdk.actions.openUrl(`https://warpcast.com/~/compose?text=${encodeURIComponent(shareText)}&embeds[]=${encodeURIComponent(shareUrl)}`);
-                    }}
-                    className="text-purple-400 hover:text-purple-300 p-2 bg-black/40 rounded-full backdrop-blur-sm"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
-                      <path d="M680-80q-50 0-85-35t-35-85q0-6 3-28L282-392q-16 15-37 23.5t-45 8.5q-50 0-85-35t-35-85q0-50 35-85t85-35q24 0 45 8.5t37 23.5l281-164q-2-7-2.5-13.5T560-760q0-50 35-85t85-35q50 0 85 35t35 85q0 50-35 85t-85 35q-24 0-45-8.5T598-672L317-508q2 7 2.5 13.5t.5 14.5q0 8-.5 14.5T317-452l281 164q16-15 37-23.5t45-8.5q50 0 85 35t35 85q0 50-35 85t-85 35Z"/>
-                    </svg>
-                  </button>
-                )}
-              </div>
-              {(nft.isVideo || nft.metadata?.animation_url) && (
-                <button
-                  onClick={handlePictureInPicture}
-                  className="text-white hover:text-white/80 p-2 bg-black/40 rounded-full backdrop-blur-sm"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                    <path d="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Zm0-80h640v-480H160v480Zm0 0v-480 480Zm280-200h320v-240H440v240Zm80-80v-80h160l-80-80-80 80Z"/>
-                  </svg>
-                </button>
-              )}
-            </div>
-            <div className={`transition-all duration-500 ease-in-out transform ${isPlaying ? 'scale-100' : 'scale-90'}`}>
+          <div className="relative w-full h-full flex items-center justify-center">
+            <div className={`transition-all duration-500 ease-in-out transform ${isPlaying ? 'scale-100' : 'scale-90'} max-h-[60vh] flex items-center justify-center`}>
               {nft.isVideo || nft.metadata?.animation_url ? (
-                renderVideo()
+                <div className="relative w-full h-full flex items-center justify-center">
+                  <video
+                    ref={videoRef}
+                    id={`video-${nft.contract}-${nft.tokenId}`}
+                    src={processMediaUrl(nft.metadata?.animation_url || '')}
+                    playsInline
+                    loop
+                    muted
+                    className="w-auto h-auto object-contain rounded-lg max-h-[60vh] max-w-full"
+                    onLoadStart={() => setVideoLoading(true)}
+                    onLoadedData={() => {
+                      setVideoLoading(false);
+                      if (isPlaying && videoRef.current) {
+                        videoRef.current.play().catch(e => console.error("Video play error:", e));
+                      }
+                    }}
+                  />
+                  {videoLoading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                      <div className="animate-spin rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent"></div>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <NFTImage
                   src={nft.metadata?.image || ''}
                   alt={nft.name}
-                  className="w-full h-auto object-contain rounded-lg transition-transform duration-500"
+                  className="w-auto h-auto object-contain rounded-lg transition-transform duration-500 max-h-[60vh]"
                   width={500}
                   height={500}
                   priority={true}
@@ -694,30 +653,7 @@ export const Player: React.FC<PlayerProps> = ({
                 />
               )}
             </div>
-
-            {/* Play/Pause Overlay */}
-            <div 
-              className={`absolute inset-0 flex items-center justify-center bg-black/40 transition-opacity duration-300 ${
-                isPlaying ? 'opacity-0' : 'opacity-100'
-              }`}
-              onClick={onPlayPause}
-            >
-              <div className="transform transition-transform duration-300 hover:scale-110">
-                {isPlaying ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" height="64px" viewBox="0 -960 960 960" width="64px" fill="currentColor" className="text-white">
-                    <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
-                  </svg>
-                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" height="64px" viewBox="0 -960 960 960" width="64px" fill="currentColor" className="text-white">
-                    <path d="M320-200v-560l440 280-440 280Z"/>
-                  </svg>
-                )}
-              </div>
-            </div>
           </div>
-
-
-
         </div>
         {/* Controls Section */}
         <div className="px-4 py-6 sm:py-8 w-full max-w-screen-lg mx-auto">
