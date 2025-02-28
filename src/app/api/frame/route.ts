@@ -67,7 +67,11 @@ export async function POST(req: NextRequest) {
     // Create frame response
     const frame = {
       version: 'vNext',
-      image: nft.metadata?.image || `${appUrl}/api/og?contract=${contract}&tokenId=${tokenId}`,
+      image: nft.image || 
+             (nft.metadata && nft.metadata.image) || 
+             (nft.metadata && nft.metadata.image_url) || 
+             (nft.metadata && nft.metadata.animation_url) ||
+             `${appUrl}/api/og?contract=${contract}&tokenId=${tokenId}`,
       title: nft.name || 'PODPlayr NFT',
       description: nft.description || 'Listen to this NFT on PODPlayr',
       buttons: [{
