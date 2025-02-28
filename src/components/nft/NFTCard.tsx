@@ -192,7 +192,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
           `absolute inset-0 bg-black/20 transition-all duration-1000 ease-in-out ${showOverlay ? 'opacity-100' : 'opacity-0'}` : 
           'absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200'
         } />
-        {onLikeToggle && (
+        {onLikeToggle && userFid && userFid > 0 ? (
           <button 
             onClick={async (e) => {
               e.stopPropagation();
@@ -211,7 +211,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
               </svg>
             )}
           </button>
-        )}
+        ) : null}
         {useCenteredPlay ? (
           <div className={`absolute inset-0 flex flex-col items-center justify-center transition-all duration-1000 ease-in-out delay-75 z-20 ${showOverlay ? 'opacity-100' : 'opacity-0'}`}>
             <button 

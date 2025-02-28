@@ -200,6 +200,7 @@ const HomeView: React.FC<HomeViewProps> = ({
             isPlaying={isPlaying}
             onLikeToggle={onLikeToggle}
             isNFTLiked={isNFTLiked}
+            userFid={String(userFid)}
           />
         </section>
       </div>
