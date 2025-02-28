@@ -23,10 +23,18 @@ export const VideoSyncManager: React.FC<VideoSyncManagerProps> = ({
   
   // Ultra-simplified sync approach
   useEffect(() => {
-    if (!videoRef.current || !currentPlayingNFT?.isVideo) return;
+    if (!currentPlayingNFT?.isVideo) return;
     
-    const video = videoRef.current;
-    const videoId = `video-sync-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`;
+    // Find the video element directly by a unique ID based on the NFT
+    const videoId = `video-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`;
+    const videoElement = document.getElementById(videoId) as HTMLVideoElement;
+    
+    if (!videoElement) {
+      console.error(`VideoSyncManager: Could not find video element with ID ${videoId}`);
+      return;
+    }
+    
+    console.log("VideoSyncManager found video element:", videoElement);
     
     // Try to use HLS when possible for Farcaster Frame compatibility
     const rawVideoUrl = processMediaUrl(currentPlayingNFT.metadata?.animation_url || '');
@@ -35,7 +43,7 @@ export const VideoSyncManager: React.FC<VideoSyncManagerProps> = ({
     
     // Set up HLS for better Farcaster Frame compatibility if available
     if (shouldUseHls && !hlsInitializedRef.current) {
-      setupHls(videoId, video, hlsUrl)
+      setupHls(videoId, videoElement, hlsUrl)
         .then(() => {
           hlsInitializedRef.current = true;
           console.log('HLS initialized for synced video');
@@ -43,30 +51,30 @@ export const VideoSyncManager: React.FC<VideoSyncManagerProps> = ({
         .catch((error) => {
           console.error('Error setting up HLS for synced video:', error);
           // Fall back to direct URL
-          video.src = rawVideoUrl;
-          video.load();
+          videoElement.src = rawVideoUrl;
+          videoElement.load();
         });
-    } else if (!shouldUseHls && video.src !== rawVideoUrl) {
-      video.src = rawVideoUrl;
-      video.load();
+    } else if (!shouldUseHls && videoElement.src !== rawVideoUrl) {
+      videoElement.src = rawVideoUrl;
+      videoElement.load();
     }
     
     // Direct approach: just set state and let browser handle it
     if (isPlaying) {
-      video.play().catch(() => {
+      videoElement.play().catch(() => {
         // If play fails, try muted (for mobile)
-        video.muted = true;
-        video.play().catch(() => {
+        videoElement.muted = true;
+        videoElement.play().catch(() => {
           console.log('Cannot play video even when muted');
         });
       });
     } else {
-      video.pause();
+      videoElement.pause();
     }
     
     // Very basic time sync
-    if (Math.abs(video.currentTime - audioProgress) > 0.5) {
-      video.currentTime = audioProgress;
+    if (Math.abs(videoElement.currentTime - audioProgress) > 0.5) {
+      videoElement.currentTime = audioProgress;
     }
     
     // Clean up HLS when component unmounts or NFT changes
@@ -76,7 +84,7 @@ export const VideoSyncManager: React.FC<VideoSyncManagerProps> = ({
         hlsInitializedRef.current = false;
       }
     };
-  }, [isPlaying, audioProgress, currentPlayingNFT, videoRef]);
+  }, [isPlaying, audioProgress, currentPlayingNFT]);
 
   return null;
 };

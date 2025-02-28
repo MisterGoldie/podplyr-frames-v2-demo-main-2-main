@@ -294,6 +294,7 @@ export const Player: React.FC<PlayerProps> = ({
       <div className="relative">
         <video
           ref={videoRef}
+          id={`video-${nft.contract}-${nft.tokenId}`}
           src={processMediaUrl(nft.metadata?.animation_url || '')}
           playsInline
           loop
@@ -302,7 +303,6 @@ export const Player: React.FC<PlayerProps> = ({
           onLoadStart={() => setVideoLoading(true)}
           onLoadedData={() => {
             setVideoLoading(false);
-            // Initialize the video state based on isPlaying
             if (isPlaying && videoRef.current) {
               videoRef.current.play().catch(e => console.error("Video play error:", e));
             }
