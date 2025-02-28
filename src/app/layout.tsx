@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: frame.title,
     description: frame.description,
-    images: [frame.image],
+    images: ['/og-image.jpg'],
   },
   other: {
     'fc:frame': frame.version,

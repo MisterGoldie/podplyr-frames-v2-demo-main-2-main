@@ -20,14 +20,14 @@ export async function GET(req: NextRequest) {
 
     const frameMetadata = {
       version: 'vNext',
-      image: nftData.metadata?.image || `${appUrl}/api/og?contract=${contract}&tokenId=${tokenId}`,
+      image: nftData.image || nftData.metadata?.image || `${process.env.NEXT_PUBLIC_APP_URL}/og-image.jpg`,
       buttons: [
         {
           label: '▶️ Play on PODPlayr',
           action: 'post'
         }
       ],
-      postUrl: `${appUrl}/api/frame?contract=${contract}&tokenId=${tokenId}`
+      postUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'https://yourapp.com'}/api/frame?contract=${contract}&tokenId=${tokenId}`
     };
 
     return new Response(
