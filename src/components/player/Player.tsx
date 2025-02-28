@@ -12,6 +12,7 @@ import Image from 'next/image';
 import { trackNFTPlay } from '../../lib/firebase';
 import { useNFTLikeState } from '../../hooks/useNFTLikeState';
 import { FarcasterContext } from '../../app/providers';
+import sdk from '@farcaster/frame-sdk';
 
 // Remove the custom HTMLVideoElement interface and use the built-in one
 interface PictureInPictureWindow {}
@@ -665,14 +666,11 @@ export const Player: React.FC<PlayerProps> = ({
                 {nft && (
                   <button
                     onClick={() => {
-                      try {
-                        const appUrl = process.env.NEXT_PUBLIC_URL || window.location.origin;
-                        const shareText = `Check out this NFT on PODPlayr 🎵`;
-                        // Share base domain but Frame endpoint will show NFT image
-                        window.open(`https://warpcast.com/~/compose?text=${encodeURIComponent(shareText)}&embeds[]=${encodeURIComponent(appUrl)}`, '_blank', 'noopener,noreferrer');
-                      } catch (error) {
-                        console.error('Error sharing NFT:', error);
-                      }
+                      const shareText = 'Check out this NFT on PODPlayr!';
+                      const shareUrl = 'podplayr.vercel.app';
+                      
+                      // Use the imported SDK directly
+                      sdk.actions.openUrl(`https://warpcast.com/~/compose?text=${encodeURIComponent(shareText)}&embeds[]=${encodeURIComponent(shareUrl)}`);
                     }}
                     className="text-purple-400 hover:text-purple-300 p-2 bg-black/40 rounded-full backdrop-blur-sm"
                   >
