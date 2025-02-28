@@ -241,7 +241,7 @@ export const Player: React.FC<PlayerProps> = ({
 
   // Handle Picture-in-Picture mode
   const handlePictureInPicture = async () => {
-    if (!videoElement || !nft) return;
+    if (!videoRef.current || !nft) return;
     
     // Check if this NFT has video content
     const hasVideo = nft.metadata?.animation_url || nft.isVideo;
@@ -255,14 +255,22 @@ export const Player: React.FC<PlayerProps> = ({
         if (document.exitPictureInPicture) {
           await document.exitPictureInPicture();
         }
-      } else if (videoElement.requestPictureInPicture) {
+      } else if (videoRef.current && videoRef.current.requestPictureInPicture) {
         // Ensure video is loaded
-        if (videoElement.readyState < HTMLMediaElement.HAVE_METADATA) {
-          await new Promise((resolve) => {
-            videoElement.addEventListener('loadedmetadata', resolve, { once: true });
+        if (videoRef.current && videoRef.current.readyState < HTMLMediaElement.HAVE_METADATA) {
+          await new Promise<void>((resolve) => {
+            if (!videoRef.current) {
+              resolve();
+              return;
+            }
+            videoRef.current.addEventListener('loadedmetadata', () => resolve(), { once: true });
           });
         }
-        await videoElement.requestPictureInPicture();
+        
+        // Final check before requesting PIP
+        if (videoRef.current) {
+          await videoRef.current.requestPictureInPicture();
+        }
       }
     } catch (error) {
       console.error('Error toggling Picture-in-Picture mode:', error);
