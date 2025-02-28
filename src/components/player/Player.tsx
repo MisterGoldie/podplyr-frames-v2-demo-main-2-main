@@ -269,8 +269,6 @@ export const Player: React.FC<PlayerProps> = ({
     }
   };
 
-
-
   if (!nft) return null;
 
   const handleMinimizeToggle = () => {
@@ -279,6 +277,18 @@ export const Player: React.FC<PlayerProps> = ({
     console.log('After toggle called. New state will be:', !isMinimized);
   };
 
+  // Move the useEffect out of renderVideo and into the main component body
+  useEffect(() => {
+    if (videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.play().catch(e => console.error("Video play error:", e));
+      } else {
+        videoRef.current.pause();
+      }
+    }
+  }, [isPlaying]);
+
+  // Update the renderVideo function to remove the useEffect
   const renderVideo = () => {
     return (
       <div className="relative">
@@ -286,12 +296,17 @@ export const Player: React.FC<PlayerProps> = ({
           ref={videoRef}
           src={processMediaUrl(nft.metadata?.animation_url || '')}
           playsInline
-          autoPlay={isPlaying}
-          muted
           loop
+          muted
           className="w-full h-auto object-contain rounded-lg max-h-[70vh] md:max-w-[800px] mx-auto"
           onLoadStart={() => setVideoLoading(true)}
-          onLoadedData={() => setVideoLoading(false)}
+          onLoadedData={() => {
+            setVideoLoading(false);
+            // Initialize the video state based on isPlaying
+            if (isPlaying && videoRef.current) {
+              videoRef.current.play().catch(e => console.error("Video play error:", e));
+            }
+          }}
         />
         {videoLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/40">
