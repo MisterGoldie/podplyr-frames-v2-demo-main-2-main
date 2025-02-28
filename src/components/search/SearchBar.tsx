@@ -1,13 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import Image from 'next/image';
 import { FarcasterUser } from '../../types/user';
+import { FarcasterContext } from '../../app/providers';
+import { trackUserSearch } from '../../lib/firebase';
 
 interface SearchBarProps {
   onSearch: (username: string) => void;
   isSearching: boolean;
+  handleUserSelect?: (user: FarcasterUser) => void;
 }
 
-export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, isSearching }) => {
+export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, isSearching, handleUserSelect }) => {
+  const { fid: userFid = 0 } = useContext(FarcasterContext);
   const [username, setUsername] = useState('');
   const [suggestions, setSuggestions] = useState<FarcasterUser[]>([]);
 
@@ -61,10 +65,18 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, isSearching }) =
     }
   };
 
-  const handleSuggestionClick = (selectedUsername: string) => {
+  const handleSuggestionClick = async (suggestion: FarcasterUser) => {
     setUsername(''); // Clear the input field
-    onSearch(selectedUsername);
-    setSuggestions([]); // Clear suggestions after selection
+    setSuggestions([]); // Clear suggestions
+    
+    console.log('=== DIRECT WALLET SEARCH - BYPASSING ALL SEARCH RESULTS ===');
+    
+    // ONLY use the direct handler, never fall back to regular search
+    if (handleUserSelect) {
+      handleUserSelect(suggestion);
+    }
+    
+    // Removed fallback to onSearch completely
   };
 
   return (
@@ -89,7 +101,11 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, isSearching }) =
           {suggestions.map((suggestion) => (
             <button
               key={suggestion.fid}
-              onClick={() => handleSuggestionClick(suggestion.username)}
+              onClick={(e) => {
+                e.preventDefault(); // Prevent any default behavior
+                e.stopPropagation(); // Stop event bubbling
+                handleSuggestionClick(suggestion);
+              }}
               className="w-full px-4 py-2 flex items-center gap-3 hover:bg-green-400/10 text-left transition-colors"
             >
               <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 relative">
