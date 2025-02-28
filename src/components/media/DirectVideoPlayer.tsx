@@ -2,8 +2,6 @@
 
 import React, { useEffect, useRef } from 'react';
 import { NFT } from '../../types/user';
-import { setupHls, destroyHls, getHlsUrl, isHlsUrl } from '../../utils/hlsUtils';
-import { processMediaUrl } from '../../utils/media';
 
 interface DirectVideoPlayerProps {
   nft: NFT;
@@ -37,9 +35,6 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
     directUrl.includes('player.vimeo.com') || 
     directUrl.includes('youtube.com/embed') || 
     directUrl.includes('opensea.io/assets');
-  
-  // Check if we can use HLS for better Farcaster Frame compatibility
-  const shouldTryHls = !isHostedPlayer && videoRef.current && typeof window !== 'undefined';
   
   useEffect(() => {
     const video = videoRef.current;
@@ -76,31 +71,6 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
       video.removeEventListener('error', handleError);
     };
   }, [isHostedPlayer, onLoadComplete, onError]);
-  
-  useEffect(() => {
-    // Add HLS support
-    if (shouldTryHls && videoRef.current) {
-      const videoId = `direct-${nft.contract}-${nft.tokenId}`;
-      const processedUrl = processMediaUrl(directUrl);
-      
-      // Try to use HLS if possible
-      setupHls(videoId, videoRef.current, getHlsUrl(processedUrl))
-        .then(() => {
-          console.log('HLS initialized for direct player');
-        })
-        .catch((error) => {
-          console.error('HLS failed, falling back to direct URL:', error);
-          if (videoRef.current) {
-            videoRef.current.src = videoUrl;
-            videoRef.current.load();
-          }
-        });
-      
-      return () => {
-        destroyHls(videoId);
-      };
-    }
-  }, [directUrl, shouldTryHls, nft.contract, nft.tokenId, videoUrl]);
   
   // Render an iframe for hosted players, or video for direct media
   if (isHostedPlayer) {
