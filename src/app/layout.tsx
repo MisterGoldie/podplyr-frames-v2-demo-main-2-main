@@ -9,7 +9,7 @@ const appUrl = process.env.NEXT_PUBLIC_URL;
 
 const frame = {
   version: 'vNext',
-  image: `${appUrl}/og-image.jpg`,
+  image: `${appUrl}/image.png`,
   title: 'PODPlayr',
   description: 'Listen & Watch NFTs on PODPlayr',
   buttons: [{
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: frame.title,
     description: frame.description,
-    images: ['/og-image.jpg'],
+    images: [frame.image],
   },
   other: {
     'fc:frame': frame.version,
@@ -65,7 +65,7 @@ export default function RootLayout({
       <head>
         <Script src="https://cdn.farcaster.xyz/frames/sdk.js" strategy="beforeInteractive" />
       </head>
-      <body>
+      <body className="bg-purple-900">
         <Providers>{children}</Providers>
       </body>
     </html>

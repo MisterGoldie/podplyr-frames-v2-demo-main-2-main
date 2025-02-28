@@ -8,7 +8,7 @@ export async function GET() {
         "MHg3NjliNTc2OTZmNmQwOWIxODY5NWEwNjE5NDdjZmY2NTdiMDJkZGNkYTZhNjQ1ZDZiMDdlMjk1ZDc3YjBhYWRmMDU3NWJlMjUzNWE0ZTcyZmVjMjdmMDM3OTliNzJiODBjMGY5Y2MxMGFkMWZlMzU2YzBjNzc4MjZhNjE1OWYyZjFj",
     },
     frame: {
-      version: "0.0.0",
+      version: "next",
       name: "POD Playr",
       iconUrl: "https://podplayr.vercel.app/icon.png",
       splashImageUrl: "https://podplayr.vercel.app/splash.png",
