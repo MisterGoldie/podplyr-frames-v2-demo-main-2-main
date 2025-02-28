@@ -25,17 +25,17 @@ export const revalidate = 300;
 
 export async function generateMetadata(): Promise<Metadata> {
   return {
-    title: "PODPlayr | NFT Audio Player",
-    description: "The web3 audio player that makes NFT music enjoyable and accessible",
+    title: "PODPlayr",
+    description: "The web3 media player that makes NFTs more enjoyable and accessible",
     openGraph: {
-      title: "PODPlayr | NFT Audio Player",
-      description: "Listen to your NFT audio collection & discover new music",
+      title: "PODPlayr",
+      description: "Enjoy your media NFT collection & discover new media",
       images: [
         {
           url: `${appUrl}/og-image.jpg`,
           width: 1200,
           height: 630,
-          alt: "PODPlayr - NFT Audio Player",
+          alt: "PODPlayr - NFT media Player",
         },
       ],
     },

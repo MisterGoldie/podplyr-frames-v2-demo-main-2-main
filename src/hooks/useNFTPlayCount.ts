@@ -3,12 +3,13 @@ import { getFirestore, doc, onSnapshot, DocumentSnapshot } from 'firebase/firest
 import type { NFT } from '../types/user';
 import { getMediaKey } from '../utils/media';
 
-export const useNFTPlayCount = (nft: NFT | null) => {
+export const useNFTPlayCount = (nft: NFT | null, shouldFetch: boolean = true) => {
   const [playCount, setPlayCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!nft) {
+    // Skip Firebase connection if we shouldn't fetch yet
+    if (!shouldFetch || !nft) {
       setPlayCount(0);
       setLoading(false);
       return;
@@ -49,8 +50,11 @@ export const useNFTPlayCount = (nft: NFT | null) => {
     );
 
     // Cleanup listener when component unmounts or NFT changes
-    return () => unsubscribe();
-  }, [nft]);
+    return () => {
+      console.log('Cleaning up play count listener for:', mediaKey);
+      unsubscribe();
+    };
+  }, [nft, shouldFetch]);
 
   return { playCount, loading };
 };
