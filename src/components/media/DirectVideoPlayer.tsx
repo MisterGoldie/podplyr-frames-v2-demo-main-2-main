@@ -22,12 +22,32 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
   const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
   const posterUrl = nft.image || nft.metadata?.image || '';
   
-  // Special handling for different URL types
+  // Enhanced URL handling for a wide range of NFT storage providers
   let videoUrl = directUrl;
+  
+  // Handle IPFS URLs in various formats
   if (directUrl.includes('ipfs://')) {
     videoUrl = directUrl.replace('ipfs://', 'https://ipfs.io/ipfs/');
   } else if (directUrl.includes('ar://')) {
     videoUrl = directUrl.replace('ar://', 'https://arweave.net/');
+  } else if (directUrl.includes('nftstorage.link')) {
+    // NFT.Storage URLs - already direct URLs, but can be optimized
+    videoUrl = directUrl;
+  } else if (directUrl.includes('ipfs.infura.io')) {
+    // Handle Infura IPFS URLs
+    const cid = directUrl.split('/ipfs/')[1];
+    if (cid) {
+      videoUrl = `https://ipfs.io/ipfs/${cid}`;
+    }
+  } else if (directUrl.includes('cloudflare-ipfs.com')) {
+    // Already using Cloudflare gateway, keep as is
+    videoUrl = directUrl;
+  } else if (directUrl.includes('ipfs.dweb.link')) {
+    // Already using dweb.link gateway, keep as is
+    videoUrl = directUrl;
+  } else if (directUrl.includes('gateway.pinata.cloud')) {
+    // Already using Pinata gateway, keep as is
+    videoUrl = directUrl;
   }
   
   // Check if this is a hosted video player URL rather than a direct video file
@@ -53,6 +73,15 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
     
     const handleError = (e: Event) => {
       console.error('Video playback error:', e);
+      
+      // Simple fallback mechanism - try ipfs.io if any other gateway fails
+      if (directUrl.includes('ipfs://') && !videoUrl.includes('ipfs.io')) {
+        console.log('Trying fallback IPFS gateway...');
+        video.src = directUrl.replace('ipfs://', 'https://ipfs.io/ipfs/');
+        video.load();
+        return;
+      }
+      
       if (onError) onError(new Error('Video failed to load'));
     };
     
@@ -70,7 +99,7 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
       video.removeEventListener('canplay', handleCanPlay);
       video.removeEventListener('error', handleError);
     };
-  }, [isHostedPlayer, onLoadComplete, onError]);
+  }, [isHostedPlayer, onLoadComplete, onError, videoUrl, directUrl]);
   
   // Render an iframe for hosted players, or video for direct media
   if (isHostedPlayer) {
@@ -97,6 +126,7 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
       playsInline
       controls={isIOS} // Add controls for iOS which has special playback requirements
       className="w-full h-full object-cover rounded-md"
+      style={{ transform: 'translateZ(0)' }} // Basic hardware acceleration
       {...(isIOS ? { 'webkit-playsinline': 'true' } : {})}
     />
   );
