@@ -666,7 +666,8 @@ export const Player: React.FC<PlayerProps> = ({
                 {nft && (
                   <button
                     onClick={() => {
-                      const shareText = 'Check out this NFT on PODPlayr!';
+                      // Personalize the share message with the NFT name
+                      const shareText = `Check out "${nft.name}" on PODPlayr! 📺`;
                       const shareUrl = 'podplayr.vercel.app';
                       
                       // Use the imported SDK directly
