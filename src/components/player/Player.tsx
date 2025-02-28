@@ -66,6 +66,7 @@ export const Player: React.FC<PlayerProps> = ({
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
   const [showControls, setShowControls] = useState(true);
   const hideControlsTimer = useRef<NodeJS.Timeout | undefined>(undefined);
+  const [videoLoading, setVideoLoading] = useState(false);
 
   // Auto-hide controls after 3 seconds of inactivity (only in maximized state)
   useEffect(() => {
@@ -279,52 +280,23 @@ export const Player: React.FC<PlayerProps> = ({
   };
 
   const renderVideo = () => {
-    // Get the video URL from metadata.animation_url or audio
-    const videoUrl = nft.metadata?.animation_url || nft.audio;
-    const imageUrl = nft.image || nft.metadata?.image || '/placeholder-image.jpg';
-    
-    // Process both URLs through our IPFS gateway system
-    const processedImageUrl = processMediaUrl(imageUrl, '/placeholder-image.jpg');
-    const processedVideoUrl = videoUrl ? processMediaUrl(videoUrl) : null;
-    
     return (
-      <div className="relative w-full h-auto aspect-square">
-        {processedVideoUrl ? (
-          // Show video if available
-          <div className="relative w-full h-full">
-            <video
-              ref={videoRef}
-              src={processedVideoUrl}
-              className={`w-full h-full object-contain rounded-lg transition-transform duration-500 ${
-                isMinimized ? '' : 'transform transition-all duration-500 ease-in-out ' + (isPlaying ? 'scale-100' : 'scale-90')
-              }`}
-              playsInline
-              preload="metadata"
-              loop
-              muted={true}
-              controls={false}
-              poster={processedImageUrl}
-              onLoadedMetadata={(e) => {
-                const video = e.target as HTMLVideoElement;
-                if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
-                  video.currentTime = progress;
-                }
-                setVideoElement(video);
-              }}
-            />
+      <div className="relative">
+        <video
+          ref={videoRef}
+          src={processMediaUrl(nft.metadata?.animation_url || '')}
+          playsInline
+          autoPlay={isPlaying}
+          muted
+          loop
+          className="w-full h-auto object-contain rounded-lg max-h-[70vh] md:max-w-[800px] mx-auto"
+          onLoadStart={() => setVideoLoading(true)}
+          onLoadedData={() => setVideoLoading(false)}
+        />
+        {videoLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent"></div>
           </div>
-        ) : (
-          // Fallback to image
-          <Image
-            src={processedImageUrl}
-            alt={nft.name || 'NFT Image'}
-            className={`w-full h-auto object-contain rounded-lg transition-transform duration-500 ${
-              isMinimized ? '' : 'transform transition-all duration-500 ease-in-out ' + (isPlaying ? 'scale-100' : 'scale-90')
-            }`}
-            fill
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-            priority={true}
-          />
         )}
       </div>
     );
@@ -733,7 +705,36 @@ export const Player: React.FC<PlayerProps> = ({
 
         </div>
         {/* Controls Section */}
-        <div className="px-4 py-6 bg-black/40">
+        <div className="px-4 py-6 sm:py-8 w-full max-w-screen-lg mx-auto">
+          {/* NFT info row */}
+          <div className="flex items-center gap-4 mb-6">
+            <div className="w-16 h-16 flex-shrink-0 rounded overflow-hidden">
+              <NFTImage
+                src={nft?.image || ''}
+                alt={nft?.name || 'NFT Image'}
+                className="w-full h-full object-cover"
+                width={64}
+                height={64}
+              />
+            </div>
+            <div className="flex-grow">
+              <h2 className="text-lg md:text-xl font-bold text-white mb-1 truncate">{nft.name}</h2>
+              <p className="text-purple-300 text-sm truncate">
+                {nft?.metadata?.description?.slice(0, 60)}
+                {nft?.metadata?.description && nft.metadata.description.length > 60 ? '...' : ''}
+              </p>
+            </div>
+            {/* Desktop close button */}
+            <button
+              onClick={handleMinimizeToggle}
+              className="text-white hover:text-purple-300 transition-colors md:mr-4"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" height="28" viewBox="0 -960 960 960" width="28" fill="currentColor">
+                <path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/>
+              </svg>
+            </button>
+          </div>
+
           {/* Progress Bar */}
           <div className="mb-6">
             <div 
