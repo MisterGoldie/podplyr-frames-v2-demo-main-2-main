@@ -676,7 +676,7 @@ export const Player: React.FC<PlayerProps> = ({
           {/* NFT Image/Video Container */}
           <div className="relative w-full h-full flex items-center justify-center">
             {/* Action Icons Overlay - RESTORED */}
-            <div className="absolute top-4 left-4 right-4 flex justify-between z-10 transition-opacity duration-300">
+            <div className={`absolute top-4 left-4 right-4 flex justify-between z-10 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
               <div className="flex gap-2">
                 {onLikeToggle && (
                   <button 
