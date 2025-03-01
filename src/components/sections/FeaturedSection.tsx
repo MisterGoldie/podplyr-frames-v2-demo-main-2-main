@@ -66,7 +66,7 @@ export const FEATURED_NFTS: NFT[] = [
     }
   },
   {
-    name: 'ACYL RADIO - Chili Sounds',
+    name: 'ACYL RADIO - Chili Sounds 🌶️',
     image: 'https://arweave.net/dQT3NOU6RFa_F0SXD0ajejif4ysPOUeQjKmFHINnUis',
     contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb', // Using same contract as other ACYL RADIO NFTs
     tokenId: '79428737e8', // Incremented from previous ACYL RADIO NFT
