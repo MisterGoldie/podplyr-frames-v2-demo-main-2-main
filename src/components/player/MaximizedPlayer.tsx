@@ -401,10 +401,10 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
           {/* Controls */}
           <div className="relative flex-none">
             <div className="container mx-auto px-4 pt-4 pb-16">
-              {/* Progress Bar - with time indicators at ends preserved */}
+              {/* Progress Bar - slimmer version */}
               <div 
                 ref={progressBarRef}
-                className={`relative ${isActivelyScrubbingBar ? 'h-5 -mt-2 mb-3' : 'h-3'} bg-gray-800 rounded-full mb-4 transition-all duration-150 touch-none`}
+                className={`relative ${isActivelyScrubbingBar ? 'h-4 -mt-1 mb-3' : 'h-2'} bg-gray-800 rounded-full mb-4 transition-all duration-150 touch-none`}
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
