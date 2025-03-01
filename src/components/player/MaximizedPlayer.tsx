@@ -383,15 +383,32 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
                   renderVideo()
                 ) : (
                   <div className="relative rounded-lg overflow-hidden max-h-[60vh]">
-                    <NFTImage
-                      src={nft.image || nft.metadata?.image || ''}
-                      alt={nft.name}
-                      className="w-auto h-auto object-contain rounded-lg max-h-[60vh]"
-                      width={400}
-                      height={400}
-                      priority={true}
-                      nft={nft}
-                    />
+                    {/* Special handling for GIF images */}
+                    {(nft.name === 'ACYL RADIO - Hidden Tales' || nft.name === 'ACYL RADIO - WILL01') ? (
+                      <img
+                        src={nft.image}
+                        alt={nft.name}
+                        className="w-auto h-auto object-contain rounded-lg max-h-[60vh]"
+                        width={400}
+                        height={400}
+                        style={{ 
+                          maxWidth: '90vw', 
+                          maxHeight: '60vh',
+                          willChange: 'transform', 
+                          transform: 'translateZ(0)'
+                        }}
+                      />
+                    ) : (
+                      <NFTImage
+                        src={nft.image || nft.metadata?.image || ''}
+                        alt={nft.name}
+                        className="w-auto h-auto object-contain rounded-lg max-h-[60vh]"
+                        width={400}
+                        height={400}
+                        priority={true}
+                        nft={nft}
+                      />
+                    )}
                   </div>
                 )}
               </div>

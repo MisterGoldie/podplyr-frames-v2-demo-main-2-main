@@ -126,8 +126,12 @@ export const NFTCard: React.FC<NFTCardProps> = ({
                 className="w-full h-full object-cover rounded-md"
                 width={64}
                 height={64}
-                loading="eager"
-                decoding="async"
+                style={{ 
+                  maxWidth: '100%', 
+                  maxHeight: '100%',
+                  willChange: 'transform', 
+                  transform: 'translateZ(0)'
+                }}
               />
             ) : (
               <NFTImage
@@ -195,8 +199,12 @@ export const NFTCard: React.FC<NFTCardProps> = ({
               className="w-full h-full object-cover"
               width={300}
               height={300}
-              loading="eager"
-              decoding="async"
+              style={{ 
+                maxWidth: '100%', 
+                maxHeight: '100%',
+                willChange: 'transform', 
+                transform: 'translateZ(0)'
+              }}
             />
           ) : (
             <NFTImage

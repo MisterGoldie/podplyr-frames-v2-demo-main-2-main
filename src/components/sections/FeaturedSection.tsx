@@ -136,6 +136,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({
                       className="w-full h-full object-cover"
                       width={200}
                       height={200}
+                      style={{ maxWidth: '200px', maxHeight: '200px' }}
                     />
                   ) : (
                     <NFTImage
