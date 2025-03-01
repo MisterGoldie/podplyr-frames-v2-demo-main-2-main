@@ -50,6 +50,20 @@ export const FEATURED_NFTS: NFT[] = [
         {"trait_type":"Host","value":"WiLL"}
       ]
     }
+  },
+  {
+    name: 'ACYL RADIO - Hidden Tales',
+    image: 'https://arweave.net/quguk4DjJOFIEHtZSxoPhpBFLhHlwrLSp47YCuy7FB8',
+    contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb',
+    tokenId: '79428737e7',
+    audio: 'https://arweave.net/Hr4GVDpKhq_dgZZA5SBAEapx9IJ1qDnDZ-Y40lExBHk',
+    metadata: {
+      animation_url: 'https://arweave.net/Hr4GVDpKhq_dgZZA5SBAEapx9IJ1qDnDZ-Y40lExBHk',
+      description: 'Ann Marie Alanes',
+      attributes: [
+        {"trait_type":"Host","value":"Ann Marie Alanes"}
+      ]
+    }
   }
 ];
 
@@ -114,14 +128,25 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({
             {FEATURED_NFTS.map((nft) => (
               <div key={getMediaKey(nft)} className="flex-shrink-0 w-[200px] group">
                 <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-gray-800/20 shadow-purple-500/20 shadow-lg transition-all">
-                  <NFTImage
-                    src={nft.image}
-                    alt={nft.name}
-                    className="w-full h-full object-cover"
-                    width={200}
-                    height={200}
-                    priority={true}
-                  />
+                  {/* Special handling for the Hidden Tales GIF */}
+                  {nft.name === 'ACYL RADIO - Hidden Tales' ? (
+                    <img
+                      src={nft.image}
+                      alt={nft.name}
+                      className="w-full h-full object-cover"
+                      width={200}
+                      height={200}
+                    />
+                  ) : (
+                    <NFTImage
+                      src={nft.image}
+                      alt={nft.name}
+                      className="w-full h-full object-cover"
+                      width={200}
+                      height={200}
+                      priority={true}
+                    />
+                  )}
                   <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
                   <button 
                     onClick={() => onPlayNFT(nft, { 
