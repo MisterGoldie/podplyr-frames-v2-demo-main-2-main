@@ -1029,7 +1029,7 @@ const Demo: React.FC = () => {
         />
       )}
 
-      {/* Only use VideoSyncManager for videos without embedded audio */}
+      {/* Only use VideoSyncManager for special cases */}
       {currentPlayingNFT?.isVideo && 
        !currentPlayingNFT.metadata?.animation_url?.match(/\.(mp4|webm|mov)$/i) && (
         <VideoSyncManager
