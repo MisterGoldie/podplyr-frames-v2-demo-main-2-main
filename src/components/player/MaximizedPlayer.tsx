@@ -43,6 +43,12 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
   const [showControls, setShowControls] = useState(true);
   const [videoLoading, setVideoLoading] = useState(false);
   const hideControlsTimer = useRef<NodeJS.Timeout | undefined>(undefined);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isForcePressed, setIsForcePressed] = useState(false);
+  const [isActivelyScrubbingBar, setIsActivelyScrubbingBar] = useState(false);
+  const [scrubPosition, setScrubPosition] = useState<number | null>(null);
+  const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
+  const progressBarRef = useRef<HTMLDivElement>(null);
   
   // Auto-hide controls after inactivity
   useEffect(() => {
@@ -200,6 +206,105 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
     }
   }, [progress]);
 
+  // Add these helper functions below your existing functions
+  const handleProgressBarMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true);
+    updateScrubPosition(e.clientX);
+    
+    // Add event listeners for mouse movement and release
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (isDragging) {
+      updateScrubPosition(e.clientX);
+    }
+  };
+
+  const handleMouseUp = (e: MouseEvent) => {
+    if (isDragging) {
+      updateScrubPosition(e.clientX);
+      
+      // Perform the actual seek
+      if (scrubPosition !== null) {
+        onSeek(scrubPosition);
+      }
+      
+      // Reset state
+      setIsDragging(false);
+      setScrubPosition(null);
+      
+      // Remove event listeners
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    }
+  };
+
+  const updateScrubPosition = (clientX: number) => {
+    if (progressBarRef.current) {
+      const rect = progressBarRef.current.getBoundingClientRect();
+      const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      setScrubPosition(duration * percent);
+    }
+  };
+
+  // Add this to your useEffect cleanup
+  useEffect(() => {
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []);
+
+  // No force touch - use simple touch and hold instead
+  const handleTouchStart = (e: React.TouchEvent) => {
+    // Prevent default behavior to avoid iOS force touch menu
+    e.preventDefault();
+    
+    // Immediately start scrubbing - no need to wait for force press
+    setIsActivelyScrubbingBar(true);
+    updateScrubPosition(e.touches[0].clientX);
+    
+    // Cancel any existing timer
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (isActivelyScrubbingBar) {
+      e.preventDefault(); // Prevent scrolling
+      updateScrubPosition(e.touches[0].clientX);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    // If we were scrubbing and have a position, seek to it
+    if (isActivelyScrubbingBar && scrubPosition !== null) {
+      onSeek(scrubPosition);
+    }
+    
+    // Reset states
+    setIsActivelyScrubbingBar(false);
+    setScrubPosition(null);
+    
+    // Clear any existing timer
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      setLongPressTimer(null);
+    }
+  };
+
+  // Add this to clean up any timers when component unmounts
+  useEffect(() => {
+    return () => {
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+      }
+    };
+  }, [longPressTimer]);
+
   // Keep the exact same JSX as the original Player component for the maximized state
   return (
     <>
@@ -296,23 +401,60 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
           {/* Controls */}
           <div className="relative flex-none">
             <div className="container mx-auto px-4 pt-4 pb-16">
-              {/* Progress Bar */}
-              <div className="h-1 bg-gray-800 rounded-full mb-4 cursor-pointer relative"
+              {/* Progress Bar - now with immediate scrubbing */}
+              <div 
+                ref={progressBarRef}
+                className={`relative ${isActivelyScrubbingBar ? 'h-5 -mt-2 mb-3' : 'h-3'} bg-gray-800 rounded-full mb-4 transition-all duration-150 touch-none`}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+                onTouchCancel={handleTouchEnd}
                 onClick={(e) => {
+                  // For standard click handling (non-mobile)
                   const rect = e.currentTarget.getBoundingClientRect();
                   const percent = (e.clientX - rect.left) / rect.width;
                   onSeek(duration * percent);
                 }}
               >
+                {/* Background progress */}
                 <div 
                   className="absolute inset-y-0 left-0 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full"
-                  style={{ width: `${(progress / duration) * 100}%` }}
+                  style={{ width: `${((scrubPosition !== null ? scrubPosition : progress) / duration) * 100}%` }}
                 />
+                
+                {/* Scrubber handle - only shows during active scrubbing */}
+                {isActivelyScrubbingBar && (
+                  <div 
+                    className="absolute top-1/2 h-8 w-8 rounded-full bg-white shadow-lg transform -translate-y-1/2 opacity-100 scale-100"
+                    style={{ 
+                      left: `calc(${((scrubPosition !== null ? scrubPosition : progress) / duration) * 100}% - 16px)`,
+                    }}
+                  />
+                )}
+
+                {/* Time Preview bubble - only shows during active scrubbing */}
+                {isActivelyScrubbingBar && scrubPosition !== null && (
+                  <div 
+                    className="absolute -top-10 py-1 px-3 bg-black/90 text-white text-sm font-medium rounded-md transform -translate-x-1/2 shadow-lg"
+                    style={{ 
+                      left: `${(scrubPosition / duration) * 100}%`,
+                    }}
+                  >
+                    {formatTime(Math.floor(scrubPosition))}
+                  </div>
+                )}
               </div>
+
+              {/* Current position marker */}
+              {isActivelyScrubbingBar && scrubPosition !== null && (
+                <div className="text-center text-white text-lg font-bold mb-2">
+                  {formatTime(Math.floor(scrubPosition))}
+                </div>
+              )}
 
               {/* Time Display */}
               <div className="flex justify-between text-gray-400 text-xs font-mono mb-4">
-                <span>{formatTime(Math.floor(progress))}</span>
+                <span>{formatTime(Math.floor(isActivelyScrubbingBar && scrubPosition !== null ? scrubPosition : progress))}</span>
                 <span>{formatTime(Math.floor(duration))}</span>
               </div>
 
