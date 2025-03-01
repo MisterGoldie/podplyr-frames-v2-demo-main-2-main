@@ -18,6 +18,7 @@ interface MinimizedPlayerProps {
   onLikeToggle?: (nft: NFT) => void;
   isLiked?: boolean;
   onPictureInPicture?: () => void;
+  lastPosition?: number;
 }
 
 export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({

@@ -49,6 +49,9 @@ export const Player: React.FC<PlayerProps> = (props) => {
   // Use the hook to get real-time like state
   const { isLiked } = useNFTLikeState(nft || null, userFid);
 
+  // Add a ref to track the current video position
+  const lastPositionRef = useRef<number>(0);
+
   // Handle video synchronization
   useEffect(() => {
     // Detect if we're resuming playback (changing from paused to playing)
@@ -99,6 +102,30 @@ export const Player: React.FC<PlayerProps> = (props) => {
       }
     }
   }, [isPlaying, nft, progress]);
+
+  // Add this effect to save the current video position before state changes
+  useEffect(() => {
+    if (nft?.isVideo || nft?.metadata?.animation_url) {
+      const videoId = `video-${nft.contract}-${nft.tokenId}`;
+      const videoElement = document.getElementById(videoId) as HTMLVideoElement;
+      
+      if (videoElement) {
+        // Save current position when player state changes or component unmounts
+        const savePosition = () => {
+          lastPositionRef.current = videoElement.currentTime;
+          console.log("Saved position:", lastPositionRef.current);
+        };
+        
+        videoElement.addEventListener('timeupdate', () => {
+          lastPositionRef.current = videoElement.currentTime;
+        });
+        
+        return () => {
+          savePosition();
+        };
+      }
+    }
+  }, [nft, isMinimized]);
 
   // Guard clause for null NFT
   if (!nft) return null;
@@ -163,10 +190,12 @@ export const Player: React.FC<PlayerProps> = (props) => {
           onSeek={onSeek}
           onLikeToggle={onLikeToggle ? (nft) => onLikeToggle(nft) : undefined}
           isLiked={isLiked}
-          onPictureInPicture={onPictureInPicture} isMinimized={false}        />
+          onPictureInPicture={onPictureInPicture}
+          lastPosition={lastPositionRef.current} isMinimized={false}        />
       ) : (
         <MaximizedPlayer
             nft={nft}
+            isMinimized={isMinimized}
             isPlaying={isPlaying}
             onPlayPause={onPlayPause}
             onNext={onNext}
@@ -177,7 +206,9 @@ export const Player: React.FC<PlayerProps> = (props) => {
             onSeek={onSeek}
             onLikeToggle={onLikeToggle ? (nft) => onLikeToggle(nft) : undefined}
             isLiked={isLiked}
-            onPictureInPicture={onPictureInPicture} isMinimized={false}        />
+            onPictureInPicture={onPictureInPicture}
+            lastPosition={lastPositionRef.current}
+        />
       )}
     </>
   );

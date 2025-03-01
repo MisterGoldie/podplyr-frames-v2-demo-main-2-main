@@ -20,6 +20,7 @@ interface MaximizedPlayerProps {
   onLikeToggle?: (nft: NFT) => void;
   isLiked?: boolean;
   onPictureInPicture?: () => void;
+  lastPosition?: number;
 }
 
 export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
@@ -35,7 +36,8 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
   onSeek,
   onLikeToggle,
   isLiked,
-  onPictureInPicture
+  onPictureInPicture,
+  lastPosition
 }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [showControls, setShowControls] = useState(true);
@@ -137,18 +139,10 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
           onLoadedData={() => {
             setVideoLoading(false);
             
-            // Simple time sync and play when the video is loaded
-            if (videoRef.current) {
-              if (Math.abs(videoRef.current.currentTime - progress) > 0.5) {
-                videoRef.current.currentTime = progress;
-              }
-              
-              if (isPlaying) {
-                videoRef.current.play().catch(e => {
-                  // Just log the error, don't try to recover
-                  console.error("Video play error:", e);
-                });
-              }
+            // Set the video time to the saved position when loaded
+            if (videoRef.current && lastPosition && lastPosition > 0) {
+              videoRef.current.currentTime = lastPosition;
+              console.log("Restored position to:", lastPosition);
             }
           }}
         />
