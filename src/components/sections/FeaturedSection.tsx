@@ -64,6 +64,20 @@ export const FEATURED_NFTS: NFT[] = [
         {"trait_type":"Host","value":"Ann Marie Alanes"}
       ]
     }
+  },
+  {
+    name: 'ACYL RADIO - Chili Sounds',
+    image: 'https://arweave.net/dQT3NOU6RFa_F0SXD0ajejif4ysPOUeQjKmFHINnUis',
+    contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb', // Using same contract as other ACYL RADIO NFTs
+    tokenId: '79428737e8', // Incremented from previous ACYL RADIO NFT
+    audio: 'https://arweave.net/GujXDFCEk4FmJl9b_TlofLEmx_YnY_LRSB2aSY8AcRg',
+    metadata: {
+      animation_url: 'https://arweave.net/GujXDFCEk4FmJl9b_TlofLEmx_YnY_LRSB2aSY8AcRg',
+      description: 'ACYL RADIO - Chili Sounds | @themrsazon',
+      attributes: [
+        {"trait_type":"Host","value":"Mr. Sazon"}
+      ]
+    }
   }
 ];
 
@@ -129,7 +143,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({
               <div key={getMediaKey(nft)} className="flex-shrink-0 w-[200px] group">
                 <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-gray-800/20 shadow-purple-500/20 shadow-lg transition-all">
                   {/* Special handling for GIF images */}
-                  {(nft.name === 'ACYL RADIO - Hidden Tales' || nft.name === 'ACYL RADIO - WILL01') ? (
+                  {(nft.name === 'ACYL RADIO - Hidden Tales' || nft.name === 'ACYL RADIO - WILL01' || nft.name === 'ACYL RADIO - Chili Sounds') ? (
                     <img
                       src={nft.image}
                       alt={nft.name}
