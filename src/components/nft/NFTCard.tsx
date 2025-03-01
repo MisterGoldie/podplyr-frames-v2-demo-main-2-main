@@ -118,14 +118,27 @@ export const NFTCard: React.FC<NFTCardProps> = ({
               onError={() => {}}
             />
           ) : (
-            <NFTImage
-              nft={nft}
-              src={processMediaUrl(nft.image || nft.metadata?.image || '')}
-              alt={nft.name || 'NFT'}
-              className="w-full h-full object-cover rounded-md"
-              width={64}
-              height={64}
-            />
+            // Special handling for GIF images of ACYL RADIO NFTs
+            (nft.name === 'ACYL RADIO - Hidden Tales' || nft.name === 'ACYL RADIO - WILL01') ? (
+              <img
+                src={nft.image}
+                alt={nft.name}
+                className="w-full h-full object-cover rounded-md"
+                width={64}
+                height={64}
+                loading="eager"
+                decoding="async"
+              />
+            ) : (
+              <NFTImage
+                nft={nft}
+                src={processMediaUrl(nft.image || nft.metadata?.image || '')}
+                alt={nft.name || 'NFT'}
+                className="w-full h-full object-cover rounded-md"
+                width={64}
+                height={64}
+              />
+            )
           )}
           {shouldShowBadge && (
             <div className="absolute top-1 right-1 bg-purple-400 text-white text-xs px-1.5 py-0.5 rounded-full font-medium">
@@ -174,14 +187,27 @@ export const NFTCard: React.FC<NFTCardProps> = ({
             onError={() => {}}
           />
         ) : (
-          <NFTImage
-            nft={nft}
-            src={processMediaUrl(nft.image || nft.metadata?.image || '')}
-            alt={nft.name || 'NFT'}
-            className="w-full h-full object-cover"
-            width={300}
-            height={300}
-          />
+          // Special handling for GIF images of ACYL RADIO NFTs
+          (nft.name === 'ACYL RADIO - Hidden Tales' || nft.name === 'ACYL RADIO - WILL01') ? (
+            <img
+              src={nft.image}
+              alt={nft.name}
+              className="w-full h-full object-cover"
+              width={300}
+              height={300}
+              loading="eager"
+              decoding="async"
+            />
+          ) : (
+            <NFTImage
+              nft={nft}
+              src={processMediaUrl(nft.image || nft.metadata?.image || '')}
+              alt={nft.name || 'NFT'}
+              className="w-full h-full object-cover"
+              width={300}
+              height={300}
+            />
+          )
         )}
         {shouldShowPlayCount && (
           <div className="absolute top-2 left-2 bg-purple-400 text-white text-xs px-2 py-1 rounded-full font-medium">
