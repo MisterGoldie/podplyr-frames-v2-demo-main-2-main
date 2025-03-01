@@ -1029,7 +1029,9 @@ const Demo: React.FC = () => {
         />
       )}
 
-      {currentPlayingNFT?.isVideo && (
+      {/* Only use VideoSyncManager for videos without embedded audio */}
+      {currentPlayingNFT?.isVideo && 
+       !currentPlayingNFT.metadata?.animation_url?.match(/\.(mp4|webm|mov)$/i) && (
         <VideoSyncManager
           videoRef={videoRef}
           currentPlayingNFT={currentPlayingNFT}

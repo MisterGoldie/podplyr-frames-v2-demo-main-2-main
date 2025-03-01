@@ -194,7 +194,51 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs }: UseAudioPlaye
       console.error('Error tracking NFT play:', error);
     }
 
-    // Start playing both audio and video after they're loaded
+    // NEW CODE: Check if this is a video with embedded audio
+    const isVideoWithEmbeddedAudio = nft.isVideo && 
+      (nft.metadata?.animation_url?.match(/\.(mp4|webm|mov)$/i));
+
+    if (isVideoWithEmbeddedAudio) {
+      console.log('Playing video with embedded audio');
+      
+      // Find the video element
+      const videoElement = document.querySelector(`#video-${nft.contract}-${nft.tokenId}`) as HTMLVideoElement;
+      
+      if (videoElement) {
+        // Unmute the video to hear its audio
+        videoElement.muted = false;
+        
+        // Set up listeners to track playback state and progress
+        videoElement.addEventListener('timeupdate', () => {
+          setAudioProgress(videoElement.currentTime);
+        });
+        
+        videoElement.addEventListener('loadedmetadata', () => {
+          setAudioDuration(videoElement.duration);
+        });
+        
+        videoElement.addEventListener('play', () => setIsPlaying(true));
+        videoElement.addEventListener('pause', () => setIsPlaying(false));
+        videoElement.addEventListener('ended', () => {
+          setIsPlaying(false);
+          setAudioProgress(0);
+        });
+        
+        // Try to play the video
+        try {
+          await videoElement.play();
+          setIsPlaying(true);
+        } catch (error) {
+          console.error("Error playing video with audio:", error);
+          setIsPlaying(false);
+        }
+        
+        // We're using the video element directly, so don't need the audio element
+        return;
+      }
+    }
+    
+    // EXISTING CODE for audio-only or separate audio+image NFTs
     if (audioRef.current) {
       // Create a new audio element for this NFT
       const audio = new Audio(processMediaUrl(audioUrl));

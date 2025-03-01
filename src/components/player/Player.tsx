@@ -346,7 +346,7 @@ export const Player: React.FC<PlayerProps> = ({
           src={processMediaUrl(nft.metadata?.animation_url || '')}
           playsInline
           loop
-          muted
+          muted={!nft.metadata?.animation_url?.match(/\.(mp4|webm|mov)$/i)}
           autoPlay={isPlaying}
           preload="auto"
           className="w-auto h-auto object-contain rounded-lg max-h-[60vh] min-h-[40vh] min-w-[60%] max-w-full"
@@ -796,7 +796,7 @@ export const Player: React.FC<PlayerProps> = ({
                     src={processMediaUrl(nft.metadata?.animation_url || '')}
                     playsInline
                     loop
-                    muted
+                    muted={!nft.metadata?.animation_url?.match(/\.(mp4|webm|mov)$/i)}
                     autoPlay={isPlaying}
                     preload="auto"
                     className="w-auto h-auto object-contain rounded-lg max-h-[60vh] min-h-[40vh] min-w-[60%] max-w-full"
