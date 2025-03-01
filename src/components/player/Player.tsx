@@ -285,12 +285,25 @@ export const Player: React.FC<PlayerProps> = ({
     console.log('After toggle called. New state will be:', !isMinimized);
   };
 
+  // Add a ref to track previous play state
+  const prevPlayingRef = useRef(isPlaying);
+  
   // Move the useEffect out of renderVideo and into the main component body
   useEffect(() => {
+    // Detect if we're resuming playback (changing from paused to playing)
+    const isResuming = isPlaying && !prevPlayingRef.current;
+    
+    // Update the ref for next render
+    prevPlayingRef.current = isPlaying;
+    
     // First try using our ref
     if (videoRef.current) {
       try {
         if (isPlaying) {
+          // Only sync time when resuming playback to avoid choppy video
+          if (isResuming) {
+            videoRef.current.currentTime = progress;
+          }
           videoRef.current.play().catch(e => console.error("Video play error with ref:", e));
         } else {
           videoRef.current.pause();
@@ -308,6 +321,10 @@ export const Player: React.FC<PlayerProps> = ({
       if (videoElement && videoElement !== videoRef.current) {
         try {
           if (isPlaying) {
+            // Only sync time when resuming playback to avoid choppy video
+            if (isResuming) {
+              videoElement.currentTime = progress;
+            }
             videoElement.play().catch(e => console.error("Video play error with DOM:", e));
           } else {
             videoElement.pause();
@@ -317,7 +334,7 @@ export const Player: React.FC<PlayerProps> = ({
         }
       }
     }
-  }, [isPlaying, nft]);
+  }, [isPlaying, nft]); // Keep original dependencies to avoid choppy playback
 
   // Update the renderVideo function to remove the useEffect
   const renderVideo = () => {
