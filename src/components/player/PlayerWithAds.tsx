@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Player } from './Player';
 import { AdPlayer } from './AdPlayer';
 import { useVideoPlay } from '../../contexts/VideoPlayContext';
@@ -29,33 +29,47 @@ export const PlayerWithAds: React.FC<PlayerWithAdsProps> = (props) => {
   const [adComplete, setAdComplete] = useState(false);
   const [hasShownFirstAd, setHasShownFirstAd] = useState(false);
   const [playsAfterAd, setPlaysAfterAd] = useState(0);
+  
+  // Add ref to track the current NFT
+  const currentNftRef = useRef<string | null>(null);
 
   // Check if we need to show an ad when attempting to play a video
   useEffect(() => {
-    if (props.nft && props.isPlaying && !adComplete) {
-      console.log('Current play count:', playCount); // Debug log
-      console.log('Plays after last ad:', playsAfterAd); // Debug log
-
-      if (!hasShownFirstAd && playCount === 3) {
-        // First ad after 3 plays
-        console.log('Showing first ad');
+    if (!props.nft) return;
+    
+    // Create a unique ID for the current NFT
+    const nftId = `${props.nft.contract}-${props.nft.tokenId}`;
+    
+    // Check if this is a new NFT (different from the previous one)
+    const isNewNft = nftId !== currentNftRef.current;
+    
+    // Only increment play count and check for ads when a new NFT is played
+    if (props.isPlaying && !showAd && isNewNft) {
+      console.log('New NFT detected:', nftId, 'Previous:', currentNftRef.current);
+      
+      // Update the current NFT ref
+      currentNftRef.current = nftId;
+      
+      // Increment play count
+      incrementPlayCount();
+      
+      // Update plays after ad if we've already shown the first ad
+      if (hasShownFirstAd) {
+        setPlaysAfterAd(prev => prev + 1);
+      }
+      
+      // Check if we need to show an ad
+      if (!hasShownFirstAd && playCount >= 2) {
+        console.log('Showing first ad after 3 plays');
         setShowAd(true);
-        props.onPlayPause();
         setHasShownFirstAd(true);
-      } else if (hasShownFirstAd && playsAfterAd === 9) {
-        // Subsequent ads after 9 more plays
-        console.log('Showing subsequent ad');
+      } else if (hasShownFirstAd && playsAfterAd >= 8) {
+        console.log('Showing subsequent ad after 9 more plays');
         setShowAd(true);
-        props.onPlayPause();
-      } else if (!showAd) {
-        // Only increment if we're not showing an ad
-        incrementPlayCount();
-        if (hasShownFirstAd) {
-          setPlaysAfterAd(prev => prev + 1);
-        }
+        setPlaysAfterAd(0); // Reset counter after showing ad
       }
     }
-  }, [props.nft?.tokenId, props.isPlaying]);
+  }, [props.nft, props.isPlaying, playCount, playsAfterAd, hasShownFirstAd, incrementPlayCount]);
 
   // Force pause content if ad is showing and handle nav visibility
   useEffect(() => {
@@ -66,7 +80,7 @@ export const PlayerWithAds: React.FC<PlayerWithAdsProps> = (props) => {
     } else {
       if (nav) nav.style.display = 'flex';
     }
-  }, [showAd, props.isPlaying]);
+  }, [showAd, props.isPlaying, props.onPlayPause]);
 
   const handleAdComplete = () => {
     setShowAd(false);
@@ -78,14 +92,6 @@ export const PlayerWithAds: React.FC<PlayerWithAdsProps> = (props) => {
     props.onPlayPause(); // Resume the main content
   };
 
-  // Reset states when NFT changes
-  useEffect(() => {
-    if (props.nft) {
-      setAdComplete(false);
-      // Don't reset hasShownFirstAd as that should persist for the session
-    }
-  }, [props.nft?.tokenId]); // Use tokenId to ensure we only reset on actual NFT changes
-
   // Don't render anything until ad is complete if we're showing an ad
   if (showAd) {
     return <AdPlayer onAdComplete={handleAdComplete} />;
@@ -93,4 +99,4 @@ export const PlayerWithAds: React.FC<PlayerWithAdsProps> = (props) => {
 
   // Only render the Player when no ad is showing
   return <Player {...props} />;
-};
+}
