@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { NFTImage } from '../media/NFTImage';
 import type { NFT } from '../../types/user';
 import InfoPanel from './InfoPanel';
@@ -36,6 +36,32 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
   const [swipeDistance, setSwipeDistance] = useState(0);
   const [showInfo, setShowInfo] = useState(false);
+
+  // Add this at the top with other state
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  // Add a simple effect to find and control the video element
+  useEffect(() => {
+    if (!nft?.isVideo && !nft?.metadata?.animation_url) return;
+    
+    // Find the video element in the document
+    const videoId = `video-${nft.contract}-${nft.tokenId}`;
+    const videoElement = document.getElementById(videoId) as HTMLVideoElement;
+    
+    if (videoElement) {
+      // Store reference
+      videoRef.current = videoElement;
+      
+      // Simple play/pause control
+      if (isPlaying) {
+        videoElement.play().catch(e => {
+          console.error("Minimized player video error:", e);
+        });
+      } else {
+        videoElement.pause();
+      }
+    }
+  }, [isPlaying, nft]);
 
   // Touch handlers
   const handleTouchStart = (e: React.TouchEvent) => {

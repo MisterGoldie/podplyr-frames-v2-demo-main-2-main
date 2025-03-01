@@ -135,17 +135,19 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
             objectFit: 'contain'
           }}
           onLoadedData={() => {
-            console.log("Video loaded data event fired");
             setVideoLoading(false);
             
-            // Adjust video size based on dimensions
+            // Simple time sync and play when the video is loaded
             if (videoRef.current) {
-              const video = videoRef.current;
-              const aspectRatio = video.videoWidth / video.videoHeight;
+              if (Math.abs(videoRef.current.currentTime - progress) > 0.5) {
+                videoRef.current.currentTime = progress;
+              }
               
-              // For very small videos, scale them up
-              if (video.videoWidth < 400) {
-                video.style.minWidth = '80%';
+              if (isPlaying) {
+                videoRef.current.play().catch(e => {
+                  // Just log the error, don't try to recover
+                  console.error("Video play error:", e);
+                });
               }
             }
           }}
@@ -178,6 +180,31 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
     zIndex: 9999, // Ensure it's on top of everything
     position: 'relative' as 'relative'
   };
+
+  // Add one simple effect to handle play/pause
+  useEffect(() => {
+    // Only run this if we have a video element
+    if (!videoRef.current) return;
+    
+    // Simple play/pause logic
+    if (isPlaying) {
+      videoRef.current.play().catch(e => {
+        console.error("Video play error:", e);
+      });
+    } else {
+      videoRef.current.pause();
+    }
+  }, [isPlaying]);
+
+  // Optional: Add a simple effect to handle time sync for big jumps
+  useEffect(() => {
+    if (!videoRef.current) return;
+    
+    // Only sync time if the difference is significant (>1 second)
+    if (Math.abs(videoRef.current.currentTime - progress) > 1) {
+      videoRef.current.currentTime = progress;
+    }
+  }, [progress]);
 
   // Keep the exact same JSX as the original Player component for the maximized state
   return (
