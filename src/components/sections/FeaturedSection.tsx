@@ -16,7 +16,7 @@ export const FEATURED_NFTS: NFT[] = [
     audio: 'https://arweave.net/noYvGupxQyo2P7C2GMNNUseml29HEN6HLyvXOBD7jYQ',
     metadata: {
       animation_url: 'https://arweave.net/noYvGupxQyo2P7C2GMNNUseml29HEN6HLyvXOBD7jYQ',
-      description: 'Seasoning with Sazón, Call of Duty Black Ops 6 - Zombies - Terminus Episode 1 of 5',
+      description: 'Seasoning with Sazón, Call of Duty Black Ops 6 - Zombies - Terminus Episode 1 of 5 | @themrsazon',
       attributes: [
         {"trait_type":"Game","value":"Call of Duty Black Ops 6"},
         {"trait_type":"Map","value":"Terminus"}
@@ -45,7 +45,7 @@ export const FEATURED_NFTS: NFT[] = [
     audio: 'https://arweave.net/FXMkBkgV79p3QIL8589uh68-sKuXbmuBzQwvWH10v74',
     metadata: {
       animation_url: 'https://arweave.net/FXMkBkgV79p3QIL8589uh68-sKuXbmuBzQwvWH10v74',
-      description: 'Episode 1 from the founder of ACYL',
+      description: 'Episode 1 from the founder of ACYL | @willcreatesart',
       attributes: [
         {"trait_type":"Host","value":"WiLL"}
       ]
@@ -59,7 +59,7 @@ export const FEATURED_NFTS: NFT[] = [
     audio: 'https://arweave.net/Hr4GVDpKhq_dgZZA5SBAEapx9IJ1qDnDZ-Y40lExBHk',
     metadata: {
       animation_url: 'https://arweave.net/Hr4GVDpKhq_dgZZA5SBAEapx9IJ1qDnDZ-Y40lExBHk',
-      description: 'Ann Marie Alanes',
+      description: 'Ann Marie Alanes | @annmariealanes',
       attributes: [
         {"trait_type":"Host","value":"Ann Marie Alanes"}
       ]
