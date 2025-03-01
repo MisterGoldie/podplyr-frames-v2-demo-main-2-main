@@ -39,7 +39,7 @@ export const FEATURED_NFTS: NFT[] = [
   },
   {
     name: 'ACYL RADIO - WILL01',
-    image: 'https://arweave.net/9MMNoTZJecFZTWL3AaebXDRq7UKcO2N4orYH6ZPzsYU',
+    image: 'https://arweave.net/Ajm6DFaUe6HCLF_RtAmj3Ot1sfT2KVO-fk1PVn1Bk2A',
     contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb',
     tokenId: '79428737e6',
     audio: 'https://arweave.net/FXMkBkgV79p3QIL8589uh68-sKuXbmuBzQwvWH10v74',
@@ -128,8 +128,8 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({
             {FEATURED_NFTS.map((nft) => (
               <div key={getMediaKey(nft)} className="flex-shrink-0 w-[200px] group">
                 <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-gray-800/20 shadow-purple-500/20 shadow-lg transition-all">
-                  {/* Special handling for the Hidden Tales GIF */}
-                  {nft.name === 'ACYL RADIO - Hidden Tales' ? (
+                  {/* Special handling for GIF images */}
+                  {(nft.name === 'ACYL RADIO - Hidden Tales' || nft.name === 'ACYL RADIO - WILL01') ? (
                     <img
                       src={nft.image}
                       alt={nft.name}
