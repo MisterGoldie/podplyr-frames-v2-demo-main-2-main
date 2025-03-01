@@ -296,33 +296,45 @@ export const Player: React.FC<PlayerProps> = ({
     // Update the ref for next render
     prevPlayingRef.current = isPlaying;
     
-    // DIRECT ACCESS: Find video element directly by ID
+    // First try using our ref
+    if (videoRef.current) {
+      try {
+        if (isPlaying) {
+          // Only sync time when resuming playback to avoid choppy video
+          if (isResuming) {
+            videoRef.current.currentTime = progress;
+          }
+          videoRef.current.play().catch(e => console.error("Video play error with ref:", e));
+        } else {
+          videoRef.current.pause();
+        }
+      } catch (e) {
+        console.error("Error controlling video with ref:", e);
+      }
+    }
+    
+    // As a backup, try direct DOM access for both minimized and maximized states
     if (nft?.isVideo || nft?.metadata?.animation_url) {
       const videoId = `video-${nft.contract}-${nft.tokenId}`;
-      // Use direct DOM access for immediate response
       const videoElement = document.getElementById(videoId) as HTMLVideoElement;
       
-      if (videoElement) {
-        if (isPlaying) {
-          // For faster response time, bypass Promise handling
-          try {
-            // Set video state IMMEDIATELY using DOM properties
+      if (videoElement && videoElement !== videoRef.current) {
+        try {
+          if (isPlaying) {
+            // Only sync time when resuming playback to avoid choppy video
             if (isResuming) {
               videoElement.currentTime = progress;
             }
-            
-            // Use the play method but don't await the promise
-            videoElement.play();
-          } catch (e) {
-            console.error("Video play error:", e);
+            videoElement.play().catch(e => console.error("Video play error with DOM:", e));
+          } else {
+            videoElement.pause();
           }
-        } else {
-          // Pause is synchronous and doesn't return a promise - fastest operation
-          videoElement.pause();
+        } catch (e) {
+          console.error("Error controlling video with DOM:", e);
         }
       }
     }
-  }, [isPlaying, nft, progress]); // Keep essential deps only
+  }, [isPlaying, nft]); // Keep original dependencies to avoid choppy playback
 
   // Update the renderVideo function to remove the useEffect
   const renderVideo = () => {
@@ -333,11 +345,10 @@ export const Player: React.FC<PlayerProps> = ({
           id={`video-${nft.contract}-${nft.tokenId}`}
           src={processMediaUrl(nft.metadata?.animation_url || '')}
           playsInline
-          x-webkit-airplay="allow"
-          preload="auto"
           loop
           muted={!nft.metadata?.animation_url?.match(/\.(mp4|webm|mov)$/i)}
           autoPlay={isPlaying}
+          preload="auto"
           className="w-auto h-auto object-contain rounded-lg max-h-[60vh] min-h-[40vh] min-w-[60%] max-w-full"
           style={{ 
             opacity: 1, 
@@ -759,7 +770,7 @@ export const Player: React.FC<PlayerProps> = ({
                     className="text-purple-400 hover:text-purple-300 p-2 bg-black/40 rounded-full backdrop-blur-sm"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
-                      <path d="M680-80q-50 0-85-35t-35-85q0-6 3-28L282-392q-16 15-37 23.5t-45 8.5q-50 0-85-35t-35-85q0-50 35-85t85-35q24 0 45 8.5t37 23.5l281-164q-2-7-2.5-13.5t.5-14.5q0-8-.5 14.5T317-452l281 164q16-15 37-23.5t45-8.5q50 0 85 35t35 85q0 50-35 85t-85 35q-24 0-45-8.5T598-672L317-508q2 7 2.5 13.5t.5 14.5q0 8-.5 14.5T317-452l281 164q16-15 37-23.5t45-8.5q50 0 85 35t35 85q0 50-35 85t-85 35Z"/>
+                      <path d="M680-80q-50 0-85-35t-35-85q0-6 3-28L282-392q-16 15-37 23.5t-45 8.5q-50 0-85-35t-35-85q0-50 35-85t85-35q24 0 45 8.5t37 23.5l281-164q-2-7-2.5-13.5T560-760q0-50 35-85t85-35q50 0 85 35t35 85q0 50-35 85t-85 35q-24 0-45-8.5T598-672L317-508q2 7 2.5 13.5t.5 14.5q0 8-.5 14.5T317-452l281 164q16-15 37-23.5t45-8.5q50 0 85 35t35 85q0 50-35 85t-85 35Z"/>
                     </svg>
                   </button>
                 )}
@@ -784,11 +795,10 @@ export const Player: React.FC<PlayerProps> = ({
                     id={`video-${nft.contract}-${nft.tokenId}`}
                     src={processMediaUrl(nft.metadata?.animation_url || '')}
                     playsInline
-                    x-webkit-airplay="allow"
-                    preload="auto"
                     loop
                     muted={!nft.metadata?.animation_url?.match(/\.(mp4|webm|mov)$/i)}
                     autoPlay={isPlaying}
+                    preload="auto"
                     className="w-auto h-auto object-contain rounded-lg max-h-[60vh] min-h-[40vh] min-w-[60%] max-w-full"
                     style={{ 
                       opacity: 1, 
