@@ -401,7 +401,7 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
           {/* Controls */}
           <div className="relative flex-none">
             <div className="container mx-auto px-4 pt-4 pb-16">
-              {/* Progress Bar - now with immediate scrubbing */}
+              {/* Progress Bar - with time indicators at ends preserved */}
               <div 
                 ref={progressBarRef}
                 className={`relative ${isActivelyScrubbingBar ? 'h-5 -mt-2 mb-3' : 'h-3'} bg-gray-800 rounded-full mb-4 transition-all duration-150 touch-none`}
@@ -432,7 +432,7 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
                   />
                 )}
 
-                {/* Time Preview bubble - only shows during active scrubbing */}
+                {/* Time Preview bubble - only shows during active scrubbing - KEEP THIS */}
                 {isActivelyScrubbingBar && scrubPosition !== null && (
                   <div 
                     className="absolute -top-10 py-1 px-3 bg-black/90 text-white text-sm font-medium rounded-md transform -translate-x-1/2 shadow-lg"
@@ -445,14 +445,7 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
                 )}
               </div>
 
-              {/* Current position marker */}
-              {isActivelyScrubbingBar && scrubPosition !== null && (
-                <div className="text-center text-white text-lg font-bold mb-2">
-                  {formatTime(Math.floor(scrubPosition))}
-                </div>
-              )}
-
-              {/* Time Display */}
+              {/* Time Display - KEEP THIS */}
               <div className="flex justify-between text-gray-400 text-xs font-mono mb-4">
                 <span>{formatTime(Math.floor(isActivelyScrubbingBar && scrubPosition !== null ? scrubPosition : progress))}</span>
                 <span>{formatTime(Math.floor(duration))}</span>
