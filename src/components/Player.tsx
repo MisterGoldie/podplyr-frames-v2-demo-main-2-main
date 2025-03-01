@@ -19,6 +19,7 @@ export const Player: React.FC<PlayerProps> = ({ nft, onPlaybackComplete, onError
   const [audioQuality, setAudioQuality] = useState<AudioQuality>('high');
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [networkQuality, setNetworkQuality] = useState<'poor'|'medium'|'good'>('medium');
 
   // Handle network quality changes
   useEffect(() => {
@@ -43,6 +44,36 @@ export const Player: React.FC<PlayerProps> = ({ nft, onPlaybackComplete, onError
       
       return () => {
         (navigator as any).connection.removeEventListener('change', handleNetworkChange);
+      };
+    }
+  }, []);
+
+  // Network quality detection
+  useEffect(() => {
+    const updateNetworkQuality = () => {
+      if (!('connection' in navigator)) return;
+      
+      const connection = (navigator as any).connection;
+      const effectiveType = connection?.effectiveType || 'unknown';
+      const downlink = connection?.downlink || 0;
+      
+      if (effectiveType === 'slow-2g' || effectiveType === '2g' || downlink < 0.5) {
+        setNetworkQuality('poor');
+      } else if (effectiveType === '3g' || downlink < 2) {
+        setNetworkQuality('medium');
+      } else {
+        setNetworkQuality('good');
+      }
+      
+      console.log(`Network quality detected: ${effectiveType}, ${downlink}Mbps`);
+    };
+    
+    updateNetworkQuality();
+    
+    if ('connection' in navigator) {
+      (navigator as any).connection.addEventListener('change', updateNetworkQuality);
+      return () => {
+        (navigator as any).connection.removeEventListener('change', updateNetworkQuality);
       };
     }
   }, []);

@@ -5,6 +5,7 @@ import { NFT } from '../../types/user';
 import { processMediaUrl } from '../../utils/media';
 import { NFTImage } from './NFTImage';
 import { setupHls, destroyHls, isHlsUrl, getHlsUrl } from '../../utils/hlsUtils';
+import { getNetworkInfo, isMobileDevice } from '../../utils/deviceDetection';
 
 interface OptimizedVideoPlayerProps {
   nft: NFT;
@@ -36,6 +37,10 @@ export const OptimizedVideoPlayer: React.FC<OptimizedVideoPlayerProps> = ({
   const MAX_MOBILE_RESOLUTION = 480; // Maximum height for mobile videos
   const MAXIMUM_VIDEO_SIZE_MB = 5; // Target max size for videos on mobile
   
+  const [networkQuality, setNetworkQuality] = useState<'poor'|'medium'|'good'>('medium');
+  const [isBuffering, setIsBuffering] = useState(false);
+  const bufferingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
   // Detect if we're on mobile
   useEffect(() => {
     setIsMobile(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
@@ -61,7 +66,7 @@ export const OptimizedVideoPlayer: React.FC<OptimizedVideoPlayerProps> = ({
           
           // Also destroy any HLS instance to free up resources
           if (videoRef.current) {
-            const videoId = `video-${nft.contract}-${nft.tokenId}`;
+            const videoId = getVideoId();
             destroyHls(videoId);
             setHlsInitialized(false);
           }
@@ -99,13 +104,36 @@ export const OptimizedVideoPlayer: React.FC<OptimizedVideoPlayerProps> = ({
     }
   }, [videoUrl, isMobile]);
   
-  // Handle video loading - now with HLS support
+  // Generate a consistent videoId for this component instance
+  const getVideoId = () => `video-${nft.contract}-${nft.tokenId}`;
+  
+  // Update the video loading logic with progressive enhancement
   useEffect(() => {
     if (!videoRef.current || !isVisible) return;
     
     const video = videoRef.current;
-    const videoId = `video-${nft.contract}-${nft.tokenId}`;
     
+    // For mobile with poor connection - use progressive enhancement
+    if (isMobile) {
+      // Get network quality
+      const { effectiveType, downlink } = getNetworkInfo();
+      const isPoorConnection = 
+        effectiveType === 'slow-2g' || 
+        effectiveType === '2g' || 
+        effectiveType === '3g' || 
+        downlink < 1;
+      
+      if (isPoorConnection && !useHls) {
+        console.log('Using progressive enhancement for poor connection');
+        
+        // 1. Start with lowest quality poster image
+        video.poster = getLowQualityPoster(nft);
+        
+        // 2. Use progressive quality enhancement
+        setProgressiveVideoSource(video, rawVideoUrl, isPoorConnection);
+      }
+    }
+
     // Event listeners for all cases
     const handleLoadStart = () => {
       onLoadStart?.();
@@ -129,7 +157,7 @@ export const OptimizedVideoPlayer: React.FC<OptimizedVideoPlayerProps> = ({
     if (useHls && !hlsInitialized) {
       setHlsInitialized(true);
       
-      setupHls(videoId, video, videoUrl)
+      setupHls(getVideoId(), video, videoUrl)
         .then(() => {
           console.log('HLS initialized successfully');
         })
@@ -200,7 +228,7 @@ export const OptimizedVideoPlayer: React.FC<OptimizedVideoPlayerProps> = ({
                 
                 // Also destroy any HLS resources
                 if (useHls) {
-                  destroyHls(videoId);
+                  destroyHls(getVideoId());
                   setHlsInitialized(false);
                 }
               }
@@ -228,10 +256,62 @@ export const OptimizedVideoPlayer: React.FC<OptimizedVideoPlayerProps> = ({
       
       // Clean up HLS if needed
       if (useHls) {
-        destroyHls(videoId);
+        destroyHls(getVideoId());
       }
     };
   }, [isVisible, nft, rawVideoUrl, videoUrl, useHls, hlsInitialized, isMobile, onLoadStart, onLoadComplete, onError]);
+  
+  // Helper function to set up progressive video loading
+  const setProgressiveVideoSource = (
+    video: HTMLVideoElement, 
+    originalUrl: string,
+    isPoorConnection: boolean
+  ) => {
+    // Try to get low quality version first
+    const lowQualityUrl = getLowQualityVideoUrl(originalUrl);
+    
+    // Start with low quality video
+    video.src = lowQualityUrl;
+    video.preload = isPoorConnection ? 'metadata' : 'auto';
+    
+    // If we're on a poor connection, don't auto-upgrade
+    if (isPoorConnection) return;
+    
+    // Otherwise, after low quality version starts playing, load higher quality version
+    video.addEventListener('playing', function upgradeQuality() {
+      // Wait a bit before upgrading to ensure smooth initial playback
+      setTimeout(() => {
+        // Save current time and playing state
+        const currentTime = video.currentTime;
+        const wasPlaying = !video.paused;
+        
+        // Switch to higher quality
+        video.src = originalUrl;
+        video.load();
+        
+        // Restore position and play state
+        video.addEventListener('loadedmetadata', () => {
+          video.currentTime = currentTime;
+          if (wasPlaying) video.play();
+        }, { once: true });
+      }, 5000); // Wait 5 seconds before upgrading
+      
+      // Remove this listener after it runs once
+      video.removeEventListener('playing', upgradeQuality);
+    }, { once: true });
+  };
+
+  // Helper function to get low quality video URL (implement based on your URL structure)
+  const getLowQualityVideoUrl = (url: string): string => {
+    // Example implementation - modify based on your backend capabilities
+    if (url.includes('cloudfront.net') || url.includes('cdn.com')) {
+      // For CDNs that support quality parameters
+      return url.replace(/(\.\w+)$/, '-low$1');
+    }
+    
+    // Return original if no low quality version available
+    return url;
+  };
   
   const restrictVideoQuality = (video: HTMLVideoElement) => {
     if (!video) return;
@@ -253,29 +333,173 @@ export const OptimizedVideoPlayer: React.FC<OptimizedVideoPlayerProps> = ({
     video.style.imageRendering = isMobile ? 'optimizeSpeed' : 'auto';
   };
   
+  // Network quality detection
+  useEffect(() => {
+    const updateNetworkQuality = () => {
+      const { effectiveType, downlink } = getNetworkInfo();
+      
+      if (effectiveType === 'slow-2g' || effectiveType === '2g' || downlink < 0.5) {
+        setNetworkQuality('poor');
+      } else if (effectiveType === '3g' || downlink < 2) {
+        setNetworkQuality('medium');
+      } else {
+        setNetworkQuality('good');
+      }
+    };
+    
+    updateNetworkQuality();
+    
+    if ('connection' in navigator) {
+      (navigator as any).connection.addEventListener('change', updateNetworkQuality);
+      return () => {
+        (navigator as any).connection.removeEventListener('change', updateNetworkQuality);
+      };
+    }
+  }, []);
+
+  // Add smart buffering strategy to the video element's event handlers
+  useEffect(() => {
+    if (!videoRef.current) return;
+    
+    const video = videoRef.current;
+    
+    // Buffer management variables
+    let lastPlayPos = 0;
+    let bufferCheckInterval: NodeJS.Timeout | null = null;
+    const bufferCheckFrequency = networkQuality === 'poor' ? 1000 : 2000; // Check more often on poor networks
+    
+    // Handle buffering state
+    const checkBuffering = () => {
+      const currentPlayPos = video.currentTime;
+      
+      // If it's playing and the position has not changed in our interval
+      const isNotAdvancing = currentPlayPos === lastPlayPos && !video.paused;
+      
+      if (isNotAdvancing && !isBuffering) {
+        setIsBuffering(true);
+        console.log('Buffering detected');
+        
+        // On very poor networks, after 5 seconds of buffering, try to recover
+        if (networkQuality === 'poor') {
+          if (bufferingTimeoutRef.current) clearTimeout(bufferingTimeoutRef.current);
+          
+          bufferingTimeoutRef.current = setTimeout(() => {
+            console.log('Long buffering detected, attempting recovery...');
+            
+            // Try to jump forward slightly
+            if (video.readyState >= 1 && video.duration > currentPlayPos + 2) {
+              video.currentTime = currentPlayPos + 2;
+            }
+            
+            // Note: We're not trying to control HLS levels directly anymore
+            // This avoids the need for the getCurrentHlsLevel and setHlsQualityLevel functions
+          }, 5000);
+        }
+      } else if (!isNotAdvancing && isBuffering) {
+        setIsBuffering(false);
+        console.log('Buffering ended');
+        
+        if (bufferingTimeoutRef.current) {
+          clearTimeout(bufferingTimeoutRef.current);
+          bufferingTimeoutRef.current = null;
+        }
+      }
+      
+      lastPlayPos = currentPlayPos;
+    };
+    
+    // Start buffer checking when playing
+    const handlePlaying = () => {
+      if (bufferCheckInterval) clearInterval(bufferCheckInterval);
+      bufferCheckInterval = setInterval(checkBuffering, bufferCheckFrequency);
+    };
+    
+    // Clear interval when paused, ended, etc.
+    const handlePauseEnd = () => {
+      if (bufferCheckInterval) clearInterval(bufferCheckInterval);
+    };
+    
+    video.addEventListener('playing', handlePlaying);
+    video.addEventListener('pause', handlePauseEnd);
+    video.addEventListener('ended', handlePauseEnd);
+    video.addEventListener('emptied', handlePauseEnd);
+    
+    return () => {
+      if (bufferCheckInterval) clearInterval(bufferCheckInterval);
+      if (bufferingTimeoutRef.current) clearTimeout(bufferingTimeoutRef.current);
+      
+      video.removeEventListener('playing', handlePlaying);
+      video.removeEventListener('pause', handlePauseEnd);
+      video.removeEventListener('ended', handlePauseEnd);
+      video.removeEventListener('emptied', handlePauseEnd);
+    };
+  }, [videoRef.current, networkQuality, isBuffering]);
+  
+  // Helper function to get low quality poster
+  const getLowQualityPoster = (nft: NFT): string => {
+    const originalPoster = processMediaUrl(nft.image || nft.metadata?.image || '');
+    
+    // If it's an IPFS URL, try to get a smaller version if available
+    if (originalPoster.includes('ipfs.io')) {
+      // This is just a simple example - adjust based on your actual URL patterns
+      return originalPoster;
+    }
+    
+    // If it's a regular HTTP URL, you could append query params for smaller image
+    // if your backend supports it
+    if (originalPoster.includes('http')) {
+      // Example: append width parameter if your server handles this
+      // return `${originalPoster}?width=480`;
+    }
+    
+    return originalPoster;
+  };
+  
   return (
     <div ref={containerRef} className="w-full h-full relative">
       {isVisible ? (
-        <video
-          ref={videoRef}
-          id={`video-${nft.contract}-${nft.tokenId}`}
-          className="w-full h-full object-cover rounded-md"
-          poster={posterUrl}
-          muted={muted}
-          loop={loop}
-          playsInline
-          autoPlay={false}
-          preload={isMobile ? "none" : "metadata"}
-          {...(isMobile ? {
-            'data-mobile': 'true',
-            'playsinline': true,
-            'webkit-playsinline': 'true',
-            'controls': true,
-          } : {})}
-        >
-          {!useHls && <source src={rawVideoUrl} type="video/mp4" />}
-          Your browser does not support the video tag.
-        </video>
+        <>
+          <video
+            ref={videoRef}
+            id={getVideoId()}
+            className="w-full h-full object-cover rounded-md"
+            poster={posterUrl}
+            muted={muted}
+            loop={loop}
+            playsInline
+            autoPlay={false}
+            preload={isMobile ? "none" : "metadata"}
+            {...(isMobile ? {
+              'data-mobile': 'true',
+              'playsinline': true,
+              'webkit-playsinline': 'true',
+              'controls': true,
+            } : {})}
+          >
+            {!useHls && <source src={rawVideoUrl} type="video/mp4" />}
+            Your browser does not support the video tag.
+          </video>
+          
+          {/* Network quality indicator */}
+          {isMobile && (
+            <div className={`network-indicator network-${networkQuality}`}>
+              {networkQuality === 'poor' ? 'Low Quality' : 
+               networkQuality === 'medium' ? 'Standard' : 'HD'}
+            </div>
+          )}
+          
+          {/* Buffering indicator */}
+          {isBuffering && (
+            <div className="buffering-overlay">
+              <div className="loading-spinner"></div>
+              {networkQuality === 'poor' && (
+                <div className="buffering-message">
+                  Weak network detected. Optimizing...
+                </div>
+              )}
+            </div>
+          )}
+        </>
       ) : (
         // Show image placeholder until video is visible
         <NFTImage

@@ -1,4 +1,5 @@
 import Hls from 'hls.js';
+import { getNetworkInfo, isMobileDevice } from './deviceDetection';
 
 // Store HLS instances to prevent memory leaks
 const hlsInstances: Record<string, Hls> = {};
@@ -42,21 +43,48 @@ export function setupHls(videoId: string, videoElement: HTMLVideoElement, src: s
     // Clean up any existing instance
     destroyHls(videoId);
     
-    // Create a new HLS instance
+    // Get network info to determine optimal settings
+    const { effectiveType, downlink } = getNetworkInfo();
+    const isMobile = isMobileDevice();
+    
+    // Determine the appropriate startLevel based on network conditions
+    let optimalStartLevel = -1; // Default to auto level selection
+    if (effectiveType === 'slow-2g' || effectiveType === '2g' || downlink < 0.5) {
+      optimalStartLevel = 0; // Lowest quality for very poor connections
+    } else if (effectiveType === '3g' || downlink < 1.5) {
+      optimalStartLevel = 1; // Low quality for moderate connections
+    }
+    
+    // Create a new HLS instance with optimized settings
     const hls = new Hls({
-      maxBufferLength: 30,
-      maxMaxBufferLength: 60,
+      maxBufferLength: isMobile ? 15 : 30, // Shorter buffer for mobile to save memory
+      maxMaxBufferLength: isMobile ? 30 : 60,
       enableWorker: true,
       lowLatencyMode: false,
-      startLevel: -1, // Auto level selection
-      // Optimize for mobile
-      maxBufferSize: 10 * 1000 * 1000, // 10MB max buffer size
-      maxBufferHole: 0.5, // Reduce buffer holes
-      backBufferLength: 30, // 30 seconds of back buffer
+      startLevel: optimalStartLevel, // Set the optimal level based on network conditions
+      // Mobile-specific optimizations
+      maxBufferSize: isMobile ? 8 * 1000 * 1000 : 30 * 1000 * 1000, // 8MB for mobile, 30MB for desktop
+      maxBufferHole: 0.5,
+      backBufferLength: isMobile ? 10 : 30, // 10 seconds back buffer on mobile
+      
+      // More aggressive switching for weak connections
+      abrEwmaDefaultEstimate: isMobile ? 500000 : 1000000, // Start with lower bandwidth estimate on mobile
+      abrBandWidthFactor: 0.8,
+      abrBandWidthUpFactor: 0.7,
+      
+      // Reduce stalling
+      fragLoadingTimeOut: 20000, // Longer timeout for weak connections
+      manifestLoadingTimeOut: 10000,
+      manifestLoadingMaxRetry: 4,
+      fragLoadingMaxRetry: 6,
+      fragLoadingRetryDelay: 500,
     });
     
     // Store the instance
     hlsInstances[videoId] = hls;
+    
+    // Advanced network recovery
+    let recoveryAttempts = 0;
     
     // Bind events
     hls.on(Hls.Events.MEDIA_ATTACHED, () => {
@@ -66,6 +94,13 @@ export function setupHls(videoId: string, videoElement: HTMLVideoElement, src: s
     
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
       console.log('HLS manifest parsed');
+      
+      // For very weak connections, force lowest quality to start
+      if (effectiveType === 'slow-2g' || effectiveType === '2g' || downlink < 0.5) {
+        hls.currentLevel = 0; // Force lowest quality initially
+        console.log('Forcing lowest quality due to poor connection');
+      }
+      
       resolve();
     });
     
@@ -74,9 +109,27 @@ export function setupHls(videoId: string, videoElement: HTMLVideoElement, src: s
       if (data.fatal) {
         switch (data.type) {
           case Hls.ErrorTypes.NETWORK_ERROR:
-            // Try to recover network error
-            console.log('Fatal network error, trying to recover');
-            hls.startLoad();
+            // Progressive recovery strategy for network errors
+            recoveryAttempts++;
+            console.log(`Network error recovery attempt ${recoveryAttempts}`);
+            
+            if (recoveryAttempts <= 3) {
+              // Try to recover network error with increasing delays
+              setTimeout(() => {
+                hls.startLoad();
+              }, recoveryAttempts * 1000); // Exponential backoff
+            } else if (recoveryAttempts <= 5) {
+              // After 3 attempts, try dropping to lowest quality
+              setTimeout(() => {
+                hls.currentLevel = 0; // Force lowest quality
+                hls.startLoad();
+              }, recoveryAttempts * 1000);
+            } else {
+              // After 5 attempts, try fallback to direct MP4 if available
+              const mp4Url = src.replace('.m3u8', '.mp4');
+              videoElement.src = mp4Url;
+              videoElement.load();
+            }
             break;
           case Hls.ErrorTypes.MEDIA_ERROR:
             console.log('Fatal media error, trying to recover');
@@ -106,4 +159,27 @@ export function destroyHls(videoId: string): void {
     delete hlsInstances[videoId];
     console.log(`HLS instance for ${videoId} destroyed`);
   }
+}
+
+/**
+ * Get the current quality level of an HLS instance
+ */
+export function getCurrentHlsLevel(videoId: string): number {
+  const hls = hlsInstances[videoId];
+  if (!hls) return -1;
+  return hls.currentLevel;
+}
+
+/**
+ * Set the quality level of an HLS instance
+ */
+export function setHlsQualityLevel(videoId: string, level: number): void {
+  const hls = hlsInstances[videoId];
+  if (!hls) return;
+  hls.currentLevel = level;
+}
+
+// Make hlsInstances accessible via this function
+export function getHlsInstance(videoId: string): Hls | null {
+  return hlsInstances[videoId] || null;
 } 
