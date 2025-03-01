@@ -6,6 +6,7 @@ import { processMediaUrl } from '../../utils/media';
 import { NFTImage } from './NFTImage';
 import { setupHls, destroyHls, isHlsUrl, getHlsUrl } from '../../utils/hlsUtils';
 import { getNetworkInfo, isMobileDevice } from '../../utils/deviceDetection';
+import { isCellularConnection, getCellularGeneration, getCellularVideoSettings, getOptimizedCellularVideoUrl, getPreviewVideoUrl } from '../../utils/cellularOptimizer';
 
 interface OptimizedVideoPlayerProps {
   nft: NFT;
@@ -40,6 +41,12 @@ export const OptimizedVideoPlayer: React.FC<OptimizedVideoPlayerProps> = ({
   const [networkQuality, setNetworkQuality] = useState<'poor'|'medium'|'good'>('medium');
   const [isBuffering, setIsBuffering] = useState(false);
   const bufferingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Add cellular detection
+  const [isCellular, setIsCellular] = useState(false);
+  const [cellularGeneration, setCellularGeneration] = useState<'2G'|'3G'|'4G'|'5G'>('4G');
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const [hasLoadedFullVideo, setHasLoadedFullVideo] = useState(false);
   
   // Detect if we're on mobile
   useEffect(() => {
@@ -455,6 +462,188 @@ export const OptimizedVideoPlayer: React.FC<OptimizedVideoPlayerProps> = ({
     return originalPoster;
   };
   
+  // Detect cellular connection
+  useEffect(() => {
+    const checkCellular = () => {
+      const cellular = isCellularConnection();
+      setIsCellular(cellular);
+      
+      if (cellular) {
+        setCellularGeneration(getCellularGeneration());
+      }
+    };
+    
+    checkCellular();
+    
+    // Listen for connection changes
+    if ('connection' in navigator) {
+      (navigator as any).connection.addEventListener('change', checkCellular);
+      return () => {
+        (navigator as any).connection.removeEventListener('change', checkCellular);
+      };
+    }
+  }, []);
+  
+  // Use preview video for very slow connections like 3G
+  useEffect(() => {
+    if (!videoRef.current || !isVisible) return;
+    
+    const video = videoRef.current;
+    
+    // Only for cellular connections slower than 4G
+    if (isCellular && (cellularGeneration === '2G' || cellularGeneration === '3G')) {
+      setIsLoadingPreview(true);
+      
+      // Get preview URL (low quality version)
+      const previewUrl = getPreviewVideoUrl(rawVideoUrl);
+      
+      // Enhanced loading sequence:
+      // 1. First show poster image
+      video.src = ''; 
+      video.preload = 'none';
+      video.poster = getLowQualityPoster(nft);
+      
+      // 2. Then show preview low-quality video when user interacts
+      video.addEventListener('click', function startPreview() {
+        if (hasLoadedFullVideo) return;
+        
+        console.log('Loading preview video on user interaction');
+        video.src = previewUrl;
+        video.load();
+        
+        // When preview is loaded, play it
+        video.addEventListener('loadeddata', function playPreview() {
+          video.play().catch(e => console.error('Could not play preview', e));
+          video.removeEventListener('loadeddata', playPreview);
+        }, { once: true });
+        
+        // Wait 5 seconds of preview playback, then load full quality
+        setTimeout(() => {
+          // Don't interrupt if user has paused the preview
+          if (!video.paused) {
+            loadFullQualityVideo();
+          }
+        }, 5000);
+        
+        video.removeEventListener('click', startPreview);
+      }, { once: true });
+      
+      // Show a "Tap to load preview" message on the poster
+      // (In a real implementation, you would add a UI element here)
+    }
+  }, [videoRef.current, isVisible, isCellular, cellularGeneration, rawVideoUrl]);
+  
+  // Function to load the full quality video
+  const loadFullQualityVideo = () => {
+    if (!videoRef.current) return;
+    
+    const video = videoRef.current;
+    const currentTime = video.currentTime;
+    const wasPlaying = !video.paused;
+    
+    console.log('Loading full quality video');
+    setIsLoadingPreview(false);
+    setHasLoadedFullVideo(true);
+    
+    // Get appropriate URL based on network conditions
+    const optimizedUrl = useHls 
+      ? getHlsUrl(rawVideoUrl) 
+      : isCellular 
+        ? getOptimizedCellularVideoUrl(rawVideoUrl) 
+        : rawVideoUrl;
+    
+    // For HLS videos, set up with optimized settings
+    if (useHls) {
+      setupHls(getVideoId(), video, optimizedUrl)
+        .then(() => {
+          // Restore playback position and state
+          video.currentTime = currentTime;
+          if (wasPlaying) video.play();
+        })
+        .catch(err => {
+          console.error('Error setting up HLS', err);
+          // Fallback to direct video
+          video.src = rawVideoUrl;
+          video.load();
+          video.currentTime = currentTime;
+          if (wasPlaying) video.play();
+        });
+    } else {
+      // For direct MP4 playback
+      video.src = optimizedUrl;
+      video.load();
+      
+      // Restore playback position
+      video.addEventListener('loadedmetadata', () => {
+        video.currentTime = currentTime;
+        if (wasPlaying) video.play();
+      }, { once: true });
+    }
+  };
+  
+  // Update the existing video loading useEffect as well:
+  useEffect(() => {
+    if (!videoRef.current || !isVisible) return;
+    
+    const video = videoRef.current;
+    const videoId = getVideoId();
+    
+    // Skip the automatic loading for very slow cellular connections
+    // We'll load on demand via user interaction
+    if (isCellular && (cellularGeneration === '2G' || cellularGeneration === '3G')) {
+      return;
+    }
+    
+    // For regular connections, apply normal loading with network optimizations
+    const cellularSettings = isCellular ? getCellularVideoSettings() : null;
+    
+    // Apply cellular-specific settings if available
+    if (isCellular && cellularSettings) {
+      // Use cellular optimized URL
+      const optimizedUrl = useHls 
+        ? getHlsUrl(rawVideoUrl) 
+        : getOptimizedCellularVideoUrl(rawVideoUrl);
+      
+      // Adjust video preload
+      video.preload = cellularSettings.preloadStrategy;
+      
+      // For HLS, use cellular-optimized setup
+      if (useHls) {
+        setHlsInitialized(true);
+        
+        setupHls(videoId, video, optimizedUrl)
+          .then(() => {
+            console.log('HLS initialized with cellular optimizations');
+          })
+          .catch((error: Error) => {
+            console.error('Error setting up HLS:', error);
+            // Fall back to regular video
+            if (!isHlsUrl(optimizedUrl)) {
+              video.src = optimizedUrl;
+              video.load();
+            }
+          });
+      } else {
+        // For non-HLS, use optimized URL
+        video.src = optimizedUrl;
+        
+        // 4G can load automatically, for 5G
+        if (cellularGeneration === '4G' || cellularGeneration === '5G') {
+          video.load();
+        }
+      }
+      
+      // Reduce video quality via CSS for 3G/4G to reduce GPU load
+      video.style.maxHeight = `${cellularSettings.maxHeight}px`;
+    } else {
+      // Regular loading for non-cellular connections (existing code)
+      // ...
+    }
+
+    // Event listeners for all cases
+    // ...
+  }, [videoUrl, isMobile, isVisible, isCellular, cellularGeneration]);
+  
   return (
     <div ref={containerRef} className="w-full h-full relative">
       {isVisible ? (
@@ -463,12 +652,12 @@ export const OptimizedVideoPlayer: React.FC<OptimizedVideoPlayerProps> = ({
             ref={videoRef}
             id={getVideoId()}
             className="w-full h-full object-cover rounded-md"
-            poster={posterUrl}
+            poster={getLowQualityPoster(nft)}
             muted={muted}
             loop={loop}
             playsInline
             autoPlay={false}
-            preload={isMobile ? "none" : "metadata"}
+            preload={isCellular ? "none" : (isMobile ? "metadata" : "auto")}
             {...(isMobile ? {
               'data-mobile': 'true',
               'playsinline': true,
@@ -482,9 +671,28 @@ export const OptimizedVideoPlayer: React.FC<OptimizedVideoPlayerProps> = ({
           
           {/* Network quality indicator */}
           {isMobile && (
-            <div className={`network-indicator network-${networkQuality}`}>
-              {networkQuality === 'poor' ? 'Low Quality' : 
-               networkQuality === 'medium' ? 'Standard' : 'HD'}
+            <div className={`network-indicator ${isCellular ? `network-cellular network-${cellularGeneration.toLowerCase()}` : `network-${networkQuality}`}`}>
+              {isCellular 
+                ? `${cellularGeneration} ${isLoadingPreview ? '(Preview)' : ''}` 
+                : (networkQuality === 'poor' ? 'Low Quality' : 
+                   networkQuality === 'medium' ? 'Standard' : 'HD')}
+            </div>
+          )}
+          
+          {/* For 2G/3G connections, show tap to play button when not started */}
+          {isCellular && (cellularGeneration === '2G' || cellularGeneration === '3G') && 
+           !hasLoadedFullVideo && !isLoadingPreview && (
+            <div className="cellular-preview-overlay">
+              <button 
+                className="cellular-preview-button"
+                onClick={() => videoRef.current?.click()}
+              >
+                Tap to load preview
+              </button>
+              <div className="cellular-preview-info">
+                You're on a {cellularGeneration} connection. 
+                We'll load a low-quality preview first to save data.
+              </div>
             </div>
           )}
           
@@ -492,9 +700,13 @@ export const OptimizedVideoPlayer: React.FC<OptimizedVideoPlayerProps> = ({
           {isBuffering && (
             <div className="buffering-overlay">
               <div className="loading-spinner"></div>
-              {networkQuality === 'poor' && (
+              {isCellular && (
                 <div className="buffering-message">
-                  Weak network detected. Optimizing...
+                  {cellularGeneration} connection detected. Optimizing...
+                  {isLoadingPreview && <span>Playing preview quality</span>}
+                  {cellularGeneration === '2G' || cellularGeneration === '3G' 
+                    ? <button onClick={loadFullQualityVideo}>Load full quality</button>
+                    : null}
                 </div>
               )}
             </div>
@@ -504,7 +716,7 @@ export const OptimizedVideoPlayer: React.FC<OptimizedVideoPlayerProps> = ({
         // Show image placeholder until video is visible
         <NFTImage
           nft={nft}
-          src={posterUrl}
+          src={getLowQualityPoster(nft)}
           alt={nft.name || 'NFT Media'}
           className="w-full h-full object-cover rounded-md"
           width={320}

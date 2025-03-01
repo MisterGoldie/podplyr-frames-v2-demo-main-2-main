@@ -1,8 +1,16 @@
-import Hls from 'hls.js';
+import * as HlsModule from 'hls.js';
+
+// Use the default export from the module
+const Hls = HlsModule.default;
+
 import { getNetworkInfo, isMobileDevice } from './deviceDetection';
+import { isCellularConnection, getCellularGeneration, getCellularVideoSettings } from './cellularOptimizer';
+
+// You already have the types from the module import
+type HlsType = typeof Hls;
 
 // Store HLS instances to prevent memory leaks
-const hlsInstances: Record<string, Hls> = {};
+const hlsInstances: Record<string, HlsModule.default> = {};
 
 /**
  * Check if a URL is an HLS stream URL
@@ -31,7 +39,7 @@ export function getHlsUrl(url: string): string {
 }
 
 /**
- * Set up HLS.js for a video element
+ * Set up HLS.js for a video element with cellular-specific optimizations
  */
 export function setupHls(videoId: string, videoElement: HTMLVideoElement, src: string): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -43,47 +51,85 @@ export function setupHls(videoId: string, videoElement: HTMLVideoElement, src: s
     // Clean up any existing instance
     destroyHls(videoId);
     
-    // Get network info to determine optimal settings
+    // Check if we're on a cellular connection
+    const isCellular = isCellularConnection();
+    const cellularGeneration = isCellular ? getCellularGeneration() : null;
+    const cellularSettings = isCellular ? getCellularVideoSettings() : null;
+    
+    // Also check general network info
     const { effectiveType, downlink } = getNetworkInfo();
     const isMobile = isMobileDevice();
     
-    // Determine the appropriate startLevel based on network conditions
-    let optimalStartLevel = -1; // Default to auto level selection
-    if (effectiveType === 'slow-2g' || effectiveType === '2g' || downlink < 0.5) {
-      optimalStartLevel = 0; // Lowest quality for very poor connections
-    } else if (effectiveType === '3g' || downlink < 1.5) {
-      optimalStartLevel = 1; // Low quality for moderate connections
-    }
+    console.log(`Network: ${isCellular ? `Cellular (${cellularGeneration})` : 'WiFi/Ethernet'}, ` +
+                `Effective type: ${effectiveType}, Downlink: ${downlink}Mbps`);
     
-    // Create a new HLS instance with optimized settings
-    const hls = new Hls({
-      maxBufferLength: isMobile ? 15 : 30, // Shorter buffer for mobile to save memory
-      maxMaxBufferLength: isMobile ? 30 : 60,
+    // Base config - will be customized based on network
+    const hlsConfig: Partial<HlsModule.HlsConfig> = {
       enableWorker: true,
       lowLatencyMode: false,
-      startLevel: optimalStartLevel, // Set the optimal level based on network conditions
-      // Mobile-specific optimizations
-      maxBufferSize: isMobile ? 8 * 1000 * 1000 : 30 * 1000 * 1000, // 8MB for mobile, 30MB for desktop
-      maxBufferHole: 0.5,
-      backBufferLength: isMobile ? 10 : 30, // 10 seconds back buffer on mobile
       
-      // More aggressive switching for weak connections
-      abrEwmaDefaultEstimate: isMobile ? 500000 : 1000000, // Start with lower bandwidth estimate on mobile
-      abrBandWidthFactor: 0.8,
+      // Adaptive bitrate tuning
+      abrEwmaDefaultEstimate: 1000000, // 1Mbps default
+      abrBandWidthFactor: 0.9,
       abrBandWidthUpFactor: 0.7,
       
-      // Reduce stalling
-      fragLoadingTimeOut: 20000, // Longer timeout for weak connections
-      manifestLoadingTimeOut: 10000,
+      // Default buffer settings
+      liveSyncDuration: 3,
+      maxBufferLength: 30,
+      maxMaxBufferLength: 60,
+      maxBufferSize: 60 * 1000 * 1000, // 60MB
+      
+      // Error recovery
       manifestLoadingMaxRetry: 4,
-      fragLoadingMaxRetry: 6,
-      fragLoadingRetryDelay: 500,
-    });
+      manifestLoadingRetryDelay: 1000,
+      manifestLoadingMaxRetryTimeout: 64000,
+      levelLoadingMaxRetry: 4,
+      levelLoadingRetryDelay: 1000,
+      levelLoadingMaxRetryTimeout: 64000,
+    };
+    
+    // Cellular-specific aggressive optimizations
+    if (isCellular && cellularSettings) {
+      console.log(`Applying cellular (${cellularGeneration}) optimizations`);
+      
+      // Start with a lower level for cellular
+      hlsConfig.startLevel = cellularGeneration === '5G' ? -1 : 0; // Auto for 5G, lowest for others
+      
+      // Adjust buffer sizes based on cellular generation
+      hlsConfig.maxBufferLength = cellularSettings.bufferTarget;
+      hlsConfig.maxMaxBufferLength = cellularSettings.bufferTarget * 2;
+      
+      // Very aggressive ABR for cellular
+      hlsConfig.abrEwmaDefaultEstimate = cellularSettings.targetBitrate;
+      
+      // More aggressive switching for poor connections
+      if (cellularGeneration === '2G' || cellularGeneration === '3G') {
+        hlsConfig.abrBandWidthFactor = 0.7; // Be more conservative
+        hlsConfig.fragLoadingMaxRetry = 8;  // More retries for fragments
+        hlsConfig.fragLoadingRetryDelay = 500;
+        
+        // Reduce memory footprint
+        hlsConfig.maxBufferSize = 10 * 1000 * 1000; // Only 10MB buffer on slow connections
+      } else {
+        // 4G/5G
+        hlsConfig.maxBufferSize = 30 * 1000 * 1000; // 30MB for 4G/5G
+      }
+    }
+    // Non-cellular mobile optimizations (like WiFi)
+    else if (isMobile) {
+      console.log('Applying WiFi mobile optimizations');
+      hlsConfig.maxBufferLength = 15;
+      hlsConfig.maxMaxBufferLength = 30;
+      hlsConfig.maxBufferSize = 20 * 1000 * 1000; // 20MB for mobile WiFi
+    }
+    
+    // Create HLS instance with our optimized config
+    const hls = new Hls(hlsConfig);
     
     // Store the instance
     hlsInstances[videoId] = hls;
     
-    // Advanced network recovery
+    // Advanced recovery mechanism
     let recoveryAttempts = 0;
     
     // Bind events
@@ -92,13 +138,26 @@ export function setupHls(videoId: string, videoElement: HTMLVideoElement, src: s
       hls.loadSource(src);
     });
     
-    hls.on(Hls.Events.MANIFEST_PARSED, () => {
-      console.log('HLS manifest parsed');
+    hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
+      console.log(`HLS manifest parsed, ${data.levels.length} quality levels found`);
       
-      // For very weak connections, force lowest quality to start
-      if (effectiveType === 'slow-2g' || effectiveType === '2g' || downlink < 0.5) {
-        hls.currentLevel = 0; // Force lowest quality initially
-        console.log('Forcing lowest quality due to poor connection');
+      // If on cellular, force initial quality
+      if (isCellular && cellularGeneration && cellularGeneration !== '5G') {
+        const targetHeight = cellularSettings?.maxHeight || 360;
+        
+        // Find the closest level that doesn't exceed our target height
+        let bestLevel = 0;
+        let bestMatchHeight = 0;
+        
+        data.levels.forEach((level, index) => {
+          if (level.height <= targetHeight && level.height > bestMatchHeight) {
+            bestMatchHeight = level.height;
+            bestLevel = index;
+          }
+        });
+        
+        console.log(`Cellular optimization: Setting initial level to ${bestLevel} (${bestMatchHeight}p)`);
+        hls.currentLevel = bestLevel;
       }
       
       resolve();
@@ -114,7 +173,7 @@ export function setupHls(videoId: string, videoElement: HTMLVideoElement, src: s
             console.log(`Network error recovery attempt ${recoveryAttempts}`);
             
             if (recoveryAttempts <= 3) {
-              // Try to recover network error with increasing delays
+              // Try to recover with increasing delays
               setTimeout(() => {
                 hls.startLoad();
               }, recoveryAttempts * 1000); // Exponential backoff
@@ -143,6 +202,40 @@ export function setupHls(videoId: string, videoElement: HTMLVideoElement, src: s
         }
       }
     });
+    
+    // For cellular connections, add additional error handling
+    if (isCellular) {
+      // Monitor for stalls
+      let lastTime = 0;
+      let stallCount = 0;
+      const stallMonitoringInterval = setInterval(() => {
+        if (!videoElement.paused && videoElement.currentTime === lastTime) {
+          stallCount++;
+          console.log(`Potential stall detected (${stallCount})`);
+          
+          // If we detect multiple stalls, try recovery actions
+          if (stallCount >= 3) {
+            console.log('Multiple stalls detected, taking recovery action');
+            stallCount = 0;
+            
+            // Force a quality level change if possible
+            if (hls.currentLevel > 0) {
+              console.log(`Reducing quality to level ${hls.currentLevel-1} due to stalls`);
+              hls.currentLevel = hls.currentLevel - 1;
+            }
+          }
+        } else {
+          // Reset stall count if we're advancing
+          stallCount = 0;
+        }
+        lastTime = videoElement.currentTime;
+      }, 2000);
+      
+      // Clean up interval on destroy
+      hls.on(Hls.Events.DESTROYING, () => {
+        clearInterval(stallMonitoringInterval);
+      });
+    }
     
     // Attach to video element
     hls.attachMedia(videoElement);
@@ -180,6 +273,6 @@ export function setHlsQualityLevel(videoId: string, level: number): void {
 }
 
 // Make hlsInstances accessible via this function
-export function getHlsInstance(videoId: string): Hls | null {
+export function getHlsInstance(videoId: string): HlsModule.default | null {
   return hlsInstances[videoId] || null;
 } 
