@@ -58,7 +58,7 @@ export const FEATURED_NFTS: NFT[] = [
     tokenId: '79428737e7',
     audio: 'https://arweave.net/Hr4GVDpKhq_dgZZA5SBAEapx9IJ1qDnDZ-Y40lExBHk',
     metadata: {
-      animation_url: 'https://arweave.net/Hr4GVDpKhq_dgZZA5SBAEapx9IJ1qDnDZ-Y40lExBHk',
+      animation_url: 'https://agoxezbhxilfttm6q4ojfdgiokuictgjt6vng5f4pxutjqg7sgza.arweave.net/AZ1yZCe6FlnNnocckozIcqiBTMmfqtN0vH3pNMDfkbI',
       description: 'Ann Marie Alanes | @annmariealanes',
       attributes: [
         {"trait_type":"Host","value":"Ann Marie Alanes"}
