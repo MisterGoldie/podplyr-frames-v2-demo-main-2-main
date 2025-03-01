@@ -17,9 +17,11 @@ export const VideoSyncManager: React.FC<VideoSyncManagerProps> = ({
   videoRef,
   currentPlayingNFT,
   isPlaying,
-  audioProgress
+  audioProgress,
+  onPlayPause
 }) => {
   const hlsInitializedRef = useRef(false);
+  const lastPlayStateRef = useRef(isPlaying);
   
   // Optimize the video sync manager for better performance
   useEffect(() => {
@@ -33,25 +35,40 @@ export const VideoSyncManager: React.FC<VideoSyncManagerProps> = ({
       console.error(`VideoSyncManager: Could not find video element with ID ${videoId}`);
       return;
     }
+
+    // Handle play state changes immediately - this is critical for UI responsiveness
+    if (isPlaying !== lastPlayStateRef.current) {
+      if (isPlaying && videoElement.paused) {
+        videoElement.play().catch(e => {
+          console.error("Failed to play video on play state change:", e);
+        });
+      } else if (!isPlaying && !videoElement.paused) {
+        videoElement.pause();
+      }
+      lastPlayStateRef.current = isPlaying;
+    }
     
     // Use requestAnimationFrame for smoother sync
     let animationFrameId: number;
     let lastSyncTime = 0;
     
     const syncVideoState = (timestamp: number) => {
-      // Only sync every 100ms for efficiency
-      if (timestamp - lastSyncTime > 100) {
-        // Sync play state immediately
-        if (isPlaying && videoElement.paused) {
-          videoElement.play().catch(e => {
-            if (e.name !== 'AbortError') {
-              console.error("Failed to play video in sync manager:", e);
-              videoElement.muted = true;
-              videoElement.play().catch(e2 => console.error("Failed even with muted:", e2));
-            }
-          });
-        } else if (!isPlaying && !videoElement.paused) {
-          videoElement.pause();
+      // Only sync every 50ms for efficiency but more responsive than before
+      if (timestamp - lastSyncTime > 50) {
+        // Double-check play state to ensure synchronization
+        const videoIsPlaying = !videoElement.paused;
+        if (isPlaying !== videoIsPlaying) {
+          if (isPlaying) {
+            videoElement.play().catch(e => {
+              if (e.name !== 'AbortError') {
+                console.error("Failed to play video in sync manager:", e);
+                videoElement.muted = true;
+                videoElement.play().catch(e2 => console.error("Failed even with muted:", e2));
+              }
+            });
+          } else {
+            videoElement.pause();
+          }
         }
         
         // Sync time only if difference is significant
@@ -67,17 +84,40 @@ export const VideoSyncManager: React.FC<VideoSyncManagerProps> = ({
     
     // Start the sync loop
     animationFrameId = requestAnimationFrame(syncVideoState);
+
+    // Add event listeners to ensure sync
+    const handleVideoPlay = () => {
+      if (!isPlaying) {
+        // If video plays but audio is paused, sync them
+        onPlayPause(); // This will trigger audio to play
+      }
+    };
+
+    const handleVideoPause = () => {
+      if (isPlaying) {
+        // If video pauses but audio is playing, sync them
+        onPlayPause(); // This will trigger audio to pause
+      }
+    };
+
+    // Add listeners for user interactions with the video element
+    videoElement.addEventListener('play', handleVideoPlay);
+    videoElement.addEventListener('pause', handleVideoPause);
     
     // Clean up
     return () => {
       cancelAnimationFrame(animationFrameId);
+      
+      // Remove event listeners
+      videoElement.removeEventListener('play', handleVideoPlay);
+      videoElement.removeEventListener('pause', handleVideoPause);
       
       if (hlsInitializedRef.current) {
         destroyHls(videoId);
         hlsInitializedRef.current = false;
       }
     };
-  }, [isPlaying, audioProgress, currentPlayingNFT]);
+  }, [isPlaying, audioProgress, currentPlayingNFT, onPlayPause]);
 
   return null;
 };
