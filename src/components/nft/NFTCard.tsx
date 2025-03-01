@@ -119,7 +119,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
             />
           ) : (
             // Special handling for GIF images of ACYL RADIO NFTs
-            (nft.name === 'ACYL RADIO - Hidden Tales' || nft.name === 'ACYL RADIO - WILL01') ? (
+            (nft.name === 'ACYL RADIO - Hidden Tales' || nft.name === 'ACYL RADIO - WILL01' || nft.name === 'ACYL RADIO - Chili Sounds 🌶️') ? (
               <img
                 src={nft.image}
                 alt={nft.name}
@@ -192,7 +192,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
           />
         ) : (
           // Special handling for GIF images of ACYL RADIO NFTs
-          (nft.name === 'ACYL RADIO - Hidden Tales' || nft.name === 'ACYL RADIO - WILL01') ? (
+          (nft.name === 'ACYL RADIO - Hidden Tales' || nft.name === 'ACYL RADIO - WILL01' || nft.name === 'ACYL RADIO - Chili Sounds 🌶️') ? (
             <img
               src={nft.image}
               alt={nft.name}

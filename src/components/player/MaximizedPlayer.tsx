@@ -384,7 +384,7 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
                 ) : (
                   <div className="relative rounded-lg overflow-hidden max-h-[60vh]">
                     {/* Special handling for GIF images */}
-                    {(nft.name === 'ACYL RADIO - Hidden Tales' || nft.name === 'ACYL RADIO - WILL01') ? (
+                    {(nft.name === 'ACYL RADIO - Hidden Tales' || nft.name === 'ACYL RADIO - WILL01' || nft.name === 'ACYL RADIO - Chili Sounds 🌶️') ? (
                       <img
                         src={nft.image}
                         alt={nft.name}

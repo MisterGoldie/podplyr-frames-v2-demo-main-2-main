@@ -143,7 +143,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({
               <div key={getMediaKey(nft)} className="flex-shrink-0 w-[200px] group">
                 <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-gray-800/20 shadow-purple-500/20 shadow-lg transition-all">
                   {/* Special handling for GIF images */}
-                  {(nft.name === 'ACYL RADIO - Hidden Tales' || nft.name === 'ACYL RADIO - WILL01' || nft.name === 'ACYL RADIO - Chili Sounds') ? (
+                  {(nft.name === 'ACYL RADIO - Hidden Tales' || nft.name === 'ACYL RADIO - WILL01' || nft.name === 'ACYL RADIO - Chili Sounds 🌶️') ? (
                     <img
                       src={nft.image}
                       alt={nft.name}
