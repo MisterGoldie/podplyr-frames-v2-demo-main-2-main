@@ -287,14 +287,37 @@ export const Player: React.FC<PlayerProps> = ({
 
   // Move the useEffect out of renderVideo and into the main component body
   useEffect(() => {
+    // First try using our ref
     if (videoRef.current) {
-      if (isPlaying) {
-        videoRef.current.play().catch(e => console.error("Video play error:", e));
-      } else {
-        videoRef.current.pause();
+      try {
+        if (isPlaying) {
+          videoRef.current.play().catch(e => console.error("Video play error with ref:", e));
+        } else {
+          videoRef.current.pause();
+        }
+      } catch (e) {
+        console.error("Error controlling video with ref:", e);
       }
     }
-  }, [isPlaying]);
+    
+    // As a backup, try direct DOM access for both minimized and maximized states
+    if (nft?.isVideo || nft?.metadata?.animation_url) {
+      const videoId = `video-${nft.contract}-${nft.tokenId}`;
+      const videoElement = document.getElementById(videoId) as HTMLVideoElement;
+      
+      if (videoElement && videoElement !== videoRef.current) {
+        try {
+          if (isPlaying) {
+            videoElement.play().catch(e => console.error("Video play error with DOM:", e));
+          } else {
+            videoElement.pause();
+          }
+        } catch (e) {
+          console.error("Error controlling video with DOM:", e);
+        }
+      }
+    }
+  }, [isPlaying, nft]);
 
   // Update the renderVideo function to remove the useEffect
   const renderVideo = () => {
@@ -473,6 +496,9 @@ export const Player: React.FC<PlayerProps> = ({
 
   // Add this effect to force video playback on mount
   useEffect(() => {
+    // Only run this effect if we're supposed to be playing
+    if (!isPlaying) return;
+    
     // Use a short timeout to ensure the DOM is fully rendered
     const timer = setTimeout(() => {
       if (nft?.isVideo || nft?.metadata?.animation_url) {
@@ -520,7 +546,7 @@ export const Player: React.FC<PlayerProps> = ({
     }, 300); // Small delay to ensure DOM is ready
     
     return () => clearTimeout(timer);
-  }, [nft, progress]); // Only run when nft or progress changes
+  }, []); // Only run once when component mounts
 
   if (isMinimized) {
     return (
