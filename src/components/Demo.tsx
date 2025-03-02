@@ -738,7 +738,7 @@ const Demo: React.FC = () => {
             }
           }}
           nfts={userNFTs}
-          handlePlayAudio={handlePlayAudio}
+          handlePlayAudio={handlePlayFromLibrary}
           isPlaying={isPlaying}
           currentlyPlaying={currentlyPlaying}
           handlePlayPause={handlePlayPause}
