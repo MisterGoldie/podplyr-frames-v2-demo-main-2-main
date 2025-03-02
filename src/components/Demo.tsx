@@ -502,6 +502,9 @@ const Demo: React.FC = () => {
     newState[page] = true;
     setCurrentPage(newState);
     
+    // Reset scroll position when changing pages
+    window.scrollTo(0, 0);
+    
     // Reset states when switching pages
     setSelectedUser(null);
     setSearchResults([]);
@@ -548,6 +551,11 @@ const Demo: React.FC = () => {
       isLibrary: false,
       isProfile: false
     });
+    
+    // Reset scroll position
+    window.scrollTo(0, 0);
+    
+    // Any other existing code...
     setSelectedUser(null);
     setSearchResults([]);
     setUserNFTs([]);
