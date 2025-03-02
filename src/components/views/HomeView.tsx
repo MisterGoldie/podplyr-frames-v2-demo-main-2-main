@@ -162,6 +162,7 @@ const HomeView: React.FC<HomeViewProps> = ({
                             handlePlayPause={handlePlayPause}
                             onLikeToggle={() => onLikeToggle(nft)}
                             userFid={userFid}
+                            isNFTLiked={(nftToCheck) => isNFTLiked(nftToCheck)}
                           />
                           <h3 className="font-mono text-white text-sm truncate mt-3">{nft.name}</h3>
                         </div>
@@ -200,6 +201,7 @@ const HomeView: React.FC<HomeViewProps> = ({
                             handlePlayPause={handlePlayPause}
                             onLikeToggle={() => onLikeToggle(nft)}
                             userFid={userFid}
+                            isNFTLiked={(nftToCheck) => isNFTLiked(nftToCheck)}
                             playCountBadge={`${count} plays`}
                           />
                           <h3 className="font-mono text-white text-sm truncate mt-3">{nft.name}</h3>

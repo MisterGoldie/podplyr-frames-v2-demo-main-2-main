@@ -410,12 +410,11 @@ const Demo: React.FC = () => {
       // No need to manually update local state since useNFTLikeState handles that
       console.log(`✅ Like toggled: ${wasLiked ? 'added' : 'removed'}`);
 
-      // Refresh the library view if we're on the library page
-      if (currentPage.isLibrary) {
-        console.log('🔄 Refreshing liked NFTs for library view...');
-        const updatedLikedNFTs = await getLikedNFTs(userFid);
-        setLikedNFTs(updatedLikedNFTs);
-      }
+      // ALWAYS refresh liked NFTs list regardless of current page
+      // This ensures the like state is immediately visible on all pages
+      console.log('🔄 Refreshing liked NFTs list...');
+      const updatedLikedNFTs = await getLikedNFTs(userFid);
+      setLikedNFTs(updatedLikedNFTs);
     } catch (error) {
       console.error('❌ Error toggling like:', error);
       setError('Failed to update liked status');
@@ -423,12 +422,27 @@ const Demo: React.FC = () => {
   };
 
   const isNFTLiked = (nft: NFT, ignoreCurrentPage: boolean = false): boolean => {
+    if (!nft || !nft.contract || !nft.tokenId) {
+      console.log('Invalid NFT passed to isNFTLiked, returning false');
+      return false;
+    }
+    
     // If we're in library view and not ignoring current page, all NFTs are liked
-    if (currentPage.isLibrary && !ignoreCurrentPage) return true;
+    if (currentPage.isLibrary && !ignoreCurrentPage) {
+      return true;
+    }
 
     // Otherwise check if it's in the likedNFTs array
     const nftMediaKey = getMediaKey(nft);
-    return likedNFTs.some(item => getMediaKey(item) === nftMediaKey);
+    const nftKey = `${nft.contract}-${nft.tokenId}`.toLowerCase();
+    
+    // Use a more reliable, direct comparison
+    const isLiked = likedNFTs.some(item => {
+      const itemKey = `${item.contract}-${item.tokenId}`.toLowerCase();
+      return itemKey === nftKey;
+    });
+    
+    return isLiked;
   };
 
   const switchPage = (page: keyof PageState) => {
