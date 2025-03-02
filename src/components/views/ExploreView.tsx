@@ -296,7 +296,15 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                     publicCollections={publicCollections}
                     addToPublicCollection={addToPublicCollection}
                     removeFromPublicCollection={removeFromPublicCollection}
-                    onLikeToggle={onLikeToggle}
+                    onLikeToggle={async (nft) => {
+                      console.log('🔍 ExploreView - Like button clicked for:', nft.name);
+                      if (onLikeToggle) {
+                        await onLikeToggle(nft);
+                        console.log('🔍 ExploreView - Like operation completed');
+                      } else {
+                        console.error('🔍 ExploreView - onLikeToggle function is missing!');
+                      }
+                    }}
                     isNFTLiked={isNFTLiked}
                     userFid={effectiveUserFid}
                   />

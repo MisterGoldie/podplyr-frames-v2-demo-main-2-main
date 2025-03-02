@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { NFT } from '../../types/user';
 import { NFTCard } from './NFTCard';
 import { useVirtualizedNFTs } from '../../hooks/useVirtualizedNFTs';
@@ -34,12 +34,27 @@ export const VirtualizedNFTGrid: React.FC<VirtualizedNFTGridProps> = ({
 
   // Log the number of NFTs for debugging
   console.log('Rendering VirtualizedNFTGrid with', visibleNFTs.length, 'visible NFTs out of', nfts.length, 'total');
+  
+  // Modified check function - no logging on each check to avoid console spam
+  const checkDirectlyLiked = (nftToCheck: NFT): boolean => {
+    if (!isNFTLiked) return false;
+    // Always use true for ignoreCurrentPage to get real like status regardless of page
+    return isNFTLiked(nftToCheck, true);
+  };
+  
+  // Reduced logging - just once when component mounts
+  useEffect(() => {
+    // One-time debugging log to verify props
+    console.log('VirtualizedNFTGrid rendered with:',
+      'onLikeToggle=', !!onLikeToggle,
+      'isNFTLiked=', !!isNFTLiked,
+      'userFid=', userFid);
+  }, []);
 
   return (
     <>
       {visibleNFTs.map((nft: any) => (
         <NFTCard
-          // Use the guaranteed unique random ID directly
           key={nft._uniqueReactId || `fallback_${Math.random().toString(36).substring(2, 11)}`}
           nft={nft}
           onPlay={async (nft) => {
@@ -55,7 +70,7 @@ export const VirtualizedNFTGrid: React.FC<VirtualizedNFTGridProps> = ({
           useCenteredPlay={true}
           onLikeToggle={onLikeToggle}
           userFid={userFid}
-          isNFTLiked={isNFTLiked ? (nftToCheck: NFT) => isNFTLiked(nftToCheck, false) : undefined}
+          isNFTLiked={checkDirectlyLiked}
         />
       ))}
       

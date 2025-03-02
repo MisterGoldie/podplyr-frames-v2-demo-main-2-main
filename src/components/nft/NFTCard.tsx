@@ -245,7 +245,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
           <button 
             onClick={async (e) => {
               e.stopPropagation();
-              console.log('Like button clicked for NFT:', nft.name, 'userFid:', userFid, 'Full NFT data:', JSON.stringify(nft, null, 2));
+              console.log('💖 HEART BUTTON CLICKED for NFT:', nft.name, 'userFid:', userFid);
               
               if (!userFid || userFid <= 0) {
                 console.error('Invalid userFid:', userFid, 'Cannot toggle like without a valid user.');
@@ -254,7 +254,6 @@ export const NFTCard: React.FC<NFTCardProps> = ({
               
               try {
                 await onLikeToggle(nft);
-                console.log('Like toggle operation completed successfully');
               } catch (error) {
                 console.error('Error in like toggle operation:', error);
               }

@@ -102,6 +102,7 @@ export interface NFTPlayData {
 }
 
 export interface NFT {
+  [x: string]: any;
   contract: string;
   tokenId: string;
   name: string;
