@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { NFT } from '../types/user';
 
-const INITIAL_LOAD = 12;
+const INITIAL_LOAD = 20;
 const BATCH_SIZE = 12;
 const THRESHOLD = 400; // pixels from bottom to trigger load
 

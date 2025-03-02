@@ -261,7 +261,11 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                   <h2 className="text-2xl font-mono text-green-400">@{selectedUser.username}</h2>
                   {!isLoadingNFTs && (
                     <p className="font-mono text-sm text-gray-500">
-                      {nfts.length} {nfts.length === 1 ? 'NFT' : 'NFTs'} found
+                      Total: {nfts.length} {nfts.length === 1 ? 'NFT' : 'NFTs'}
+                      {/* 
+                        This count represents the total NFTs returned from the API.
+                        Initially only 12 NFTs are shown, more load as you scroll down.
+                      */}
                     </p>
                   )}
                 </div>

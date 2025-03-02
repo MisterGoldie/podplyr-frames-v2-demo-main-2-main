@@ -540,6 +540,13 @@ const Demo: React.FC = () => {
                 throw new Error('No NFTs returned');
               }
               
+              // Add logging for debugging NFT count issues
+              console.log(`==== NFT COUNT DEBUGGING ====`);
+              console.log(`Total NFTs from API for ${user.username}:`, nfts.length);
+              console.log(`NFTs with audio:`, nfts.filter(nft => nft.hasValidAudio).length);
+              console.log(`NFTs with video:`, nfts.filter(nft => nft.isVideo).length);
+              console.log(`================================`);
+              
               // Cache the NFTs for future use
               cacheNFTs(user.fid, nfts);
               
@@ -991,6 +998,14 @@ const Demo: React.FC = () => {
       // You'll need to identify which function handles loading NFTs for a user
       // For example, you might have something like:
       const nfts = await fetchUserNFTs(user.fid);  // Replace with your actual NFT loading function
+      
+      // Add logging for debugging NFT count issues
+      console.log(`==== NFT COUNT DEBUGGING ====`);
+      console.log(`Total NFTs from API for ${user.username}:`, nfts.length);
+      console.log(`NFTs with audio:`, nfts.filter(nft => nft.hasValidAudio).length);
+      console.log(`NFTs with video:`, nfts.filter(nft => nft.isVideo).length);
+      console.log(`================================`);
+      
       setUserNFTs(nfts);
       setFilteredNFTs(nfts);
       

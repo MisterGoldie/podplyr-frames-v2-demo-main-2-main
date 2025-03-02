@@ -33,7 +33,7 @@ export const VirtualizedNFTGrid: React.FC<VirtualizedNFTGridProps> = ({
   const { visibleNFTs, isLoadingMore, hasMore } = useVirtualizedNFTs(nfts);
 
   // Log the number of NFTs for debugging
-  console.log('Rendering VirtualizedNFTGrid with', visibleNFTs.length, 'NFTs');
+  console.log('Rendering VirtualizedNFTGrid with', visibleNFTs.length, 'visible NFTs out of', nfts.length, 'total');
 
   return (
     <>
@@ -71,6 +71,14 @@ export const VirtualizedNFTGrid: React.FC<VirtualizedNFTGridProps> = ({
       {!isLoadingMore && !hasMore && visibleNFTs.length > 0 && (
         <div className="col-span-full text-center py-8">
           <p className="font-mono text-gray-400 text-sm">All NFTs loaded</p>
+        </div>
+      )}
+
+      {!isLoadingMore && hasMore && visibleNFTs.length > 0 && (
+        <div className="col-span-full text-center py-4">
+          <p className="font-mono text-gray-400 text-sm">
+            Showing {visibleNFTs.length} of {nfts.length} NFTs - Scroll to load more
+          </p>
         </div>
       )}
     </>
