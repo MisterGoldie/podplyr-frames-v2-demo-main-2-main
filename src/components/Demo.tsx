@@ -628,8 +628,7 @@ const Demo: React.FC = () => {
               isLoading={isLoading}
               onReset={handleReset}
               onLikeToggle={handleLikeToggle}
-              likedNFTs={likedNFTs}
-            />
+              likedNFTs={likedNFTs}            />
           )}
           {currentPage.isExplore && (
             <ExploreView

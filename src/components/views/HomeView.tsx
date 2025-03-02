@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useContext } from 'react';
+import React, { useMemo, useContext, useState, useEffect } from 'react';
 import { NFTCard } from '../nft/NFTCard';
 import type { NFT } from '../../types/user';
 import Image from 'next/image';
@@ -8,6 +8,7 @@ import { useNFTPreloader } from '../../hooks/useNFTPreloader';
 import FeaturedSection from '../sections/FeaturedSection';
 import { getMediaKey } from '../../utils/media';
 import { FarcasterContext } from '../../app/providers';
+import NotificationHeader from '../NotificationHeader';
 
 interface HomeViewProps {
   recentlyPlayedNFTs: NFT[];
@@ -34,9 +35,11 @@ const HomeView: React.FC<HomeViewProps> = ({
   onLikeToggle,
   likedNFTs
 }) => {
+  const [showLikeNotification, setShowLikeNotification] = useState(false);
+  const [likedNFTName, setLikedNFTName] = useState('');
 
   // Initialize featured NFTs once on mount
-  React.useEffect(() => {
+  useEffect(() => {
     const initializeFeaturedNFTs = async () => {
       const { ensureFeaturedNFTsExist } = await import('../../lib/firebase');
       const { FEATURED_NFTS } = await import('../sections/FeaturedSection');
@@ -78,6 +81,23 @@ const HomeView: React.FC<HomeViewProps> = ({
 
   // Get user's FID from context
   const { fid: userFid = 0 } = useContext(FarcasterContext);
+
+  // Create a wrapper for the existing like function that also shows the notification
+  const handleNFTLike = async (nft: NFT): Promise<void> => {
+    // First call the original like function (if it exists in props)
+    if (onLikeToggle) {
+      await onLikeToggle(nft);
+    }
+    
+    // Then show the notification using our local state
+    setLikedNFTName(nft.name || 'NFT');
+    setShowLikeNotification(true);
+    
+    // Hide after 3 seconds
+    setTimeout(() => {
+      setShowLikeNotification(false);
+    }, 3000);
+  };
 
   if (isLoading) {
     return (
@@ -137,6 +157,18 @@ const HomeView: React.FC<HomeViewProps> = ({
         </button>
       </header>
       <div className="space-y-8 pt-20 pb-40 overflow-y-auto h-screen overscroll-y-contain">
+        {/* Blue notification for liking NFTs on the Home page */}
+        {showLikeNotification && (
+          <NotificationHeader
+            show={showLikeNotification}
+            onHide={() => setShowLikeNotification(false)}
+            type="info" // Blue color
+            message="Added to library:"
+            highlightText={likedNFTName}
+            autoHideDuration={3000}
+          />
+        )}
+
         {/* Recently Played Section */}
         <section>
           {recentlyPlayedNFTs.length > 0 && (
@@ -231,7 +263,7 @@ const HomeView: React.FC<HomeViewProps> = ({
             handlePlayPause={handlePlayPause}
             currentlyPlaying={currentlyPlaying}
             isPlaying={isPlaying}
-            onLikeToggle={onLikeToggle}
+            onLikeToggle={handleNFTLike}
             isNFTLiked={checkDirectlyLiked}
             userFid={String(userFid)}
           />
