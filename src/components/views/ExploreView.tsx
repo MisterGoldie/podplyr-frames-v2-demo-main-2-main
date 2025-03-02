@@ -30,30 +30,40 @@ interface ExploreViewProps {
   handleUserSelect: (user: FarcasterUser) => void;
   handleDirectUserSelect: (user: FarcasterUser) => void;
   onReset: () => void;
+  onLikeToggle?: (nft: NFT) => Promise<void>;
+  isNFTLiked?: (nft: NFT, ignoreCurrentPage?: boolean) => boolean;
+  userFid?: number;
 }
 
 const ExploreView: React.FC<ExploreViewProps> = (props) => {
-  const { fid: userFid = 0 } = useContext(FarcasterContext);
+  // Get FID from context, but prioritize the one passed in props if available
+  const contextFid = useContext(FarcasterContext);
+  
+  // Use the FID from props if available, otherwise use the one from context
+  const effectiveUserFid = props.userFid || contextFid.fid || 0;
+
   const {
-  onSearch,
-  selectedUser,
-  onPlayNFT,
-  currentlyPlaying,
-  isPlaying,
-  searchResults,
-  nfts,
-  isSearching,
-  handlePlayPause,
-  isLoadingNFTs,
-  onBack,
-  publicCollections,
-  addToPublicCollection,
-  removeFromPublicCollection,
-  recentSearches,
-  handleUserSelect,
-  handleDirectUserSelect,
-  onReset,
-} = props;
+    onSearch,
+    selectedUser,
+    onPlayNFT,
+    currentlyPlaying,
+    isPlaying,
+    searchResults,
+    nfts,
+    isSearching,
+    handlePlayPause,
+    isLoadingNFTs,
+    onBack,
+    publicCollections,
+    addToPublicCollection,
+    removeFromPublicCollection,
+    recentSearches,
+    handleUserSelect,
+    handleDirectUserSelect,
+    onReset,
+    onLikeToggle,
+    isNFTLiked,
+  } = props;
   const generateUniqueNFTKey = (nft: NFT, index: number) => {
     return `${nft.contract}-${nft.tokenId}-${index}`;
   };
@@ -112,8 +122,8 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                         console.log('Selected user:', user);
                         
                         // Track the search before selecting the user
-                        if (userFid) {
-                          trackUserSearch(user.username, userFid);
+                        if (effectiveUserFid) {
+                          trackUserSearch(user.username, effectiveUserFid);
                         }
                         
                         // Directly initiate wallet search without showing intermediate profile view
@@ -146,7 +156,7 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
             {!searchResults.length && !selectedUser && recentSearches.length > 0 && (
               <div className="mb-8">
                 <h2 className="text-xl font-mono text-green-400 mb-4">
-                  {userFid ? "Recently Searched" : "Popular Users"}
+                  {effectiveUserFid ? "Recently Searched" : "Popular Users"}
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                   {recentSearches.map((user) => (
@@ -156,7 +166,7 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                         // Get the full user data from searchedusers collection
                         console.log('=== EXPLORE: User selected from recent searches ===');
                         console.log('Getting full user data for FID:', user.fid);
-                        console.log('Current userFid:', userFid);
+                        console.log('Current userFid:', effectiveUserFid);
                         
                         const userDoc = await getDoc(doc(db, 'searchedusers', user.fid.toString()));
                         const userData = userDoc.data();
@@ -177,7 +187,7 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                         
                         // Track the search before selecting the user
                         console.log('=== EXPLORE: Tracking search ===');
-                        await trackUserSearch(user.username, userFid);
+                        await trackUserSearch(user.username, effectiveUserFid);
                         console.log('Search tracked successfully');
                         
                         // No need to manually refresh recent searches here
@@ -286,6 +296,9 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                     publicCollections={publicCollections}
                     addToPublicCollection={addToPublicCollection}
                     removeFromPublicCollection={removeFromPublicCollection}
+                    onLikeToggle={onLikeToggle}
+                    isNFTLiked={isNFTLiked}
+                    userFid={effectiveUserFid}
                   />
                 </>
               )}

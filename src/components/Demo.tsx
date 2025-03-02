@@ -346,20 +346,35 @@ const Demo: React.FC = () => {
   };
 
   const handleLikeToggle = async (nft: NFT) => {
+    console.log('⭐ handleLikeToggle called with:', { 
+      nftName: nft.name, 
+      userFid, 
+      contract: nft.contract, 
+      tokenId: nft.tokenId 
+    });
+    
+    if (!userFid || userFid <= 0) {
+      console.error('❌ Cannot toggle like: Invalid userFid', userFid);
+      setError('Login required to like NFTs');
+      return;
+    }
+    
     try {
+      console.log('📝 Calling toggleLikeNFT...');
       // toggleLikeNFT will update both global_likes and user's likes collection
       const wasLiked = await toggleLikeNFT(nft, userFid);
       
       // No need to manually update local state since useNFTLikeState handles that
-      console.log('Like toggled:', wasLiked ? 'added' : 'removed');
+      console.log(`✅ Like toggled: ${wasLiked ? 'added' : 'removed'}`);
 
       // Refresh the library view if we're on the library page
       if (currentPage.isLibrary) {
+        console.log('🔄 Refreshing liked NFTs for library view...');
         const updatedLikedNFTs = await getLikedNFTs(userFid);
         setLikedNFTs(updatedLikedNFTs);
       }
     } catch (error) {
-      console.error('Error toggling like:', error);
+      console.error('❌ Error toggling like:', error);
       setError('Failed to update liked status');
     }
   };
@@ -540,6 +555,9 @@ const Demo: React.FC = () => {
           }}
           onReset={handleReset}
           handleDirectUserSelect={handleDirectUserSelect}
+          onLikeToggle={handleLikeToggle}
+          isNFTLiked={isNFTLiked}
+          userFid={userFid}
         />
       );
     }

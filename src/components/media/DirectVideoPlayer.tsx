@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { NFT } from '../../types/user';
 
 interface DirectVideoPlayerProps {
@@ -16,6 +16,10 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [hasError, setHasError] = useState(false);
+  const [currentGateway, setCurrentGateway] = useState(0);
+  const [retryCount, setRetryCount] = useState(0);
+  const MAX_RETRIES = 2; // Maximum number of times to cycle through all gateways
   
   // Get direct video URL without any processing
   const directUrl = nft.metadata?.animation_url || '';
@@ -26,22 +30,24 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
   const isMobile = isIOS || isAndroid;
   const posterUrl = nft.image || nft.metadata?.image || '';
   
+  // Define multiple IPFS gateways to try
+  const IPFS_GATEWAYS = [
+    'https://cloudflare-ipfs.com/ipfs/',
+    'https://ipfs.io/ipfs/',
+    'https://gateway.pinata.cloud/ipfs/',
+    'https://dweb.link/ipfs/',
+    'https://ipfs.4everland.io/ipfs/',
+    'https://gateway.ipfs.io/ipfs/'
+  ];
+  
   // Enhanced URL handling for a wide range of NFT storage providers
   let videoUrl = directUrl;
   
   // Handle IPFS URLs in various formats
   if (directUrl.includes('ipfs://')) {
-    // Choose the best gateway for each platform
-    if (isAndroid) {
-      // Android often performs better with dweb.link gateway
-      videoUrl = directUrl.replace('ipfs://', 'https://dweb.link/ipfs/');
-    } else if (isIOS) {
-      // iOS often performs better with Cloudflare gateway
-      videoUrl = directUrl.replace('ipfs://', 'https://cloudflare-ipfs.com/ipfs/');
-    } else {
-      // Default for desktop
-      videoUrl = directUrl.replace('ipfs://', 'https://ipfs.io/ipfs/');
-    }
+    // Choose the best gateway for each platform, but also respect fallback state
+    const gateway = IPFS_GATEWAYS[currentGateway];
+    videoUrl = directUrl.replace('ipfs://', gateway);
   } else if (directUrl.includes('ar://')) {
     videoUrl = directUrl.replace('ar://', 'https://arweave.net/');
   } else if (directUrl.includes('nftstorage.link')) {
@@ -51,17 +57,47 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
     // Handle Infura IPFS URLs
     const cid = directUrl.split('/ipfs/')[1];
     if (cid) {
-      videoUrl = `https://ipfs.io/ipfs/${cid}`;
+      const gateway = IPFS_GATEWAYS[currentGateway];
+      videoUrl = `${gateway}${cid}`;
     }
-  } else if (directUrl.includes('cloudflare-ipfs.com')) {
-    // Already using Cloudflare gateway, keep as is
-    videoUrl = directUrl;
-  } else if (directUrl.includes('ipfs.dweb.link')) {
-    // Already using dweb.link gateway, keep as is
-    videoUrl = directUrl;
-  } else if (directUrl.includes('gateway.pinata.cloud')) {
-    // Already using Pinata gateway, keep as is
-    videoUrl = directUrl;
+  } else if (directUrl.includes('cloudflare-ipfs.com') || 
+             directUrl.includes('ipfs.dweb.link') ||
+             directUrl.includes('gateway.pinata.cloud')) {
+    // If already using a gateway but it failed, try the next one
+    if (hasError) {
+      const cid = extractIPFSCID(directUrl);
+      if (cid) {
+        const gateway = IPFS_GATEWAYS[currentGateway];
+        videoUrl = `${gateway}${cid}`;
+      } else {
+        videoUrl = directUrl; // Keep original if CID extraction fails
+      }
+    } else {
+      videoUrl = directUrl; // Keep original for first attempt
+    }
+  }
+  
+  // Extract IPFS CID from various gateway URLs
+  function extractIPFSCID(url: string): string | null {
+    // Common patterns for IPFS URLs
+    const patterns = [
+      /ipfs\/([a-zA-Z0-9]+)/,
+      /ipfs\.io\/ipfs\/([a-zA-Z0-9]+)/,
+      /gateway\.pinata\.cloud\/ipfs\/([a-zA-Z0-9]+)/,
+      /cloudflare-ipfs\.com\/ipfs\/([a-zA-Z0-9]+)/,
+      /dweb\.link\/ipfs\/([a-zA-Z0-9]+)/,
+      /ipfs\.4everland\.io\/ipfs\/([a-zA-Z0-9]+)/,
+      /gateway\.ipfs\.io\/ipfs\/([a-zA-Z0-9]+)/
+    ];
+    
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match && match[1]) {
+        return match[1];
+      }
+    }
+    
+    return null;
   }
   
   // Check if this is a hosted video player URL rather than a direct video file
@@ -73,6 +109,20 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
   useEffect(() => {
     const video = videoRef.current;
     if (!video || isHostedPlayer) return;
+    
+    // Reset video element to prevent previous error states from persisting
+    video.removeAttribute('src');
+    video.load();
+    
+    // Check if we've exceeded max retries
+    if (currentGateway === 0 && retryCount >= MAX_RETRIES) {
+      setHasError(true);
+      if (onError) onError(new Error('Maximum retry attempts reached'));
+      return; // Stop trying after reaching max retries
+    }
+    
+    // Set video URL after cleaning
+    video.src = videoUrl;
     
     // Absolute minimal setup - just the essential attributes
     video.muted = true;
@@ -102,47 +152,66 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
     }
     
     const handleCanPlay = () => {
+      setHasError(false); // Reset error state on successful load
       if (onLoadComplete) onLoadComplete();
     };
     
     const handleError = (e: Event) => {
-      console.error('Video playback error:', e);
+      // Only log the first error for each video
+      if (!hasError) {
+        console.error('Video playback error:', e);
+      }
       
-      // Simple fallback mechanism - try platform-specific fallbacks
-      if (directUrl.includes('ipfs://')) {
-        console.log('Trying fallback IPFS gateway...');
+      // Try the next gateway if this is an IPFS URL
+      if (directUrl.includes('ipfs://') || 
+          directUrl.includes('ipfs.') || 
+          directUrl.includes('/ipfs/')) {
         
-        // Different fallbacks based on platform
-        if (isAndroid) {
-          video.src = directUrl.replace('ipfs://', 'https://ipfs.io/ipfs/');
-        } else if (isIOS) {
-          video.src = directUrl.replace('ipfs://', 'https://gateway.pinata.cloud/ipfs/');
-        } else {
-          video.src = directUrl.replace('ipfs://', 'https://ipfs.io/ipfs/');
+        const nextGateway = (currentGateway + 1) % IPFS_GATEWAYS.length;
+        
+        // If we're cycling back to the first gateway, increment retry count
+        if (nextGateway === 0) {
+          // If we've already hit max retries, give up
+          if (retryCount >= MAX_RETRIES) {
+            setHasError(true);
+            if (onError) onError(new Error('Failed to load video after maximum retries'));
+            return;
+          }
+          
+          // Otherwise increment retry count and continue
+          setRetryCount(retryCount + 1);
         }
         
-        video.load();
+        // Only try the next gateway if we haven't exceeded max retries
+        if (retryCount < MAX_RETRIES) {
+          if (!hasError) {
+            console.log(`Trying gateway ${nextGateway + 1}/${IPFS_GATEWAYS.length} (retry ${retryCount + 1}/${MAX_RETRIES + 1})...`);
+          }
+          setHasError(true);
+          setCurrentGateway(nextGateway);
+        }
         return;
       }
       
-      if (onError) onError(new Error('Video failed to load'));
+      // For non-IPFS URLs, fail gracefully after first attempt
+      if (!hasError) {
+        setHasError(true);
+        if (onError) onError(new Error('Video failed to load'));
+      }
     };
     
     video.addEventListener('canplay', handleCanPlay);
     video.addEventListener('error', handleError);
     
     // Simple one-time play attempt when video element is ready
-    if (video.readyState >= 2) { // HAVE_CURRENT_DATA
-      // For mobile, delay playback slightly to ensure buffer
-      if (isMobile) {
-        setTimeout(() => {
-          video.play().catch(err => {
-            console.log('Initial play failed (expected on mobile):', err.name);
-          });
-        }, 100);
-      } else {
-        video.play().catch(err => {
-          console.log('Initial play failed:', err.name);
+    if (retryCount < MAX_RETRIES) {
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(err => {
+          // Don't log autoplay errors, they're expected
+          if (err.name !== 'NotAllowedError') {
+            console.log('Play failed:', err.name);
+          }
         });
       }
     }
@@ -150,8 +219,15 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
     return () => {
       video.removeEventListener('canplay', handleCanPlay);
       video.removeEventListener('error', handleError);
+      
+      // Cancel any pending play operation when unmounting
+      if (video.src) {
+        video.pause();
+        video.src = '';
+        video.load();
+      }
     };
-  }, [isHostedPlayer, onLoadComplete, onError, videoUrl, directUrl, isMobile, isIOS, isAndroid]);
+  }, [isHostedPlayer, onLoadComplete, onError, videoUrl, directUrl, isMobile, isIOS, isAndroid, hasError, currentGateway, retryCount]);
   
   // Render an iframe for hosted players, or video for direct media
   if (isHostedPlayer) {
@@ -167,11 +243,26 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
     );
   }
   
+  // If we've tried all gateways and still have errors, show a static image fallback
+  if (hasError && (currentGateway === 0 && retryCount >= MAX_RETRIES)) {
+    return (
+      <div className="relative w-full h-full">
+        <img
+          src={posterUrl || "/default-nft.png"}
+          alt={nft.name || "NFT Media"}
+          className="w-full h-full object-cover rounded-md"
+        />
+        <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs py-1 px-2 text-center">
+          Video unavailable
+        </div>
+      </div>
+    );
+  }
+  
   return (
     <video
       ref={videoRef}
       id={`video-${nft.contract}-${nft.tokenId}`}
-      src={videoUrl}
       poster={posterUrl}
       muted
       loop

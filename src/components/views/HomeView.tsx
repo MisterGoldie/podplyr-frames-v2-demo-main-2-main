@@ -136,22 +136,29 @@ const HomeView: React.FC<HomeViewProps> = ({
               <div className="relative">
                 <div className="overflow-x-auto pb-4 hide-scrollbar">
                   <div className="flex gap-4">
-                    {recentlyPlayedNFTs.map((nft, index) => (
-                      <div key={`recently-played-${getMediaKey(nft)}`} className="flex-shrink-0 w-[140px]">
-                        <NFTCard
-                          nft={nft}
-                          onPlay={async (nft) => {
-                            await onPlayNFT(nft);
-                          }}
-                          isPlaying={isPlaying && currentlyPlaying === getMediaKey(nft)}
-                          currentlyPlaying={currentlyPlaying}
-                          handlePlayPause={handlePlayPause}
-                          onLikeToggle={() => onLikeToggle(nft)}
-                          userFid={userFid}
-                        />
-                        <h3 className="font-mono text-white text-sm truncate mt-3">{nft.name}</h3>
-                      </div>
-                    ))}
+                    {recentlyPlayedNFTs.map((nft, index) => {
+                      // Generate strictly unique key that doesn't depend on content
+                      const uniqueKey = nft.contract && nft.tokenId 
+                        ? `recent-${nft.contract}-${nft.tokenId}-${index}` 
+                        : `recent-${index}-${Math.random().toString(36).substr(2, 9)}`;
+                      
+                      return (
+                        <div key={uniqueKey} className="flex-shrink-0 w-[140px]">
+                          <NFTCard
+                            nft={nft}
+                            onPlay={async (nft) => {
+                              await onPlayNFT(nft);
+                            }}
+                            isPlaying={isPlaying && currentlyPlaying === getMediaKey(nft)}
+                            currentlyPlaying={currentlyPlaying}
+                            handlePlayPause={handlePlayPause}
+                            onLikeToggle={() => onLikeToggle(nft)}
+                            userFid={userFid}
+                          />
+                          <h3 className="font-mono text-white text-sm truncate mt-3">{nft.name}</h3>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -167,23 +174,30 @@ const HomeView: React.FC<HomeViewProps> = ({
               <div className="relative">
                 <div className="overflow-x-auto pb-4 hide-scrollbar">
                   <div className="flex gap-6">
-                    {topPlayedNFTs.map(({ nft, count }, index) => (
-                      <div key={`top-played-${getMediaKey(nft)}`} className="flex-shrink-0 w-[200px]">
-                        <NFTCard
-                          nft={nft}
-                          onPlay={async (nft) => {
-                            await onPlayNFT(nft);
-                          }}
-                          isPlaying={isPlaying && currentlyPlaying === getMediaKey(nft)}
-                          currentlyPlaying={currentlyPlaying}
-                          handlePlayPause={handlePlayPause}
-                          onLikeToggle={() => onLikeToggle(nft)}
-                          userFid={userFid}
-                          playCountBadge={`${count} plays`}
-                        />
-                        <h3 className="font-mono text-white text-sm truncate mt-3">{nft.name}</h3>
-                      </div>
-                    ))}
+                    {topPlayedNFTs.map(({ nft, count }, index) => {
+                      // Generate strictly unique key that doesn't depend on content
+                      const uniqueKey = nft.contract && nft.tokenId 
+                        ? `top-${nft.contract}-${nft.tokenId}-${index}` 
+                        : `top-${index}-${Math.random().toString(36).substr(2, 9)}`;
+                      
+                      return (
+                        <div key={uniqueKey} className="flex-shrink-0 w-[200px]">
+                          <NFTCard
+                            nft={nft}
+                            onPlay={async (nft) => {
+                              await onPlayNFT(nft);
+                            }}
+                            isPlaying={isPlaying && currentlyPlaying === getMediaKey(nft)}
+                            currentlyPlaying={currentlyPlaying}
+                            handlePlayPause={handlePlayPause}
+                            onLikeToggle={() => onLikeToggle(nft)}
+                            userFid={userFid}
+                            playCountBadge={`${count} plays`}
+                          />
+                          <h3 className="font-mono text-white text-sm truncate mt-3">{nft.name}</h3>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>

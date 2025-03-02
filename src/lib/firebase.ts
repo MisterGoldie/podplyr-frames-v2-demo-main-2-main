@@ -905,6 +905,18 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
 
 // Toggle NFT like status globally
 export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => {
+  console.log('Starting toggleLikeNFT with NFT:', nft.name, 'and fid:', fid);
+  
+  if (!fid || fid <= 0) {
+    console.error('Invalid fid provided to toggleLikeNFT:', fid);
+    throw new Error('Invalid user ID provided');
+  }
+  
+  if (!nft || !nft.contract || !nft.tokenId) {
+    console.error('Invalid NFT data provided to toggleLikeNFT:', nft);
+    throw new Error('Invalid NFT data provided');
+  }
+  
   try {
     const mediaKey = getMediaKey(nft);
     if (!mediaKey) {
@@ -912,15 +924,28 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
       return false;
     }
     
+    console.log('Using mediaKey for like operation:', mediaKey);
+    
     // Reference to global likes document
     const globalLikeRef = doc(db, 'global_likes', mediaKey);
     const userLikeRef = doc(db, 'users', fid.toString(), 'likes', mediaKey);
     
+    console.log('Document references created:', {
+      globalLikeRef: globalLikeRef.path,
+      userLikeRef: userLikeRef.path
+    });
+    
     // Get both documents in parallel for efficiency
+    console.log('Fetching existing documents...');
     const [userLikeDoc, globalLikeDoc] = await Promise.all([
       getDoc(userLikeRef),
       getDoc(globalLikeRef)
-    ]);
+    ]).catch(error => {
+      console.error('Error fetching documents:', error);
+      throw new Error(`Failed to fetch documents: ${error.message}`);
+    });
+    
+    console.log('Document fetch complete. User like exists:', userLikeDoc.exists(), 'Global like exists:', globalLikeDoc.exists());
     
     const batch = writeBatch(db);
     
@@ -1034,12 +1059,28 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
         });
       }
       
-      await batch.commit();
-      console.log('Added like:', { mediaKey });
-      return true;
+      console.log('Prepared batch with all operations, ready to commit');
+      try {
+        await batch.commit();
+        console.log('Added like:', { mediaKey });
+        return true;
+      } catch (commitError: unknown) {
+        console.error('Error committing batch for like operation:', commitError);
+        if (commitError instanceof Error) {
+          throw new Error(`Failed to commit like operation: ${commitError.message}`);
+        } else {
+          throw new Error('Failed to commit like operation: Unknown error');
+        }
+      }
     }
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error toggling NFT like:', error);
+    // Log additional details about the error
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+    }
+    // Return false but don't rethrow to avoid breaking the UI
     return false;
   }
 };

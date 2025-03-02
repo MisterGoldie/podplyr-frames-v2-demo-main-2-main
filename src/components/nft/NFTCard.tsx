@@ -26,6 +26,7 @@ interface NFTCardProps {
   useCenteredPlay?: boolean;
   isLibraryView?: boolean;
   userFid?: number;
+  isNFTLiked?: (nft: NFT) => boolean;
 }
 
 export const NFTCard: React.FC<NFTCardProps> = ({ 
@@ -44,12 +45,16 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   showTitleOverlay = false,
   useCenteredPlay = false,
   isLibraryView = false,
-  userFid = 0
+  userFid = 0,
+  isNFTLiked
 }) => {
   // Get like state based on context - if we're in library view, NFT is always liked
-  const { isLiked: likeState, likesCount: globalLikesCount } = useNFTLikeState(nft, userFid || 0);
-  const isLiked = isLibraryView ? true : likeState; // In library view, always show as liked
-  const likesCount = isLibraryView ? Math.max(1, globalLikesCount) : globalLikesCount; // In library view, ensure at least 1 like
+  const { isLiked: likeStateFromHook, likesCount: globalLikesCount } = useNFTLikeState(nft, userFid || 0);
+  
+  // Use the prop if provided, otherwise use the hook
+  const isLiked = isNFTLiked ? isNFTLiked(nft) : likeStateFromHook;
+  // In library view, ensure at least 1 like
+  const likesCount = isLibraryView ? Math.max(1, globalLikesCount) : globalLikesCount;
   
   // Get real-time play count
   const { playCount } = useNFTPlayCount(nft);
@@ -226,14 +231,28 @@ export const NFTCard: React.FC<NFTCardProps> = ({
           `absolute inset-0 bg-black/20 transition-all duration-1000 ease-in-out ${showOverlay ? 'opacity-100' : 'opacity-0'}` : 
           'absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200'
         } />
-        {onLikeToggle && userFid && userFid > 0 ? (
+        {onLikeToggle ? (
           <button 
             onClick={async (e) => {
               e.stopPropagation();
-              await onLikeToggle(nft);
+              console.log('Like button clicked for NFT:', nft.name, 'userFid:', userFid, 'Full NFT data:', JSON.stringify(nft, null, 2));
+              
+              if (!userFid || userFid <= 0) {
+                console.error('Invalid userFid:', userFid, 'Cannot toggle like without a valid user.');
+                return;
+              }
+              
+              try {
+                await onLikeToggle(nft);
+                console.log('Like toggle operation completed successfully');
+              } catch (error) {
+                console.error('Error in like toggle operation:', error);
+              }
+              
               if (e) startOverlayTimer(e);
             }}
-            className="absolute top-2 right-2 text-red-500 transition-all duration-300 hover:scale-125 z-10"
+            className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center text-red-500 transition-all duration-300 hover:scale-125 z-10"
+            aria-label="Toggle like"
           >
             {isLiked ? (
               <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">

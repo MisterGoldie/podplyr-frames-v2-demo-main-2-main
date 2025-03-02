@@ -1,7 +1,6 @@
 import React from 'react';
 import { NFT } from '../../types/user';
 import { NFTCard } from './NFTCard';
-import { getMediaKey } from '../../utils/media';
 import { useVirtualizedNFTs } from '../../hooks/useVirtualizedNFTs';
 
 interface VirtualizedNFTGridProps {
@@ -13,6 +12,9 @@ interface VirtualizedNFTGridProps {
   publicCollections: string[];
   addToPublicCollection?: (nft: NFT, collectionId: string) => void;
   removeFromPublicCollection?: (nft: NFT, collectionId: string) => void;
+  onLikeToggle?: (nft: NFT) => Promise<void>;
+  isNFTLiked?: (nft: NFT, ignoreCurrentPage?: boolean) => boolean;
+  userFid?: number;
 }
 
 export const VirtualizedNFTGrid: React.FC<VirtualizedNFTGridProps> = ({
@@ -24,18 +26,21 @@ export const VirtualizedNFTGrid: React.FC<VirtualizedNFTGridProps> = ({
   publicCollections,
   addToPublicCollection,
   removeFromPublicCollection,
+  onLikeToggle,
+  isNFTLiked,
+  userFid,
 }) => {
   const { visibleNFTs, isLoadingMore, hasMore } = useVirtualizedNFTs(nfts);
 
-  const generateUniqueNFTKey = (nft: NFT) => {
-    return getMediaKey(nft);
-  };
+  // Log the number of NFTs for debugging
+  console.log('Rendering VirtualizedNFTGrid with', visibleNFTs.length, 'NFTs');
 
   return (
     <>
-      {visibleNFTs.map((nft, index) => (
+      {visibleNFTs.map((nft: any) => (
         <NFTCard
-          key={generateUniqueNFTKey(nft)}
+          // Use the guaranteed unique random ID directly
+          key={nft._uniqueReactId || `fallback_${Math.random().toString(36).substring(2, 11)}`}
           nft={nft}
           onPlay={async (nft) => {
             await onPlayNFT(nft);
@@ -48,6 +53,9 @@ export const VirtualizedNFTGrid: React.FC<VirtualizedNFTGridProps> = ({
           onRemoveFromCollection={removeFromPublicCollection}
           showTitleOverlay={true}
           useCenteredPlay={true}
+          onLikeToggle={onLikeToggle}
+          userFid={userFid}
+          isNFTLiked={isNFTLiked ? (nftToCheck: NFT) => isNFTLiked(nftToCheck, false) : undefined}
         />
       ))}
       

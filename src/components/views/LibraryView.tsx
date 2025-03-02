@@ -39,7 +39,6 @@ class SimpleNFTCard extends React.Component<SimpleNFTCardProps> {
     if (viewMode === 'grid') {
       return (
         <div 
-          key={getMediaKey(nft)}
           className="group relative bg-gradient-to-br from-gray-800/30 to-gray-800/10 rounded-lg overflow-hidden hover:bg-gray-800/40 active:bg-gray-800/60 transition-all duration-500 ease-in-out touch-manipulation shadow-xl shadow-purple-900/30 border border-purple-400/10 cursor-pointer"
           onClick={() => onPlay(nft)}
         >
@@ -316,17 +315,24 @@ class LibraryView extends React.Component<LibraryViewProps> {
             <div 
               className={`px-4 pb-32 ${viewMode === 'grid' ? 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4' : 'space-y-4'}`}
             >
-              {filteredNFTs.map((nft) => (
-                <SimpleNFTCard
-                  key={getMediaKey(nft)}
-                  nft={nft}
-                  onPlay={handlePlayAudio}
-                  isPlaying={isPlaying}
-                  currentlyPlaying={currentlyPlaying}
-                  onLikeToggle={onLikeToggle}
-                  viewMode={viewMode}
-                />
-              ))}
+              {filteredNFTs.map((nft, index) => {
+                // Generate a guaranteed unique key that doesn't rely on media content
+                const uniqueKey = nft.contract && nft.tokenId 
+                  ? `library-${nft.contract}-${nft.tokenId}-${index}` 
+                  : `library-${index}-${Math.random().toString(36).substr(2, 9)}`;
+                
+                return (
+                  <SimpleNFTCard
+                    key={uniqueKey}
+                    nft={nft}
+                    onPlay={handlePlayAudio}
+                    isPlaying={isPlaying}
+                    currentlyPlaying={currentlyPlaying}
+                    onLikeToggle={onLikeToggle}
+                    viewMode={viewMode}
+                  />
+                );
+              })}
             </div>
           )}
         </div>
