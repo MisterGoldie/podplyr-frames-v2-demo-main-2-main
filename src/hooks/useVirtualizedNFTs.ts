@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { NFT } from '../types/user';
 
-const INITIAL_LOAD = 20;
-const BATCH_SIZE = 12;
-const THRESHOLD = 400; // pixels from bottom to trigger load
+// These constants control the NFT loading behavior
+const INITIAL_LOAD = 24; // Increased initial load to show more NFTs at once 
+const BATCH_SIZE = 24; // Double the batch size for more NFTs per load
+const THRESHOLD = 1200; // Much larger threshold to trigger loading sooner
 
 // Create an interface that extends NFT with a truly unique random ID for React keys
 interface IndexedNFT extends NFT {
@@ -22,19 +23,36 @@ export const useVirtualizedNFTs = (allNFTs: NFT[]) => {
   // Initialize with first batch and reset loading state
   useEffect(() => {
     // Add a completely random unique ID to each NFT for guaranteed unique React keys
-    const indexedInitialBatch = allNFTs.slice(0, INITIAL_LOAD).map((nft) => ({
+    const initialLoadCount = Math.min(INITIAL_LOAD, allNFTs.length);
+    console.log(`Loading initial ${initialLoadCount} NFTs out of ${allNFTs.length} total`);
+    
+    const indexedInitialBatch = allNFTs.slice(0, initialLoadCount).map((nft) => ({
       ...nft,
       _uniqueReactId: generateUniqueId() // Add a random unique ID 
     }));
     
     setVisibleNFTs(indexedInitialBatch);
     setIsLoadingMore(false);
+    
+    // Force repeated scroll events to ensure more content loads
+    const triggerScrolls = () => {
+      window.dispatchEvent(new Event('scroll'));
+      
+      // If we haven't loaded everything, trigger another scroll soon
+      if (initialLoadCount < allNFTs.length) {
+        setTimeout(triggerScrolls, 800);
+      }
+    };
+    
+    // Start triggering scrolls after initial render
+    setTimeout(triggerScrolls, 500);
   }, [allNFTs]);
 
   const loadMoreNFTs = useCallback(() => {
     if (isLoadingMore || visibleNFTs.length >= allNFTs.length) return;
 
     setIsLoadingMore(true);
+    console.log(`Loading more NFTs: ${visibleNFTs.length} -> ${Math.min(visibleNFTs.length + BATCH_SIZE, allNFTs.length)}`);
     
     // Get next batch and add COMPLETELY RANDOM IDs to each NFT
     const nextBatch = allNFTs.slice(
@@ -75,6 +93,7 @@ export const useVirtualizedNFTs = (allNFTs: NFT[]) => {
   return {
     visibleNFTs,
     isLoadingMore,
-    hasMore: visibleNFTs.length < allNFTs.length
+    hasMore: visibleNFTs.length < allNFTs.length,
+    loadMoreNFTs
   };
 };

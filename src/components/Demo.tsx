@@ -540,12 +540,28 @@ const Demo: React.FC = () => {
                 throw new Error('No NFTs returned');
               }
               
-              // Add logging for debugging NFT count issues
-              console.log(`==== NFT COUNT DEBUGGING ====`);
-              console.log(`Total NFTs from API for ${user.username}:`, nfts.length);
-              console.log(`NFTs with audio:`, nfts.filter(nft => nft.hasValidAudio).length);
-              console.log(`NFTs with video:`, nfts.filter(nft => nft.isVideo).length);
-              console.log(`================================`);
+              // Enhanced debugging for NFT count issues
+              console.log(`==== ENHANCED NFT COUNT DEBUGGING ====`);
+              console.log(`Total raw NFTs from API for ${user.username}:`, nfts.length);
+              
+              // Count by media type
+              const audioNFTs = nfts.filter(nft => nft.hasValidAudio).length;
+              const videoNFTs = nfts.filter(nft => nft.isVideo).length;
+              const bothTypes = nfts.filter(nft => nft.hasValidAudio && nft.isVideo).length; 
+              
+              console.log(`NFTs with audio:`, audioNFTs);
+              console.log(`NFTs with video:`, videoNFTs);
+              console.log(`NFTs with both audio+video:`, bothTypes);
+              console.log(`Total media NFTs (audio+video-both):`, audioNFTs + videoNFTs - bothTypes);
+              console.log(`=== CONTRACT ADDRESSES ===`);
+              const contractCounts: Record<string, number> = {};
+              nfts.forEach(nft => {
+                if (nft.contract) {
+                  contractCounts[nft.contract] = (contractCounts[nft.contract] || 0) + 1;
+                }
+              });
+              console.log(contractCounts);
+              console.log(`========================================`);
               
               // Cache the NFTs for future use
               cacheNFTs(user.fid, nfts);
@@ -995,16 +1011,30 @@ const Demo: React.FC = () => {
     setIsLoading(true);
     try {
       // Load NFTs for this user directly from Farcaster API/database
-      // You'll need to identify which function handles loading NFTs for a user
-      // For example, you might have something like:
-      const nfts = await fetchUserNFTs(user.fid);  // Replace with your actual NFT loading function
+      const nfts = await fetchUserNFTs(user.fid);
       
-      // Add logging for debugging NFT count issues
-      console.log(`==== NFT COUNT DEBUGGING ====`);
-      console.log(`Total NFTs from API for ${user.username}:`, nfts.length);
-      console.log(`NFTs with audio:`, nfts.filter(nft => nft.hasValidAudio).length);
-      console.log(`NFTs with video:`, nfts.filter(nft => nft.isVideo).length);
-      console.log(`================================`);
+      // Enhanced debugging for NFT count issues
+      console.log(`==== ENHANCED NFT COUNT DEBUGGING ====`);
+      console.log(`Total raw NFTs from API for ${user.username}:`, nfts.length);
+      
+      // Count by media type
+      const audioNFTs = nfts.filter(nft => nft.hasValidAudio).length;
+      const videoNFTs = nfts.filter(nft => nft.isVideo).length;
+      const bothTypes = nfts.filter(nft => nft.hasValidAudio && nft.isVideo).length; 
+      
+      console.log(`NFTs with audio:`, audioNFTs);
+      console.log(`NFTs with video:`, videoNFTs);
+      console.log(`NFTs with both audio+video:`, bothTypes);
+      console.log(`Total media NFTs (audio+video-both):`, audioNFTs + videoNFTs - bothTypes);
+      console.log(`=== CONTRACT ADDRESSES ===`);
+      const contractCounts: Record<string, number> = {};
+      nfts.forEach(nft => {
+        if (nft.contract) {
+          contractCounts[nft.contract] = (contractCounts[nft.contract] || 0) + 1;
+        }
+      });
+      console.log(contractCounts);
+      console.log(`========================================`);
       
       setUserNFTs(nfts);
       setFilteredNFTs(nfts);
