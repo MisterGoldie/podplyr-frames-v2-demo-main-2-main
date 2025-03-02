@@ -24,15 +24,29 @@ const NotificationHeader: React.FC<NotificationHeaderProps> = ({
   icon,
   logo = '/fontlogo.png',
 }) => {
-  const [isVisible, setIsVisible] = useState(show);
+  // Use separate states for background and content to stagger transitions
+  const [isBackgroundVisible, setIsBackgroundVisible] = useState(show);
+  const [isContentVisible, setIsContentVisible] = useState(show);
   
-  // Handle auto-hide functionality
+  // Smoother transition handling with staggered timing
   useEffect(() => {
-    setIsVisible(show);
-    
-    if (show && autoHideDuration) {
+    if (show) {
+      // When showing, change background first, then content
+      setIsBackgroundVisible(true);
+      const timer = setTimeout(() => setIsContentVisible(true), 50);
+      return () => clearTimeout(timer);
+    } else {
+      // When hiding, change content first, then background
+      setIsContentVisible(false);
+      const timer = setTimeout(() => setIsBackgroundVisible(false), 200);
+      return () => clearTimeout(timer);
+    }
+  }, [show]);
+  
+  // Auto-hide functionality
+  useEffect(() => {
+    if (show && autoHideDuration && autoHideDuration > 0) {
       const timer = setTimeout(() => {
-        setIsVisible(false);
         if (onHide) onHide();
       }, autoHideDuration);
       
@@ -94,33 +108,45 @@ const NotificationHeader: React.FC<NotificationHeaderProps> = ({
 
   return (
     <header 
-      className={`fixed top-0 left-0 right-0 h-16 flex items-center justify-center z-50 transition-all duration-500 ease-in-out ${
-        isVisible ? getStyles() : 'bg-black border-b border-black'
+      className={`fixed top-0 left-0 right-0 h-16 flex items-center justify-center z-50 transition-all duration-700 ease-out ${
+        isBackgroundVisible ? getStyles() : 'bg-black border-b border-black'
       }`}
     >
-      {/* Logo - hidden when notification is showing */}
-      <div className={`transition-all duration-500 ease-in-out ${
-        isVisible ? 'opacity-0 scale-95 absolute' : 'opacity-100 scale-100'
-      }`}>
-        <Image
-          src={logo}
-          alt="PODPlayr Logo"
-          width={120}
-          height={30}
-          className="logo-image"
-          priority={true}
-        />
-      </div>
-      
-      {/* Notification content */}
-      <div className={`flex items-center justify-center transition-all duration-500 ease-in-out ${
-        isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95 absolute'
-      }`}>
-        <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
-          {icon || getDefaultIcon()}
+      {/* Use a wrapper div to prevent layout shift */}
+      <div className="relative w-full h-full flex items-center justify-center">
+        {/* Logo with improved transitions */}
+        <div 
+          className={`absolute transition-all duration-500 ease-in-out transform ${
+            isContentVisible 
+              ? 'opacity-0 translate-y-[-10px]' 
+              : 'opacity-100 translate-y-0'
+          }`}
+        >
+          <Image
+            src={logo}
+            alt="PODPlayr Logo"
+            width={120}
+            height={30}
+            className="logo-image"
+            priority={true}
+          />
         </div>
-        <div className="text-white ml-3 text-lg">
-          {message} {highlightText && <span className="font-semibold">{highlightText}</span>}
+        
+        {/* Notification content with improved transitions */}
+        <div 
+          className={`flex items-center justify-center transition-all duration-500 ease-in-out transform ${
+            isContentVisible 
+              ? 'opacity-100 translate-y-0' 
+              : 'opacity-0 translate-y-[10px] pointer-events-none'
+          }`}
+          style={{ willChange: 'transform, opacity' }}
+        >
+          <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center mr-3">
+            {icon || getDefaultIcon()}
+          </div>
+          <div className="text-white text-lg">
+            {message} {highlightText && <span className="font-semibold">{highlightText}</span>}
+          </div>
         </div>
       </div>
     </header>
