@@ -63,13 +63,22 @@ const HomeView: React.FC<HomeViewProps> = ({
   // Preload all NFT images
   useNFTPreloader(allNFTs);
 
+  // Directly check if an NFT is liked by comparing against likedNFTs prop
+  // This is more reliable than depending on context or hooks
+  const checkDirectlyLiked = (nftToCheck: NFT): boolean => {
+    if (!nftToCheck || !nftToCheck.contract || !nftToCheck.tokenId) return false;
+    
+    const nftKey = `${nftToCheck.contract}-${nftToCheck.tokenId}`.toLowerCase();
+    
+    // Direct comparison with likedNFTs prop from Demo.tsx
+    return likedNFTs.some(likedNFT => 
+      `${likedNFT.contract}-${likedNFT.tokenId}`.toLowerCase() === nftKey
+    );
+  };
+
   // Get user's FID from context
   const { fid: userFid = 0 } = useContext(FarcasterContext);
 
-  const isNFTLiked = (nft: NFT): boolean => {
-    const nftMediaKey = getMediaKey(nft);
-    return likedNFTs.some(item => getMediaKey(item) === nftMediaKey);
-  };
   if (isLoading) {
     return (
       <>
@@ -162,7 +171,7 @@ const HomeView: React.FC<HomeViewProps> = ({
                             handlePlayPause={handlePlayPause}
                             onLikeToggle={() => onLikeToggle(nft)}
                             userFid={userFid}
-                            isNFTLiked={(nftToCheck) => isNFTLiked(nftToCheck)}
+                            isNFTLiked={() => checkDirectlyLiked(nft)}
                           />
                           <h3 className="font-mono text-white text-sm truncate mt-3">{nft.name}</h3>
                         </div>
@@ -201,7 +210,7 @@ const HomeView: React.FC<HomeViewProps> = ({
                             handlePlayPause={handlePlayPause}
                             onLikeToggle={() => onLikeToggle(nft)}
                             userFid={userFid}
-                            isNFTLiked={(nftToCheck) => isNFTLiked(nftToCheck)}
+                            isNFTLiked={() => checkDirectlyLiked(nft)}
                             playCountBadge={`${count} plays`}
                           />
                           <h3 className="font-mono text-white text-sm truncate mt-3">{nft.name}</h3>
@@ -223,7 +232,7 @@ const HomeView: React.FC<HomeViewProps> = ({
             currentlyPlaying={currentlyPlaying}
             isPlaying={isPlaying}
             onLikeToggle={onLikeToggle}
-            isNFTLiked={isNFTLiked}
+            isNFTLiked={checkDirectlyLiked}
             userFid={String(userFid)}
           />
         </section>

@@ -388,6 +388,32 @@ const Demo: React.FC = () => {
     }
   };
 
+  // For debugging like status issues
+  const debugLikeStatus = (nft: NFT) => {
+    if (!nft || !nft.contract || !nft.tokenId) {
+      console.log('❌ Cannot debug like status: Invalid NFT');
+      return;
+    }
+    
+    const nftKey = `${nft.contract}-${nft.tokenId}`.toLowerCase();
+    console.log(`🔍 Debugging like status for NFT: ${nft.name}`);
+    console.log(`NFT Key: ${nftKey}`);
+    console.log(`Current liked NFTs count: ${likedNFTs.length}`);
+    
+    if (likedNFTs.length > 0) {
+      console.log('Checking against each liked NFT:');
+      likedNFTs.forEach((likedNFT, index) => {
+        const likedKey = `${likedNFT.contract}-${likedNFT.tokenId}`.toLowerCase();
+        console.log(`${index}: ${likedNFT.name} | Key: ${likedKey} | Match: ${likedKey === nftKey}`);
+      });
+    } else {
+      console.log('No liked NFTs to check against');
+    }
+    
+    const isLiked = isNFTLiked(nft, true);
+    console.log(`Final like status: ${isLiked}`);
+  };
+
   const handleLikeToggle = async (nft: NFT) => {
     console.log('⭐ handleLikeToggle called with:', { 
       nftName: nft.name, 
@@ -402,6 +428,10 @@ const Demo: React.FC = () => {
       return;
     }
     
+    // Debug like status before update
+    console.log('BEFORE LIKE TOGGLE:');
+    debugLikeStatus(nft);
+    
     try {
       console.log('📝 Calling toggleLikeNFT...');
       // toggleLikeNFT will update both global_likes and user's likes collection
@@ -414,7 +444,24 @@ const Demo: React.FC = () => {
       // This ensures the like state is immediately visible on all pages
       console.log('🔄 Refreshing liked NFTs list...');
       const updatedLikedNFTs = await getLikedNFTs(userFid);
+      
+      // Check if the NFT is actually in the updated list
+      if (wasLiked) {
+        const nftKey = `${nft.contract}-${nft.tokenId}`.toLowerCase();
+        const isInUpdatedList = updatedLikedNFTs.some(item => 
+          `${item.contract}-${item.tokenId}`.toLowerCase() === nftKey
+        );
+        
+        if (!isInUpdatedList) {
+          console.warn('⚠️ NFT was liked but not found in updated liked NFTs list!');
+        }
+      }
+      
       setLikedNFTs(updatedLikedNFTs);
+      
+      // Debug like status after update
+      console.log('AFTER LIKE TOGGLE:');
+      setTimeout(() => debugLikeStatus(nft), 500); // Small delay to let state update
     } catch (error) {
       console.error('❌ Error toggling like:', error);
       setError('Failed to update liked status');

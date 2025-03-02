@@ -53,6 +53,16 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   
   // Use the prop if provided, otherwise use the hook
   const isLiked = isNFTLiked ? isNFTLiked(nft) : likeStateFromHook;
+  
+  // Log to debug like status
+  useEffect(() => {
+    if (isNFTLiked) {
+      console.log(`NFT "${nft.name}" liked status from prop:`, isNFTLiked(nft));
+    } else {
+      console.log(`NFT "${nft.name}" liked status from hook:`, likeStateFromHook);
+    }
+  }, [nft, isNFTLiked, likeStateFromHook]);
+  
   // In library view, ensure at least 1 like
   const likesCount = isLibraryView ? Math.max(1, globalLikesCount) : globalLikesCount;
   
