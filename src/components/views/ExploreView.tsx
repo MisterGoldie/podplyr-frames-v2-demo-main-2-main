@@ -262,10 +262,6 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                   {!isLoadingNFTs && (
                     <p className="font-mono text-sm text-gray-500">
                       Total Media NFTs: {nfts.length}
-                      <br/>
-                      <span className="text-green-400">
-                        ↓ Scroll down or use the LOAD MORE button ↓
-                      </span>
                     </p>
                   )}
                 </div>
