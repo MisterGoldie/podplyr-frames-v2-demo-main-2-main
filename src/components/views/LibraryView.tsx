@@ -29,19 +29,28 @@ interface SimpleNFTCardProps {
   currentlyPlaying: string | null;
   onLikeToggle: (nft: NFT) => Promise<void>;
   viewMode: 'grid' | 'list';
+  animationDelay?: number;
 }
 
 // This is a simple component that doesn't use hooks
 class SimpleNFTCard extends React.Component<SimpleNFTCardProps> {
   render() {
-    const { nft, onPlay, isPlaying, currentlyPlaying, onLikeToggle, viewMode } = this.props;
+    const { nft, onPlay, isPlaying, currentlyPlaying, onLikeToggle, viewMode, animationDelay = 0 } = this.props;
     const isCurrentTrack = currentlyPlaying === getMediaKey(nft);
+
+    // Add animation styles
+    const animationStyle = {
+      opacity: 0,
+      transform: 'translateY(20px)',
+      animation: `fadeInUp 0.5s ease-out ${animationDelay}s forwards`
+    };
 
     if (viewMode === 'grid') {
       return (
         <div 
           className="group relative bg-gradient-to-br from-gray-800/30 to-gray-800/10 rounded-lg overflow-hidden hover:bg-gray-800/40 active:bg-gray-800/60 transition-all duration-500 ease-in-out touch-manipulation shadow-xl shadow-purple-900/30 border border-purple-400/10 cursor-pointer"
           onClick={() => onPlay(nft)}
+          style={animationStyle}
         >
           <div className="aspect-square relative">
             <NFTImage
@@ -77,6 +86,7 @@ class SimpleNFTCard extends React.Component<SimpleNFTCardProps> {
       return (
         <div 
           className="bg-gray-800/30 rounded-lg p-3 flex items-center gap-4 group hover:bg-gray-800/50 transition-colors"
+          style={animationStyle}
         >
           {/* Thumbnail */}
           <div className="w-12 h-12 rounded-md overflow-hidden flex-shrink-0">
@@ -212,8 +222,24 @@ class LibraryView extends React.Component<LibraryViewProps> {
     const uniqueNFTs = this.getUniqueNFTs();
     const filteredNFTs = this.getFilteredNFTs();
 
+    // Add the keyframes style to the component
+    const animationKeyframes = `
+      @keyframes fadeInUp {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+    `;
+
     return (
       <>
+        <style>{animationKeyframes}</style>
+
         <NotificationHeader
           show={showUnlikeNotification}
           onHide={() => this.setState({ showUnlikeNotification: false })}
@@ -328,10 +354,13 @@ class LibraryView extends React.Component<LibraryViewProps> {
               className={`px-4 pb-32 ${viewMode === 'grid' ? 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4' : 'space-y-4'}`}
             >
               {filteredNFTs.map((nft, index) => {
-                // Generate a guaranteed unique key that doesn't rely on media content
                 const uniqueKey = nft.contract && nft.tokenId 
                   ? `library-${nft.contract}-${nft.tokenId}-${index}` 
                   : `library-${index}-${Math.random().toString(36).substr(2, 9)}`;
+                
+                // Calculate a staggered delay based on index
+                // This creates a wave-like appearance as cards animate in
+                const staggerDelay = 0.05 * (index % 8); // Reset every 8 items to keep delays reasonable
                 
                 return (
                   <SimpleNFTCard
@@ -342,6 +371,7 @@ class LibraryView extends React.Component<LibraryViewProps> {
                     currentlyPlaying={currentlyPlaying}
                     onLikeToggle={onLikeToggle}
                     viewMode={viewMode}
+                    animationDelay={staggerDelay} // Pass the staggered delay
                   />
                 );
               })}
