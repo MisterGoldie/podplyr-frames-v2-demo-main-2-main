@@ -36,7 +36,7 @@ const HomeView: React.FC<HomeViewProps> = ({
   likedNFTs
 }) => {
   const [showLikeNotification, setShowLikeNotification] = useState(false);
-  const [likedNFTName, setLikedNFTName] = useState('');
+  const [isAnimating, setIsAnimating] = useState(false);
 
   // Initialize featured NFTs once on mount
   useEffect(() => {
@@ -84,18 +84,28 @@ const HomeView: React.FC<HomeViewProps> = ({
 
   // Create a wrapper for the existing like function that also shows the notification
   const handleNFTLike = async (nft: NFT): Promise<void> => {
-    // First call the original like function (if it exists in props)
+    // First call the original like function
     if (onLikeToggle) {
       await onLikeToggle(nft);
     }
     
-    // Then show the notification using our local state
-    setLikedNFTName(nft.name || 'NFT');
+    // Don't trigger a new animation if one is already running
+    if (isAnimating) return;
+    
+    // Start animation sequence
+    setIsAnimating(true);
+    
+    // Show notification
     setShowLikeNotification(true);
     
-    // Hide after 3 seconds
+    // Hide after specified duration
     setTimeout(() => {
       setShowLikeNotification(false);
+      
+      // Allow new animations after a buffer period for fade-out
+      setTimeout(() => {
+        setIsAnimating(false);
+      }, 700); // Match this to the duration in NotificationHeader (700ms)
     }, 3000);
   };
 
@@ -158,16 +168,17 @@ const HomeView: React.FC<HomeViewProps> = ({
       </header>
       <div className="space-y-8 pt-20 pb-40 overflow-y-auto h-screen overscroll-y-contain">
         {/* Blue notification for liking NFTs on the Home page */}
-        {showLikeNotification && (
-          <NotificationHeader
-            show={showLikeNotification}
-            onHide={() => setShowLikeNotification(false)}
-            type="info" // Blue color
-            message="Added to library:"
-            highlightText={likedNFTName}
-            autoHideDuration={3000}
-          />
-        )}
+        <NotificationHeader
+          show={showLikeNotification}
+          onHide={() => {
+            setShowLikeNotification(false);
+            // Add buffer time before allowing new animations
+            setTimeout(() => setIsAnimating(false), 700);
+          }}
+          type="info"
+          message="Added to library"
+          autoHideDuration={3000}
+        />
 
         {/* Recently Played Section */}
         <section>
@@ -201,7 +212,7 @@ const HomeView: React.FC<HomeViewProps> = ({
                             isPlaying={isPlaying && currentlyPlaying === getMediaKey(nft)}
                             currentlyPlaying={currentlyPlaying}
                             handlePlayPause={handlePlayPause}
-                            onLikeToggle={() => onLikeToggle(nft)}
+                            onLikeToggle={() => handleNFTLike(nft)}
                             userFid={userFid}
                             isNFTLiked={() => checkDirectlyLiked(nft)}
                           />
@@ -240,7 +251,7 @@ const HomeView: React.FC<HomeViewProps> = ({
                             isPlaying={isPlaying && currentlyPlaying === getMediaKey(nft)}
                             currentlyPlaying={currentlyPlaying}
                             handlePlayPause={handlePlayPause}
-                            onLikeToggle={() => onLikeToggle(nft)}
+                            onLikeToggle={() => handleNFTLike(nft)}
                             userFid={userFid}
                             isNFTLiked={() => checkDirectlyLiked(nft)}
                             playCountBadge={`${count} plays`}
