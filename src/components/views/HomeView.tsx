@@ -136,11 +136,19 @@ const HomeView: React.FC<HomeViewProps> = ({
               <div className="relative">
                 <div className="overflow-x-auto pb-4 hide-scrollbar">
                   <div className="flex gap-4">
-                    {recentlyPlayedNFTs.map((nft, index) => {
+                    {/* Extra deduplicate by contract+tokenId to ensure no duplicates */}
+                    {recentlyPlayedNFTs
+                      .filter((nft, index, self) => {
+                        const key = `${nft.contract}-${nft.tokenId}`.toLowerCase();
+                        return index === self.findIndex(n => 
+                          `${n.contract}-${n.tokenId}`.toLowerCase() === key
+                        );
+                      })
+                      .map((nft, index) => {
                       // Generate strictly unique key that doesn't depend on content
                       const uniqueKey = nft.contract && nft.tokenId 
-                        ? `recent-${nft.contract}-${nft.tokenId}-${index}` 
-                        : `recent-${index}-${Math.random().toString(36).substr(2, 9)}`;
+                        ? `recent-${nft.contract.toLowerCase()}-${nft.tokenId}` 
+                        : `recent-fallback-${index}-${Math.random().toString(36).substring(2, 9)}`;
                       
                       return (
                         <div key={uniqueKey} className="flex-shrink-0 w-[140px]">

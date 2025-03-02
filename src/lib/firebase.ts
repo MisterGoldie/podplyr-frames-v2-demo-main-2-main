@@ -1098,7 +1098,8 @@ export const subscribeToRecentPlays = (fid: number, callback: (nfts: NFT[]) => v
     // Process each play history entry
     for (const playDoc of snapshot.docs) {
       const playData = playDoc.data();
-      const nftKey = `${playData.nftContract}-${playData.tokenId}`;
+      // Create a unique and consistent key using contract and tokenId
+      const nftKey = `${playData.nftContract}-${playData.tokenId}`.toLowerCase();
       
       // Skip if we've already seen this NFT
       if (seenKeys.has(nftKey)) continue;
@@ -1125,8 +1126,8 @@ export const subscribeToRecentPlays = (fid: number, callback: (nfts: NFT[]) => v
       };
       recentNFTs.push(nft);
 
-      // Stop after we have 6 unique NFTs
-      if (recentNFTs.length >= 6) break;
+      // Show 8 unique NFTs, consistent with fetchRecentlyPlayed
+      if (recentNFTs.length >= 8) break;
     }
 
     callback(recentNFTs);

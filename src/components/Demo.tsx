@@ -78,6 +78,37 @@ const Demo: React.FC = () => {
   const [isInitialPlay, setIsInitialPlay] = useState(false);
 
   const [recentlyPlayedNFTs, setRecentlyPlayedNFTs] = useState<NFT[]>([]);
+  // Track the most recently played NFT to prevent duplicates from Firebase subscription
+  const recentlyAddedNFT = useRef<string | null>(null);
+  
+  // Automatically deduplicate the recently played NFTs whenever they change
+  useEffect(() => {
+    // Add a short delay to allow both updates to come in
+    const timeoutId = setTimeout(() => {
+      // Deduplicate NFTs based on contract and tokenId
+      const uniqueNFTs = recentlyPlayedNFTs.reduce((acc: NFT[], nft) => {
+        const key = `${nft.contract}-${nft.tokenId}`.toLowerCase();
+        const exists = acc.some(item => 
+          `${item.contract}-${item.tokenId}`.toLowerCase() === key
+        );
+        if (!exists) {
+          acc.push(nft);
+        } else {
+          console.log('Removing duplicate NFT from recently played:', nft.name);
+        }
+        return acc;
+      }, []);
+      
+      // Only update if we found duplicates
+      if (uniqueNFTs.length !== recentlyPlayedNFTs.length) {
+        console.log('Deduplicating recently played NFTs:', recentlyPlayedNFTs.length, '->', uniqueNFTs.length);
+        setRecentlyPlayedNFTs(uniqueNFTs);
+      }
+    }, 100);
+    
+    return () => clearTimeout(timeoutId);
+  }, [recentlyPlayedNFTs]);
+  
   const { topPlayed: topPlayedNFTs, loading: topPlayedLoading } = useTopPlayedNFTs();
   const [searchResults, setSearchResults] = useState<FarcasterUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<FarcasterUser | null>(null);
@@ -147,7 +178,8 @@ const Demo: React.FC = () => {
     audioRef
   } = useAudioPlayer({ 
     fid: userFid,
-    setRecentlyPlayedNFTs 
+    setRecentlyPlayedNFTs,
+    recentlyAddedNFT 
   });
 
   useEffect(() => {
@@ -166,6 +198,17 @@ const Demo: React.FC = () => {
         // Subscribe to recently played NFTs
         if (userFid) {
           const unsubscribe = subscribeToRecentPlays(userFid, (nfts) => {
+            // Before setting, check if the first NFT is the same as our recently added one
+            if (nfts.length > 0 && recentlyAddedNFT.current) {
+              const firstNFTKey = `${nfts[0].contract}-${nfts[0].tokenId}`.toLowerCase();
+              
+              // If the first NFT is one we just added manually, skip this update
+              if (firstNFTKey === recentlyAddedNFT.current) {
+                console.log('Skipping duplicate Firebase update for recently played NFT:', nfts[0].name);
+                return;
+              }
+            }
+            
             setRecentlyPlayedNFTs(nfts);
           });
           return () => unsubscribe();
@@ -679,7 +722,7 @@ const Demo: React.FC = () => {
       const seenNFTs = new Set<string>();
       const recentPlays = querySnapshot.docs.reduce((acc: NFT[], doc: QueryDocumentSnapshot<DocumentData>) => {
         const data = doc.data() as NFTPlayData;
-        const nftKey = `${data.nftContract}-${data.tokenId}`;
+        const nftKey = `${data.nftContract}-${data.tokenId}`.toLowerCase();
         
         // Only add NFT if we haven't seen it before
         if (!seenNFTs.has(nftKey)) {
@@ -718,7 +761,7 @@ const Demo: React.FC = () => {
           const seenNFTs = new Set<string>();
           const fallbackPlays = fallbackSnapshot.docs.reduce((acc: NFT[], doc: QueryDocumentSnapshot<DocumentData>) => {
             const data = doc.data() as NFTPlayData;
-            const nftKey = `${data.nftContract}-${data.tokenId}`;
+            const nftKey = `${data.nftContract}-${data.tokenId}`.toLowerCase();
             
             // Only add NFT if we haven't seen it before
             if (!seenNFTs.has(nftKey)) {
