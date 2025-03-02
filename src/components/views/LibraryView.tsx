@@ -60,9 +60,9 @@ class SimpleNFTCard extends React.Component<SimpleNFTCardProps> {
                 e.stopPropagation(); // Prevent triggering the parent onClick
                 onLikeToggle(nft);
               }}
-              className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center transition-all duration-300 hover:scale-110 z-10"
+              className="absolute top-2 right-2 text-red-500 transition-all duration-300 hover:scale-125 z-10"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor" className="text-red-500">
+              <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
                 <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
               </svg>
             </button>
