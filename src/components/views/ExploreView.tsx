@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useVirtualizedNFTs } from '../../hooks/useVirtualizedNFTs';
 import { SearchBar } from '../search/SearchBar';
 import { VirtualizedNFTGrid } from '../nft/VirtualizedNFTGrid';
@@ -33,6 +33,9 @@ interface ExploreViewProps {
   onLikeToggle?: (nft: NFT) => Promise<void>;
   isNFTLiked?: (nft: NFT, ignoreCurrentPage?: boolean) => boolean;
   userFid?: number;
+  userNFTs: NFT[];
+  searchType: string;
+  searchParam: string;
 }
 
 const ExploreView: React.FC<ExploreViewProps> = (props) => {
@@ -63,7 +66,135 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
     onReset,
     onLikeToggle,
     isNFTLiked,
+    userNFTs,
+    searchType,
+    searchParam,
   } = props;
+
+  // Add state variable for shared NFTs count
+  const [sharedNFTsCount, setSharedNFTsCount] = useState(0);
+  const checkCompleted = useRef(false);
+
+  // Add this state variable
+  const [hasLikedNFTs, setHasLikedNFTs] = useState(false);
+
+  // Add this code at the top of your ExploreView component, near other state variables
+  const [hasSharedNFTs, setHasSharedNFTs] = useState(false);
+  const [username, setUsername] = useState('');
+
+  // Add this inside the component before the return statement
+  // This effect runs when selectedUser changes
+  useEffect(() => {
+    if (selectedUser && selectedUser.username && nfts && nfts.length > 0) {
+      console.log(`📊 Checking ${nfts.length} NFTs from ${selectedUser.username} for matches...`);
+      setUsername(selectedUser.username);
+      
+      // Check if any NFT is liked - at least one
+      const hasLiked = nfts.some(nft => {
+        if (isNFTLiked && nft.contract && nft.tokenId) {
+          return isNFTLiked(nft, true);
+        }
+        return false;
+      });
+      
+      console.log(`📊 Has liked NFTs from ${selectedUser.username}: ${hasLiked}`);
+      setHasSharedNFTs(hasLiked);
+    } else {
+      setHasSharedNFTs(false);
+    }
+  }, [selectedUser, nfts, isNFTLiked]);
+
+  // Add effect to check for shared NFTs when viewing a profile
+  useEffect(() => {
+    console.log("BANNER DEBUG - searchType:", searchType);
+    console.log("BANNER DEBUG - searchParam:", searchParam);
+    console.log("BANNER DEBUG - nfts count:", nfts?.length);
+    console.log("BANNER DEBUG - userNFTs count:", userNFTs?.length);
+    
+    // Only proceed if we have the data we need
+    if (!nfts || !userNFTs || nfts.length === 0 || userNFTs.length === 0) {
+      console.log("BANNER DEBUG - Missing data, not showing banner");
+      return;
+    }
+    
+    // Count shared NFTs with explicit logging
+    let matches = 0;
+    const userNFTKeys = userNFTs
+      .filter(nft => nft?.contract && nft?.tokenId)
+      .map(nft => `${nft.contract.toLowerCase()}-${nft.tokenId}`);
+    
+    console.log("BANNER DEBUG - User has", userNFTKeys.length, "valid NFT keys");
+    
+    for (const nft of nfts) {
+      if (nft?.contract && nft?.tokenId) {
+        const key = `${nft.contract.toLowerCase()}-${nft.tokenId}`;
+        if (userNFTKeys.includes(key)) {
+          matches++;
+          console.log("BANNER DEBUG - Match found:", nft.name);
+        }
+      }
+    }
+    
+    console.log("BANNER DEBUG - Total matches found:", matches);
+    setSharedNFTsCount(matches);
+  }, [nfts, userNFTs, searchType, searchParam]);
+
+  // Add this effect to check if ANY NFT is liked
+  useEffect(() => {
+    if (searchType === 'user' && nfts.length > 0 && isNFTLiked) {
+      // Check each NFT to see if ANY of them are liked
+      let foundLiked = false;
+      
+      for (const nft of nfts) {
+        if (isNFTLiked(nft)) {
+          console.log(`FOUND LIKED NFT: ${nft.name}`);
+          foundLiked = true;
+          break; // Stop checking once we find at least one
+        }
+      }
+      
+      console.log(`Has liked NFTs from this creator: ${foundLiked}`);
+      setHasLikedNFTs(foundLiked);
+    }
+  }, [nfts, isNFTLiked, searchType]);
+
+  // Add this useEffect that runs ONLY when NFTs load or username changes
+  useEffect(() => {
+    // Reset the check flag when user changes
+    if (searchParam) {
+      checkCompleted.current = false;
+      setSharedNFTsCount(0);
+    }
+    
+    // Only run this if we have NFTs and haven't checked yet
+    if (searchType === 'user' && nfts.length > 0 && !checkCompleted.current) {
+      console.log(`🔍 CHECKING ${nfts.length} NFTs FOR LIKED STATUS...`);
+      
+      // Delay the check slightly to ensure everything is loaded
+      setTimeout(() => {
+        let likedCount = 0;
+        
+        // Check each NFT
+        for (const nft of nfts) {
+          // Make sure isNFTLiked is available and the NFT is valid
+          if (isNFTLiked && nft && nft.contract && nft.tokenId) {
+            const isLiked = isNFTLiked(nft);
+            if (isLiked) {
+              console.log(`✅ FOUND LIKED NFT: ${nft.name}`);
+              likedCount++;
+            }
+          }
+        }
+        
+        console.log(`📊 FINAL COUNT: ${likedCount} liked NFTs from ${searchParam}`);
+        setSharedNFTsCount(likedCount);
+        
+        // Mark that we've completed this check
+        checkCompleted.current = true;
+      }, 1000); // 1 second delay
+    }
+  }, [nfts, searchParam, searchType, isNFTLiked]);
+
   const generateUniqueNFTKey = (nft: NFT, index: number) => {
     return `${nft.contract}-${nft.tokenId}-${index}`;
   };
@@ -85,7 +216,17 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
   }
 
   return (
-    <>
+    <div className="flex flex-col h-full">
+      {/* HARDCODED CONNECTION BANNER */}
+      {selectedUser && hasSharedNFTs && (
+        <div 
+          className="sticky top-16 z-50 bg-purple-600 text-white p-3 text-center font-bold shadow-lg border-b-2 border-white"
+          style={{boxShadow: '0 4px 12px rgba(0,0,0,0.3)'}}
+        >
+          Connection found! You have NFTs from {username} in your library
+        </div>
+      )}
+      
       <header className="fixed top-0 left-0 right-0 h-16 bg-black border-b border-black flex items-center justify-center z-50">
         <button onClick={onReset} className="cursor-pointer">
           <Image
@@ -314,7 +455,7 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 };
 

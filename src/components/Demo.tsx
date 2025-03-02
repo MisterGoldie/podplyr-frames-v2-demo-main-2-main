@@ -624,10 +624,10 @@ const Demo: React.FC = () => {
             try {
               // First try to get cached NFTs
               const cachedNFTs = getCachedNFTs(user.fid);
-              
+
               // Track the user search and get updated search data
               await trackUserSearch(user.username, userFid);
-              
+
               // Immediately refresh recent searches
               const updatedSearches = await getRecentSearches(userFid);
               setRecentSearches(updatedSearches);
@@ -643,16 +643,16 @@ const Demo: React.FC = () => {
               if (!nfts) {
                 throw new Error('No NFTs returned');
               }
-              
+
               // Enhanced debugging for NFT count issues
               console.log(`==== ENHANCED NFT COUNT DEBUGGING ====`);
               console.log(`Total raw NFTs from API for ${user.username}:`, nfts.length);
-              
+
               // Count by media type
               const audioNFTs = nfts.filter(nft => nft.hasValidAudio).length;
               const videoNFTs = nfts.filter(nft => nft.isVideo).length;
-              const bothTypes = nfts.filter(nft => nft.hasValidAudio && nft.isVideo).length; 
-              
+              const bothTypes = nfts.filter(nft => nft.hasValidAudio && nft.isVideo).length;
+
               console.log(`NFTs with audio:`, audioNFTs);
               console.log(`NFTs with video:`, videoNFTs);
               console.log(`NFTs with both audio+video:`, bothTypes);
@@ -666,10 +666,10 @@ const Demo: React.FC = () => {
               });
               console.log(contractCounts);
               console.log(`========================================`);
-              
+
               // Cache the NFTs for future use
               cacheNFTs(user.fid, nfts);
-              
+
               // Update state with fetched NFTs
               setUserNFTs(nfts);
             } catch (error) {
@@ -685,6 +685,9 @@ const Demo: React.FC = () => {
           onLikeToggle={handleLikeToggle}
           isNFTLiked={isNFTLiked}
           userFid={userFid}
+          userNFTs={userNFTs}
+          searchType={''}
+          searchParam={''}
         />
       );
     }
