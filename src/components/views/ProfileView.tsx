@@ -10,6 +10,7 @@ import { uploadProfileBackground } from '../../firebase';
 import { fetchUserNFTs } from '../../lib/nft';
 import { optimizeImage } from '../../utils/imageOptimizer';
 import { useUserImages } from '../../contexts/UserImageContext';
+import NotificationHeader from '../NotificationHeader';
 
 interface ProfileViewProps {
   userContext: UserContext;
@@ -108,50 +109,17 @@ const ProfileView: React.FC<ProfileViewProps> = ({
 
   const handleBackgroundUploadSuccess = () => {
     setShowSuccessBanner(true);
-    
-    // Auto-hide after 3 seconds
-    setTimeout(() => {
-      setShowSuccessBanner(false);
-    }, 3000);
   };
 
   return (
     <>
-      <header 
-        className={`fixed top-0 left-0 right-0 h-16 flex items-center justify-center z-50 transition-all duration-500 ease-in-out ${
-          showSuccessBanner 
-            ? 'bg-green-600 border-b border-green-700' 
-            : 'bg-black border-b border-black'
-        }`}
-      >
-        {/* Logo (hidden when banner is shown) */}
-        <div className={`transition-all duration-500 ease-in-out ${
-          showSuccessBanner ? 'opacity-0 scale-95 absolute' : 'opacity-100 scale-100'
-        }`}>
-          <Image
-            src="/fontlogo.png"
-            alt="PODPlayr Logo"
-            width={120}
-            height={30}
-            className="logo-image"
-            priority={true}
-          />
-        </div>
-        
-        {/* Success message (shown when banner is active) */}
-        <div className={`flex items-center justify-center transition-all duration-500 ease-in-out ${
-          showSuccessBanner ? 'opacity-100 scale-100' : 'opacity-0 scale-95 absolute'
-        }`}>
-          <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-600" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-            </svg>
-          </div>
-          <div className="text-white ml-3 text-lg">
-            Background updated successfully
-          </div>
-        </div>
-      </header>
+      <NotificationHeader
+        show={showSuccessBanner}
+        onHide={() => setShowSuccessBanner(false)}
+        type="success"
+        message="Background updated successfully"
+        autoHideDuration={3000}
+      />
       <div className="space-y-8 pt-20 pb-48 overflow-y-auto h-screen overscroll-y-contain">
         {/* Profile Header */}
         <div className="relative flex flex-col items-center text-center p-8 space-y-6 rounded-3xl mx-4 w-[340px] h-[280px] mx-auto border border-purple-400/20 shadow-xl shadow-purple-900/30 overflow-hidden hover:border-indigo-400/30 transition-all duration-300"

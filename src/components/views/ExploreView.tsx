@@ -10,6 +10,7 @@ import { getDoc, doc } from 'firebase/firestore';
 import { db, trackUserSearch } from '../../lib/firebase';
 import { useContext } from 'react';
 import { FarcasterContext } from '../../app/providers';
+import NotificationHeader from '../NotificationHeader';
 
 interface ExploreViewProps {
   onSearch: (query: string) => void;
@@ -523,6 +524,14 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
           </div>
         )}
       </div>
+      <NotificationHeader
+        show={showBanner}
+        onHide={() => setShowBanner(false)}
+        type="connection"
+        message="Connection with"
+        highlightText={username}
+        autoHideDuration={0} // No auto-hide for this one
+      />
     </>
   );
 };
