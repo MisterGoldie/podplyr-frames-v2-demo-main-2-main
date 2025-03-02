@@ -82,50 +82,64 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
   const [hasSharedNFTs, setHasSharedNFTs] = useState(false);
   const [username, setUsername] = useState('');
 
-  // 1. Add a new state to track when the banner should be visible (separate from hasSharedNFTs)
+  // 1. Keep the showBanner state
   const [showBanner, setShowBanner] = useState(false);
 
-  // 2. Modify the useEffect to be more strict about when to show the banner
+  // 2. Completely revise the useEffect that handles banner visibility
   useEffect(() => {
-    // Reset banner state whenever user or loading state changes
+    // Always immediately hide the banner on any change to these dependencies
     setShowBanner(false);
     
-    // Only check for shared NFTs when we have a selected user, NFTs are loaded, and we're not loading
-    if (selectedUser && selectedUser.username && nfts && nfts.length > 0 && !isLoadingNFTs) {
-      console.log(`📊 Checking ${nfts.length} NFTs from ${selectedUser.username} for matches...`);
-      setUsername(selectedUser.username);
+    // Only proceed with checks when we have the data we need and loading is complete
+    if (!selectedUser || !nfts || nfts.length === 0 || isLoadingNFTs || !isNFTLiked) {
+      return; // Exit early if conditions aren't met
+    }
+    
+    console.log(`📊 Checking ${nfts.length} NFTs from ${selectedUser.username} for connections...`);
+    setUsername(selectedUser.username);
+    
+    // Delay the check to ensure all data is loaded
+    const checkTimer = setTimeout(() => {
+      // Track if we found any liked NFTs
+      let foundLiked = false;
       
-      // Only proceed if we have a valid isNFTLiked function
-      if (isNFTLiked) {
-        // Check if any NFT is liked - at least one
-        let foundLiked = false;
+      // Check each NFT individually
+      for (const nft of nfts) {
+        if (!nft.contract || !nft.tokenId) continue; // Skip invalid NFTs
         
-        for (const nft of nfts) {
-          if (nft.contract && nft.tokenId && isNFTLiked(nft, true)) {
-            foundLiked = true;
-            console.log(`✅ FOUND LIKED NFT: ${nft.name}`);
-            break; // Stop checking once we find one
-          }
-        }
+        // Use ignoreCurrentPage=true to check the real liked status
+        const isLiked = isNFTLiked(nft, true);
         
-        console.log(`📊 Has liked NFTs from ${selectedUser.username}: ${foundLiked}`);
-        
-        // Only show banner if we actually found a liked NFT
-        if (foundLiked) {
-          setTimeout(() => {
-            setShowBanner(true);
-          }, 300);
+        if (isLiked) {
+          console.log(`✅ FOUND LIKED NFT: ${nft.name || 'Unnamed NFT'}`);
+          foundLiked = true;
+          break; // Exit loop once we find at least one
         }
       }
-    }
-  }, [selectedUser, nfts, isNFTLiked, isLoadingNFTs]);
+      
+      console.log(`📊 Connection found with ${selectedUser.username}: ${foundLiked}`);
+      
+      // Only show banner if liked NFTs were actually found
+      if (foundLiked) {
+        setShowBanner(true);
+      }
+    }, 500); // Wait 500ms after data is loaded
+    
+    // Clean up timer if component unmounts or dependencies change
+    return () => clearTimeout(checkTimer);
+  }, [selectedUser, nfts, isLoadingNFTs, isNFTLiked]);
 
-  // 3. Add a separate effect to ensure banner is hidden when loading
+  // 3. Add a separate useEffect to ensure banner is hidden when loading starts
   useEffect(() => {
     if (isLoadingNFTs) {
       setShowBanner(false);
     }
   }, [isLoadingNFTs]);
+
+  // 4. Add a separate useEffect to clear the banner when user changes
+  useEffect(() => {
+    setShowBanner(false);
+  }, [selectedUser]);
 
   // Add effect to check for shared NFTs when viewing a profile
   useEffect(() => {
@@ -262,19 +276,24 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
         </button>
       </header>
       
-      {/* Banner - fixed position underneath the header */}
+      {/* Update the banner with more compact styling */}
       <div 
-        className={`fixed top-16 left-0 right-0 bg-purple-600 text-white p-3 z-40 text-center transition-all duration-500 ${
+        className={`fixed top-16 left-0 right-0 bg-purple-600 text-white py-1.5 px-3 z-40 text-center transition-all duration-500 text-sm border-b border-purple-700 ${
           showBanner 
             ? 'opacity-100 translate-y-0' 
             : 'opacity-0 -translate-y-full pointer-events-none'
         }`}
       >
-        Connection found! You have NFTs from {username} in your library
+        <div className="flex items-center justify-center gap-1.5">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+          </svg>
+          <span>Connection found! You have NFTs from <span className="font-semibold">{username}</span> in your library</span>
+        </div>
       </div>
       
       {/* Main content area - with adjusted padding based on banner presence */}
-      <div className={`space-y-8 ${showBanner ? 'pt-28' : 'pt-20'} pb-48 overflow-y-auto h-screen`}>
+      <div className={`space-y-8 ${showBanner ? 'pt-24' : 'pt-20'} pb-48 overflow-y-auto h-screen`}>
         {selectedUser && (
           <div className="px-4 mb-8">
             {/* Back button - now inside the scrollable content but with proper spacing */}
