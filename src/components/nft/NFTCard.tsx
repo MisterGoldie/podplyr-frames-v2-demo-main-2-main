@@ -51,8 +51,8 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   // Get like state based on context - if we're in library view, NFT is always liked
   const { isLiked: likeStateFromHook, likesCount: globalLikesCount } = useNFTLikeState(nft, userFid || 0);
   
-  // Use the prop if provided, otherwise use the hook
-  const isLiked = isNFTLiked ? isNFTLiked(nft) : likeStateFromHook;
+  // Check if isNFTLiked is a function before calling it
+  const isLiked = typeof isNFTLiked === 'function' ? isNFTLiked(nft) : likeStateFromHook;
   
   // Log to debug like status
   useEffect(() => {

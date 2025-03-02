@@ -77,6 +77,22 @@ const ProfileView: React.FC<ProfileViewProps> = ({
     loadNFTs();
   }, [userContext.user?.fid, onNFTsLoaded]);
 
+  useEffect(() => {
+    const loadLikedNFTs = async () => {
+      if (userContext?.user?.fid) {
+        try {
+          const liked = await getLikedNFTs(userContext.user.fid);
+          console.log('Loaded liked NFTs for profile view:', liked.length);
+          setLikedNFTs(liked);
+        } catch (error) {
+          console.error('Error loading liked NFTs:', error);
+        }
+      }
+    };
+
+    loadLikedNFTs();
+  }, [userContext?.user?.fid]);
+
   // This function checks if an NFT is liked
   const isNFTLiked = (nft: NFT, ignoreCurrentPage?: boolean): boolean => {
     if (!nft.contract || !nft.tokenId || likedNFTs.length === 0) return false;
