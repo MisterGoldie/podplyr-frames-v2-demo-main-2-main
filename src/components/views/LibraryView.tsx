@@ -1,10 +1,11 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import type { NFT, UserContext } from '../../types/user';
 import { NFTImage } from '../media/NFTImage';
 import { getMediaKey } from '~/utils/media';
 import Image from 'next/image';
+import NotificationHeader from '../NotificationHeader';
 
 interface LibraryViewProps {
   likedNFTs: NFT[];
@@ -135,7 +136,9 @@ class LibraryView extends React.Component<LibraryViewProps> {
     viewMode: 'grid' as 'grid' | 'list',
     searchFilter: '',
     filterSort: 'recent' as 'recent' | 'name',
-    isLoading: true // Add loading state, initially true
+    isLoading: true, // Add loading state, initially true
+    showUnlikeNotification: false,
+    unlikedNFTName: ''
   };
 
   componentDidMount() {
@@ -205,12 +208,21 @@ class LibraryView extends React.Component<LibraryViewProps> {
       onLikeToggle 
     } = this.props;
     
-    const { viewMode, searchFilter, filterSort, isLoading } = this.state;
+    const { viewMode, searchFilter, filterSort, isLoading, showUnlikeNotification, unlikedNFTName } = this.state;
     const uniqueNFTs = this.getUniqueNFTs();
     const filteredNFTs = this.getFilteredNFTs();
 
     return (
       <>
+        <NotificationHeader
+          show={showUnlikeNotification}
+          onHide={() => this.setState({ showUnlikeNotification: false })}
+          type="error"
+          message="Removed"
+          highlightText={unlikedNFTName}
+          autoHideDuration={3000}
+        />
+
         <header className="fixed top-0 left-0 right-0 h-16 bg-black border-b border-black flex items-center justify-center z-50">
           <button onClick={onReset} className="cursor-pointer">
             <Image
