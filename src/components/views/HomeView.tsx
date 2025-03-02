@@ -84,29 +84,35 @@ const HomeView: React.FC<HomeViewProps> = ({
 
   // Create a wrapper for the existing like function that also shows the notification
   const handleNFTLike = async (nft: NFT): Promise<void> => {
-    // First call the original like function
+    // Check if the NFT is already liked BEFORE toggling
+    const wasLiked = checkDirectlyLiked(nft);
+    
+    // Call the original like function to toggle the status
     if (onLikeToggle) {
       await onLikeToggle(nft);
     }
     
-    // Don't trigger a new animation if one is already running
-    if (isAnimating) return;
-    
-    // Start animation sequence
-    setIsAnimating(true);
-    
-    // Show notification
-    setShowLikeNotification(true);
-    
-    // Hide after specified duration
-    setTimeout(() => {
-      setShowLikeNotification(false);
+    // Only show notification if we're ADDING to library (not removing)
+    if (!wasLiked) {
+      // Don't trigger a new animation if one is already running
+      if (isAnimating) return;
       
-      // Allow new animations after a buffer period for fade-out
+      // Start animation sequence
+      setIsAnimating(true);
+      
+      // Show notification
+      setShowLikeNotification(true);
+      
+      // Hide after specified duration
       setTimeout(() => {
-        setIsAnimating(false);
-      }, 700); // Match this to the duration in NotificationHeader (700ms)
-    }, 3000);
+        setShowLikeNotification(false);
+        
+        // Allow new animations after a buffer period for fade-out
+        setTimeout(() => {
+          setIsAnimating(false);
+        }, 700); // Match this to the duration in NotificationHeader
+      }, 3000);
+    }
   };
 
   if (isLoading) {
