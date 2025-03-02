@@ -264,14 +264,16 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
     <>
       {/* Header that transforms between normal and connection states */}
       <header 
-        className={`fixed top-0 left-0 right-0 h-16 flex items-center justify-center z-50 transition-all duration-500 ${
+        className={`fixed top-0 left-0 right-0 h-16 flex items-center justify-center z-50 transition-all duration-500 ease-in-out ${
           showBanner 
             ? 'bg-purple-600 border-b border-purple-700' 
             : 'bg-black border-b border-black'
         }`}
       >
-        {/* Logo - ONLY shown when NOT in connection state */}
-        {!showBanner && (
+        {/* Logo with smooth fade out when connection appears */}
+        <div className={`transition-all duration-500 ease-in-out absolute ${
+          showBanner ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
+        }`}>
           <button onClick={onReset} className="cursor-pointer">
             <Image
               src="/fontlogo.png"
@@ -282,21 +284,21 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
               priority={true}
             />
           </button>
-        )}
+        </div>
         
-        {/* Connection message - ONLY shown when in connection state (NO LOGO) */}
-        {showBanner && (
-          <div className="flex items-center justify-center">
-            <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-purple-600" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="text-white ml-2">
-              Connection with <span className="font-semibold">{username}</span>
-            </div>
+        {/* Connection message with smooth fade in */}
+        <div className={`flex items-center justify-center transition-all duration-500 ease-in-out ${
+          showBanner ? 'opacity-100 scale-100' : 'opacity-0 scale-95 absolute'
+        }`}>
+          <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-purple-600" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
+            </svg>
           </div>
-        )}
+          <div className="text-white ml-3 text-lg">
+            Connection with <span className="font-semibold">{username}</span>
+          </div>
+        </div>
       </header>
       
       {/* Main content with adjusted padding */}
