@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { NFT } from '../../types/user';
 import { NFTCard } from './NFTCard';
 import { useVirtualizedNFTs } from '../../hooks/useVirtualizedNFTs';
@@ -17,6 +17,20 @@ interface VirtualizedNFTGridProps {
   userFid?: number;
 }
 
+// Add keyframes style for the animation
+const animationKeyframes = `
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+`;
+
 export const VirtualizedNFTGrid: React.FC<VirtualizedNFTGridProps> = ({
   nfts,
   currentlyPlaying,
@@ -31,6 +45,7 @@ export const VirtualizedNFTGrid: React.FC<VirtualizedNFTGridProps> = ({
   userFid,
 }) => {
   const { visibleNFTs, isLoadingMore, hasMore, loadMoreNFTs } = useVirtualizedNFTs(nfts);
+  const [animationKey, setAnimationKey] = useState(0);
 
   // Log the number of NFTs for debugging
   console.log('Rendering VirtualizedNFTGrid with', visibleNFTs.length, 'visible NFTs out of', nfts.length, 'total');
@@ -51,28 +66,45 @@ export const VirtualizedNFTGrid: React.FC<VirtualizedNFTGridProps> = ({
       'userFid=', userFid);
   }, []);
 
+  // When new NFTs are loaded, update the animation key
+  useEffect(() => {
+    if (visibleNFTs.length > 0) {
+      setAnimationKey(prev => prev + 1);
+    }
+  }, [visibleNFTs.length]);
+
   return (
     <>
-      {visibleNFTs.map((nft: any) => (
-        <NFTCard
-          key={nft._uniqueReactId || `fallback_${Math.random().toString(36).substring(2, 11)}`}
-          nft={nft}
-          onPlay={async (nft) => {
-            await onPlayNFT(nft);
-          }}
-          isPlaying={isPlaying}
-          currentlyPlaying={currentlyPlaying}
-          handlePlayPause={handlePlayPause}
-          publicCollections={publicCollections}
-          onAddToCollection={addToPublicCollection}
-          onRemoveFromCollection={removeFromPublicCollection}
-          showTitleOverlay={true}
-          useCenteredPlay={true}
-          onLikeToggle={onLikeToggle}
-          userFid={userFid}
-          isNFTLiked={checkDirectlyLiked}
-        />
-      ))}
+      {/* Add the keyframes style */}
+      <style>{animationKeyframes}</style>
+      
+      {visibleNFTs.map((nft: any, index: number) => {
+        // Calculate a staggered delay based on index
+        // This creates a wave-like appearance as cards animate in
+        const staggerDelay = 0.05 * (index % 8) + 0.2; // Base delay of 0.2s plus stagger
+        
+        return (
+          <NFTCard
+            key={`${animationKey}-${nft._uniqueReactId || `fallback_${Math.random().toString(36).substring(2, 11)}`}`}
+            nft={nft}
+            onPlay={async (nft) => {
+              await onPlayNFT(nft);
+            }}
+            isPlaying={isPlaying}
+            currentlyPlaying={currentlyPlaying}
+            handlePlayPause={handlePlayPause}
+            publicCollections={publicCollections}
+            onAddToCollection={addToPublicCollection}
+            onRemoveFromCollection={removeFromPublicCollection}
+            showTitleOverlay={true}
+            useCenteredPlay={true}
+            onLikeToggle={onLikeToggle}
+            userFid={userFid}
+            isNFTLiked={checkDirectlyLiked}
+            animationDelay={staggerDelay} // Pass the staggered delay
+          />
+        );
+      })}
       
       {/* PROMINENT LOAD MORE BUTTON - Always visible when there are more NFTs to load */}
       {hasMore && (
