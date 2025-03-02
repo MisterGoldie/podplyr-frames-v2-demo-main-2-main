@@ -82,27 +82,50 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
   const [hasSharedNFTs, setHasSharedNFTs] = useState(false);
   const [username, setUsername] = useState('');
 
-  // Add this inside the component before the return statement
-  // This effect runs when selectedUser changes
+  // 1. Add a new state to track when the banner should be visible (separate from hasSharedNFTs)
+  const [showBanner, setShowBanner] = useState(false);
+
+  // 2. Modify the useEffect to be more strict about when to show the banner
   useEffect(() => {
-    if (selectedUser && selectedUser.username && nfts && nfts.length > 0) {
+    // Reset banner state whenever user or loading state changes
+    setShowBanner(false);
+    
+    // Only check for shared NFTs when we have a selected user, NFTs are loaded, and we're not loading
+    if (selectedUser && selectedUser.username && nfts && nfts.length > 0 && !isLoadingNFTs) {
       console.log(`📊 Checking ${nfts.length} NFTs from ${selectedUser.username} for matches...`);
       setUsername(selectedUser.username);
       
-      // Check if any NFT is liked - at least one
-      const hasLiked = nfts.some(nft => {
-        if (isNFTLiked && nft.contract && nft.tokenId) {
-          return isNFTLiked(nft, true);
+      // Only proceed if we have a valid isNFTLiked function
+      if (isNFTLiked) {
+        // Check if any NFT is liked - at least one
+        let foundLiked = false;
+        
+        for (const nft of nfts) {
+          if (nft.contract && nft.tokenId && isNFTLiked(nft, true)) {
+            foundLiked = true;
+            console.log(`✅ FOUND LIKED NFT: ${nft.name}`);
+            break; // Stop checking once we find one
+          }
         }
-        return false;
-      });
-      
-      console.log(`📊 Has liked NFTs from ${selectedUser.username}: ${hasLiked}`);
-      setHasSharedNFTs(hasLiked);
-    } else {
-      setHasSharedNFTs(false);
+        
+        console.log(`📊 Has liked NFTs from ${selectedUser.username}: ${foundLiked}`);
+        
+        // Only show banner if we actually found a liked NFT
+        if (foundLiked) {
+          setTimeout(() => {
+            setShowBanner(true);
+          }, 300);
+        }
+      }
     }
-  }, [selectedUser, nfts, isNFTLiked]);
+  }, [selectedUser, nfts, isNFTLiked, isLoadingNFTs]);
+
+  // 3. Add a separate effect to ensure banner is hidden when loading
+  useEffect(() => {
+    if (isLoadingNFTs) {
+      setShowBanner(false);
+    }
+  }, [isLoadingNFTs]);
 
   // Add effect to check for shared NFTs when viewing a profile
   useEffect(() => {
@@ -195,6 +218,14 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
     }
   }, [nfts, searchParam, searchType, isNFTLiked]);
 
+  // Add this useEffect to reset hasSharedNFTs when loading starts
+  useEffect(() => {
+    // Reset hasSharedNFTs whenever loading starts
+    if (isLoadingNFTs) {
+      setHasSharedNFTs(false);
+    }
+  }, [isLoadingNFTs]);
+
   const generateUniqueNFTKey = (nft: NFT, index: number) => {
     return `${nft.contract}-${nft.tokenId}-${index}`;
   };
@@ -232,14 +263,18 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
       </header>
       
       {/* Banner - fixed position underneath the header */}
-      {selectedUser && hasSharedNFTs && (
-        <div className="fixed top-16 left-0 right-0 bg-purple-600 text-white p-3 z-40 text-center">
-          Connection found! You have NFTs from {username} in your library
-        </div>
-      )}
+      <div 
+        className={`fixed top-16 left-0 right-0 bg-purple-600 text-white p-3 z-40 text-center transition-all duration-500 ${
+          showBanner 
+            ? 'opacity-100 translate-y-0' 
+            : 'opacity-0 -translate-y-full pointer-events-none'
+        }`}
+      >
+        Connection found! You have NFTs from {username} in your library
+      </div>
       
       {/* Main content area - with adjusted padding based on banner presence */}
-      <div className={`space-y-8 ${hasSharedNFTs && selectedUser ? 'pt-28' : 'pt-20'} pb-48 overflow-y-auto h-screen overscroll-y-contain`}>
+      <div className={`space-y-8 ${showBanner ? 'pt-28' : 'pt-20'} pb-48 overflow-y-auto h-screen`}>
         {selectedUser && (
           <div className="px-4 mb-8">
             {/* Back button - now inside the scrollable content but with proper spacing */}
