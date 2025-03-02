@@ -39,7 +39,7 @@ export const FEATURED_NFTS: NFT[] = [
   },
   {
     name: 'ACYL RADIO - WILL01',
-    image: 'https://arweave.net/Ajm6DFaUe6HCLF_RtAmj3Ot1sfT2KVO-fk1PVn1Bk2A',
+    image: 'https://bafybeiernj6hfcnebbdleh4c2fs5wy65ksdnefl7u5h2sjgchigo5q3dd4.ipfs.w3s.link/claire-dancing.gif', // Placeholder for now
     contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb',
     tokenId: '79428737e6',
     audio: 'https://arweave.net/FXMkBkgV79p3QIL8589uh68-sKuXbmuBzQwvWH10v74',
@@ -53,7 +53,7 @@ export const FEATURED_NFTS: NFT[] = [
   },
   {
     name: 'ACYL RADIO - Hidden Tales',
-    image: 'https://arweave.net/quguk4DjJOFIEHtZSxoPhpBFLhHlwrLSp47YCuy7FB8',
+    image: 'https://bafybeiernj6hfcnebbdleh4c2fs5wy65ksdnefl7u5h2sjgchigo5q3dd4.ipfs.w3s.link/claire-dancing.gif', // Placeholder for now
     contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb',
     tokenId: '79428737e7',
     audio: 'https://arweave.net/Hr4GVDpKhq_dgZZA5SBAEapx9IJ1qDnDZ-Y40lExBHk',
@@ -67,7 +67,7 @@ export const FEATURED_NFTS: NFT[] = [
   },
   {
     name: 'ACYL RADIO - Chili Sounds 🌶️',
-    image: 'https://arweave.net/dQT3NOU6RFa_F0SXD0ajejif4ysPOUeQjKmFHINnUis',
+    image: 'https://bafybeiernj6hfcnebbdleh4c2fs5wy65ksdnefl7u5h2sjgchigo5q3dd4.ipfs.w3s.link/claire-dancing.gif', // Placeholder for now
     contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb', // Using same contract as other ACYL RADIO NFTs
     tokenId: '79428737e8', // Incremented from previous ACYL RADIO NFT
     audio: 'https://arweave.net/GujXDFCEk4FmJl9b_TlofLEmx_YnY_LRSB2aSY8AcRg',
