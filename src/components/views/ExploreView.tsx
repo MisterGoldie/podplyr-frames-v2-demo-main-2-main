@@ -342,7 +342,7 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
               </div>
             ) : null}
 
-            {/* Recently Searched Users Section */}
+            {/* Recently Searched Users Section - with fixed alignment */}
             {!searchResults.length && !selectedUser && recentSearches.length > 0 && (
               <div className="mb-8">
                 <h2 className="text-xl font-mono text-green-400 mb-4">
@@ -386,7 +386,8 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                       }}
                       className="group relative bg-gray-800/20 backdrop-blur-sm rounded-xl p-4 hover:bg-gray-800/40 transition-all cursor-pointer border border-gray-800/40 hover:border-green-400/40"
                     >
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-start gap-4">
+                        {/* Avatar - fixed size */}
                         <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 relative">
                           <Image
                             src={user.pfp_url || '/default-nft.png'}
@@ -396,11 +397,16 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                             sizes="48px"
                           />
                         </div>
-                        <div>
-                          <h3 className="font-mono text-green-400 truncate max-w-[200px]">
+                        
+                        {/* Text content container with fixed width */}
+                        <div className="flex flex-col min-w-0 flex-1">
+                          {/* Display name - with truncation */}
+                          <h3 className="font-mono text-green-400 truncate w-full">
                             {user.display_name || user.username}
                           </h3>
-                          <p className="font-mono text-gray-400 truncate max-w-[200px]">
+                          
+                          {/* Username - with truncation */}
+                          <p className="font-mono text-gray-400 text-sm truncate w-full">
                             @{user.username}
                           </p>
                         </div>
