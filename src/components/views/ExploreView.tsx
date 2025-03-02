@@ -262,38 +262,45 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
 
   return (
     <>
-      {/* Fixed header - exactly as in previous working version */}
-      <header className="fixed top-0 left-0 right-0 h-16 bg-black border-b border-black flex items-center justify-center z-50">
-        <button onClick={onReset} className="cursor-pointer">
-          <Image
-            src="/fontlogo.png"
-            alt="PODPlayr Logo"
-            width={120}
-            height={30}
-            className="logo-image"
-            priority={true}
-          />
-        </button>
-      </header>
-      
-      {/* Update the banner with more compact styling */}
-      <div 
-        className={`fixed top-16 left-0 right-0 bg-purple-600 text-white py-1.5 px-3 z-40 text-center transition-all duration-500 text-sm border-b border-purple-700 ${
+      {/* Header that transforms between normal and connection states */}
+      <header 
+        className={`fixed top-0 left-0 right-0 h-16 flex items-center justify-center z-50 transition-all duration-500 ${
           showBanner 
-            ? 'opacity-100 translate-y-0' 
-            : 'opacity-0 -translate-y-full pointer-events-none'
+            ? 'bg-purple-600 border-b border-purple-700' 
+            : 'bg-black border-b border-black'
         }`}
       >
-        <div className="flex items-center justify-center gap-1.5">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-          </svg>
-          <span>Connection found! You have NFTs from <span className="font-semibold">{username}</span> in your library</span>
-        </div>
-      </div>
+        {/* Logo - ONLY shown when NOT in connection state */}
+        {!showBanner && (
+          <button onClick={onReset} className="cursor-pointer">
+            <Image
+              src="/fontlogo.png"
+              alt="PODPlayr Logo"
+              width={120}
+              height={30}
+              className="logo-image"
+              priority={true}
+            />
+          </button>
+        )}
+        
+        {/* Connection message - ONLY shown when in connection state (NO LOGO) */}
+        {showBanner && (
+          <div className="flex items-center justify-center">
+            <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-purple-600" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="text-white ml-2">
+              Connection with <span className="font-semibold">{username}</span>
+            </div>
+          </div>
+        )}
+      </header>
       
-      {/* Main content area - with adjusted padding based on banner presence */}
-      <div className={`space-y-8 ${showBanner ? 'pt-24' : 'pt-20'} pb-48 overflow-y-auto h-screen`}>
+      {/* Main content with adjusted padding */}
+      <div className="space-y-8 pt-20 pb-48 overflow-y-auto h-screen">
         {selectedUser && (
           <div className="px-4 mb-8">
             {/* Back button - now inside the scrollable content but with proper spacing */}
