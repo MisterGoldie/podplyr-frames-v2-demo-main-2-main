@@ -37,6 +37,7 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
   const [swipeDistance, setSwipeDistance] = useState(0);
   const [showInfo, setShowInfo] = useState(false);
+  const [infoButtonClicked, setInfoButtonClicked] = useState(false);
 
   // Add this at the top with other state
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -110,6 +111,20 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
     return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
   };
 
+  // Handle info button click with animation
+  const handleInfoButtonClick = () => {
+    // Set the button as clicked to trigger animation
+    setInfoButtonClicked(true);
+    
+    // Show the info panel
+    setShowInfo(true);
+    
+    // Reset the button animation after it completes
+    setTimeout(() => {
+      setInfoButtonClicked(false);
+    }, 400); // Match this to the animation duration
+  };
+
   const springTransition = 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)';
   const maxSwipeDistance = 100;
 
@@ -171,8 +186,15 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
             {/* Controls */}
             <div className="flex items-center gap-4">
               <button
-                onClick={() => setShowInfo(!showInfo)}
-                className="text-purple-400 hover:text-purple-300"
+                onClick={handleInfoButtonClick}
+                className={`text-purple-400 hover:text-purple-300 transition-all ${
+                  infoButtonClicked ? 'scale-90 rotate-[360deg]' : ''
+                }`}
+                style={{
+                  transition: infoButtonClicked 
+                    ? 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.2s ease' 
+                    : 'color 0.2s ease'
+                }}
                 aria-label="Show NFT Information"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
