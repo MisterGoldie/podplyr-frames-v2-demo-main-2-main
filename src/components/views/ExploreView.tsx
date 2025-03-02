@@ -239,7 +239,7 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
       )}
       
       {/* Main content area - with adjusted padding based on banner presence */}
-      <div className={`space-y-8 ${hasSharedNFTs && selectedUser ? 'pt-28' : 'pt-20'} pb-48 overflow-y-auto h-screen`}>
+      <div className={`space-y-8 ${hasSharedNFTs && selectedUser ? 'pt-28' : 'pt-20'} pb-48 overflow-y-auto h-screen overscroll-y-contain`}>
         {selectedUser && (
           <div className="px-4 mb-8">
             {/* Back button - now inside the scrollable content but with proper spacing */}
