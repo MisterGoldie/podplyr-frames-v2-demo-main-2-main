@@ -342,13 +342,13 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
               </div>
             ) : null}
 
-            {/* Recently Searched Users Section - with fixed alignment */}
+            {/* Recently Searched Users Section - with cleaner, more distinct styling */}
             {!searchResults.length && !selectedUser && recentSearches.length > 0 && (
               <div className="mb-8">
                 <h2 className="text-xl font-mono text-green-400 mb-4">
                   {effectiveUserFid ? "Recently Searched" : "Popular Users"}
                 </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                   {recentSearches.map((user) => (
                     <button
                       key={`recent-search-${user.fid}-${user.username}`}
@@ -384,10 +384,13 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                         // The subscription in Demo.tsx will handle it
                         handleUserSelect(farcasterUser);
                       }}
-                      className="group relative bg-gray-800/20 backdrop-blur-sm rounded-xl p-4 hover:bg-gray-800/40 transition-all cursor-pointer border border-gray-800/40 hover:border-green-400/40"
+                      className="relative bg-gray-800/70 rounded-xl p-4 
+                                hover:bg-gray-700/80 
+                                transition-colors duration-200 cursor-pointer 
+                                border-l-2 border-gray-700 hover:border-l-2 hover:border-green-500"
                     >
-                      <div className="flex items-start gap-4">
-                        {/* Avatar - fixed size */}
+                      <div className="flex items-center gap-4">
+                        {/* Avatar - clean styling */}
                         <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 relative">
                           <Image
                             src={user.pfp_url || '/default-nft.png'}
@@ -398,14 +401,14 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                           />
                         </div>
                         
-                        {/* Text content container with fixed width */}
+                        {/* Text content container */}
                         <div className="flex flex-col min-w-0 flex-1">
-                          {/* Display name - with truncation */}
+                          {/* Display name */}
                           <h3 className="font-mono text-green-400 truncate w-full">
                             {user.display_name || user.username}
                           </h3>
                           
-                          {/* Username - with truncation */}
+                          {/* Username */}
                           <p className="font-mono text-gray-400 text-sm truncate w-full">
                             @{user.username}
                           </p>
