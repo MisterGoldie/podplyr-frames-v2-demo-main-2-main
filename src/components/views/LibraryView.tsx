@@ -30,6 +30,7 @@ interface SimpleNFTCardProps {
   onLikeToggle: (nft: NFT) => Promise<void>;
   viewMode: 'grid' | 'list';
   animationDelay?: number;
+  parent: LibraryView;
 }
 
 // This is a simple component that doesn't use hooks
@@ -67,6 +68,7 @@ class SimpleNFTCard extends React.Component<SimpleNFTCardProps> {
             <button 
               onClick={(e) => {
                 e.stopPropagation(); // Prevent triggering the parent onClick
+                // Just call onLikeToggle - it will handle the notification
                 onLikeToggle(nft);
               }}
               className="absolute top-2 right-2 text-red-500 transition-all duration-300 hover:scale-125 z-10"
@@ -110,7 +112,10 @@ class SimpleNFTCard extends React.Component<SimpleNFTCardProps> {
           <div className="flex items-center gap-2">
             {/* Like Button */}
             <button 
-              onClick={() => onLikeToggle(nft)}
+              onClick={() => {
+                // Just call onLikeToggle - it will handle the notification
+                onLikeToggle(nft);
+              }}
               className="text-red-500 hover:scale-110 transition-transform"
             >
               <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
@@ -209,14 +214,21 @@ class LibraryView extends React.Component<LibraryViewProps> {
   }
 
   handleUnlike = async (nft: NFT) => {
+    console.log("🔴 Showing notification for unliking:", nft.name);
+    
     // Set the notification state
     this.setState({
       unlikedNFTName: nft.name,
       showUnlikeNotification: true
     });
     
-    // Call the original onLikeToggle function
+    // Call the original onLikeToggle function (from props)
     await this.props.onLikeToggle(nft);
+    
+    // Auto-hide after 3 seconds
+    setTimeout(() => {
+      this.setState({ showUnlikeNotification: false });
+    }, 3000);
   };
 
   render() {
@@ -380,9 +392,10 @@ class LibraryView extends React.Component<LibraryViewProps> {
                     onPlay={handlePlayAudio}
                     isPlaying={isPlaying}
                     currentlyPlaying={currentlyPlaying}
-                    onLikeToggle={this.handleUnlike}
+                    onLikeToggle={onLikeToggle}
                     viewMode={viewMode}
                     animationDelay={staggerDelay}
+                    parent={this}
                   />
                 );
               })}

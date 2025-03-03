@@ -745,11 +745,58 @@ const Demo: React.FC = () => {
               setIsPlayerVisible={() => {}}
               setIsPlayerMinimized={setIsPlayerMinimized}
               onLikeToggle={async (nft) => {
-                // If we're in the library view, we need to handle the unlike notification
-                if (currentPage.isLibrary && libraryViewRef.current) {
-                  await libraryViewRef.current.handleUnlike(nft);
+                if (currentPage.isLibrary) {
+                  // Create a direct notification element
+                  const notifEl = document.createElement('div');
+                  notifEl.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    padding: 16px;
+                    background-color: #ef4444;
+                    color: white;
+                    text-align: center;
+                    font-weight: bold;
+                    z-index: 9999;
+                    animation: slideDown 0.5s forwards;
+                  `;
+                  
+                  // Add animation
+                  const styleEl = document.createElement('style');
+                  styleEl.textContent = `
+                    @keyframes slideDown {
+                      from { transform: translateY(-100%); }
+                      to { transform: translateY(0); }
+                    }
+                  `;
+                  document.head.appendChild(styleEl);
+                  
+                  // Set content
+                  notifEl.textContent = `REMOVED: ${nft.name}`;
+                  
+                  // Add to DOM
+                  document.body.appendChild(notifEl);
+                  
+                  // Remove after 3 seconds
+                  setTimeout(() => {
+                    notifEl.style.animation = 'slideUp 0.5s forwards';
+                    styleEl.textContent += `
+                      @keyframes slideUp {
+                        from { transform: translateY(0); }
+                        to { transform: translateY(-100%); }
+                      }
+                    `;
+                    setTimeout(() => {
+                      document.body.removeChild(notifEl);
+                      document.head.removeChild(styleEl);
+                    }, 500);
+                  }, 3000);
+                  
+                  // Call the normal like toggle function
+                  await handleLikeToggle(nft);
                 } else {
-                  handleLikeToggle(nft);
+                  await handleLikeToggle(nft);
                 }
               }}
             />
