@@ -209,25 +209,14 @@ class LibraryView extends React.Component<LibraryViewProps> {
   }
 
   handleUnlike = async (nft: NFT) => {
-    // Store the NFT name before unliking
+    // Set the notification state
     this.setState({
-      unlikedNFTName: nft.name
+      unlikedNFTName: nft.name,
+      showUnlikeNotification: true
     });
     
     // Call the original onLikeToggle function
     await this.props.onLikeToggle(nft);
-    
-    // Show the notification
-    this.setState({
-      showUnlikeNotification: true
-    });
-    
-    // Automatically hide after 3 seconds
-    setTimeout(() => {
-      this.setState({
-        showUnlikeNotification: false
-      });
-    }, 3000);
   };
 
   render() {
@@ -391,9 +380,9 @@ class LibraryView extends React.Component<LibraryViewProps> {
                     onPlay={handlePlayAudio}
                     isPlaying={isPlaying}
                     currentlyPlaying={currentlyPlaying}
-                    onLikeToggle={onLikeToggle}
+                    onLikeToggle={this.handleUnlike}
                     viewMode={viewMode}
-                    animationDelay={staggerDelay} // Pass the staggered delay
+                    animationDelay={staggerDelay}
                   />
                 );
               })}
