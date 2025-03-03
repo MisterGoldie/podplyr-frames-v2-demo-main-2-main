@@ -39,7 +39,8 @@ export const FEATURED_NFTS: NFT[] = [
   },
   {
     name: 'ACYL RADIO - WILL01',
-    image: 'https://arweave.net/Ajm6DFaUe6HCLF_RtAmj3Ot1sfT2KVO-fk1PVn1Bk2A', 
+    image: 'https://arweave.net/Ajm6DFaUe6HCLF_RtAmj3Ot1sfT2KVO-fk1PVn1Bk2A?format=webp&quality=85',
+    originalImage: 'https://arweave.net/Ajm6DFaUe6HCLF_RtAmj3Ot1sfT2KVO-fk1PVn1Bk2A',
     contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb',
     tokenId: '79428737e6',
     audio: 'https://arweave.net/FXMkBkgV79p3QIL8589uh68-sKuXbmuBzQwvWH10v74',
@@ -53,7 +54,8 @@ export const FEATURED_NFTS: NFT[] = [
   },
   {
     name: 'ACYL RADIO - Hidden Tales',
-    image: 'https://arweave.net/D_nK5rGNB3XOBkouOIaZWyDHXL4TJ6ptkbtjAUatY2E', 
+    image: 'https://arweave.net/D_nK5rGNB3XOBkouOIaZWyDHXL4TJ6ptkbtjAUatY2E?format=webp&quality=85',
+    originalImage: 'https://arweave.net/D_nK5rGNB3XOBkouOIaZWyDHXL4TJ6ptkbtjAUatY2E',
     contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb',
     tokenId: '79428737e7',
     audio: 'https://arweave.net/Hr4GVDpKhq_dgZZA5SBAEapx9IJ1qDnDZ-Y40lExBHk',
@@ -67,9 +69,10 @@ export const FEATURED_NFTS: NFT[] = [
   },
   {
     name: 'ACYL RADIO - Chili Sounds 🌶️',
-    image: 'https://arweave.net/dQT3NOU6RFa_F0SXD0ajejif4ysPOUeQjKmFHINnUis',
-    contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb', // Using same contract as other ACYL RADIO NFTs
-    tokenId: '79428737e8', // Incremented from previous ACYL RADIO NFT
+    image: 'https://arweave.net/dQT3NOU6RFa_F0SXD0ajejif4ysPOUeQjKmFHINnUis?format=webp&quality=85',
+    originalImage: 'https://arweave.net/dQT3NOU6RFa_F0SXD0ajejif4ysPOUeQjKmFHINnUis',
+    contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb',
+    tokenId: '79428737e8',
     audio: 'https://arweave.net/GujXDFCEk4FmJl9b_TlofLEmx_YnY_LRSB2aSY8AcRg',
     metadata: {
       animation_url: 'https://arweave.net/GujXDFCEk4FmJl9b_TlofLEmx_YnY_LRSB2aSY8AcRg',
@@ -149,15 +152,25 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({
                 <div key={uniqueKey} className="flex-shrink-0 w-[200px] group">
                   <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-gray-800/20 shadow-purple-500/20 shadow-lg transition-all">
                     {/* Special handling for GIF images */}
-                    {(nft.name === 'ACYL RADIO - Hidden Tales' || nft.name === 'ACYL RADIO - WILL01' || nft.name === 'ACYL RADIO - Chili Sounds 🌶️') ? (
-                      <img
-                        src={nft.image}
-                        alt={nft.name}
-                        className="w-full h-full object-cover"
-                        width={200}
-                        height={200}
-                        style={{ maxWidth: '200px', maxHeight: '200px' }}
-                      />
+                    {(nft.name === 'ACYL RADIO - Hidden Tales' || 
+                      nft.name === 'ACYL RADIO - WILL01' || 
+                      nft.name === 'ACYL RADIO - Chili Sounds 🌶️') ? (
+                      <picture>
+                        {/* WebP version */}
+                        <source 
+                          srcSet={nft.image} 
+                          type="image/webp"
+                        />
+                        {/* Original as fallback */}
+                        <img
+                          src={nft.originalImage || nft.image}
+                          alt={nft.name}
+                          className="w-full h-full object-cover"
+                          width={200}
+                          height={200}
+                          style={{ maxWidth: '200px', maxHeight: '200px' }}
+                        />
+                      </picture>
                     ) : (
                       <NFTImage
                         src={nft.image}
