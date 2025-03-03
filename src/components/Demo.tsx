@@ -46,6 +46,7 @@ import { UserDataLoader } from './data/UserDataLoader';
 import { VideoSyncManager } from './media/VideoSyncManager';
 import { videoPerformanceMonitor } from '../utils/videoPerformanceMonitor';
 import { AnimatePresence, motion } from 'framer-motion';
+import NotificationHeader from './NotificationHeader';
 
 const NFT_CACHE_KEY = 'podplayr_nft_cache_';
 const TWO_HOURS = 2 * 60 * 60 * 1000;
@@ -746,54 +747,25 @@ const Demo: React.FC = () => {
               setIsPlayerMinimized={setIsPlayerMinimized}
               onLikeToggle={async (nft) => {
                 if (currentPage.isLibrary) {
-                  // Create a direct notification element
-                  const notifEl = document.createElement('div');
-                  notifEl.style.cssText = `
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    right: 0;
-                    padding: 16px;
-                    background-color: #ef4444;
-                    color: white;
-                    text-align: center;
-                    font-weight: bold;
-                    z-index: 9999;
-                    animation: slideDown 0.5s forwards;
-                  `;
-                  
-                  // Add animation
-                  const styleEl = document.createElement('style');
-                  styleEl.textContent = `
-                    @keyframes slideDown {
-                      from { transform: translateY(-100%); }
-                      to { transform: translateY(0); }
-                    }
-                  `;
-                  document.head.appendChild(styleEl);
-                  
-                  // Set content
-                  notifEl.textContent = `REMOVED: ${nft.name}`;
-                  
-                  // Add to DOM
-                  document.body.appendChild(notifEl);
-                  
-                  // Remove after 3 seconds
-                  setTimeout(() => {
-                    notifEl.style.animation = 'slideUp 0.5s forwards';
-                    styleEl.textContent += `
-                      @keyframes slideUp {
-                        from { transform: translateY(0); }
-                        to { transform: translateY(-100%); }
-                      }
-                    `;
+                  // First, update state in LibraryView to show notification
+                  if (libraryViewRef.current) {
+                    // Safe to access setState now that we've checked for null
+                    libraryViewRef.current.setState({
+                      unlikedNFTName: nft.name,
+                      showUnlikeNotification: true
+                    });
+                    
+                    // Auto-hide after 3 seconds
                     setTimeout(() => {
-                      document.body.removeChild(notifEl);
-                      document.head.removeChild(styleEl);
-                    }, 500);
-                  }, 3000);
+                      if (libraryViewRef.current) {
+                        libraryViewRef.current.setState({
+                          showUnlikeNotification: false
+                        });
+                      }
+                    }, 3000);
+                  }
                   
-                  // Call the normal like toggle function
+                  // Then call the normal handleLikeToggle directly
                   await handleLikeToggle(nft);
                 } else {
                   await handleLikeToggle(nft);
@@ -1304,6 +1276,17 @@ const Demo: React.FC = () => {
         onNavigate={switchPage}
         className={isPlayerMinimized ? '' : 'hidden'}
       />
+
+      {libraryViewRef.current && (
+        <NotificationHeader
+          show={libraryViewRef.current?.state.showUnlikeNotification}
+          onHide={() => libraryViewRef.current?.setState({ showUnlikeNotification: false })}
+          type="error"
+          message="Removed"
+          highlightText={libraryViewRef.current?.state.unlikedNFTName}
+          autoHideDuration={3000}
+        />
+      )}
     </div>
   );
 };
