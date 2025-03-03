@@ -721,6 +721,7 @@ const Demo: React.FC = () => {
           )}
           {currentPage.isLibrary && (
             <LibraryView
+              ref={libraryViewRef}
               likedNFTs={likedNFTs}
               handlePlayAudio={handlePlayFromLibrary}
               currentlyPlaying={currentlyPlaying}
@@ -743,7 +744,14 @@ const Demo: React.FC = () => {
               setIsLiked={setIsLiked}
               setIsPlayerVisible={() => {}}
               setIsPlayerMinimized={setIsPlayerMinimized}
-              onLikeToggle={handleLikeToggle}
+              onLikeToggle={async (nft) => {
+                // If we're in the library view, we need to handle the unlike notification
+                if (currentPage.isLibrary && libraryViewRef.current) {
+                  await libraryViewRef.current.handleUnlike(nft);
+                } else {
+                  handleLikeToggle(nft);
+                }
+              }}
             />
           )}
           {currentPage.isProfile && (
@@ -1181,6 +1189,9 @@ const Demo: React.FC = () => {
     }
   };
 
+  // Add this near the top of the Demo component
+  const libraryViewRef = useRef<LibraryView>(null);
+
   return (
     <div className="min-h-screen flex flex-col no-select">
       {userFid && (
@@ -1216,8 +1227,15 @@ const Demo: React.FC = () => {
           progress={audioProgress}
           duration={audioDuration}
           onSeek={handleSeek}
-          onLikeToggle={handleLikeToggle}
-          isLiked={isNFTLiked(currentPlayingNFT, true)} // Always check actual liked state for Player
+          onLikeToggle={(nft) => {
+            // If we're in the library view, we need to handle the unlike notification
+            if (currentPage.isLibrary && libraryViewRef.current) {
+              libraryViewRef.current.handleUnlike(nft);
+            } else {
+              handleLikeToggle(nft);
+            }
+          }}
+          isLiked={isNFTLiked(currentPlayingNFT, true)}
           onPictureInPicture={togglePictureInPicture}
         />
       )}
