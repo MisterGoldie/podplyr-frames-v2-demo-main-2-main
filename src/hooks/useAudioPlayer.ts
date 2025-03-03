@@ -10,9 +10,10 @@ declare global {
   }
 }
 
-interface UseAudioPlayerProps {
+export interface UseAudioPlayerProps {
   fid?: number;
   setRecentlyPlayedNFTs?: React.Dispatch<React.SetStateAction<NFT[]>>;
+  recentlyAddedNFT?: React.MutableRefObject<string | null>;
 }
 
 type UseAudioPlayerReturn = {
@@ -37,7 +38,7 @@ type AudioPlayerHandles = {
   timeupdate: () => void;
 }
 
-export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs }: UseAudioPlayerProps = {}): UseAudioPlayerReturn => {
+export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNFT }: UseAudioPlayerProps = {}): UseAudioPlayerReturn => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentPlayingNFT, setCurrentPlayingNFT] = useState<NFT | null>(null);
   const [currentlyPlaying, setCurrentlyPlaying] = useState<string | null>(null);
@@ -181,12 +182,30 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs }: UseAudioPlaye
             return prevNFTs;
           }
           
-          // Filter out NFTs with the same mediaKey
+          // Filter out NFTs with the same contract+tokenId (case insensitive) to avoid duplicates
+          const nftKey = `${nft.contract}-${nft.tokenId}`.toLowerCase();
           const filteredNFTs = prevNFTs.filter(item => {
-            const itemMediaKey = getMediaKey(item);
-            return itemMediaKey !== newMediaKey;
+            const itemKey = `${item.contract}-${item.tokenId}`.toLowerCase();
+            return itemKey !== nftKey;
           });
           
+          console.log('Adding NFT to Recently Played:', nft.name);
+          console.log('NFT Key for deduplication:', nftKey);
+          console.log('Filtered out duplicates, previous count:', prevNFTs.length, 'new count:', filteredNFTs.length);
+          
+          // Track this NFT as recently added to prevent duplicates from subscription
+          if (recentlyAddedNFT) {
+            recentlyAddedNFT.current = nftKey;
+            
+            // Clear the ref after a delay
+            setTimeout(() => {
+              if (recentlyAddedNFT.current === nftKey) {
+                recentlyAddedNFT.current = null;
+              }
+            }, 2000);
+          }
+          
+          // Add the new NFT to the beginning and limit to 8 items
           return [newNFT, ...filteredNFTs].slice(0, 8);
         });
       }

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNFTPlayCount } from '../../hooks/useNFTPlayCount';
 import { useNFTLikes } from '../../hooks/useNFTLikes';
 import { useNFTTopPlayed } from '../../hooks/useNFTTopPlayed';
@@ -13,10 +13,37 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ nft, onClose }) => {
   const { playCount, loading } = useNFTPlayCount(nft);
   const { likesCount, isLoading: likesLoading } = useNFTLikes(nft);
   const { hasBeenInTopPlayed, loading: topPlayedLoading } = useNFTTopPlayed(nft);
+  const [isClosing, setIsClosing] = useState(false);
+
+  // Handle closing animation
+  const handleClose = () => {
+    setIsClosing(true);
+    setTimeout(() => {
+      onClose();
+    }, 300); // Match this to the animation duration
+  };
+
+  // Reset closing state when component mounts
+  useEffect(() => {
+    setIsClosing(false);
+  }, [nft]);
 
   return (
-    <div className="fixed bottom-40 left-0 right-0 mx-auto z-[101] max-w-sm px-4">
-      <div className="bg-gray-900/95 backdrop-blur-lg rounded-xl p-5 shadow-2xl border border-purple-400/30 animate-fadeIn w-full">
+    <div className="fixed inset-0 z-[101] flex items-end justify-center px-4 pb-40 pointer-events-none">
+      {/* Backdrop overlay with fade animation */}
+      <div 
+        className={`absolute inset-0 bg-black/40 backdrop-blur-sm pointer-events-auto ${
+          isClosing ? 'animate-fade-out' : 'animate-fade-in'
+        }`}
+        onClick={handleClose}
+      ></div>
+      
+      {/* Info panel with slide-up animation */}
+      <div 
+        className={`relative bg-gray-900/95 backdrop-blur-lg rounded-xl p-5 shadow-2xl border border-purple-400/30 w-full max-w-sm pointer-events-auto ${
+          isClosing ? 'animate-slide-down' : 'animate-slide-up'
+        }`}
+      >
         {/* Header */}
         <div className="flex justify-between items-start mb-4">
           <div className="flex-1">
@@ -51,7 +78,7 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ nft, onClose }) => {
             </div>
           </div>
           <button 
-            onClick={onClose}
+            onClick={handleClose}
             className="text-gray-400 hover:text-purple-300 active:scale-95 transition-all p-3 -mr-3 touch-manipulation rounded-full bg-black/20 backdrop-blur-sm"
             style={{ touchAction: 'manipulation' }}
             aria-label="Close info panel"

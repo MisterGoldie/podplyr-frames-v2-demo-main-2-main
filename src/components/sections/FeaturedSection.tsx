@@ -16,7 +16,7 @@ export const FEATURED_NFTS: NFT[] = [
     audio: 'https://arweave.net/noYvGupxQyo2P7C2GMNNUseml29HEN6HLyvXOBD7jYQ',
     metadata: {
       animation_url: 'https://arweave.net/noYvGupxQyo2P7C2GMNNUseml29HEN6HLyvXOBD7jYQ',
-      description: 'Seasoning with Sazón, Call of Duty Black Ops 6 - Zombies - Terminus Episode 1 of 5',
+      description: 'Seasoning with Sazón, Call of Duty Black Ops 6 - Zombies - Terminus Episode 1 of 5 | @themrsazon',
       attributes: [
         {"trait_type":"Game","value":"Call of Duty Black Ops 6"},
         {"trait_type":"Map","value":"Terminus"}
@@ -39,15 +39,43 @@ export const FEATURED_NFTS: NFT[] = [
   },
   {
     name: 'ACYL RADIO - WILL01',
-    image: 'https://arweave.net/9MMNoTZJecFZTWL3AaebXDRq7UKcO2N4orYH6ZPzsYU',
+    image: 'https://arweave.net/Ajm6DFaUe6HCLF_RtAmj3Ot1sfT2KVO-fk1PVn1Bk2A', 
     contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb',
     tokenId: '79428737e6',
     audio: 'https://arweave.net/FXMkBkgV79p3QIL8589uh68-sKuXbmuBzQwvWH10v74',
     metadata: {
       animation_url: 'https://arweave.net/FXMkBkgV79p3QIL8589uh68-sKuXbmuBzQwvWH10v74',
-      description: 'Episode 1 from the founder of ACYL',
+      description: 'Episode 1 from the founder of ACYL | @willcreatesart',
       attributes: [
         {"trait_type":"Host","value":"WiLL"}
+      ]
+    }
+  },
+  {
+    name: 'ACYL RADIO - Hidden Tales',
+    image: 'https://arweave.net/D_nK5rGNB3XOBkouOIaZWyDHXL4TJ6ptkbtjAUatY2E', 
+    contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb',
+    tokenId: '79428737e7',
+    audio: 'https://arweave.net/Hr4GVDpKhq_dgZZA5SBAEapx9IJ1qDnDZ-Y40lExBHk',
+    metadata: {
+      animation_url: 'https://agoxezbhxilfttm6q4ojfdgiokuictgjt6vng5f4pxutjqg7sgza.arweave.net/AZ1yZCe6FlnNnocckozIcqiBTMmfqtN0vH3pNMDfkbI',
+      description: 'Ann Marie Alanes | @annmariealanes',
+      attributes: [
+        {"trait_type":"Host","value":"Ann Marie Alanes"}
+      ]
+    }
+  },
+  {
+    name: 'ACYL RADIO - Chili Sounds 🌶️',
+    image: 'https://arweave.net/dQT3NOU6RFa_F0SXD0ajejif4ysPOUeQjKmFHINnUis',
+    contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb', // Using same contract as other ACYL RADIO NFTs
+    tokenId: '79428737e8', // Incremented from previous ACYL RADIO NFT
+    audio: 'https://arweave.net/GujXDFCEk4FmJl9b_TlofLEmx_YnY_LRSB2aSY8AcRg',
+    metadata: {
+      animation_url: 'https://arweave.net/GujXDFCEk4FmJl9b_TlofLEmx_YnY_LRSB2aSY8AcRg',
+      description: 'ACYL RADIO - Chili Sounds | @themrsazon',
+      attributes: [
+        {"trait_type":"Host","value":"Mr. Sazon"}
       ]
     }
   }
@@ -111,64 +139,83 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({
       <div className="relative">
         <div className="overflow-x-auto pb-4 hide-scrollbar">
           <div className="flex gap-6">
-            {FEATURED_NFTS.map((nft) => (
-              <div key={getMediaKey(nft)} className="flex-shrink-0 w-[200px] group">
-                <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-gray-800/20 shadow-purple-500/20 shadow-lg transition-all">
-                  <NFTImage
-                    src={nft.image}
-                    alt={nft.name}
-                    className="w-full h-full object-cover"
-                    width={200}
-                    height={200}
-                    priority={true}
-                  />
-                  <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-                  <button 
-                    onClick={() => onPlayNFT(nft, { 
-                      queue: FEATURED_NFTS,
-                      queueType: 'featured'
-                    })}
-                    className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-purple-500 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                      <path d="M320-200v-560l440 280-440 280Z"/>
-                    </svg>
-                  </button>
-                  {/* Only show like button if userFid exists AND is a valid number greater than 0 */}
-                  {userFid && parseInt(String(userFid)) > 0 && onLikeToggle && (
+            {FEATURED_NFTS.map((nft, index) => {
+              // Generate a guaranteed unique key that doesn't rely on media content
+              const uniqueKey = nft.contract && nft.tokenId 
+                ? `featured-${nft.contract}-${nft.tokenId}-${index}` 
+                : `featured-${index}-${Math.random().toString(36).substr(2, 9)}`;
+              
+              return (
+                <div key={uniqueKey} className="flex-shrink-0 w-[200px] group">
+                  <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-gray-800/20 shadow-purple-500/20 shadow-lg transition-all">
+                    {/* Special handling for GIF images */}
+                    {(nft.name === 'ACYL RADIO - Hidden Tales' || nft.name === 'ACYL RADIO - WILL01' || nft.name === 'ACYL RADIO - Chili Sounds 🌶️') ? (
+                      <img
+                        src={nft.image}
+                        alt={nft.name}
+                        className="w-full h-full object-cover"
+                        width={200}
+                        height={200}
+                        style={{ maxWidth: '200px', maxHeight: '200px' }}
+                      />
+                    ) : (
+                      <NFTImage
+                        src={nft.image}
+                        alt={nft.name}
+                        className="w-full h-full object-cover"
+                        width={200}
+                        height={200}
+                        priority={true}
+                      />
+                    )}
+                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
                     <button 
-                      onClick={() => onLikeToggle(nft)}
-                      className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center transition-all duration-200 hover:scale-110 z-10"
+                      onClick={() => onPlayNFT(nft, { 
+                        queue: FEATURED_NFTS,
+                        queueType: 'featured'
+                      })}
+                      className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-purple-500 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform"
                     >
-                      {isNFTLiked(nft) ? (
-                        <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor" className="text-red-500">
-                          <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
-                        </svg>
-                      ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor" className="text-white">
-                          <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Zm0-108q96-86 158-147.5t98-107q36-45.5 50-81t14-70.5q0-60-40-100t-100-40q-47 0-87 26.5T518-680h-76q-15-41-55-67.5T300-774q-60 0-100 40t-40 100q0 35 14 70.5t50 81q36 45.5 98 107T480-228Zm0-273Z"/>
-                        </svg>
-                      )}
+                      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                        <path d="M320-200v-560l440 280-440 280Z"/>
+                      </svg>
                     </button>
-                  )}
+                    {/* Only show like button if userFid exists AND is a valid number greater than 0 */}
+                    {userFid && parseInt(String(userFid)) > 0 && onLikeToggle && (
+                      <button 
+                        onClick={() => onLikeToggle(nft)}
+                        className="absolute top-2 right-2 text-red-500 transition-all duration-200 hover:scale-125 z-10"
+                      >
+                        {isNFTLiked(nft) ? (
+                          <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                            <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
+                          </svg>
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor" className="text-white hover:text-red-500">
+                            <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Zm0-108q96-86 158-147.5t98-107q36-45.5 50-81t14-70.5q0-60-40-100t-100-40q-47 0-87 26.5T518-680h-76q-15-41-55-67.5T300-774q-60 0-100 40t-40 100q0 35 14 70.5t50 81q36 45.5 98 107T480-228Zm0-273Z"/>
+                          </svg>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                  <h3 className="font-mono text-white text-sm truncate mb-1">{nft.name}</h3>
+                  <video
+                    id={`video-${nft.contract}-${nft.tokenId}`}
+                    src={nft.metadata?.animation_url ? processMediaUrl(nft.metadata.animation_url) : undefined}
+                    className="hidden"
+                    preload="none"
+                    playsInline
+                    muted
+                    loop
+                  />
+                  <audio
+                    id={`audio-${nft.contract}-${nft.tokenId}`}
+                    src={nft.audio ? processMediaUrl(nft.audio) : undefined}
+                    preload="none"
+                  />
                 </div>
-                <h3 className="font-mono text-white text-sm truncate mb-1">{nft.name}</h3>
-                <video
-                  id={`video-${nft.contract}-${nft.tokenId}`}
-                  src={nft.metadata?.animation_url ? processMediaUrl(nft.metadata.animation_url) : undefined}
-                  className="hidden"
-                  preload="none"
-                  playsInline
-                  muted
-                  loop
-                />
-                <audio
-                  id={`audio-${nft.contract}-${nft.tokenId}`}
-                  src={nft.audio ? processMediaUrl(nft.audio) : undefined}
-                  preload="none"
-                />
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>

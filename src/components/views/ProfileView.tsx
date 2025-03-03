@@ -3,13 +3,14 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useToast } from '../../hooks/useToast';
 import Image from 'next/image';
-import { NFTCard } from '../nft/NFTCard';
+import { VirtualizedNFTGrid } from '../nft/VirtualizedNFTGrid';
 import type { NFT, UserContext } from '../../types/user';
 import { getLikedNFTs } from '../../lib/firebase';
 import { uploadProfileBackground } from '../../firebase';
 import { fetchUserNFTs } from '../../lib/nft';
 import { optimizeImage } from '../../utils/imageOptimizer';
 import { useUserImages } from '../../contexts/UserImageContext';
+import NotificationHeader from '../NotificationHeader';
 
 interface ProfileViewProps {
   userContext: UserContext;
@@ -36,27 +37,12 @@ const ProfileView: React.FC<ProfileViewProps> = ({
 }) => {
   const [likedNFTs, setLikedNFTs] = useState<NFT[]>([]);
   const toast = useToast();
-
-  // Load liked NFTs when user changes
-  useEffect(() => {
-    const loadLikedNFTs = async () => {
-      if (userContext?.user?.fid) {
-        try {
-          const liked = await getLikedNFTs(userContext.user.fid);
-          setLikedNFTs(liked);
-        } catch (error) {
-          console.error('Error loading liked NFTs:', error);
-        }
-      }
-    };
-
-    loadLikedNFTs();
-  }, [userContext?.user?.fid]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const { backgroundImage, profileImage, setBackgroundImage } = useUserImages();
+  const [showSuccessBanner, setShowSuccessBanner] = useState(false);
 
   useEffect(() => {
     const loadNFTs = async () => {
@@ -92,23 +78,48 @@ const ProfileView: React.FC<ProfileViewProps> = ({
     console.log('🎯 ProfileView useEffect triggered with FID:', userContext.user?.fid);
     loadNFTs();
   }, [userContext.user?.fid, onNFTsLoaded]);
+
+  useEffect(() => {
+    const loadLikedNFTs = async () => {
+      if (userContext?.user?.fid) {
+        try {
+          const liked = await getLikedNFTs(userContext.user.fid);
+          console.log('Loaded liked NFTs for profile view:', liked.length);
+          setLikedNFTs(liked);
+        } catch (error) {
+          console.error('Error loading liked NFTs:', error);
+        }
+      }
+    };
+
+    loadLikedNFTs();
+  }, [userContext?.user?.fid]);
+
+  // This function checks if an NFT is liked
+  const isNFTLiked = (nft: NFT, ignoreCurrentPage?: boolean): boolean => {
+    if (!nft.contract || !nft.tokenId || likedNFTs.length === 0) return false;
+    
+    // Check if the NFT is in the liked NFTs array
+    return likedNFTs.some(
+      likedNFT => 
+        likedNFT.contract === nft.contract && 
+        likedNFT.tokenId === nft.tokenId
+    );
+  };
+
+  const handleBackgroundUploadSuccess = () => {
+    setShowSuccessBanner(true);
+  };
+
   return (
     <>
-      <header className="fixed top-0 left-0 right-0 h-16 bg-black border-b border-black flex items-center justify-center z-50">
-        <button 
-          onClick={onReset}
-          className="cursor-pointer"
-        >
-          <Image
-            src="/fontlogo.png"
-            alt="PODPlayr Logo"
-            width={120}
-            height={30}
-            className="logo-image"
-            priority={true}
-          />
-        </button>
-      </header>
+      <NotificationHeader
+        show={showSuccessBanner}
+        onHide={() => setShowSuccessBanner(false)}
+        type="success"
+        message="Background updated successfully"
+        autoHideDuration={3000}
+      />
       <div className="space-y-8 pt-20 pb-48 overflow-y-auto h-screen overscroll-y-contain">
         {/* Profile Header */}
         <div className="relative flex flex-col items-center text-center p-8 space-y-6 rounded-3xl mx-4 w-[340px] h-[280px] mx-auto border border-purple-400/20 shadow-xl shadow-purple-900/30 overflow-hidden hover:border-indigo-400/30 transition-all duration-300"
@@ -179,7 +190,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
 
                 // Clear the input and show success state
                 input.value = '';
-                toast?.success('Background updated successfully');
+                handleBackgroundUploadSuccess();
               } catch (err) {
                 console.error('Error uploading background:', err);
                 const errorMessage = err instanceof Error ? err.message : 'Failed to upload background image';
@@ -268,7 +279,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
           </div>
         </div>
 
-        {/* User's NFTs */}
+        {/* User's NFTs - Replace with virtualized grid */}
         <div>
           <h2 className="text-2xl font-bold text-green-400 mb-4">Your NFTs</h2>
           {isLoading ? (
@@ -290,26 +301,24 @@ const ProfileView: React.FC<ProfileViewProps> = ({
             </div>
           ) : nfts.length > 0 ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {nfts.map((nft, index) => {
-                const nftKey = nft.contract && nft.tokenId ? 
-                  `${nft.contract}-${nft.tokenId}` : 
-                  `nft-${index}-${nft.name}`;
-                
-                return (
-                  <NFTCard
-                    key={nftKey}
-                    nft={nft}
-                    onPlay={() => handlePlayAudio(nft)}
-                    isPlaying={isPlaying && currentlyPlaying === nftKey}
-                    currentlyPlaying={currentlyPlaying}
-                    handlePlayPause={handlePlayPause}
-                    onLikeToggle={() => onLikeToggle(nft)}
-                    showTitleOverlay={true}
-                    useCenteredPlay={true}
-                    userFid={userContext.user?.fid}
-                  />
-                );
-              })}
+              {/* Custom styling to hide the "All X NFTs loaded" message */}
+              <style jsx global>{`
+                .grid > .col-span-full:last-child {
+                  display: none;
+                }
+              `}</style>
+              
+              <VirtualizedNFTGrid 
+                nfts={nfts}
+                currentlyPlaying={currentlyPlaying}
+                isPlaying={isPlaying}
+                handlePlayPause={handlePlayPause}
+                onPlayNFT={handlePlayAudio}
+                publicCollections={[]}
+                onLikeToggle={onLikeToggle}
+                isNFTLiked={isNFTLiked}
+                userFid={userContext.user?.fid}
+              />
             </div>
           ) : (
             <div className="text-center py-12">

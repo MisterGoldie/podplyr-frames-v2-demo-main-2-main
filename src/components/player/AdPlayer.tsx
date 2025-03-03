@@ -4,6 +4,7 @@ import React, { useRef, useEffect, useState } from 'react';
 
 interface AdPlayerProps {
   onAdComplete: () => void;
+  key?: string;
 }
 
 // Ad configuration with URLs

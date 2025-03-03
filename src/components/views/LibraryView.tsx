@@ -1,10 +1,11 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import type { NFT, UserContext } from '../../types/user';
 import { NFTImage } from '../media/NFTImage';
 import { getMediaKey } from '~/utils/media';
 import Image from 'next/image';
+import NotificationHeader from '../NotificationHeader';
 
 interface LibraryViewProps {
   likedNFTs: NFT[];
@@ -28,19 +29,29 @@ interface SimpleNFTCardProps {
   currentlyPlaying: string | null;
   onLikeToggle: (nft: NFT) => Promise<void>;
   viewMode: 'grid' | 'list';
+  animationDelay?: number;
+  parent: LibraryView;
 }
 
 // This is a simple component that doesn't use hooks
 class SimpleNFTCard extends React.Component<SimpleNFTCardProps> {
   render() {
-    const { nft, onPlay, isPlaying, currentlyPlaying, onLikeToggle, viewMode } = this.props;
+    const { nft, onPlay, isPlaying, currentlyPlaying, onLikeToggle, viewMode, animationDelay = 0 } = this.props;
     const isCurrentTrack = currentlyPlaying === getMediaKey(nft);
+
+    // Add animation styles
+    const animationStyle = {
+      opacity: 0,
+      transform: 'translateY(20px)',
+      animation: `fadeInUp 0.5s ease-out ${animationDelay}s forwards`
+    };
 
     if (viewMode === 'grid') {
       return (
         <div 
-          key={getMediaKey(nft)}
-          className="group relative bg-gradient-to-br from-gray-800/30 to-gray-800/10 rounded-lg overflow-hidden hover:bg-gray-800/40 active:bg-gray-800/60 transition-all duration-500 ease-in-out touch-manipulation shadow-xl shadow-purple-900/30 border border-purple-400/10"
+          className="group relative bg-gradient-to-br from-gray-800/30 to-gray-800/10 rounded-lg overflow-hidden hover:bg-gray-800/40 active:bg-gray-800/60 transition-all duration-500 ease-in-out touch-manipulation shadow-xl shadow-purple-900/30 border border-purple-400/10 cursor-pointer"
+          onClick={() => onPlay(nft)}
+          style={animationStyle}
         >
           <div className="aspect-square relative">
             <NFTImage
@@ -55,29 +66,16 @@ class SimpleNFTCard extends React.Component<SimpleNFTCardProps> {
             <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
             
             <button 
-              onClick={() => onLikeToggle(nft)}
-              className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center transition-all duration-300 hover:scale-110 z-10"
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent triggering the parent onClick
+                // Just call onLikeToggle - it will handle the notification
+                onLikeToggle(nft);
+              }}
+              className="absolute top-2 right-2 text-red-500 transition-all duration-300 hover:scale-125 z-10"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor" className="text-red-500">
+              <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
                 <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
               </svg>
-            </button>
-            
-            <button 
-              onClick={() => onPlay(nft)}
-              className="absolute inset-0 flex items-center justify-center"
-            >
-              <div className="w-16 h-16 rounded-full bg-purple-500 text-black flex items-center justify-center hover:scale-105 transform transition-all duration-300 ease-out active:scale-95 touch-manipulation">
-                {isCurrentTrack && isPlaying ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px" fill="currentColor">
-                    <path d="M320-640v320h80V-640h-80Zm240 0v320h80V-640h-80Z"/>
-                  </svg>
-                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px" fill="currentColor">
-                    <path d="M320-200v-560l440 280-440 280Z"/>
-                  </svg>
-                )}
-              </div>
             </button>
             
             <div className="absolute bottom-0 left-0 right-0 bg-black/50 p-2">
@@ -90,6 +88,7 @@ class SimpleNFTCard extends React.Component<SimpleNFTCardProps> {
       return (
         <div 
           className="bg-gray-800/30 rounded-lg p-3 flex items-center gap-4 group hover:bg-gray-800/50 transition-colors"
+          style={animationStyle}
         >
           {/* Thumbnail */}
           <div className="w-12 h-12 rounded-md overflow-hidden flex-shrink-0">
@@ -113,7 +112,10 @@ class SimpleNFTCard extends React.Component<SimpleNFTCardProps> {
           <div className="flex items-center gap-2">
             {/* Like Button */}
             <button 
-              onClick={() => onLikeToggle(nft)}
+              onClick={() => {
+                // Just call onLikeToggle - it will handle the notification
+                onLikeToggle(nft);
+              }}
               className="text-red-500 hover:scale-110 transition-transform"
             >
               <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
@@ -149,7 +151,9 @@ class LibraryView extends React.Component<LibraryViewProps> {
     viewMode: 'grid' as 'grid' | 'list',
     searchFilter: '',
     filterSort: 'recent' as 'recent' | 'name',
-    isLoading: true // Add loading state, initially true
+    isLoading: true, // Add loading state, initially true
+    showUnlikeNotification: false,
+    unlikedNFTName: ''
   };
 
   componentDidMount() {
@@ -209,6 +213,17 @@ class LibraryView extends React.Component<LibraryViewProps> {
       });
   }
 
+  handleUnlike = async (nft: NFT) => {
+    // Set the notification state
+    this.setState({
+      unlikedNFTName: nft.name,
+      showUnlikeNotification: true
+    });
+    
+    // Call the original onLikeToggle function
+    await this.props.onLikeToggle(nft);
+  };
+
   render() {
     const { 
       handlePlayAudio, 
@@ -219,12 +234,37 @@ class LibraryView extends React.Component<LibraryViewProps> {
       onLikeToggle 
     } = this.props;
     
-    const { viewMode, searchFilter, filterSort, isLoading } = this.state;
+    const { viewMode, searchFilter, filterSort, isLoading, showUnlikeNotification, unlikedNFTName } = this.state;
     const uniqueNFTs = this.getUniqueNFTs();
     const filteredNFTs = this.getFilteredNFTs();
 
+    // Add the keyframes style to the component
+    const animationKeyframes = `
+      @keyframes fadeInUp {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+    `;
+
     return (
       <>
+        <style>{animationKeyframes}</style>
+
+        <NotificationHeader
+          show={showUnlikeNotification}
+          onHide={() => this.setState({ showUnlikeNotification: false })}
+          type="error"
+          message="Removed"
+          highlightText={unlikedNFTName}
+          autoHideDuration={3000}
+        />
+
         <header className="fixed top-0 left-0 right-0 h-16 bg-black border-b border-black flex items-center justify-center z-50">
           <button onClick={onReset} className="cursor-pointer">
             <Image
@@ -329,17 +369,29 @@ class LibraryView extends React.Component<LibraryViewProps> {
             <div 
               className={`px-4 pb-32 ${viewMode === 'grid' ? 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4' : 'space-y-4'}`}
             >
-              {filteredNFTs.map((nft) => (
-                <SimpleNFTCard
-                  key={getMediaKey(nft)}
-                  nft={nft}
-                  onPlay={handlePlayAudio}
-                  isPlaying={isPlaying}
-                  currentlyPlaying={currentlyPlaying}
-                  onLikeToggle={onLikeToggle}
-                  viewMode={viewMode}
-                />
-              ))}
+              {filteredNFTs.map((nft, index) => {
+                const uniqueKey = nft.contract && nft.tokenId 
+                  ? `library-${nft.contract}-${nft.tokenId}-${index}` 
+                  : `library-${index}-${Math.random().toString(36).substr(2, 9)}`;
+                
+                // Calculate a staggered delay based on index
+                // This creates a wave-like appearance as cards animate in
+                const staggerDelay = 0.05 * (index % 8); // Reset every 8 items to keep delays reasonable
+                
+                return (
+                  <SimpleNFTCard
+                    key={uniqueKey}
+                    nft={nft}
+                    onPlay={handlePlayAudio}
+                    isPlaying={isPlaying}
+                    currentlyPlaying={currentlyPlaying}
+                    onLikeToggle={onLikeToggle}
+                    viewMode={viewMode}
+                    animationDelay={staggerDelay}
+                    parent={this}
+                  />
+                );
+              })}
             </div>
           )}
         </div>
