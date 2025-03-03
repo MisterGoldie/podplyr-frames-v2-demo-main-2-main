@@ -747,26 +747,23 @@ const Demo: React.FC = () => {
               setIsPlayerMinimized={setIsPlayerMinimized}
               onLikeToggle={async (nft) => {
                 if (currentPage.isLibrary) {
-                  // First, update state in LibraryView to show notification
+                  // Prevent re-liking from Library page
                   if (libraryViewRef.current) {
-                    // Safe to access setState now that we've checked for null
-                    libraryViewRef.current.setState({
-                      unlikedNFTName: nft.name,
-                      showUnlikeNotification: true
-                    });
-                    
-                    // Auto-hide after 3 seconds
-                    setTimeout(() => {
-                      if (libraryViewRef.current) {
-                        libraryViewRef.current.setState({
-                          showUnlikeNotification: false
-                        });
-                      }
-                    }, 3000);
+                    // Check if the NFT exists in likedNFTs array
+                    const isCurrentlyLiked = likedNFTs.some(
+                      likedNFT => likedNFT.contractAddress === nft.contractAddress && 
+                                  likedNFT.tokenId === nft.tokenId
+                    );
+
+                    // Only allow unlike action (removing from library)
+                    if (isCurrentlyLiked) {
+                      libraryViewRef.current.setState({
+                        showUnlikeNotification: true
+                      });
+                      await handleLikeToggle(nft);
+                    }
+                    // Ignore the click if it's trying to re-like
                   }
-                  
-                  // Then call the normal handleLikeToggle directly
-                  await handleLikeToggle(nft);
                 } else {
                   await handleLikeToggle(nft);
                 }
