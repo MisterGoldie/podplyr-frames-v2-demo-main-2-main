@@ -119,6 +119,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
         type="success"
         message="Background updated successfully"
         autoHideDuration={3000}
+        onReset={onReset}
       />
       <div className="space-y-8 pt-20 pb-48 overflow-y-auto h-screen overscroll-y-contain">
         {/* Profile Header */}

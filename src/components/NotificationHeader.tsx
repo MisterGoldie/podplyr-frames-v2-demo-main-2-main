@@ -12,6 +12,7 @@ interface NotificationHeaderProps {
   autoHideDuration?: number;
   icon?: React.ReactNode;
   logo?: string;
+  onReset?: () => void;
 }
 
 const NotificationHeader: React.FC<NotificationHeaderProps> = ({
@@ -23,6 +24,7 @@ const NotificationHeader: React.FC<NotificationHeaderProps> = ({
   autoHideDuration = 3000,
   icon,
   logo = '/fontlogo.png',
+  onReset,
 }) => {
   // Use separate states for background and content to stagger transitions
   const [isBackgroundVisible, setIsBackgroundVisible] = useState(show);
@@ -122,14 +124,16 @@ const NotificationHeader: React.FC<NotificationHeaderProps> = ({
               : 'opacity-100 translate-y-0'
           }`}
         >
-          <Image
-            src={logo}
-            alt="PODPlayr Logo"
-            width={120}
-            height={30}
-            className="logo-image"
-            priority={true}
-          />
+          <button onClick={onReset} className="cursor-pointer">
+            <Image
+              src={logo}
+              alt="PODPlayr Logo"
+              width={120}
+              height={30}
+              className="logo-image"
+              priority={true}
+            />
+          </button>
         </div>
         
         {/* Notification content with improved transitions */}
