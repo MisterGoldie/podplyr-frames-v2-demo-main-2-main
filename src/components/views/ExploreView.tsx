@@ -340,8 +340,8 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                   />
                 </div>
               </a>
-              <div className="space-y-2">
-                <h2 className="text-2xl font-mono text-green-400">@{selectedUser.username}</h2>
+              <div className="space-y-2 flex-1 min-w-0">
+                <h2 className="text-2xl font-mono text-green-400 truncate">@{selectedUser.username}</h2>
                 {!isLoadingNFTs && (
                   <p className="font-mono text-sm text-gray-500">
                     Total Media NFTs: {nfts.length}
