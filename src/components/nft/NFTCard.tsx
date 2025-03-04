@@ -9,6 +9,7 @@ import { FarcasterContext } from '../../app/providers';
 import { DirectVideoPlayer } from '../media/DirectVideoPlayer';
 import { UltraDirectPlayer } from '../media/UltraDirectPlayer';
 import { NFTGifImage } from '../media/NFTGifImage';
+import { useSessionImageCache } from '../../hooks/useSessionImageCache';
 // Removed the import for 'react-intersection-observer' due to the error
 
 interface NFTCardProps {
@@ -66,6 +67,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   isNFTLiked,
   animationDelay = 0.2
 }) => {
+  const { getPreloadedImage, preloadImage } = useSessionImageCache([nft]);
   // Get like state based on context - if we're in library view, NFT is always liked
   const { isLiked: likeStateFromHook, likesCount: globalLikesCount } = useNFTLikeState(nft, userFid || 0);
   
@@ -105,6 +107,10 @@ export const NFTCard: React.FC<NFTCardProps> = ({
     const observer = new IntersectionObserver(
       ([entry]) => {
         setIsVisible(entry.isIntersecting);
+        if (entry.isIntersecting) {
+          // Preload image when card becomes visible
+          preloadImage(nft);
+        }
       },
       { threshold: 0.1 }
     );
@@ -114,10 +120,14 @@ export const NFTCard: React.FC<NFTCardProps> = ({
     }
 
     return () => observer.disconnect();
-  }, []);
+  }, [nft, preloadImage]);
 
   // Only load animated content when card is visible
   const shouldLoadAnimated = isVisible;
+
+  // Get cached image if available
+  const cachedImage = getPreloadedImage(nft);
+  const imageUrl = cachedImage ? cachedImage.src : processMediaUrl(nft.image || nft.metadata?.image || '');
 
   const startOverlayTimer = (e: React.MouseEvent | React.TouchEvent) => {
     // Clear any existing timeout
@@ -213,7 +223,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
             ) : (
               <NFTImage
                 nft={nft}
-                src={processMediaUrl(nft.image || nft.metadata?.image || '')}
+                src={imageUrl}
                 alt={nft.name || 'NFT'}
                 className="w-full h-full object-cover rounded-md"
                 width={64}
@@ -284,7 +294,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
           ) : (
             <NFTImage
               nft={nft}
-              src={processMediaUrl(nft.image || nft.metadata?.image || '')}
+              src={imageUrl}
               alt={nft.name || 'NFT'}
               className="w-full h-full object-cover"
               width={300}

@@ -1,0 +1,118 @@
+import { useState, useEffect } from 'react';
+import { NFT } from '../types/user';
+import { getMediaKey, processMediaUrl } from '../utils/media';
+
+// Create a singleton cache that persists across component remounts
+class SessionImageCache {
+  private static instance: SessionImageCache;
+  private cache: Map<string, HTMLImageElement>;
+  private loadingPromises: Map<string, Promise<void>>;
+
+  private constructor() {
+    this.cache = new Map();
+    this.loadingPromises = new Map();
+  }
+
+  public static getInstance(): SessionImageCache {
+    if (!SessionImageCache.instance) {
+      SessionImageCache.instance = new SessionImageCache();
+    }
+    return SessionImageCache.instance;
+  }
+
+  public has(key: string): boolean {
+    return this.cache.has(key);
+  }
+
+  public get(key: string): HTMLImageElement | undefined {
+    return this.cache.get(key);
+  }
+
+  public getLoadingPromise(key: string): Promise<void> | undefined {
+    return this.loadingPromises.get(key);
+  }
+
+  public async preloadImage(nft: NFT): Promise<void> {
+    const key = getMediaKey(nft);
+    if (this.has(key)) return;
+
+    // If already loading, return existing promise
+    if (this.loadingPromises.has(key)) {
+      return this.loadingPromises.get(key);
+    }
+
+    const imageUrl = processMediaUrl(nft.metadata?.image || nft.image || '');
+    if (!imageUrl) return;
+
+    const loadPromise = new Promise<void>((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        this.cache.set(key, img);
+        this.loadingPromises.delete(key);
+        resolve();
+      };
+      img.onerror = () => {
+        this.loadingPromises.delete(key);
+        resolve(); // Resolve anyway to prevent hanging
+      };
+      img.src = imageUrl;
+    });
+
+    this.loadingPromises.set(key, loadPromise);
+    return loadPromise;
+  }
+
+  public clear(): void {
+    this.cache.clear();
+    this.loadingPromises.clear();
+  }
+}
+
+export const useSessionImageCache = (nfts: NFT[]) => {
+  const [isLoading, setIsLoading] = useState(true);
+  const cache = SessionImageCache.getInstance();
+
+  useEffect(() => {
+    let mounted = true;
+
+    const preloadBatch = async () => {
+      if (!mounted) return;
+      setIsLoading(true);
+
+      try {
+        // Preload first batch immediately
+        const initialBatch = nfts.slice(0, 6);
+        await Promise.all(initialBatch.map(nft => cache.preloadImage(nft)));
+
+        // Preload rest in background
+        if (mounted) {
+          const remainingBatch = nfts.slice(6);
+          remainingBatch.forEach(nft => {
+            cache.preloadImage(nft).catch(() => {}); // Ignore errors for background loading
+          });
+        }
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    preloadBatch();
+
+    return () => {
+      mounted = false;
+    };
+  }, [nfts]);
+
+  const getPreloadedImage = (nft: NFT): HTMLImageElement | undefined => {
+    const key = getMediaKey(nft);
+    return cache.get(key);
+  };
+
+  return {
+    isLoading,
+    getPreloadedImage,
+    preloadImage: cache.preloadImage.bind(cache)
+  };
+}; 
