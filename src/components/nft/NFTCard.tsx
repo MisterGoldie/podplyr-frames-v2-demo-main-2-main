@@ -8,6 +8,7 @@ import { useNFTPlayCount } from '../../hooks/useNFTPlayCount';
 import { FarcasterContext } from '../../app/providers';
 import { DirectVideoPlayer } from '../media/DirectVideoPlayer';
 import { UltraDirectPlayer } from '../media/UltraDirectPlayer';
+import { NFTGifImage } from '../media/NFTGifImage';
 
 interface NFTCardProps {
   nft: NFT;
@@ -103,20 +104,36 @@ export const NFTCard: React.FC<NFTCardProps> = ({
     }
     // Show the overlay
     setShowOverlay(true);
+    
+    // For recently played NFTs, keep the overlay visible longer
+    // or don't auto-hide it at all if it's the current track
+    if (isCurrentTrack) {
+      // Don't auto-hide if this is the current track
+      return;
+    }
+    
     // Set new timeout to hide overlay after 5 seconds
     overlayTimeoutRef.current = setTimeout(() => {
-      setShowOverlay(false);
+      // Only hide if it's not the current track
+      if (!isCurrentTrack) {
+        setShowOverlay(false);
+      }
     }, 5000);
   };
 
-  // Cleanup timeout on unmount
+  // Also, modify the useEffect to ensure the overlay stays visible for the current track
   useEffect(() => {
+    // If this becomes the current track, show the overlay
+    if (isCurrentTrack) {
+      setShowOverlay(true);
+    }
+    
     return () => {
       if (overlayTimeoutRef.current) {
         clearTimeout(overlayTimeoutRef.current);
       }
     };
-  }, []);
+  }, [isCurrentTrack]);
 
   const handlePlay = async (e: React.MouseEvent | React.TouchEvent) => {
     console.log('Play button clicked for NFT:', {
@@ -162,18 +179,11 @@ export const NFTCard: React.FC<NFTCardProps> = ({
             ) : (
               // Special handling for GIF images of ACYL RADIO NFTs
               (nft.name === 'ACYL RADIO - Hidden Tales' || nft.name === 'ACYL RADIO - WILL01' || nft.name === 'ACYL RADIO - Chili Sounds 🌶️') ? (
-                <img
-                  src={nft.image}
-                  alt={nft.name}
-                  className="w-full h-full object-cover rounded-md"
+                <NFTGifImage
+                  nft={nft}
+                  className="w-full h-full"
                   width={64}
                   height={64}
-                  style={{ 
-                    maxWidth: '100%', 
-                    maxHeight: '100%',
-                    willChange: 'transform', 
-                    transform: 'translateZ(0)'
-                  }}
                 />
               ) : (
                 <NFTImage
@@ -242,18 +252,11 @@ export const NFTCard: React.FC<NFTCardProps> = ({
           ) : (
             // Special handling for GIF images of ACYL RADIO NFTs
             (nft.name === 'ACYL RADIO - Hidden Tales' || nft.name === 'ACYL RADIO - WILL01' || nft.name === 'ACYL RADIO - Chili Sounds 🌶️') ? (
-              <img
-                src={nft.image}
-                alt={nft.name}
-                className="w-full h-full object-cover"
+              <NFTGifImage
+                nft={nft}
+                className="w-full h-full"
                 width={300}
                 height={300}
-                style={{ 
-                  maxWidth: '100%', 
-                  maxHeight: '100%',
-                  willChange: 'transform', 
-                  transform: 'translateZ(0)'
-                }}
               />
             ) : (
               <NFTImage
@@ -339,7 +342,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
                 await handlePlay(e);
                 if (e) startOverlayTimer(e);
               }}
-              className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-purple-500 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform touch-manipulation"
+              className={`absolute bottom-2 right-2 w-10 h-10 rounded-full bg-purple-500 text-black flex items-center justify-center ${isCurrentTrack ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity duration-200 hover:scale-105 transform touch-manipulation`}
             >
               {isCurrentTrack && isPlaying ? (
                 <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
