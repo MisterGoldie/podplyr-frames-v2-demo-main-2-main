@@ -68,8 +68,8 @@ class SimpleNFTCard extends React.Component<SimpleNFTCardProps> {
             <button 
               onClick={(e) => {
                 e.stopPropagation(); // Prevent triggering the parent onClick
-                // Just call onLikeToggle - it will handle the notification
-                onLikeToggle(nft);
+                // Call the parent's handleUnlike method
+                this.props.parent.handleUnlike(nft);
               }}
               className="absolute top-2 right-2 text-red-500 transition-all duration-300 hover:scale-125 z-10"
             >
@@ -112,9 +112,10 @@ class SimpleNFTCard extends React.Component<SimpleNFTCardProps> {
           <div className="flex items-center gap-2">
             {/* Like Button */}
             <button 
-              onClick={() => {
-                // Just call onLikeToggle - it will handle the notification
-                onLikeToggle(nft);
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent triggering the parent onClick
+                // Call the parent's handleUnlike method
+                this.props.parent.handleUnlike(nft);
               }}
               className="text-red-500 hover:scale-110 transition-transform"
             >

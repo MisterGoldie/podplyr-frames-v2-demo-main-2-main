@@ -146,8 +146,13 @@ const NotificationHeader: React.FC<NotificationHeaderProps> = ({
             <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center mr-3">
               {icon || getDefaultIcon()}
             </div>
-            <div className="text-white text-lg">
-              {message} {highlightText && <span className="font-semibold">{highlightText}</span>}
+            <div className="text-white text-lg flex items-center">
+              {message}
+              {highlightText && (
+                <span className="font-semibold ml-2 truncate max-w-[120px] inline-block">
+                  {highlightText}
+                </span>
+              )}
             </div>
           </div>
         )}
