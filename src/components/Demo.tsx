@@ -136,6 +136,9 @@ const Demo: React.FC = () => {
   const [userData, setUserData] = useState<FarcasterUser | null>(null);
   const videoRef = useRef<HTMLVideoElement>(document.createElement('video'));
 
+  // Add this near your other state variables
+  const [permanentlyRemovedNFTs, setPermanentlyRemovedNFTs] = useState<Set<string>>(new Set());
+
   // Load liked NFTs and recent searches when user changes
   useEffect(() => {
     let unsubscribeSearches: (() => void) | undefined;
@@ -446,29 +449,48 @@ const Demo: React.FC = () => {
     debugLikeStatus(nft);
     
     try {
-      // For unlikes, update the UI IMMEDIATELY regardless of Firebase response
-      // This ensures users see immediate feedback for their action
+      // Get the NFT key for tracking
+      const nftKey = `${nft.contract?.toLowerCase()}-${nft.tokenId}`;
       const isCurrentlyLiked = isNFTLiked(nft, true);
       
-      if (isCurrentlyLiked) {
-        // IMMEDIATELY update the local state - don't wait for Firebase
-        console.log(`🔥 IMMEDIATE UI UPDATE: Removing ${nft.name} from liked NFTs`);
-        
-        // Create a unique key for comparison - handles both upper/lowercase
-        const targetKey = `${nft.contract?.toLowerCase()}-${nft.tokenId}`;
-        
-        // Filter out this NFT from local state immediately
-        const updatedLikedNFTs = likedNFTs.filter(item => {
-          const itemKey = `${item.contract?.toLowerCase()}-${item.tokenId}`;
-          return itemKey !== targetKey;
+      // If we're in library or the NFT is currently liked, we're unliking
+      if (currentPage.isLibrary || isCurrentlyLiked) {
+        // PERMANENT REMOVAL: Add this NFT to our permanent blacklist
+        console.log(`🚫 PERMANENTLY REMOVING ${nft.name} from library`);
+        setPermanentlyRemovedNFTs(prev => {
+          const updated = new Set(prev);
+          updated.add(nftKey);
+          return updated;
         });
         
-        // Update state immediately to give user feedback
-        setLikedNFTs(updatedLikedNFTs);
+        // IMMEDIATE UI UPDATE
+        console.log(`🔥 Immediate UI update: Removing ${nft.name}`);
+        const filteredNFTs = likedNFTs.filter(item => {
+          const itemKey = `${item.contract?.toLowerCase()}-${item.tokenId}`;
+          return itemKey !== nftKey;
+        });
+        
+        // Update state immediately
+        setLikedNFTs(filteredNFTs);
         setIsLiked(false);
+        
+        // Show notification directly from here to ensure it appears
+        if (libraryViewRef.current) {
+          libraryViewRef.current.setState({
+            showUnlikeNotification: true,
+            unlikedNFTName: nft.name
+          });
+          
+          // Auto-hide notification after 3 seconds
+          setTimeout(() => {
+            if (libraryViewRef.current) {
+              libraryViewRef.current.setState({ showUnlikeNotification: false });
+            }
+          }, 3000);
+        }
       }
       
-      // THEN call Firebase (but user already sees the update)
+      // THEN call Firebase (in background)
       console.log('📝 Calling toggleLikeNFT...');
       const wasLiked = await toggleLikeNFT(nft, userFid);
       console.log(`✅ Like toggled: ${wasLiked ? 'added' : 'removed'}`);
@@ -477,7 +499,16 @@ const Demo: React.FC = () => {
       if (wasLiked) {
         console.log('🔄 Refreshing liked NFTs list for new like...');
         const freshLikedNFTs = await getLikedNFTs(userFid);
-        setLikedNFTs(freshLikedNFTs);
+        
+        // CRITICAL: Apply our permanent removal list to filter out any NFTs
+        // that should stay removed no matter what Firebase returns
+        const filteredNFTs = freshLikedNFTs.filter(item => {
+          if (!item.contract || !item.tokenId) return true;
+          const itemKey = `${item.contract.toLowerCase()}-${item.tokenId}`;
+          return !permanentlyRemovedNFTs.has(itemKey);
+        });
+        
+        setLikedNFTs(filteredNFTs);
         setIsLiked(true);
       }
       
@@ -1216,6 +1247,26 @@ const Demo: React.FC = () => {
 
   // Add this near the top of the Demo component
   const libraryViewRef = useRef<LibraryView>(null);
+
+  // Find where you initially load the liked NFTs
+  useEffect(() => {
+    const loadLikedNFTs = async () => {
+      if (userFid) {
+        const liked = await getLikedNFTs(userFid);
+        
+        // CRITICAL: Apply our permanent blacklist
+        const filteredLiked = liked.filter(item => {
+          if (!item.contract || !item.tokenId) return true;
+          const itemKey = `${item.contract.toLowerCase()}-${item.tokenId}`;
+          return !permanentlyRemovedNFTs.has(itemKey);
+        });
+        
+        setLikedNFTs(filteredLiked);
+      }
+    };
+    
+    loadLikedNFTs();
+  }, [userFid, permanentlyRemovedNFTs]); // Add permanentlyRemovedNFTs as a dependency
 
   return (
     <div className="min-h-screen flex flex-col no-select">
