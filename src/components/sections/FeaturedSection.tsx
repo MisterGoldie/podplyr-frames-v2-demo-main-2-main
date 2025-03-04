@@ -163,10 +163,11 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({
                       <NFTImage
                         src={nft.image}
                         alt={nft.name}
-                        className="w-full h-full object-cover"
                         width={200}
                         height={200}
-                        priority={true}
+                        className="w-full h-full object-cover"
+                        priority={index === 0}
+                        loading="eager"
                       />
                     )}
                     <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
