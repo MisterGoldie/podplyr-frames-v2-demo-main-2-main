@@ -39,8 +39,7 @@ export const FEATURED_NFTS: NFT[] = [
   },
   {
     name: 'ACYL RADIO - WILL01',
-    image: 'https://arweave.net/Ajm6DFaUe6HCLF_RtAmj3Ot1sfT2KVO-fk1PVn1Bk2A?format=webp&quality=85',
-    originalImage: 'https://arweave.net/Ajm6DFaUe6HCLF_RtAmj3Ot1sfT2KVO-fk1PVn1Bk2A',
+    image: 'https://bafybeigut5ynmsmsucap7rjsxizzhmr5ktl7nusgviqaumenxrjksyldqa.ipfs.w3s.link/Group%2025%20(2).png',
     contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb',
     tokenId: '79428737e6',
     audio: 'https://arweave.net/FXMkBkgV79p3QIL8589uh68-sKuXbmuBzQwvWH10v74',
@@ -54,8 +53,7 @@ export const FEATURED_NFTS: NFT[] = [
   },
   {
     name: 'ACYL RADIO - Hidden Tales',
-    image: 'https://arweave.net/D_nK5rGNB3XOBkouOIaZWyDHXL4TJ6ptkbtjAUatY2E?format=webp&quality=85',
-    originalImage: 'https://arweave.net/D_nK5rGNB3XOBkouOIaZWyDHXL4TJ6ptkbtjAUatY2E',
+    image: 'https://bafybeigut5ynmsmsucap7rjsxizzhmr5ktl7nusgviqaumenxrjksyldqa.ipfs.w3s.link/Group%2025%20(2).png',
     contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb',
     tokenId: '79428737e7',
     audio: 'https://arweave.net/Hr4GVDpKhq_dgZZA5SBAEapx9IJ1qDnDZ-Y40lExBHk',
@@ -69,8 +67,7 @@ export const FEATURED_NFTS: NFT[] = [
   },
   {
     name: 'ACYL RADIO - Chili Sounds 🌶️',
-    image: 'https://arweave.net/dQT3NOU6RFa_F0SXD0ajejif4ysPOUeQjKmFHINnUis?format=webp&quality=85',
-    originalImage: 'https://arweave.net/dQT3NOU6RFa_F0SXD0ajejif4ysPOUeQjKmFHINnUis',
+    image: 'https://bafybeigut5ynmsmsucap7rjsxizzhmr5ktl7nusgviqaumenxrjksyldqa.ipfs.w3s.link/Group%2025%20(2).png',
     contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb',
     tokenId: '79428737e8',
     audio: 'https://arweave.net/GujXDFCEk4FmJl9b_TlofLEmx_YnY_LRSB2aSY8AcRg',
@@ -155,15 +152,22 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({
                     {(nft.name === 'ACYL RADIO - Hidden Tales' || 
                       nft.name === 'ACYL RADIO - WILL01' || 
                       nft.name === 'ACYL RADIO - Chili Sounds 🌶️') ? (
-                      <img
-                        src={nft.originalImage}
-                        alt={nft.name}
-                        className="w-full h-full object-cover"
-                        width={200}
-                        height={200}
-                        style={{ maxWidth: '200px', maxHeight: '200px' }}
-                        loading="eager"
-                      />
+                      <picture>
+                        {/* WebP version */}
+                        <source 
+                          srcSet={nft.image} 
+                          type="image/webp"
+                        />
+                        {/* Original as fallback */}
+                        <img
+                          src={nft.originalImage || nft.image}
+                          alt={nft.name}
+                          className="w-full h-full object-cover"
+                          width={200}
+                          height={200}
+                          style={{ maxWidth: '200px', maxHeight: '200px' }}
+                        />
+                      </picture>
                     ) : (
                       <NFTImage
                         src={nft.image}
