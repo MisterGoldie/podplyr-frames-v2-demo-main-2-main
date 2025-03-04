@@ -221,8 +221,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
       <style>{animationKeyframes}</style>
       
       <div 
-        className="group relative bg-gradient-to-br from-gray-800/30 to-gray-800/10 rounded-lg overflow-hidden hover:bg-gray-800/40 active:bg-gray-800/60 transition-all duration-500 ease-in-out touch-manipulation shadow-xl shadow-purple-900/30 border border-purple-400/10 cursor-pointer"
-        onClick={handlePlay}
+        className="group relative bg-gradient-to-br from-gray-800/30 to-gray-800/10 rounded-lg overflow-hidden hover:bg-gray-800/40 active:bg-gray-800/60 transition-all duration-500 ease-in-out touch-manipulation shadow-xl shadow-purple-900/30 border border-purple-400/10"
         onMouseEnter={(e) => {
           if (useCenteredPlay && e) startOverlayTimer(e);
         }}
