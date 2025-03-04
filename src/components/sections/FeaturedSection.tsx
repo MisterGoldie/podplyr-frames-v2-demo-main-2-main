@@ -155,22 +155,15 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({
                     {(nft.name === 'ACYL RADIO - Hidden Tales' || 
                       nft.name === 'ACYL RADIO - WILL01' || 
                       nft.name === 'ACYL RADIO - Chili Sounds 🌶️') ? (
-                      <picture>
-                        {/* WebP version */}
-                        <source 
-                          srcSet={nft.image} 
-                          type="image/webp"
-                        />
-                        {/* Original as fallback */}
-                        <img
-                          src={nft.originalImage || nft.image}
-                          alt={nft.name}
-                          className="w-full h-full object-cover"
-                          width={200}
-                          height={200}
-                          style={{ maxWidth: '200px', maxHeight: '200px' }}
-                        />
-                      </picture>
+                      <img
+                        src={nft.originalImage}
+                        alt={nft.name}
+                        className="w-full h-full object-cover"
+                        width={200}
+                        height={200}
+                        style={{ maxWidth: '200px', maxHeight: '200px' }}
+                        loading="eager"
+                      />
                     ) : (
                       <NFTImage
                         src={nft.image}
