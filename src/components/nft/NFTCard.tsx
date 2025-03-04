@@ -9,6 +9,7 @@ import { FarcasterContext } from '../../app/providers';
 import { DirectVideoPlayer } from '../media/DirectVideoPlayer';
 import { UltraDirectPlayer } from '../media/UltraDirectPlayer';
 import { NFTGifImage } from '../media/NFTGifImage';
+// Removed the import for 'react-intersection-observer' due to the error
 
 interface NFTCardProps {
   nft: NFT;
@@ -96,6 +97,27 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   const [showOverlay, setShowOverlay] = useState(false);
   const overlayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isCurrentTrack = currentlyPlaying === getMediaKey(nft);
+  const [isVisible, setIsVisible] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+  
+  // Set up intersection observer to detect when card is visible
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsVisible(entry.isIntersecting);
+      },
+      { threshold: 0.1 }
+    );
+
+    if (cardRef.current) {
+      observer.observe(cardRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  // Only load animated content when card is visible
+  const shouldLoadAnimated = isVisible;
 
   const startOverlayTimer = (e: React.MouseEvent | React.TouchEvent) => {
     // Clear any existing timeout
@@ -164,37 +186,39 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   if (viewMode === 'list') {
     return (
       <>
-        {/* Add the keyframes style */}
         <style>{animationKeyframes}</style>
-        
-        <div className="group flex items-center gap-4 bg-gradient-to-br from-gray-800/30 to-gray-800/10 p-3 rounded-lg active:bg-gray-800/60 hover:bg-gray-800/40 transition-colors touch-manipulation shadow-xl shadow-purple-900/30 border border-purple-400/10 cursor-pointer" style={animationStyle} data-nft-id={`${nft.contract}-${nft.tokenId}`}>
+        <div 
+          ref={cardRef}
+          className="group flex items-center gap-4 bg-gradient-to-br from-gray-800/30 to-gray-800/10 p-3 rounded-lg active:bg-gray-800/60 hover:bg-gray-800/40 transition-colors touch-manipulation shadow-xl shadow-purple-900/30 border border-purple-400/10 cursor-pointer" 
+          style={animationStyle} 
+          data-nft-id={`${nft.contract}-${nft.tokenId}`}
+        >
           <div className="relative w-16 h-16 flex-shrink-0">
-            {nft.metadata?.animation_url?.toLowerCase().endsWith('.mp4') || 
+            {shouldLoadAnimated && nft.metadata?.animation_url?.toLowerCase().endsWith('.mp4') || 
              nft.metadata?.animation_url?.toLowerCase().endsWith('.webm') ? (
               <DirectVideoPlayer
                 nft={nft}
                 onLoadComplete={() => {}}
                 onError={() => {}}
               />
+            ) : shouldLoadAnimated && (nft.name === 'ACYL RADIO - Hidden Tales' || 
+                nft.name === 'ACYL RADIO - WILL01' || 
+                nft.name === 'ACYL RADIO - Chili Sounds 🌶️') ? (
+              <NFTGifImage
+                nft={nft}
+                className="w-full h-full"
+                width={64}
+                height={64}
+              />
             ) : (
-              // Special handling for GIF images of ACYL RADIO NFTs
-              (nft.name === 'ACYL RADIO - Hidden Tales' || nft.name === 'ACYL RADIO - WILL01' || nft.name === 'ACYL RADIO - Chili Sounds 🌶️') ? (
-                <NFTGifImage
-                  nft={nft}
-                  className="w-full h-full"
-                  width={64}
-                  height={64}
-                />
-              ) : (
-                <NFTImage
-                  nft={nft}
-                  src={processMediaUrl(nft.image || nft.metadata?.image || '')}
-                  alt={nft.name || 'NFT'}
-                  className="w-full h-full object-cover rounded-md"
-                  width={64}
-                  height={64}
-                />
-              )
+              <NFTImage
+                nft={nft}
+                src={processMediaUrl(nft.image || nft.metadata?.image || '')}
+                alt={nft.name || 'NFT'}
+                className="w-full h-full object-cover rounded-md"
+                width={64}
+                height={64}
+              />
             )}
             {shouldShowBadge && (
               <div className="absolute top-1 right-1 bg-purple-400 text-white text-xs px-1.5 py-0.5 rounded-full font-medium">
@@ -227,10 +251,9 @@ export const NFTCard: React.FC<NFTCardProps> = ({
 
   return (
     <>
-      {/* Add the keyframes style */}
       <style>{animationKeyframes}</style>
-      
       <div 
+        ref={cardRef}
         className="group relative bg-gradient-to-br from-gray-800/30 to-gray-800/10 rounded-lg overflow-hidden hover:bg-gray-800/40 active:bg-gray-800/60 transition-all duration-500 ease-in-out touch-manipulation shadow-xl shadow-purple-900/30 border border-purple-400/10"
         onMouseEnter={(e) => {
           if (useCenteredPlay && e) startOverlayTimer(e);
@@ -242,32 +265,31 @@ export const NFTCard: React.FC<NFTCardProps> = ({
         data-nft-id={`${nft.contract}-${nft.tokenId}`}
       >
         <div className="aspect-square relative">
-          {nft.metadata?.animation_url?.toLowerCase().endsWith('.mp4') || 
+          {shouldLoadAnimated && nft.metadata?.animation_url?.toLowerCase().endsWith('.mp4') || 
            nft.metadata?.animation_url?.toLowerCase().endsWith('.webm') ? (
             <DirectVideoPlayer
               nft={nft}
               onLoadComplete={() => {}}
               onError={() => {}}
             />
+          ) : shouldLoadAnimated && (nft.name === 'ACYL RADIO - Hidden Tales' || 
+              nft.name === 'ACYL RADIO - WILL01' || 
+              nft.name === 'ACYL RADIO - Chili Sounds 🌶️') ? (
+            <NFTGifImage
+              nft={nft}
+              className="w-full h-full"
+              width={300}
+              height={300}
+            />
           ) : (
-            // Special handling for GIF images of ACYL RADIO NFTs
-            (nft.name === 'ACYL RADIO - Hidden Tales' || nft.name === 'ACYL RADIO - WILL01' || nft.name === 'ACYL RADIO - Chili Sounds 🌶️') ? (
-              <NFTGifImage
-                nft={nft}
-                className="w-full h-full"
-                width={300}
-                height={300}
-              />
-            ) : (
-              <NFTImage
-                nft={nft}
-                src={processMediaUrl(nft.image || nft.metadata?.image || '')}
-                alt={nft.name || 'NFT'}
-                className="w-full h-full object-cover"
-                width={300}
-                height={300}
-              />
-            )
+            <NFTImage
+              nft={nft}
+              src={processMediaUrl(nft.image || nft.metadata?.image || '')}
+              alt={nft.name || 'NFT'}
+              className="w-full h-full object-cover"
+              width={300}
+              height={300}
+            />
           )}
           {shouldShowPlayCount && (
             <div className="absolute top-2 left-2 bg-purple-400 text-white text-xs px-2 py-1 rounded-full font-medium">

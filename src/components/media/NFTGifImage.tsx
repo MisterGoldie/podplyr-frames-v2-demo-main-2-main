@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { NFT } from '../../types/user';
 
 interface NFTGifImageProps {
@@ -17,40 +17,53 @@ export const NFTGifImage: React.FC<NFTGifImageProps> = ({
   priority = false,
 }) => {
   const [isAnimating, setIsAnimating] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
+  const elementRef = useRef<HTMLDivElement>(null);
   
-  // Use a static preview image initially
-  const staticImageUrl = nft.image;
-  
-  // Only load the animated version when needed
-  const handleMouseEnter = () => {
-    setIsAnimating(true);
-  };
-  
-  const handleMouseLeave = () => {
-    setIsAnimating(false);
-  };
+  // Use Intersection Observer to only load when visible
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsVisible(entry.isIntersecting);
+      },
+      { threshold: 0.1 }
+    );
+
+    if (elementRef.current) {
+      observer.observe(elementRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  // Only load animated version when visible and interacted with
+  const shouldLoadAnimated = isVisible && isAnimating;
   
   return (
     <div 
+      ref={elementRef}
       className={`relative ${className}`}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
+      onMouseEnter={() => setIsAnimating(true)}
+      onMouseLeave={() => setIsAnimating(false)}
     >
+      {/* Static preview image */}
       <img
-        src={staticImageUrl}
+        src={nft.image}
         alt={nft.name || 'NFT'}
-        className={`w-full h-full object-cover ${isAnimating ? 'opacity-0' : 'opacity-100'}`}
+        className={`w-full h-full object-cover ${shouldLoadAnimated ? 'opacity-0' : 'opacity-100'}`}
         width={width}
         height={height}
         loading={priority ? 'eager' : 'lazy'}
         style={{ 
           maxWidth: '100%', 
           maxHeight: '100%',
-          position: isAnimating ? 'absolute' : 'relative',
+          position: shouldLoadAnimated ? 'absolute' : 'relative',
           transition: 'opacity 0.3s ease-in-out'
         }}
       />
-      {isAnimating && (
+      
+      {/* Animated version - only loaded when needed */}
+      {shouldLoadAnimated && (
         <img
           src={nft.image}
           alt={nft.name || 'NFT'}
@@ -60,8 +73,7 @@ export const NFTGifImage: React.FC<NFTGifImageProps> = ({
           style={{ 
             maxWidth: '100%', 
             maxHeight: '100%',
-            willChange: 'transform', 
-            transform: 'translateZ(0)'
+            willChange: 'transform'
           }}
         />
       )}

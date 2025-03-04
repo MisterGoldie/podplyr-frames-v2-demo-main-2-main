@@ -20,6 +20,9 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
   const [currentGateway, setCurrentGateway] = useState(0);
   const [retryCount, setRetryCount] = useState(0);
   const MAX_RETRIES = 2; // Maximum number of times to cycle through all gateways
+  const [isVisible, setIsVisible] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const elementRef = useRef<HTMLDivElement>(null);
   
   // Get direct video URL without any processing
   const directUrl = nft.metadata?.animation_url || '';
@@ -106,6 +109,25 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
     directUrl.includes('youtube.com/embed') || 
     directUrl.includes('opensea.io/assets');
   
+  // Use Intersection Observer for visibility
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsVisible(entry.isIntersecting);
+      },
+      { threshold: 0.1 }
+    );
+
+    if (elementRef.current) {
+      observer.observe(elementRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  // Only load video when visible and hovered
+  const shouldLoadVideo = isVisible && isHovered;
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video || isHostedPlayer) return;
@@ -260,22 +282,43 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
   }
   
   return (
-    <video
-      ref={videoRef}
-      id={`video-${nft.contract}-${nft.tokenId}`}
-      poster={posterUrl}
-      muted
-      loop
-      playsInline
-      controls={isMobile} // Add controls for all mobile devices
-      className="w-full h-full object-cover rounded-md"
-      style={{ 
-        transform: 'translateZ(0)', // Hardware acceleration for all platforms
-        // Add Android-specific height limitations to improve performance
-        ...(isAndroid ? { maxHeight: '480px' } : {})
-      }} 
-      {...(isIOS ? { 'webkit-playsinline': 'true' } : {})}
-      {...(isAndroid ? { 'playsinline': 'true' } : {})}
-    />
+    <div 
+      ref={elementRef}
+      className="relative w-full h-full"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      {/* Static thumbnail */}
+      <img
+        src={nft.image || nft.metadata?.image}
+        alt={nft.name || 'NFT'}
+        className={`w-full h-full object-cover ${shouldLoadVideo ? 'opacity-0' : 'opacity-100'}`}
+        style={{
+          position: shouldLoadVideo ? 'absolute' : 'relative',
+          transition: 'opacity 0.3s ease-in-out'
+        }}
+      />
+      
+      {/* Video - only loaded when needed */}
+      {shouldLoadVideo && (
+        <video
+          ref={videoRef}
+          id={`video-${nft.contract}-${nft.tokenId}`}
+          poster={nft.image || nft.metadata?.image}
+          muted
+          loop
+          playsInline
+          controls={isMobile} // Add controls for all mobile devices
+          className="w-full h-full object-cover rounded-md"
+          style={{ 
+            transform: 'translateZ(0)', // Hardware acceleration for all platforms
+            // Add Android-specific height limitations to improve performance
+            ...(isAndroid ? { maxHeight: '480px' } : {})
+          }} 
+          {...(isIOS ? { 'webkit-playsinline': 'true' } : {})}
+          {...(isAndroid ? { 'playsinline': 'true' } : {})}
+        />
+      )}
+    </div>
   );
 }; 
