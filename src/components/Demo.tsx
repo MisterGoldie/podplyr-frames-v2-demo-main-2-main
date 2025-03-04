@@ -446,35 +446,44 @@ const Demo: React.FC = () => {
     debugLikeStatus(nft);
     
     try {
-      console.log('📝 Calling toggleLikeNFT...');
-      // toggleLikeNFT will update both global_likes and user's likes collection
-      const wasLiked = await toggleLikeNFT(nft, userFid);
+      // For unlikes, update the UI IMMEDIATELY regardless of Firebase response
+      // This ensures users see immediate feedback for their action
+      const isCurrentlyLiked = isNFTLiked(nft, true);
       
-      // No need to manually update local state since useNFTLikeState handles that
-      console.log(`✅ Like toggled: ${wasLiked ? 'added' : 'removed'}`);
-
-      // ALWAYS refresh liked NFTs list regardless of current page
-      // This ensures the like state is immediately visible on all pages
-      console.log('🔄 Refreshing liked NFTs list...');
-      const updatedLikedNFTs = await getLikedNFTs(userFid);
-      
-      // Check if the NFT is actually in the updated list
-      if (wasLiked) {
-        const nftKey = `${nft.contract}-${nft.tokenId}`.toLowerCase();
-        const isInUpdatedList = updatedLikedNFTs.some(item => 
-          `${item.contract}-${item.tokenId}`.toLowerCase() === nftKey
-        );
+      if (isCurrentlyLiked) {
+        // IMMEDIATELY update the local state - don't wait for Firebase
+        console.log(`🔥 IMMEDIATE UI UPDATE: Removing ${nft.name} from liked NFTs`);
         
-        if (!isInUpdatedList) {
-          console.warn('⚠️ NFT was liked but not found in updated liked NFTs list!');
-        }
+        // Create a unique key for comparison - handles both upper/lowercase
+        const targetKey = `${nft.contract?.toLowerCase()}-${nft.tokenId}`;
+        
+        // Filter out this NFT from local state immediately
+        const updatedLikedNFTs = likedNFTs.filter(item => {
+          const itemKey = `${item.contract?.toLowerCase()}-${item.tokenId}`;
+          return itemKey !== targetKey;
+        });
+        
+        // Update state immediately to give user feedback
+        setLikedNFTs(updatedLikedNFTs);
+        setIsLiked(false);
       }
       
-      setLikedNFTs(updatedLikedNFTs);
+      // THEN call Firebase (but user already sees the update)
+      console.log('📝 Calling toggleLikeNFT...');
+      const wasLiked = await toggleLikeNFT(nft, userFid);
+      console.log(`✅ Like toggled: ${wasLiked ? 'added' : 'removed'}`);
+      
+      // For likes (not unlikes), refresh the list from Firebase
+      if (wasLiked) {
+        console.log('🔄 Refreshing liked NFTs list for new like...');
+        const freshLikedNFTs = await getLikedNFTs(userFid);
+        setLikedNFTs(freshLikedNFTs);
+        setIsLiked(true);
+      }
       
       // Debug like status after update
       console.log('AFTER LIKE TOGGLE:');
-      setTimeout(() => debugLikeStatus(nft), 500); // Small delay to let state update
+      setTimeout(() => debugLikeStatus(nft), 100);
     } catch (error) {
       console.error('❌ Error toggling like:', error);
       setError('Failed to update liked status');

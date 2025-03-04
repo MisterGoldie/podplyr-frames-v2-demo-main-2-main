@@ -166,10 +166,11 @@ class LibraryView extends React.Component<LibraryViewProps> {
   }
 
   componentDidUpdate(prevProps: LibraryViewProps) {
-    // If likedNFTs changes, we might want to show loading again
+    // If likedNFTs changes, force a complete refresh
     if (prevProps.likedNFTs !== this.props.likedNFTs) {
-      // Optional: you could set isLoading to true here and then false after processing
-      // this.setState({ isLoading: false });
+      console.log('🔄 LibraryView detected likedNFTs change - refreshing view');
+      // Force a refresh of the component
+      this.forceUpdate();
     }
 
     // Update liked status for currently playing NFT
@@ -182,16 +183,22 @@ class LibraryView extends React.Component<LibraryViewProps> {
     }
   }
 
-  // Deduplicate NFTs based on mediaKey
+  // Deduplicate NFTs based on unique contract-tokenId combinations
   getUniqueNFTs() {
-    return this.props.likedNFTs.reduce((acc: NFT[], current) => {
-      const currentMediaKey = getMediaKey(current);
-      const isDuplicate = acc.some(nft => getMediaKey(nft) === currentMediaKey);
-      if (!isDuplicate) {
-        acc.push(current);
+    const uniqueNFTs: NFT[] = [];
+    const seenKeys = new Set<string>();
+    
+    for (const nft of this.props.likedNFTs) {
+      if (!nft.contract || !nft.tokenId) continue;
+      
+      const key = `${nft.contract.toLowerCase()}-${nft.tokenId}`;
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        uniqueNFTs.push(nft);
       }
-      return acc;
-    }, []);
+    }
+    
+    return uniqueNFTs;
   }
 
   getFilteredNFTs() {
@@ -221,8 +228,20 @@ class LibraryView extends React.Component<LibraryViewProps> {
       showUnlikeNotification: true
     });
     
+    // Hide notification after 3 seconds
+    setTimeout(() => {
+      this.setState({ showUnlikeNotification: false });
+    }, 3000);
+    
     // Call the original onLikeToggle function
-    await this.props.onLikeToggle(nft);
+    try {
+      await this.props.onLikeToggle(nft);
+      
+      // Force a re-render after the unlike operation
+      this.forceUpdate();
+    } catch (error) {
+      console.error('Error unliking NFT:', error);
+    }
   };
 
   render() {

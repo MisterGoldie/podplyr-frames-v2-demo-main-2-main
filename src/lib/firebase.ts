@@ -836,6 +836,7 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
 
     const likedNFTs: NFT[] = [];
     const seenMediaKeys = new Set<string>();
+    const seenNFTKeys = new Set<string>(); // Track NFTs by contract-tokenId
     const missingGlobalLikes = new Set<string>();
     
     // First, collect all media keys
@@ -846,7 +847,10 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
     for (let i = 0; i < mediaKeys.length; i += batchSize) {
       const batch = mediaKeys.slice(i, i + batchSize);
       const promises = batch.map(mediaKey => {
-        if (seenMediaKeys.has(mediaKey)) return null;
+        if (seenMediaKeys.has(mediaKey)) {
+          console.log(`Skipping duplicate mediaKey: ${mediaKey}`);
+          return null;
+        }
         seenMediaKeys.add(mediaKey);
         
         return getDoc(doc(db, 'global_likes', mediaKey))
@@ -857,6 +861,15 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
             }
             
             const globalData = globalLikeDoc.data();
+            
+            // Skip if we've already seen this NFT (by contract-tokenId)
+            const nftKey = `${globalData.nftContract}-${globalData.tokenId}`.toLowerCase();
+            if (seenNFTKeys.has(nftKey)) {
+              console.log(`Skipping duplicate NFT: ${globalData.name} (${nftKey})`);
+              return null;
+            }
+            seenNFTKeys.add(nftKey);
+            
             const nft: NFT = {
               contract: globalData.nftContract,
               tokenId: globalData.tokenId,
@@ -895,7 +908,7 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
         [...missingGlobalLikes].slice(0, 3));
     }
 
-    console.log('Processed liked NFTs:', likedNFTs);
+    console.log(`Processed ${likedNFTs.length} liked NFTs after deduplication`);
     return likedNFTs;
   } catch (error) {
     console.error('Error getting liked NFTs:', error);
