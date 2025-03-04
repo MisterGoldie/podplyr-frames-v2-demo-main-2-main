@@ -143,8 +143,24 @@ export const AdPlayer: React.FC<AdPlayerProps> = ({ onAdComplete }) => {
     };
   }, [onAdComplete]);
 
+  // Add this effect to handle headers when vertical ads are playing
+  useEffect(() => {
+    // Hide all headers to ensure they don't overlap with vertical ads
+    const headers = document.querySelectorAll('header');
+    headers.forEach(header => {
+      header.style.display = 'none';
+    });
+    
+    // Cleanup function to restore headers if component unmounts unexpectedly
+    return () => {
+      headers.forEach(header => {
+        header.style.display = 'flex';
+      });
+    };
+  }, []);
+
   return (
-    <div ref={containerRef} className="fixed inset-0 bg-black z-50 flex items-center justify-center overflow-hidden">
+    <div ref={containerRef} className="fixed inset-0 bg-black z-[100] flex items-center justify-center overflow-hidden">
       <div className={videoOrientation === 'portrait' 
         ? "w-full h-full flex items-center justify-center" 
         : "w-full h-full"}>
@@ -152,8 +168,8 @@ export const AdPlayer: React.FC<AdPlayerProps> = ({ onAdComplete }) => {
           ref={videoRef}
           src={selectedAd.video}
           className={videoOrientation === 'portrait' 
-            ? "w-full max-h-full object-cover" // For vertical videos, fill width and cover
-            : "w-full h-full object-contain"} // For landscape videos
+            ? "w-full h-full object-contain" // Changed to ensure vertical videos display properly
+            : "w-full h-full object-contain"} 
           playsInline
         />
       </div>
