@@ -1,12 +1,4 @@
-export const metadata = {
-  // Your existing metadata
-  viewport: {
-    width: 'device-width',
-    initialScale: 1,
-    maximumScale: 1,
-    userScalable: false,
-  },
-};
+export const metadata = {};
 
 export default function RootLayout({
   children,
@@ -18,4 +10,11 @@ export default function RootLayout({
       <body>{children}</body>
     </html>
   );
-} 
+}
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false
+}; 
