@@ -396,19 +396,18 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
   const handlePlayNext = useCallback(async () => {
     if (!currentPlayingNFT) return;
     
-    // Get the current queue from window.nftList which is set by the Demo component
-    // based on the current page/category
-    const currentPageQueue = window.nftList || [];
-    
-    if (!currentPageQueue.length) {
+    // Use the current queue that was set when the NFT was played
+    // instead of relying on window.nftList
+    if (currentQueue.length === 0) {
       console.log('No queue available for next track');
       return;
     }
 
-    console.log('Next button pressed. Current queue length:', currentPageQueue.length);
+    console.log('Next button pressed. Current queue length:', currentQueue.length);
+    console.log('Current queue type:', queueType);
     
-    // Find current index in the current page queue
-    const currentIndex = currentPageQueue.findIndex(
+    // Find current index in the queue
+    const currentIndex = currentQueue.findIndex(
       (nft: NFT) => nft.contract === currentPlayingNFT.contract && nft.tokenId === currentPlayingNFT.tokenId
     );
 
@@ -420,17 +419,16 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
     }
 
     // Get next NFT in queue with wraparound
-    const nextIndex = (currentIndex + 1) % currentPageQueue.length;
-    const nextNFT = currentPageQueue[nextIndex];
+    const nextIndex = (currentIndex + 1) % currentQueue.length;
+    const nextNFT = currentQueue[nextIndex];
 
     console.log('Playing next NFT:', nextNFT.name, 'at index:', nextIndex);
     
     if (nextNFT) {
-      // Update our internal queue to match the page queue
-      setCurrentQueue(currentPageQueue);
-      await handlePlayAudio(nextNFT);
+      // Pass the same queue context to maintain consistency
+      await handlePlayAudio(nextNFT, { queue: currentQueue, queueType });
     }
-  }, [currentPlayingNFT, handlePlayAudio]);
+  }, [currentPlayingNFT, handlePlayAudio, currentQueue, queueType]);
 
   const handlePlayPrevious = useCallback(async () => {
     if (!currentPlayingNFT) return;

@@ -40,7 +40,7 @@ export const FEATURED_NFTS: NFT[] = [
   },
   {
     name: 'ACYL RADIO - WILL01',
-    image: 'https://bafybeigut5ynmsmsucap7rjsxizzhmr5ktl7nusgviqaumenxrjksyldqa.ipfs.w3s.link/Group%2025%20(2).png',
+    image: 'https://bafybeie7mejoxle27ki56vxmzebb67kcrttu54stlin74xowaq5ugu3sdi.ipfs.w3s.link/COMPRESSEDWILL%20RADIO%20-min.gif',
     contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb',
     tokenId: '79428737e6',
     audio: 'https://arweave.net/FXMkBkgV79p3QIL8589uh68-sKuXbmuBzQwvWH10v74',
@@ -54,7 +54,7 @@ export const FEATURED_NFTS: NFT[] = [
   },
   {
     name: 'ACYL RADIO - Hidden Tales',
-    image: 'https://bafybeigut5ynmsmsucap7rjsxizzhmr5ktl7nusgviqaumenxrjksyldqa.ipfs.w3s.link/Group%2025%20(2).png',
+    image: 'https://bafybeibsf5dgystecvgp2g6n2w2jameg3bx2trf725cb4clcaowkbsot6u.ipfs.w3s.link/COMPRESSED%20GIF%20ANN%20MARIE.gif',
     contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb',
     tokenId: '79428737e7',
     audio: 'https://arweave.net/Hr4GVDpKhq_dgZZA5SBAEapx9IJ1qDnDZ-Y40lExBHk',
@@ -68,7 +68,7 @@ export const FEATURED_NFTS: NFT[] = [
   },
   {
     name: 'ACYL RADIO - Chili Sounds 🌶️',
-    image: 'https://bafybeigut5ynmsmsucap7rjsxizzhmr5ktl7nusgviqaumenxrjksyldqa.ipfs.w3s.link/Group%2025%20(2).png',
+    image: 'https://bafybeibvxzzzzitvejioqkhfpic5rjixrffgkr4jw46bidxnmdgbfvjynu.ipfs.w3s.link/COMPRESSED.gif',
     contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb',
     tokenId: '79428737e8',
     audio: 'https://arweave.net/GujXDFCEk4FmJl9b_TlofLEmx_YnY_LRSB2aSY8AcRg',
