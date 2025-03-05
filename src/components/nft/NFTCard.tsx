@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useContext } from 'react';
+import { useState, useEffect, useRef, useContext, useMemo } from 'react';
 import { NFT } from '../../types/user';
 import { NFTImage } from '../media/NFTImage';
 import { MuxPlayer } from '../media/MuxPlayer';
@@ -67,6 +67,57 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   isNFTLiked,
   animationDelay = 0.2
 }) => {
+  // NEW: Add validation for NFT data to prevent crashes from broken NFTs
+  const isValidNFT = useMemo(() => {
+    // Basic validation - check if NFT exists and has minimum required properties
+    if (!nft) return false;
+    
+    // Check for critical display properties
+    const hasDisplayInfo = Boolean(
+      // Either a name OR some kind of identifier
+      nft.name || 
+      (nft.contract && nft.tokenId)
+    );
+    
+    // Check for media - we need at least one valid media source
+    const hasMedia = Boolean(
+      nft.image || 
+      nft.metadata?.image ||
+      nft.audio ||
+      nft.metadata?.animation_url
+    );
+    
+    // Log detailed info for invalid NFTs to help diagnose issues
+    if (!hasDisplayInfo || !hasMedia) {
+      console.warn('Invalid NFT data detected:', {
+        nft,
+        hasDisplayInfo,
+        hasMedia,
+        name: nft?.name,
+        contract: nft?.contract,
+        tokenId: nft?.tokenId,
+        image: nft?.image || nft?.metadata?.image,
+        audio: nft?.audio || nft?.metadata?.animation_url
+      });
+    }
+    
+    return hasDisplayInfo && hasMedia;
+  }, [nft]);
+  
+  // NEW: Early return with fallback UI for invalid NFTs
+  if (!isValidNFT) {
+    return (
+      <div className="relative bg-gray-800 rounded-lg overflow-hidden aspect-square shadow-lg">
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900">
+          <svg className="w-12 h-12 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+          </svg>
+          <span className="mt-2 text-xs text-gray-400">NFT data unavailable</span>
+        </div>
+      </div>
+    );
+  }
+  
   const { getPreloadedImage, preloadImage } = useSessionImageCache([nft]);
   // Get like state based on context - if we're in library view, NFT is always liked
   const { isLiked: likeStateFromHook, likesCount: globalLikesCount } = useNFTLikeState(nft, userFid || 0);

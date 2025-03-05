@@ -1268,6 +1268,38 @@ const Demo: React.FC = () => {
     loadLikedNFTs();
   }, [userFid, permanentlyRemovedNFTs]); // Add permanentlyRemovedNFTs as a dependency
 
+  // Add this effect to monitor for problematic NFTs
+  useEffect(() => {
+    // Log potentially problematic NFTs to help diagnose issues
+    const checkProblematicNFTs = () => {
+      console.log('=== Checking for problematic NFTs ===');
+      
+      // Check recently played
+      recentlyPlayedNFTs.forEach((nft, index) => {
+        if (!nft || !nft.contract || !nft.tokenId || !nft.image) {
+          console.warn(`Problematic NFT in recentlyPlayedNFTs[${index}]:`, nft);
+        }
+      });
+      
+      // Check liked NFTs
+      likedNFTs.forEach((nft, index) => {
+        if (!nft || !nft.contract || !nft.tokenId || !nft.image) {
+          console.warn(`Problematic NFT in likedNFTs[${index}]:`, nft);
+        }
+      });
+      
+      // Check user NFTs
+      userNFTs.forEach((nft, index) => {
+        if (!nft || !nft.contract || !nft.tokenId || !nft.image) {
+          console.warn(`Problematic NFT in userNFTs[${index}]:`, nft);
+        }
+      });
+    };
+    
+    // Run check on startup and when NFT collections change
+    checkProblematicNFTs();
+  }, [recentlyPlayedNFTs, likedNFTs, userNFTs]);
+
   return (
     <div className="min-h-screen flex flex-col no-select">
       {userFid && (
