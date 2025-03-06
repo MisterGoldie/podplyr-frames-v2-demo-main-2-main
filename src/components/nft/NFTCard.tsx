@@ -104,15 +104,24 @@ export const NFTCard: React.FC<NFTCardProps> = ({
     return hasDisplayInfo && hasMedia;
   }, [nft]);
   
-  // NEW: Early return with fallback UI for invalid NFTs
+  // Enhanced fallback UI for invalid NFTs with actual image
   if (!isValidNFT) {
     return (
       <div className="relative bg-gray-800 rounded-lg overflow-hidden aspect-square shadow-lg">
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900">
-          <svg className="w-12 h-12 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-          </svg>
-          <span className="mt-2 text-xs text-gray-400">NFT data unavailable</span>
+          {/* Always show the placeholder image */}
+          <img 
+            src="/default-nft.png" 
+            alt="NFT Placeholder" 
+            className="absolute inset-0 w-full h-full object-cover opacity-50"
+            loading="lazy"
+          />
+          <div className="z-10 bg-black/50 p-2 rounded-lg flex flex-col items-center">
+            <svg className="w-10 h-10 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+            </svg>
+            <span className="mt-2 text-xs text-white font-medium">NFT data unavailable</span>
+          </div>
         </div>
       </div>
     );

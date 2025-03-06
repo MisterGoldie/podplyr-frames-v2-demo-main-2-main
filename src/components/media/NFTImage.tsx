@@ -23,28 +23,59 @@ interface NFTImageProps {
 const extractIPFSHash = (url: string): string | null => {
   if (!url) return null;
   
-  // Match IPFS hash patterns
-  const ipfsHashRegex = /(?:ipfs\/|ipfs:|\/ipfs\/)([a-zA-Z0-9]{46})/;
-  const match = url.match(ipfsHashRegex);
+  // Handle ipfs:// protocol
+  if (url.startsWith('ipfs://')) {
+    return url.replace('ipfs://', '');
+  }
+
+  // Match IPFS hash patterns - support both v0 and v1 CIDs
+  const ipfsRegex = /(?:ipfs\/|\/ipfs\/|ipfs:)([a-zA-Z0-9]{46,}|Qm[1-9A-HJ-NP-Za-km-z]{44}|bafy[a-zA-Z0-9]{55})/i;
+  const match = url.match(ipfsRegex);
   
-  return match ? match[1] : null;
+  if (match) return match[1];
+  
+  // Handle direct CID
+  if (/^(Qm[1-9A-HJ-NP-Za-km-z]{44}|bafy[a-zA-Z0-9]{55}|[a-zA-Z0-9]{46,})$/.test(url)) {
+    return url;
+  }
+  
+  return null;
 };
 
 const getNextIPFSUrl = (url: string, currentIndex: number): { url: string; nextIndex: number } | null => {
   // Clean the URL first
   url = getCleanIPFSUrl(url);
   
+  // If we've already tried all gateways, return null
+  if (currentIndex >= IPFS_GATEWAYS.length - 1) {
+    console.warn('All IPFS gateways have been tried', { url });
+    return null;
+  }
+
+  // Extract IPFS hash/CID from the URL
+  let cid = null;
+  
   // Try to find which gateway we're currently using
   const currentGateway = IPFS_GATEWAYS.find(gateway => url.includes(gateway));
-  if (!currentGateway) return null;
+  if (currentGateway) {
+    // Get the path after the gateway
+    const path = url.split(currentGateway)[1];
+    if (path) {
+      cid = path;
+    }
+  } else {
+    // Try to extract hash directly from URL
+    cid = extractIPFSHash(url);
+  }
   
-  // Get the path after the gateway
-  const path = url.split(currentGateway)[1];
-  if (!path) return null;
+  if (!cid) {
+    console.warn('Could not extract IPFS CID from URL', { url });
+    return null;
+  }
   
   const nextIndex = (currentIndex + 1) % IPFS_GATEWAYS.length;
   return {
-    url: `${IPFS_GATEWAYS[nextIndex]}${path}`,
+    url: `${IPFS_GATEWAYS[nextIndex]}${cid}`,
     nextIndex
   };
 };
@@ -64,13 +95,32 @@ export const NFTImage: React.FC<NFTImageProps> = ({
 }) => {
   const fallbackSrc = '/default-nft.png';
   const [isVideo, setIsVideo] = useState(false);
-  const [imgSrc, setImgSrc] = useState<string>(fallbackSrc);
-  const [error, setError] = useState(false);
+  
+  // Check if src is valid, if not use fallback immediately
+  const initialSrc = !src || src === '' || src === 'undefined' || src === 'null' ? fallbackSrc : src;
+  const [imgSrc, setImgSrc] = useState<string>(initialSrc);
+  const [error, setError] = useState(!src || src === '' || src === 'undefined' || src === 'null');
   const [retryCount, setRetryCount] = useState(0);
   const [currentGatewayIndex, setCurrentGatewayIndex] = useState(0);
-  const [isLoadingFallback, setIsLoadingFallback] = useState(false);
+  const [isLoadingFallback, setIsLoadingFallback] = useState(!src || src === '' || src === 'undefined' || src === 'null');
 
   useEffect(() => {
+    // Reset states when src changes, but only if src is valid
+    const isValidSrc = src && src !== '' && src !== 'undefined' && src !== 'null';
+    
+    if (isValidSrc) {
+      setImgSrc(src);
+      setError(false);
+      setRetryCount(0);
+      setCurrentGatewayIndex(0);
+      setIsLoadingFallback(false);
+    } else {
+      // Invalid source, use fallback immediately
+      setImgSrc(fallbackSrc);
+      setError(true);
+      setIsLoadingFallback(true);
+    }
+    
     const isAudioUrl = (url: string): boolean => {
       if (!url) return false;
       
@@ -171,54 +221,49 @@ export const NFTImage: React.FC<NFTImageProps> = ({
   }, [src, nft]);
 
   const handleError = async (error: SyntheticEvent<HTMLVideoElement | HTMLImageElement>) => {
-    // Prevent infinite retry loops
-    if (retryCount >= IPFS_GATEWAYS.length || isVideo) {
-      if (!isLoadingFallback) {
-        setIsLoadingFallback(true);
-        setError(true);
-        setImgSrc(fallbackSrc);
-        
-        // Log only on first fallback
-        console.debug('Using fallback image for NFT:', { 
-          nftId: nft ? `${nft.contract}-${nft.tokenId}` : 'unknown',
-          reason: isVideo ? 'Media is video/audio' : 'All gateways failed'
-        });
-      }
-      return;
-    }
+    // Log the error
+    console.warn('NFT Image load failed:', { 
+      nftId: nft ? `${nft.contract}-${nft.tokenId}` : 'unknown',
+      originalSrc: src,
+      failedSrc: error.currentTarget.src || imgSrc,
+      isVideo,
+      retryCount
+    });
+    
+    // Immediately switch to fallback image - prioritize showing SOMETHING rather than trying multiple gateways
+    setIsLoadingFallback(true);
+    setError(true);
+    setImgSrc(fallbackSrc);
+    return;
 
-    // Only log detailed error on first attempt
-    if (retryCount === 0) {
-      console.warn('NFT Image load failed, attempting fallback gateways:', { 
-        originalSrc: src,
-        failedSrc: error.currentTarget.src || imgSrc,
-        attempt: retryCount + 1,
-        isVideo,
-        nftId: nft ? `${nft.contract}-${nft.tokenId}` : 'unknown'
-      });
-    }
-
-    // Try next IPFS gateway
+    // Disabled gateway cycling for now to ensure fallback image works reliably
+    /* 
+    // Try next IPFS gateway (disabled)
     const nextGateway = getNextIPFSUrl(imgSrc, currentGatewayIndex);
     if (nextGateway) {
       setImgSrc(nextGateway.url);
       setCurrentGatewayIndex(nextGateway.nextIndex);
       setRetryCount(prev => prev + 1);
-      return;
     }
-
-    // If all gateways fail, use fallback
-    console.warn(`All IPFS gateways failed for NFT image, using fallback:`, {
-      nftId: nft ? `${nft.contract}-${nft.tokenId}` : 'unknown',
-      originalSrc: src
-    });
-    setError(true);
-    setImgSrc(fallbackSrc);
+    */
   };
 
   // Use regular img tag for IPFS content to bypass Next.js image optimization
   const isIPFS = imgSrc.includes('ipfs') || imgSrc.includes('nftstorage.link');
-  const finalSrc = error ? fallbackSrc : imgSrc;
+  
+  // CRITICAL: Additional validation before finalizing source
+  // This ensures we NEVER show a blank card, even for malformed NFT data
+  const validateSrc = (source: string): boolean => {
+    return Boolean(source) && 
+           source !== 'undefined' && 
+           source !== 'null' && 
+           source !== '' &&
+           source !== 'https://undefined' &&
+           source !== 'https://null';
+  };
+  
+  // Always display fallback image when there's an error or invalid source - NO EXCEPTIONS
+  const finalSrc = (error || isLoadingFallback || !validateSrc(imgSrc)) ? fallbackSrc : imgSrc;
   
   if (isVideo || !isIPFS) {
     return (
@@ -233,6 +278,9 @@ export const NFTImage: React.FC<NFTImageProps> = ({
         loading={priority ? 'eager' : loading}
         placeholder={placeholder}
         onError={handleError}
+      // Add a data attribute to help with debugging
+      data-nft-image-status={error ? 'error' : 'loaded'}
+      data-nft-id={nft ? `${nft.contract}-${nft.tokenId}` : 'unknown'}
       />
     );
   }
@@ -245,8 +293,14 @@ export const NFTImage: React.FC<NFTImageProps> = ({
       width={width || 300}
       height={height || 300}
       onError={handleError}
+      // Add a data attribute to help with debugging
+      data-nft-image-status={error ? 'error' : 'loaded'}
+      data-nft-id={nft ? `${nft.contract}-${nft.tokenId}` : 'unknown'}
       loading={priority ? 'eager' : loading}
       sizes={sizes}
+      // Use a key that forces re-render when switching to fallback
+      key={`nft-img-${error ? 'fallback' : 'original'}-${nft?.contract || ''}-${nft?.tokenId || ''}-${isLoadingFallback ? 'loading' : 'loaded'}`}
+      style={{ objectFit: 'cover' }}
     />
   );
 };
