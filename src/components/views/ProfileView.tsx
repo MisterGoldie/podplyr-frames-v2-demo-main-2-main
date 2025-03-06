@@ -293,7 +293,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
             </div>
           ) : !userContext?.user?.fid ? (
             <div className="text-center py-12">
-              <p className="text-gray-400 text-lg">Currently you can only create a profile through Farcaster</p>
+              <p className="text-gray-400 text-lg">Currently you can only create a profile through Warpcast</p>
             </div>
           ) : error ? (
             <div className="text-center py-12">
