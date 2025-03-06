@@ -96,32 +96,13 @@ export const NFTImage: React.FC<NFTImageProps> = ({
   const fallbackSrc = '/default-nft.png';
   const [isVideo, setIsVideo] = useState(false);
   
-  // SUPER AGGRESSIVE VALIDATION: Check for ANY potentially problematic image source
-  // This validation is intentionally paranoid to ensure users ALWAYS see content
-  const isInvalidSource = !src || 
-                         src === '' || 
-                         src === 'undefined' || 
-                         src === 'null' || 
-                         src.includes('undefined') || 
-                         src.includes('null') || 
-                         (src.startsWith('ipfs://') && !src.includes('://Qm')) || 
-                         src === 'https://' || 
-                         src === 'http://' ||
-                         src.endsWith('/null') ||
-                         src.endsWith('/undefined') ||
-                         src.includes('/ipfs/null') ||
-                         src.includes('/ipfs/undefined') ||
-                         src.length < 10; // Too short to be valid
-  
-  // Initialize with fallback if source is invalid
-  const initialSrc = isInvalidSource ? fallbackSrc : src;
+  // Check if src is valid, if not use fallback immediately
+  const initialSrc = !src || src === '' || src === 'undefined' || src === 'null' ? fallbackSrc : src;
   const [imgSrc, setImgSrc] = useState<string>(initialSrc);
-  const [error, setError] = useState(isInvalidSource);
+  const [error, setError] = useState(!src || src === '' || src === 'undefined' || src === 'null');
   const [retryCount, setRetryCount] = useState(0);
   const [currentGatewayIndex, setCurrentGatewayIndex] = useState(0);
-  const [isLoadingFallback, setIsLoadingFallback] = useState(isInvalidSource);
-  // Track if image has loaded successfully
-  const [hasLoaded, setHasLoaded] = useState(false);
+  const [isLoadingFallback, setIsLoadingFallback] = useState(!src || src === '' || src === 'undefined' || src === 'null');
 
   useEffect(() => {
     // Reset states when src changes, but only if src is valid
@@ -239,30 +220,17 @@ export const NFTImage: React.FC<NFTImageProps> = ({
     }
   }, [src, nft]);
 
-  // Handle image load success
-  const handleLoad = () => {
-    setHasLoaded(true);
-    setError(false);
-    setIsLoadingFallback(false);
-  };
-
   const handleError = async (error: SyntheticEvent<HTMLVideoElement | HTMLImageElement>) => {
-    // Log the error with detailed information to help debug
+    // Log the error
     console.warn('NFT Image load failed:', { 
       nftId: nft ? `${nft.contract}-${nft.tokenId}` : 'unknown',
-      nftName: nft?.name || 'unknown',
-      collection: nft?.collectionName || 'unknown',
       originalSrc: src,
       failedSrc: error.currentTarget.src || imgSrc,
       isVideo,
-      retryCount,
-      errorType: error.type,
-      hasLoaded,
-      cause: 'load_error'
+      retryCount
     });
     
-    // ALWAYS switch to fallback image immediately - no exceptions, no retries
-    // This ensures users always see something instead of an empty container
+    // Immediately switch to fallback image - prioritize showing SOMETHING rather than trying multiple gateways
     setIsLoadingFallback(true);
     setError(true);
     setImgSrc(fallbackSrc);
@@ -278,9 +246,6 @@ export const NFTImage: React.FC<NFTImageProps> = ({
       setRetryCount(prev => prev + 1);
     }
     */
-    
-    // Generate a unique key to force re-render when switching to fallback
-    // This ensures the DOM actually updates with the new image source
   };
 
   // Use regular img tag for IPFS content to bypass Next.js image optimization
@@ -294,12 +259,7 @@ export const NFTImage: React.FC<NFTImageProps> = ({
            source !== 'null' && 
            source !== '' &&
            source !== 'https://undefined' &&
-           source !== 'https://null' &&
-           !source.endsWith('/null') &&
-           !source.endsWith('/undefined') &&
-           !source.includes('/ipfs/null') &&
-           !source.includes('/ipfs/undefined') &&
-           source.length >= 10; // Ensure URL is long enough to be valid
+           source !== 'https://null';
   };
   
   // Always display fallback image when there's an error or invalid source - NO EXCEPTIONS
@@ -318,41 +278,13 @@ export const NFTImage: React.FC<NFTImageProps> = ({
         loading={priority ? 'eager' : loading}
         placeholder={placeholder}
         onError={handleError}
-      onLoad={handleLoad}
       // Add a data attribute to help with debugging
-      data-nft-image-status={error ? 'error' : (hasLoaded ? 'loaded' : 'loading')}
+      data-nft-image-status={error ? 'error' : 'loaded'}
       data-nft-id={nft ? `${nft.contract}-${nft.tokenId}` : 'unknown'}
-      data-nft-name={nft?.name || 'unknown'}
       />
     );
   }
 
-  // CRITICAL: Generate a unique key that forces re-render when switching to fallback
-  // This ensures the DOM actually updates with the new image source
-  const key = `nft-img-${error ? 'fallback' : (hasLoaded ? 'loaded' : 'initial')}-${nft?.contract || 'unknown'}-${nft?.tokenId || 'unknown'}-${isLoadingFallback ? 'loading-fallback' : 'normal'}-${retryCount}`;
-  
-  // Use timeout to detect slow-loading images
-  useEffect(() => {
-    if (!isLoadingFallback && !error && imgSrc !== fallbackSrc) {
-      const timeoutId = setTimeout(() => {
-        // If image hasn't loaded after timeout, use fallback
-        if (!hasLoaded) {
-          console.warn('NFT Image timeout - switching to fallback:', { 
-            nftId: nft ? `${nft.contract}-${nft.tokenId}` : 'unknown',
-            nftName: nft?.name || 'unknown',
-            src: imgSrc,
-            cause: 'loading_timeout' 
-          });
-          setIsLoadingFallback(true);
-          setError(true);
-          setImgSrc(fallbackSrc);
-        }
-      }, 2500); // 2.5 second timeout (reduced for better UX)
-      
-      return () => clearTimeout(timeoutId);
-    }
-  }, [imgSrc, isLoadingFallback, error, hasLoaded, nft, fallbackSrc]);
-  
   return (
     <img
       src={finalSrc}
@@ -361,17 +293,14 @@ export const NFTImage: React.FC<NFTImageProps> = ({
       width={width || 300}
       height={height || 300}
       onError={handleError}
-      onLoad={handleLoad}
       // Add a data attribute to help with debugging
-      data-nft-image-status={error ? 'error' : (hasLoaded ? 'loaded' : 'loading')}
-      data-nft-name={nft?.name || 'unknown'}
+      data-nft-image-status={error ? 'error' : 'loaded'}
       data-nft-id={nft ? `${nft.contract}-${nft.tokenId}` : 'unknown'}
       loading={priority ? 'eager' : loading}
       sizes={sizes}
       // Use a key that forces re-render when switching to fallback
-      key={key}
+      key={`nft-img-${error ? 'fallback' : 'original'}-${nft?.contract || ''}-${nft?.tokenId || ''}-${isLoadingFallback ? 'loading' : 'loaded'}`}
       style={{ objectFit: 'cover' }}
-      data-src-status={imgSrc === fallbackSrc ? 'fallback' : 'original'}
     />
   );
 };
