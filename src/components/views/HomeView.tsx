@@ -115,6 +115,37 @@ const HomeView: React.FC<HomeViewProps> = ({
     }
   };
 
+  // Filter out invalid NFTs from recently played
+  const validRecentlyPlayedNFTs = useMemo(() => {
+    return recentlyPlayedNFTs.filter(nft => {
+      // Basic validation
+      if (!nft) return false;
+      
+      // Check for critical display properties
+      const hasDisplayInfo = Boolean(
+        nft.name || (nft.contract && nft.tokenId)
+      );
+      
+      // Check for media
+      const hasMedia = Boolean(
+        nft.image || 
+        nft.metadata?.image ||
+        nft.audio ||
+        nft.metadata?.animation_url
+      );
+      
+      // Log invalid NFTs
+      if (!hasDisplayInfo || !hasMedia) {
+        console.warn('Filtering invalid NFT from recently played:', {
+          nft,
+          reason: !hasDisplayInfo ? 'missing display info' : 'missing media'
+        });
+      }
+      
+      return hasDisplayInfo && hasMedia;
+    });
+  }, [recentlyPlayedNFTs]);
+
   if (isLoading) {
     return (
       <>
@@ -188,14 +219,14 @@ const HomeView: React.FC<HomeViewProps> = ({
 
         {/* Recently Played Section */}
         <section>
-          {recentlyPlayedNFTs.length > 0 && (
+          {validRecentlyPlayedNFTs.length > 0 && (
             <div className="mb-8">
               <h2 className="text-xl font-mono text-green-400 mb-6">Recently Played</h2>
               <div className="relative">
                 <div className="overflow-x-auto pb-4 hide-scrollbar">
                   <div className="flex gap-4">
                     {/* Extra deduplicate by contract+tokenId to ensure no duplicates */}
-                    {recentlyPlayedNFTs
+                    {validRecentlyPlayedNFTs
                       .filter((nft, index, self) => {
                         const key = `${nft.contract}-${nft.tokenId}`.toLowerCase();
                         return index === self.findIndex(n => 

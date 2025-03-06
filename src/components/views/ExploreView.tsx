@@ -530,7 +530,8 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
         type="connection"
         message="Connection with"
         highlightText={username}
-        autoHideDuration={0} // No auto-hide for this one
+        autoHideDuration={0}
+        onReset={onReset}
       />
     </>
   );

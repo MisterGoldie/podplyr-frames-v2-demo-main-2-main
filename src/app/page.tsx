@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 import App from "./app";
 import dynamic from "next/dynamic";
-import { ErrorBoundary } from '../components/ErrorBoundary';
+import ErrorBoundary from '../components/ErrorBoundary';
 import Demo from '../components/Demo';
 
 const appUrl = process.env.NEXT_PUBLIC_URL;

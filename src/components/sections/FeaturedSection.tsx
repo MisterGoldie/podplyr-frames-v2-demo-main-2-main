@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { NFTImage } from '../media/NFTImage';
+import { NFTGifImage } from '../media/NFTGifImage';
 import type { NFT } from '../../types/user';
 import { getMediaKey, extractIPFSHash, IPFS_GATEWAYS, processMediaUrl } from '../../utils/media';
 import { preloadAudio } from '../../utils/audioPreloader';
@@ -39,7 +40,7 @@ export const FEATURED_NFTS: NFT[] = [
   },
   {
     name: 'ACYL RADIO - WILL01',
-    image: 'https://arweave.net/Ajm6DFaUe6HCLF_RtAmj3Ot1sfT2KVO-fk1PVn1Bk2A', 
+    image: 'https://bafybeie7mejoxle27ki56vxmzebb67kcrttu54stlin74xowaq5ugu3sdi.ipfs.w3s.link/COMPRESSEDWILL%20RADIO%20-min.gif',
     contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb',
     tokenId: '79428737e6',
     audio: 'https://arweave.net/FXMkBkgV79p3QIL8589uh68-sKuXbmuBzQwvWH10v74',
@@ -53,7 +54,7 @@ export const FEATURED_NFTS: NFT[] = [
   },
   {
     name: 'ACYL RADIO - Hidden Tales',
-    image: 'https://arweave.net/D_nK5rGNB3XOBkouOIaZWyDHXL4TJ6ptkbtjAUatY2E', 
+    image: 'https://bafybeibsf5dgystecvgp2g6n2w2jameg3bx2trf725cb4clcaowkbsot6u.ipfs.w3s.link/COMPRESSED%20GIF%20ANN%20MARIE.gif',
     contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb',
     tokenId: '79428737e7',
     audio: 'https://arweave.net/Hr4GVDpKhq_dgZZA5SBAEapx9IJ1qDnDZ-Y40lExBHk',
@@ -67,9 +68,9 @@ export const FEATURED_NFTS: NFT[] = [
   },
   {
     name: 'ACYL RADIO - Chili Sounds 🌶️',
-    image: 'https://arweave.net/dQT3NOU6RFa_F0SXD0ajejif4ysPOUeQjKmFHINnUis',
-    contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb', // Using same contract as other ACYL RADIO NFTs
-    tokenId: '79428737e8', // Incremented from previous ACYL RADIO NFT
+    image: 'https://bafybeibvxzzzzitvejioqkhfpic5rjixrffgkr4jw46bidxnmdgbfvjynu.ipfs.w3s.link/COMPRESSED.gif',
+    contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb',
+    tokenId: '79428737e8',
     audio: 'https://arweave.net/GujXDFCEk4FmJl9b_TlofLEmx_YnY_LRSB2aSY8AcRg',
     metadata: {
       animation_url: 'https://arweave.net/GujXDFCEk4FmJl9b_TlofLEmx_YnY_LRSB2aSY8AcRg',
@@ -149,23 +150,24 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({
                 <div key={uniqueKey} className="flex-shrink-0 w-[200px] group">
                   <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-gray-800/20 shadow-purple-500/20 shadow-lg transition-all">
                     {/* Special handling for GIF images */}
-                    {(nft.name === 'ACYL RADIO - Hidden Tales' || nft.name === 'ACYL RADIO - WILL01' || nft.name === 'ACYL RADIO - Chili Sounds 🌶️') ? (
-                      <img
-                        src={nft.image}
-                        alt={nft.name}
-                        className="w-full h-full object-cover"
+                    {(nft.name === 'ACYL RADIO - Hidden Tales' || 
+                      nft.name === 'ACYL RADIO - WILL01' || 
+                      nft.name === 'ACYL RADIO - Chili Sounds 🌶️') ? (
+                      <NFTGifImage
+                        nft={nft}
+                        className="w-full h-full"
                         width={200}
                         height={200}
-                        style={{ maxWidth: '200px', maxHeight: '200px' }}
                       />
                     ) : (
                       <NFTImage
                         src={nft.image}
                         alt={nft.name}
-                        className="w-full h-full object-cover"
                         width={200}
                         height={200}
-                        priority={true}
+                        className="w-full h-full object-cover"
+                        priority={index === 0}
+                        loading="eager"
                       />
                     )}
                     <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />

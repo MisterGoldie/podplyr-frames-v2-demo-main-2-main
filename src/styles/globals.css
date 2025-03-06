@@ -21,4 +21,11 @@
 /* Remove all previous animation classes to avoid conflicts */
 .ticker-text, .scrolling-text, .marquee-text {
   animation: none;
+}
+
+/* Add this to your global CSS */
+button, 
+a, 
+.interactive-element {
+  touch-action: manipulation;
 } 

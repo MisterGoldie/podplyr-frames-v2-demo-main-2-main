@@ -71,14 +71,31 @@ export const PlayerWithAds: React.FC<PlayerWithAdsProps> = (props) => {
     }
   }, [props.nft, props.isPlaying, playCount, playsAfterAd, hasShownFirstAd, incrementPlayCount]);
 
-  // Force pause content if ad is showing and handle nav visibility
+  // Force pause content if ad is showing and handle nav and header visibility
   useEffect(() => {
+    // Get all elements we need to hide during ad display
     const nav = document.querySelector('nav');
+    const headers = document.querySelectorAll('header'); // This gets all headers in any view
+    
     if (showAd) {
+      // Hide navigation
       if (nav) nav.style.display = 'none';
+      
+      // Hide all headers
+      headers.forEach(header => {
+        header.style.display = 'none';
+      });
+      
+      // Pause the main content if it's playing
       if (props.isPlaying) props.onPlayPause();
     } else {
+      // Show navigation when ad is not showing
       if (nav) nav.style.display = 'flex';
+      
+      // Show all headers
+      headers.forEach(header => {
+        header.style.display = 'flex';
+      });
     }
   }, [showAd, props.isPlaying, props.onPlayPause]);
 
@@ -87,8 +104,16 @@ export const PlayerWithAds: React.FC<PlayerWithAdsProps> = (props) => {
     setAdComplete(true);
     resetPlayCount();
     setPlaysAfterAd(0); // Reset the counter for plays after ad
+    
+    // Restore nav and headers
     const nav = document.querySelector('nav');
+    const headers = document.querySelectorAll('header');
+    
     if (nav) nav.style.display = 'flex';
+    headers.forEach(header => {
+      header.style.display = 'flex';
+    });
+    
     props.onPlayPause(); // Resume the main content
   };
 

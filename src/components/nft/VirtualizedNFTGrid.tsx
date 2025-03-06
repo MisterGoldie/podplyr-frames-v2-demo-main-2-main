@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { NFT } from '../../types/user';
 import { NFTCard } from './NFTCard';
 import { useVirtualizedNFTs } from '../../hooks/useVirtualizedNFTs';
+import ErrorBoundary from '../ErrorBoundary';
 
 interface VirtualizedNFTGridProps {
   nfts: NFT[];
@@ -84,25 +85,27 @@ export const VirtualizedNFTGrid: React.FC<VirtualizedNFTGridProps> = ({
         const staggerDelay = 0.05 * (index % 8) + 0.2; // Base delay of 0.2s plus stagger
         
         return (
-          <NFTCard
-            key={`${animationKey}-${nft._uniqueReactId || `fallback_${Math.random().toString(36).substring(2, 11)}`}`}
-            nft={nft}
-            onPlay={async (nft) => {
-              await onPlayNFT(nft);
-            }}
-            isPlaying={isPlaying}
-            currentlyPlaying={currentlyPlaying}
-            handlePlayPause={handlePlayPause}
-            publicCollections={publicCollections}
-            onAddToCollection={addToPublicCollection}
-            onRemoveFromCollection={removeFromPublicCollection}
-            showTitleOverlay={true}
-            useCenteredPlay={true}
-            onLikeToggle={onLikeToggle}
-            userFid={userFid}
-            isNFTLiked={checkDirectlyLiked}
-            animationDelay={staggerDelay} // Pass the staggered delay
-          />
+          <ErrorBoundary key={`boundary-${nft._uniqueReactId || Math.random()}`}>
+            <NFTCard
+              key={`${animationKey}-${nft._uniqueReactId || `fallback_${Math.random().toString(36).substring(2, 11)}`}`}
+              nft={nft}
+              onPlay={async (nft) => {
+                await onPlayNFT(nft);
+              }}
+              isPlaying={isPlaying}
+              currentlyPlaying={currentlyPlaying}
+              handlePlayPause={handlePlayPause}
+              publicCollections={publicCollections}
+              onAddToCollection={addToPublicCollection}
+              onRemoveFromCollection={removeFromPublicCollection}
+              showTitleOverlay={true}
+              useCenteredPlay={true}
+              onLikeToggle={onLikeToggle}
+              userFid={userFid}
+              isNFTLiked={checkDirectlyLiked}
+              animationDelay={staggerDelay} // Pass the staggered delay
+            />
+          </ErrorBoundary>
         );
       })}
       

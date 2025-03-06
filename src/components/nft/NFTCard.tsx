@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useContext } from 'react';
+import { useState, useEffect, useRef, useContext, useMemo } from 'react';
 import { NFT } from '../../types/user';
 import { NFTImage } from '../media/NFTImage';
 import { MuxPlayer } from '../media/MuxPlayer';
@@ -8,6 +8,9 @@ import { useNFTPlayCount } from '../../hooks/useNFTPlayCount';
 import { FarcasterContext } from '../../app/providers';
 import { DirectVideoPlayer } from '../media/DirectVideoPlayer';
 import { UltraDirectPlayer } from '../media/UltraDirectPlayer';
+import { NFTGifImage } from '../media/NFTGifImage';
+import { useSessionImageCache } from '../../hooks/useSessionImageCache';
+// Removed the import for 'react-intersection-observer' due to the error
 
 interface NFTCardProps {
   nft: NFT;
@@ -64,6 +67,58 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   isNFTLiked,
   animationDelay = 0.2
 }) => {
+  // NEW: Add validation for NFT data to prevent crashes from broken NFTs
+  const isValidNFT = useMemo(() => {
+    // Basic validation - check if NFT exists and has minimum required properties
+    if (!nft) return false;
+    
+    // Check for critical display properties
+    const hasDisplayInfo = Boolean(
+      // Either a name OR some kind of identifier
+      nft.name || 
+      (nft.contract && nft.tokenId)
+    );
+    
+    // Check for media - we need at least one valid media source
+    const hasMedia = Boolean(
+      nft.image || 
+      nft.metadata?.image ||
+      nft.audio ||
+      nft.metadata?.animation_url
+    );
+    
+    // Log detailed info for invalid NFTs to help diagnose issues
+    if (!hasDisplayInfo || !hasMedia) {
+      console.warn('Invalid NFT data detected:', {
+        nft,
+        hasDisplayInfo,
+        hasMedia,
+        name: nft?.name,
+        contract: nft?.contract,
+        tokenId: nft?.tokenId,
+        image: nft?.image || nft?.metadata?.image,
+        audio: nft?.audio || nft?.metadata?.animation_url
+      });
+    }
+    
+    return hasDisplayInfo && hasMedia;
+  }, [nft]);
+  
+  // NEW: Early return with fallback UI for invalid NFTs
+  if (!isValidNFT) {
+    return (
+      <div className="relative bg-gray-800 rounded-lg overflow-hidden aspect-square shadow-lg">
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900">
+          <svg className="w-12 h-12 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+          </svg>
+          <span className="mt-2 text-xs text-gray-400">NFT data unavailable</span>
+        </div>
+      </div>
+    );
+  }
+  
+  const { getPreloadedImage, preloadImage } = useSessionImageCache([nft]);
   // Get like state based on context - if we're in library view, NFT is always liked
   const { isLiked: likeStateFromHook, likesCount: globalLikesCount } = useNFTLikeState(nft, userFid || 0);
   
@@ -95,6 +150,35 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   const [showOverlay, setShowOverlay] = useState(false);
   const overlayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isCurrentTrack = currentlyPlaying === getMediaKey(nft);
+  const [isVisible, setIsVisible] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+  
+  // Set up intersection observer to detect when card is visible
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsVisible(entry.isIntersecting);
+        if (entry.isIntersecting) {
+          // Preload image when card becomes visible
+          preloadImage(nft);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (cardRef.current) {
+      observer.observe(cardRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [nft, preloadImage]);
+
+  // Only load animated content when card is visible
+  const shouldLoadAnimated = isVisible;
+
+  // Get cached image if available
+  const cachedImage = getPreloadedImage(nft);
+  const imageUrl = cachedImage ? cachedImage.src : processMediaUrl(nft.image || nft.metadata?.image || '');
 
   const startOverlayTimer = (e: React.MouseEvent | React.TouchEvent) => {
     // Clear any existing timeout
@@ -103,20 +187,36 @@ export const NFTCard: React.FC<NFTCardProps> = ({
     }
     // Show the overlay
     setShowOverlay(true);
+    
+    // For recently played NFTs, keep the overlay visible longer
+    // or don't auto-hide it at all if it's the current track
+    if (isCurrentTrack) {
+      // Don't auto-hide if this is the current track
+      return;
+    }
+    
     // Set new timeout to hide overlay after 5 seconds
     overlayTimeoutRef.current = setTimeout(() => {
-      setShowOverlay(false);
+      // Only hide if it's not the current track
+      if (!isCurrentTrack) {
+        setShowOverlay(false);
+      }
     }, 5000);
   };
 
-  // Cleanup timeout on unmount
+  // Also, modify the useEffect to ensure the overlay stays visible for the current track
   useEffect(() => {
+    // If this becomes the current track, show the overlay
+    if (isCurrentTrack) {
+      setShowOverlay(true);
+    }
+    
     return () => {
       if (overlayTimeoutRef.current) {
         clearTimeout(overlayTimeoutRef.current);
       }
     };
-  }, []);
+  }, [isCurrentTrack]);
 
   const handlePlay = async (e: React.MouseEvent | React.TouchEvent) => {
     console.log('Play button clicked for NFT:', {
@@ -147,44 +247,39 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   if (viewMode === 'list') {
     return (
       <>
-        {/* Add the keyframes style */}
         <style>{animationKeyframes}</style>
-        
-        <div className="group flex items-center gap-4 bg-gradient-to-br from-gray-800/30 to-gray-800/10 p-3 rounded-lg active:bg-gray-800/60 hover:bg-gray-800/40 transition-colors touch-manipulation shadow-xl shadow-purple-900/30 border border-purple-400/10 cursor-pointer" style={animationStyle} data-nft-id={`${nft.contract}-${nft.tokenId}`}>
+        <div 
+          ref={cardRef}
+          className="group flex items-center gap-4 bg-gradient-to-br from-gray-800/30 to-gray-800/10 p-3 rounded-lg active:bg-gray-800/60 hover:bg-gray-800/40 transition-colors touch-manipulation shadow-xl shadow-purple-900/30 border border-purple-400/10 cursor-pointer" 
+          style={animationStyle} 
+          data-nft-id={`${nft.contract}-${nft.tokenId}`}
+        >
           <div className="relative w-16 h-16 flex-shrink-0">
-            {nft.metadata?.animation_url?.toLowerCase().endsWith('.mp4') || 
+            {shouldLoadAnimated && nft.metadata?.animation_url?.toLowerCase().endsWith('.mp4') || 
              nft.metadata?.animation_url?.toLowerCase().endsWith('.webm') ? (
               <DirectVideoPlayer
                 nft={nft}
                 onLoadComplete={() => {}}
                 onError={() => {}}
               />
+            ) : shouldLoadAnimated && (nft.name === 'ACYL RADIO - Hidden Tales' || 
+                nft.name === 'ACYL RADIO - WILL01' || 
+                nft.name === 'ACYL RADIO - Chili Sounds 🌶️') ? (
+              <NFTGifImage
+                nft={nft}
+                className="w-full h-full"
+                width={64}
+                height={64}
+              />
             ) : (
-              // Special handling for GIF images of ACYL RADIO NFTs
-              (nft.name === 'ACYL RADIO - Hidden Tales' || nft.name === 'ACYL RADIO - WILL01' || nft.name === 'ACYL RADIO - Chili Sounds 🌶️') ? (
-                <img
-                  src={nft.image}
-                  alt={nft.name}
-                  className="w-full h-full object-cover rounded-md"
-                  width={64}
-                  height={64}
-                  style={{ 
-                    maxWidth: '100%', 
-                    maxHeight: '100%',
-                    willChange: 'transform', 
-                    transform: 'translateZ(0)'
-                  }}
-                />
-              ) : (
-                <NFTImage
-                  nft={nft}
-                  src={processMediaUrl(nft.image || nft.metadata?.image || '')}
-                  alt={nft.name || 'NFT'}
-                  className="w-full h-full object-cover rounded-md"
-                  width={64}
-                  height={64}
-                />
-              )
+              <NFTImage
+                nft={nft}
+                src={imageUrl}
+                alt={nft.name || 'NFT'}
+                className="w-full h-full object-cover rounded-md"
+                width={64}
+                height={64}
+              />
             )}
             {shouldShowBadge && (
               <div className="absolute top-1 right-1 bg-purple-400 text-white text-xs px-1.5 py-0.5 rounded-full font-medium">
@@ -217,12 +312,10 @@ export const NFTCard: React.FC<NFTCardProps> = ({
 
   return (
     <>
-      {/* Add the keyframes style */}
       <style>{animationKeyframes}</style>
-      
       <div 
-        className="group relative bg-gradient-to-br from-gray-800/30 to-gray-800/10 rounded-lg overflow-hidden hover:bg-gray-800/40 active:bg-gray-800/60 transition-all duration-500 ease-in-out touch-manipulation shadow-xl shadow-purple-900/30 border border-purple-400/10 cursor-pointer"
-        onClick={handlePlay}
+        ref={cardRef}
+        className="group relative bg-gradient-to-br from-gray-800/30 to-gray-800/10 rounded-lg overflow-hidden hover:bg-gray-800/40 active:bg-gray-800/60 transition-all duration-500 ease-in-out touch-manipulation shadow-xl shadow-purple-900/30 border border-purple-400/10"
         onMouseEnter={(e) => {
           if (useCenteredPlay && e) startOverlayTimer(e);
         }}
@@ -233,39 +326,31 @@ export const NFTCard: React.FC<NFTCardProps> = ({
         data-nft-id={`${nft.contract}-${nft.tokenId}`}
       >
         <div className="aspect-square relative">
-          {nft.metadata?.animation_url?.toLowerCase().endsWith('.mp4') || 
+          {shouldLoadAnimated && nft.metadata?.animation_url?.toLowerCase().endsWith('.mp4') || 
            nft.metadata?.animation_url?.toLowerCase().endsWith('.webm') ? (
             <DirectVideoPlayer
               nft={nft}
               onLoadComplete={() => {}}
               onError={() => {}}
             />
+          ) : shouldLoadAnimated && (nft.name === 'ACYL RADIO - Hidden Tales' || 
+              nft.name === 'ACYL RADIO - WILL01' || 
+              nft.name === 'ACYL RADIO - Chili Sounds 🌶️') ? (
+            <NFTGifImage
+              nft={nft}
+              className="w-full h-full"
+              width={300}
+              height={300}
+            />
           ) : (
-            // Special handling for GIF images of ACYL RADIO NFTs
-            (nft.name === 'ACYL RADIO - Hidden Tales' || nft.name === 'ACYL RADIO - WILL01' || nft.name === 'ACYL RADIO - Chili Sounds 🌶️') ? (
-              <img
-                src={nft.image}
-                alt={nft.name}
-                className="w-full h-full object-cover"
-                width={300}
-                height={300}
-                style={{ 
-                  maxWidth: '100%', 
-                  maxHeight: '100%',
-                  willChange: 'transform', 
-                  transform: 'translateZ(0)'
-                }}
-              />
-            ) : (
-              <NFTImage
-                nft={nft}
-                src={processMediaUrl(nft.image || nft.metadata?.image || '')}
-                alt={nft.name || 'NFT'}
-                className="w-full h-full object-cover"
-                width={300}
-                height={300}
-              />
-            )
+            <NFTImage
+              nft={nft}
+              src={imageUrl}
+              alt={nft.name || 'NFT'}
+              className="w-full h-full object-cover"
+              width={300}
+              height={300}
+            />
           )}
           {shouldShowPlayCount && (
             <div className="absolute top-2 left-2 bg-purple-400 text-white text-xs px-2 py-1 rounded-full font-medium">
@@ -340,7 +425,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
                 await handlePlay(e);
                 if (e) startOverlayTimer(e);
               }}
-              className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-purple-500 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 transform touch-manipulation"
+              className={`absolute bottom-2 right-2 w-10 h-10 rounded-full bg-purple-500 text-black flex items-center justify-center ${isCurrentTrack ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity duration-200 hover:scale-105 transform touch-manipulation`}
             >
               {isCurrentTrack && isPlaying ? (
                 <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">

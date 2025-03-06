@@ -68,8 +68,8 @@ class SimpleNFTCard extends React.Component<SimpleNFTCardProps> {
             <button 
               onClick={(e) => {
                 e.stopPropagation(); // Prevent triggering the parent onClick
-                // Just call onLikeToggle - it will handle the notification
-                onLikeToggle(nft);
+                // Call the parent's handleUnlike method
+                this.props.parent.handleUnlike(nft);
               }}
               className="absolute top-2 right-2 text-red-500 transition-all duration-300 hover:scale-125 z-10"
             >
@@ -112,9 +112,10 @@ class SimpleNFTCard extends React.Component<SimpleNFTCardProps> {
           <div className="flex items-center gap-2">
             {/* Like Button */}
             <button 
-              onClick={() => {
-                // Just call onLikeToggle - it will handle the notification
-                onLikeToggle(nft);
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent triggering the parent onClick
+                // Call the parent's handleUnlike method
+                this.props.parent.handleUnlike(nft);
               }}
               className="text-red-500 hover:scale-110 transition-transform"
             >
@@ -165,10 +166,11 @@ class LibraryView extends React.Component<LibraryViewProps> {
   }
 
   componentDidUpdate(prevProps: LibraryViewProps) {
-    // If likedNFTs changes, we might want to show loading again
+    // If likedNFTs changes, force a complete refresh
     if (prevProps.likedNFTs !== this.props.likedNFTs) {
-      // Optional: you could set isLoading to true here and then false after processing
-      // this.setState({ isLoading: false });
+      console.log('🔄 LibraryView detected likedNFTs change - refreshing view');
+      // Force a refresh of the component
+      this.forceUpdate();
     }
 
     // Update liked status for currently playing NFT
@@ -181,16 +183,22 @@ class LibraryView extends React.Component<LibraryViewProps> {
     }
   }
 
-  // Deduplicate NFTs based on mediaKey
+  // Deduplicate NFTs based on unique contract-tokenId combinations
   getUniqueNFTs() {
-    return this.props.likedNFTs.reduce((acc: NFT[], current) => {
-      const currentMediaKey = getMediaKey(current);
-      const isDuplicate = acc.some(nft => getMediaKey(nft) === currentMediaKey);
-      if (!isDuplicate) {
-        acc.push(current);
+    const uniqueNFTs: NFT[] = [];
+    const seenKeys = new Set<string>();
+    
+    for (const nft of this.props.likedNFTs) {
+      if (!nft.contract || !nft.tokenId) continue;
+      
+      const key = `${nft.contract.toLowerCase()}-${nft.tokenId}`;
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        uniqueNFTs.push(nft);
       }
-      return acc;
-    }, []);
+    }
+    
+    return uniqueNFTs;
   }
 
   getFilteredNFTs() {
@@ -220,8 +228,20 @@ class LibraryView extends React.Component<LibraryViewProps> {
       showUnlikeNotification: true
     });
     
+    // Hide notification after 3 seconds
+    setTimeout(() => {
+      this.setState({ showUnlikeNotification: false });
+    }, 3000);
+    
     // Call the original onLikeToggle function
-    await this.props.onLikeToggle(nft);
+    try {
+      await this.props.onLikeToggle(nft);
+      
+      // Force a re-render after the unlike operation
+      this.forceUpdate();
+    } catch (error) {
+      console.error('Error unliking NFT:', error);
+    }
   };
 
   render() {

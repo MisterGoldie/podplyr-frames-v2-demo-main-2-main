@@ -12,6 +12,7 @@ interface NotificationHeaderProps {
   autoHideDuration?: number;
   icon?: React.ReactNode;
   logo?: string;
+  onReset?: () => void;
 }
 
 const NotificationHeader: React.FC<NotificationHeaderProps> = ({
@@ -23,6 +24,7 @@ const NotificationHeader: React.FC<NotificationHeaderProps> = ({
   autoHideDuration = 3000,
   icon,
   logo = '/fontlogo.png',
+  onReset,
 }) => {
   // Use separate states for background and content to stagger transitions
   const [isBackgroundVisible, setIsBackgroundVisible] = useState(show);
@@ -112,14 +114,13 @@ const NotificationHeader: React.FC<NotificationHeaderProps> = ({
         isBackgroundVisible ? getStyles() : 'bg-black border-b border-black'
       }`}
     >
-      {/* Use a wrapper div to prevent layout shift */}
+      {/* Container for both logo and notification */}
       <div className="relative w-full h-full flex items-center justify-center">
-        {/* Logo with improved transitions */}
-        <div 
-          className={`absolute transition-all duration-500 ease-in-out transform ${
-            isContentVisible 
-              ? 'opacity-0 translate-y-[-10px]' 
-              : 'opacity-100 translate-y-0'
+        {/* Logo container - always centered */}
+        <button 
+          onClick={onReset} 
+          className={`cursor-pointer transition-all duration-500 ease-in-out transform ${
+            isContentVisible ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
           }`}
         >
           <Image
@@ -130,24 +131,31 @@ const NotificationHeader: React.FC<NotificationHeaderProps> = ({
             className="logo-image"
             priority={true}
           />
-        </div>
+        </button>
         
-        {/* Notification content with improved transitions */}
-        <div 
-          className={`flex items-center justify-center transition-all duration-500 ease-in-out transform ${
-            isContentVisible 
-              ? 'opacity-100 translate-y-0' 
-              : 'opacity-0 translate-y-[10px] pointer-events-none'
-          }`}
-          style={{ willChange: 'transform, opacity' }}
-        >
-          <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center mr-3">
-            {icon || getDefaultIcon()}
+        {/* Notification content */}
+        {show && (
+          <div 
+            className={`absolute inset-0 flex items-center justify-center transition-all duration-500 ease-in-out transform ${
+              isContentVisible 
+                ? 'opacity-100 scale-100' 
+                : 'opacity-0 scale-95 pointer-events-none'
+            }`}
+            style={{ willChange: 'transform, opacity' }}
+          >
+            <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center mr-3">
+              {icon || getDefaultIcon()}
+            </div>
+            <div className="text-white text-lg flex items-center">
+              {message}
+              {highlightText && (
+                <span className="font-semibold ml-2 truncate max-w-[120px] inline-block">
+                  {highlightText}
+                </span>
+              )}
+            </div>
           </div>
-          <div className="text-white text-lg">
-            {message} {highlightText && <span className="font-semibold">{highlightText}</span>}
-          </div>
-        </div>
+        )}
       </div>
     </header>
   );
