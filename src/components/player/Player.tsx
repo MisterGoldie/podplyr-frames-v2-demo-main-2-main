@@ -1,5 +1,5 @@
 'use client';
-import React, { useContext, useRef, useEffect } from 'react';
+import React, { useContext, useRef, useEffect, useState } from 'react';
 import { MinimizedPlayer } from './MinimizedPlayer';
 import { MaximizedPlayer } from './MaximizedPlayer';
 import type { NFT } from '../../types/user';
@@ -174,28 +174,75 @@ export const Player: React.FC<PlayerProps> = (props) => {
     });
   };
 
+  // Animation state management
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [showMinimized, setShowMinimized] = useState(isMinimized);
+  const [showMaximized, setShowMaximized] = useState(!isMinimized);
+  
+  // Handle animation state changes when minimized state changes
+  useEffect(() => {
+    if (isAnimating) return; // Don't interrupt ongoing animations
+    
+    setShowMinimized(isMinimized);
+    setShowMaximized(!isMinimized);
+  }, [isMinimized, isAnimating]);
+  
+  // Enhanced minimize toggle with animation
+  const handleAnimatedMinimizeToggle = () => {
+    setIsAnimating(true);
+    
+    if (isMinimized) {
+      // Going from minimized to maximized
+      setShowMaximized(true);
+      // Short delay before hiding minimized view (after animation completes)
+      setTimeout(() => {
+        onMinimizeToggle();
+        setTimeout(() => {
+          setShowMinimized(false);
+          setIsAnimating(false);
+        }, 50);
+      }, 300); // Match transition duration in the components
+    } else {
+      // Going from maximized to minimized
+      setShowMinimized(true);
+      // Short delay before hiding maximized view (after animation completes)
+      setTimeout(() => {
+        onMinimizeToggle();
+        setTimeout(() => {
+          setShowMaximized(false);
+          setIsAnimating(false);
+        }, 50);
+      }, 300); // Match transition duration in the components
+    }
+  };
+  
   // Render either minimized or maximized player with all props forwarded
   return (
     <>
-      {isMinimized ? (
+      {showMinimized && (
         <MinimizedPlayer
           nft={nft}
           isPlaying={isPlaying}
           onPlayPause={onPlayPause}
           onNext={onNext}
           onPrevious={onPrevious}
-          onMinimizeToggle={onMinimizeToggle}
+          onMinimizeToggle={handleAnimatedMinimizeToggle}
           progress={progress}
           duration={duration}
           onSeek={onSeek}
           onLikeToggle={onLikeToggle ? (nft) => onLikeToggle(nft) : undefined}
           isLiked={isLiked}
           onPictureInPicture={onPictureInPicture}
-          lastPosition={lastPositionRef.current} isMinimized={false}        />
-      ) : (
+          lastPosition={lastPositionRef.current}
+          isMinimized={isMinimized}
+          isAnimating={isAnimating}          
+        />
+      )}
+      {showMaximized && (
         <MaximizedPlayer
             nft={nft}
             isMinimized={isMinimized}
+            isAnimating={isAnimating}
             isPlaying={isPlaying}
             onPlayPause={onPlayPause}
             onNext={onNext}
