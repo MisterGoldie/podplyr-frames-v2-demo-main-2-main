@@ -326,7 +326,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
               <h3 className="text-xl text-red-500 mb-2">No Media NFTs Found</h3>
               <p className="text-gray-400">
                 {!userContext?.user?.fid
-                  ? 'Currently you can only create a profile through Farcaster'
+                  ? 'Currently you can only create a profile through Warpcast'
                   : 'No media NFTs found in your connected wallets'
                 }
               </p>
