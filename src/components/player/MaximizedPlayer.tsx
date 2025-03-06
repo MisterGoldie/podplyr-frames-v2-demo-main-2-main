@@ -198,7 +198,24 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
     }
   }, [isPlaying]);
 
-  // Optional: Add a simple effect to handle time sync for big jumps
+  // Effect to handle video position sync during animations
+  useEffect(() => {
+    if (!videoRef.current || !nft?.isVideo && !nft?.metadata?.animation_url) return;
+    
+    // If we're animating, make sure to preserve video position
+    if (isAnimating && lastPosition) {
+      console.log("Animation detected, syncing video position to:", lastPosition);
+      videoRef.current.currentTime = lastPosition;
+      
+      if (isPlaying) {
+        videoRef.current.play().catch(e => {
+          console.error("Failed to play video during animation:", e);
+        });
+      }
+    }
+  }, [isAnimating, isMinimized, lastPosition, nft, isPlaying]);
+  
+  // Effect to handle time sync for big jumps
   useEffect(() => {
     if (!videoRef.current) return;
     

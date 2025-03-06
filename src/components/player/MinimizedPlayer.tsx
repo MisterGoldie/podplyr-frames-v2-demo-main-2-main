@@ -34,6 +34,7 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
   onSeek,
   isMinimized,
   isAnimating,
+  lastPosition,
 }) => {
   // State for swipe and info panel
   const [touchStart, setTouchStart] = useState<number | null>(null);
@@ -45,7 +46,7 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
   // Add this at the top with other state
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  // Add a simple effect to find and control the video element
+  // Add effects to find, control, and sync the video element
   useEffect(() => {
     if (!nft?.isVideo && !nft?.metadata?.animation_url) return;
     
@@ -67,6 +68,27 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
       }
     }
   }, [isPlaying, nft]);
+  
+  // Effect to handle video position sync during animations
+  useEffect(() => {
+    if (!nft?.isVideo && !nft?.metadata?.animation_url) return;
+    
+    if (isAnimating && lastPosition) {
+      const videoId = `video-${nft.contract}-${nft.tokenId}`;
+      const videoElement = document.getElementById(videoId) as HTMLVideoElement;
+      
+      if (videoElement) {
+        console.log("MinimizedPlayer: Animation detected, syncing video position to:", lastPosition);
+        videoElement.currentTime = lastPosition;
+        
+        if (isPlaying) {
+          videoElement.play().catch(e => {
+            console.error("MinimizedPlayer: Failed to play video during animation:", e);
+          });
+        }
+      }
+    }
+  }, [isAnimating, isMinimized, lastPosition, nft, isPlaying]);
 
   // Touch handlers
   const handleTouchStart = (e: React.TouchEvent) => {

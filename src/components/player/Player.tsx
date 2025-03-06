@@ -187,8 +187,19 @@ export const Player: React.FC<PlayerProps> = (props) => {
     setShowMaximized(!isMinimized);
   }, [isMinimized, isAnimating]);
   
-  // Enhanced minimize toggle with animation
+  // Enhanced minimize toggle with animation and video sync
   const handleAnimatedMinimizeToggle = () => {
+    // Save current video position before starting animation
+    if (nft?.isVideo || nft?.metadata?.animation_url) {
+      const videoId = `video-${nft.contract}-${nft.tokenId}`;
+      const videoElement = document.getElementById(videoId) as HTMLVideoElement;
+      
+      if (videoElement) {
+        lastPositionRef.current = videoElement.currentTime;
+        console.log("Saved video position before transition:", lastPositionRef.current);
+      }
+    }
+    
     setIsAnimating(true);
     
     if (isMinimized) {
@@ -197,7 +208,12 @@ export const Player: React.FC<PlayerProps> = (props) => {
       // Short delay before hiding minimized view (after animation completes)
       setTimeout(() => {
         onMinimizeToggle();
+        
+        // After state changes, give a moment for the DOM to update
         setTimeout(() => {
+          // After state has changed, ensure video position is maintained
+          syncVideoPositionAfterTransition();
+          
           setShowMinimized(false);
           setIsAnimating(false);
         }, 50);
@@ -208,11 +224,38 @@ export const Player: React.FC<PlayerProps> = (props) => {
       // Short delay before hiding maximized view (after animation completes)
       setTimeout(() => {
         onMinimizeToggle();
+        
+        // After state changes, give a moment for the DOM to update
         setTimeout(() => {
+          // After state has changed, ensure video position is maintained
+          syncVideoPositionAfterTransition();
+          
           setShowMaximized(false);
           setIsAnimating(false);
         }, 50);
       }, 300); // Match transition duration in the components
+    }
+  };
+  
+  // Helper function to sync video position after state transitions
+  const syncVideoPositionAfterTransition = () => {
+    if (!nft?.isVideo && !nft?.metadata?.animation_url) return;
+    
+    // Find the video element after the transition
+    const videoId = `video-${nft.contract}-${nft.tokenId}`;
+    const videoElement = document.getElementById(videoId) as HTMLVideoElement;
+    
+    if (videoElement && lastPositionRef.current > 0) {
+      // Set the same position as before the transition
+      videoElement.currentTime = lastPositionRef.current;
+      console.log("Restored video position after transition:", lastPositionRef.current);
+      
+      // If the video was playing, ensure it continues playing
+      if (isPlaying) {
+        videoElement.play().catch(e => {
+          console.error("Failed to resume video after transition:", e);
+        });
+      }
     }
   };
   
