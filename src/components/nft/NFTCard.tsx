@@ -118,7 +118,9 @@ export const NFTCard: React.FC<NFTCardProps> = ({
     );
   }
   
-  const { getPreloadedImage, preloadImage } = useSessionImageCache([nft]);
+  // Memoize the nft object to prevent infinite updates
+  const memoizedNft = useMemo(() => [nft], [nft.contract, nft.tokenId]);
+  const { getPreloadedImage, preloadImage } = useSessionImageCache(memoizedNft);
   // Get like state based on context - if we're in library view, NFT is always liked
   const { isLiked: likeStateFromHook, likesCount: globalLikesCount } = useNFTLikeState(nft, userFid || 0);
   
