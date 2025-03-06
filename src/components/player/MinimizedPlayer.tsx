@@ -19,6 +19,7 @@ interface MinimizedPlayerProps {
   isLiked?: boolean;
   onPictureInPicture?: () => void;
   lastPosition?: number;
+  isAnimating?: boolean;
 }
 
 export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
@@ -31,6 +32,9 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
   progress,
   duration,
   onSeek,
+  isMinimized,
+  isAnimating,
+  lastPosition,
 }) => {
   // State for swipe and info panel
   const [touchStart, setTouchStart] = useState<number | null>(null);
@@ -42,7 +46,7 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
   // Add this at the top with other state
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  // Add a simple effect to find and control the video element
+  // Add effects to find, control, and sync the video element
   useEffect(() => {
     if (!nft?.isVideo && !nft?.metadata?.animation_url) return;
     
@@ -64,6 +68,27 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
       }
     }
   }, [isPlaying, nft]);
+  
+  // Effect to handle video position sync during animations
+  useEffect(() => {
+    if (!nft?.isVideo && !nft?.metadata?.animation_url) return;
+    
+    if (isAnimating && lastPosition) {
+      const videoId = `video-${nft.contract}-${nft.tokenId}`;
+      const videoElement = document.getElementById(videoId) as HTMLVideoElement;
+      
+      if (videoElement) {
+        console.log("MinimizedPlayer: Animation detected, syncing video position to:", lastPosition);
+        videoElement.currentTime = lastPosition;
+        
+        if (isPlaying) {
+          videoElement.play().catch(e => {
+            console.error("MinimizedPlayer: Failed to play video during animation:", e);
+          });
+        }
+      }
+    }
+  }, [isAnimating, isMinimized, lastPosition, nft, isPlaying]);
 
   // Touch handlers
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -128,13 +153,20 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
   const springTransition = 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)';
   const maxSwipeDistance = 100;
 
-  // Fixed styling with black background
+  // Fixed styling with black background and animation
   return (
     <>
       {showInfo && <InfoPanel nft={nft} onClose={() => setShowInfo(false)} />}
       <div 
         className="fixed bottom-20 left-0 right-0 bg-black border-t border-purple-400/20 h-20 z-[100] will-change-transform overflow-hidden"
-        style={{backgroundColor: '#000'}}
+        style={{
+          backgroundColor: '#000',
+          transform: isAnimating ? 
+            (isMinimized ? 'translateY(0)' : 'translateY(100%)') : 
+            'translateY(0)',
+          transition: 'transform 300ms cubic-bezier(0.33, 1, 0.68, 1)',
+          opacity: isAnimating && !isMinimized ? 0 : 1
+        }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}

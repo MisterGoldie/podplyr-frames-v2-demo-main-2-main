@@ -1,5 +1,5 @@
 'use client';
-import React, { useContext, useRef, useEffect } from 'react';
+import React, { useContext, useRef, useEffect, useState } from 'react';
 import { MinimizedPlayer } from './MinimizedPlayer';
 import { MaximizedPlayer } from './MaximizedPlayer';
 import type { NFT } from '../../types/user';
@@ -174,28 +174,118 @@ export const Player: React.FC<PlayerProps> = (props) => {
     });
   };
 
+  // Animation state management
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [showMinimized, setShowMinimized] = useState(isMinimized);
+  const [showMaximized, setShowMaximized] = useState(!isMinimized);
+  
+  // Handle animation state changes when minimized state changes
+  useEffect(() => {
+    if (isAnimating) return; // Don't interrupt ongoing animations
+    
+    setShowMinimized(isMinimized);
+    setShowMaximized(!isMinimized);
+  }, [isMinimized, isAnimating]);
+  
+  // Enhanced minimize toggle with animation and video sync
+  const handleAnimatedMinimizeToggle = () => {
+    // Save current video position before starting animation
+    if (nft?.isVideo || nft?.metadata?.animation_url) {
+      const videoId = `video-${nft.contract}-${nft.tokenId}`;
+      const videoElement = document.getElementById(videoId) as HTMLVideoElement;
+      
+      if (videoElement) {
+        lastPositionRef.current = videoElement.currentTime;
+        console.log("Saved video position before transition:", lastPositionRef.current);
+      }
+    }
+    
+    setIsAnimating(true);
+    
+    if (isMinimized) {
+      // Going from minimized to maximized
+      setShowMaximized(true);
+      // Short delay before hiding minimized view (after animation completes)
+      setTimeout(() => {
+        onMinimizeToggle();
+        
+        // After state changes, give a moment for the DOM to update
+        setTimeout(() => {
+          // After state has changed, ensure video position is maintained
+          syncVideoPositionAfterTransition();
+          
+          setShowMinimized(false);
+          setIsAnimating(false);
+        }, 50);
+      }, 300); // Match transition duration in the components
+    } else {
+      // Going from maximized to minimized
+      setShowMinimized(true);
+      // Short delay before hiding maximized view (after animation completes)
+      setTimeout(() => {
+        onMinimizeToggle();
+        
+        // After state changes, give a moment for the DOM to update
+        setTimeout(() => {
+          // After state has changed, ensure video position is maintained
+          syncVideoPositionAfterTransition();
+          
+          setShowMaximized(false);
+          setIsAnimating(false);
+        }, 50);
+      }, 300); // Match transition duration in the components
+    }
+  };
+  
+  // Helper function to sync video position after state transitions
+  const syncVideoPositionAfterTransition = () => {
+    if (!nft?.isVideo && !nft?.metadata?.animation_url) return;
+    
+    // Find the video element after the transition
+    const videoId = `video-${nft.contract}-${nft.tokenId}`;
+    const videoElement = document.getElementById(videoId) as HTMLVideoElement;
+    
+    if (videoElement && lastPositionRef.current > 0) {
+      // Set the same position as before the transition
+      videoElement.currentTime = lastPositionRef.current;
+      console.log("Restored video position after transition:", lastPositionRef.current);
+      
+      // If the video was playing, ensure it continues playing
+      if (isPlaying) {
+        videoElement.play().catch(e => {
+          console.error("Failed to resume video after transition:", e);
+        });
+      }
+    }
+  };
+  
   // Render either minimized or maximized player with all props forwarded
   return (
     <>
-      {isMinimized ? (
+      {showMinimized && (
         <MinimizedPlayer
           nft={nft}
           isPlaying={isPlaying}
           onPlayPause={onPlayPause}
           onNext={onNext}
           onPrevious={onPrevious}
-          onMinimizeToggle={onMinimizeToggle}
+          onMinimizeToggle={handleAnimatedMinimizeToggle}
           progress={progress}
           duration={duration}
           onSeek={onSeek}
           onLikeToggle={onLikeToggle ? (nft) => onLikeToggle(nft) : undefined}
           isLiked={isLiked}
           onPictureInPicture={onPictureInPicture}
-          lastPosition={lastPositionRef.current} isMinimized={false}        />
-      ) : (
+          lastPosition={lastPositionRef.current}
+          isMinimized={isMinimized}
+          isAnimating={isAnimating}          
+        />
+      )}
+      {showMaximized && (
         <MaximizedPlayer
             nft={nft}
             isMinimized={isMinimized}
+            isAnimating={isAnimating}
             isPlaying={isPlaying}
             onPlayPause={onPlayPause}
             onNext={onNext}

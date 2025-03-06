@@ -21,6 +21,7 @@ interface MaximizedPlayerProps {
   isLiked?: boolean;
   onPictureInPicture?: () => void;
   lastPosition?: number;
+  isAnimating?: boolean;
 }
 
 export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
@@ -37,7 +38,8 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
   onLikeToggle,
   isLiked,
   onPictureInPicture,
-  lastPosition
+  lastPosition,
+  isAnimating
 }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [showControls, setShowControls] = useState(true);
@@ -196,7 +198,24 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
     }
   }, [isPlaying]);
 
-  // Optional: Add a simple effect to handle time sync for big jumps
+  // Effect to handle video position sync during animations
+  useEffect(() => {
+    if (!videoRef.current || !nft?.isVideo && !nft?.metadata?.animation_url) return;
+    
+    // If we're animating, make sure to preserve video position
+    if (isAnimating && lastPosition) {
+      console.log("Animation detected, syncing video position to:", lastPosition);
+      videoRef.current.currentTime = lastPosition;
+      
+      if (isPlaying) {
+        videoRef.current.play().catch(e => {
+          console.error("Failed to play video during animation:", e);
+        });
+      }
+    }
+  }, [isAnimating, isMinimized, lastPosition, nft, isPlaying]);
+  
+  // Effect to handle time sync for big jumps
   useEffect(() => {
     if (!videoRef.current) return;
     
@@ -305,10 +324,22 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
     };
   }, [longPressTimer]);
 
+  // Add animation styles for maximize/minimize transitions
+  const animationStyles = {
+    transform: isAnimating ? 
+      (isMinimized ? 'translateY(100%)' : 'translateY(0)') : 
+      'translateY(0)',
+    transition: 'transform 300ms cubic-bezier(0.33, 1, 0.68, 1)',
+    opacity: isAnimating && isMinimized ? 0 : 1,
+    willChange: 'transform'
+  };
+
   // Keep the exact same JSX as the original Player component for the maximized state
   return (
     <>
-      <div className="fixed inset-0 z-[100] bg-black flex flex-col">
+      <div 
+        className="fixed inset-0 z-[100] bg-black flex flex-col" 
+        style={animationStyles}>
         {/* Main Content */}
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 flex items-center justify-center max-h-[70vh] px-4 py-4 overflow-hidden">
