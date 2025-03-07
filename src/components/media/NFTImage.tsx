@@ -230,10 +230,20 @@ export const NFTImage: React.FC<NFTImageProps> = ({
       retryCount
     });
     
-    // Immediately switch to fallback image - prioritize showing SOMETHING rather than trying multiple gateways
-    setIsLoadingFallback(true);
-    setError(true);
-    setImgSrc(fallbackSrc);
+    // CRITICAL: Immediately switch to fallback image and force re-render
+    setTimeout(() => {
+      // Use setTimeout to ensure state updates happen in new event loop
+      setError(true);
+      setIsLoadingFallback(true);
+      setImgSrc(fallbackSrc);
+      
+      // Force image element to reload with fallback
+      const imgElement = error.currentTarget as HTMLImageElement;
+      if (imgElement) {
+        imgElement.src = fallbackSrc;
+      }
+    }, 0);
+    
     return;
 
     // Disabled gateway cycling for now to ensure fallback image works reliably
@@ -262,8 +272,10 @@ export const NFTImage: React.FC<NFTImageProps> = ({
            source !== 'https://null';
   };
   
-  // Always display fallback image when there's an error or invalid source - NO EXCEPTIONS
-  const finalSrc = (error || isLoadingFallback || !validateSrc(imgSrc)) ? fallbackSrc : imgSrc;
+  // CRITICAL: Always display fallback image when there's an error or invalid source - NO EXCEPTIONS
+  // Double-validate that fallback path is correct and accessible
+  const absoluteFallbackSrc = fallbackSrc.startsWith('/') ? fallbackSrc : `/${fallbackSrc}`;
+  const finalSrc = (error || isLoadingFallback || !validateSrc(imgSrc)) ? absoluteFallbackSrc : imgSrc;
   
   if (isVideo || !isIPFS) {
     return (
@@ -278,9 +290,11 @@ export const NFTImage: React.FC<NFTImageProps> = ({
         loading={priority ? 'eager' : loading}
         placeholder={placeholder}
         onError={handleError}
-      // Add a data attribute to help with debugging
-      data-nft-image-status={error ? 'error' : 'loaded'}
-      data-nft-id={nft ? `${nft.contract}-${nft.tokenId}` : 'unknown'}
+        // Add a data attribute to help with debugging
+        data-nft-image-status={error ? 'error' : 'loaded'}
+        data-nft-id={nft ? `${nft.contract}-${nft.tokenId}` : 'unknown'}
+        // Force re-render when source changes to ensure fallback works
+        key={`nft-img-${error ? 'fallback' : 'original'}-${nft?.contract || ''}-${nft?.tokenId || ''}-${isLoadingFallback ? 'fallback' : 'normal'}`}
       />
     );
   }

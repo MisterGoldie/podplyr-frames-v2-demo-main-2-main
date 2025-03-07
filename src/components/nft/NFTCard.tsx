@@ -79,12 +79,24 @@ export const NFTCard: React.FC<NFTCardProps> = ({
       (nft.contract && nft.tokenId)
     );
     
+    // Validate image URL before using it
+    const validateMediaUrl = (url: string | undefined): boolean => {
+      if (!url) return false;
+      return (
+        url !== 'undefined' && 
+        url !== 'null' && 
+        url !== '' &&
+        !url.includes('undefined') &&
+        !url.includes('null://')
+      );
+    };
+    
     // Check for media - we need at least one valid media source
     const hasMedia = Boolean(
-      nft.image || 
-      nft.metadata?.image ||
-      nft.audio ||
-      nft.metadata?.animation_url
+      validateMediaUrl(nft.image) || 
+      validateMediaUrl(nft.metadata?.image) ||
+      validateMediaUrl(nft.audio) ||
+      validateMediaUrl(nft.metadata?.animation_url)
     );
     
     // Log detailed info for invalid NFTs to help diagnose issues
@@ -129,6 +141,18 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   // Memoize the nft object to prevent infinite updates
   const memoizedNft = useMemo(() => [nft], [nft.contract, nft.tokenId]);
   const { getPreloadedImage, preloadImage } = useSessionImageCache(memoizedNft);
+  
+  // Validate image URL to prevent loading errors
+  const validateImageUrl = (url: string | undefined): boolean => {
+    if (!url) return false;
+    return (
+      url !== 'undefined' && 
+      url !== 'null' && 
+      url !== '' &&
+      !url.includes('undefined') &&
+      !url.includes('null://')
+    );
+  };
   // Get like state based on context - if we're in library view, NFT is always liked
   const { isLiked: likeStateFromHook, likesCount: globalLikesCount } = useNFTLikeState(nft, userFid || 0);
   
@@ -188,7 +212,9 @@ export const NFTCard: React.FC<NFTCardProps> = ({
 
   // Get cached image if available
   const cachedImage = getPreloadedImage(nft);
-  const imageUrl = cachedImage ? cachedImage.src : processMediaUrl(nft.image || nft.metadata?.image || '');
+  const rawImageUrl = nft.image || nft.metadata?.image || '';
+  const imageUrl = cachedImage ? cachedImage.src : 
+    validateImageUrl(rawImageUrl) ? processMediaUrl(rawImageUrl) : '/default-nft.png';
 
   const startOverlayTimer = (e: React.MouseEvent | React.TouchEvent) => {
     // Clear any existing timeout
@@ -274,12 +300,29 @@ export const NFTCard: React.FC<NFTCardProps> = ({
           data-nft-id={`${nft.contract}-${nft.tokenId}`}
         >
           <div className="relative w-16 h-16 flex-shrink-0">
+            {/* Always include invisible fallback that can be shown if media fails */}
+            <img 
+              src="/default-nft.png" 
+              alt="Fallback NFT" 
+              className="absolute inset-0 w-full h-full object-cover opacity-0 rounded-md"
+              loading="eager"
+              onLoad={(e) => {
+                // Keep fallback hidden unless needed
+                if (e.currentTarget) e.currentTarget.style.opacity = '0';
+              }}
+            />
+            
             {shouldLoadAnimated && nft.metadata?.animation_url?.toLowerCase().endsWith('.mp4') || 
              nft.metadata?.animation_url?.toLowerCase().endsWith('.webm') ? (
               <DirectVideoPlayer
                 nft={nft}
                 onLoadComplete={() => {}}
-                onError={() => {}}
+                onError={(err) => {
+                  console.warn('Video player error for NFT in list view:', nft.name, err);
+                  // Show fallback on video error
+                  const fallbackEl = cardRef.current?.querySelector('img[src="/default-nft.png"]');
+                  if (fallbackEl) (fallbackEl as HTMLImageElement).style.opacity = '1';
+                }}
               />
             ) : shouldLoadAnimated && (nft.name === 'ACYL RADIO - Hidden Tales' || 
                 nft.name === 'ACYL RADIO - WILL01' || 
@@ -298,6 +341,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
                 className="w-full h-full object-cover rounded-md"
                 width={64}
                 height={64}
+                priority={nft.featuredSortOrder !== undefined} // Prioritize loading of featured NFTs
               />
             )}
             {shouldShowBadge && (
@@ -352,12 +396,29 @@ export const NFTCard: React.FC<NFTCardProps> = ({
         data-nft-id={`${nft.contract}-${nft.tokenId}`}
       >
         <div className="aspect-square relative">
+          {/* Double protection - if media fails to load, show default fallback image */}
+          <img 
+            src="/default-nft.png" 
+            alt="Fallback NFT" 
+            className="absolute inset-0 w-full h-full object-cover opacity-0"
+            loading="eager"
+            onLoad={(e) => {
+              // Keep the fallback hidden unless needed
+              if (e.currentTarget) e.currentTarget.style.opacity = '0';
+            }}
+          />
+          
           {shouldLoadAnimated && nft.metadata?.animation_url?.toLowerCase().endsWith('.mp4') || 
            nft.metadata?.animation_url?.toLowerCase().endsWith('.webm') ? (
             <DirectVideoPlayer
               nft={nft}
               onLoadComplete={() => {}}
-              onError={() => {}}
+              onError={(err) => {
+                console.warn('Video player error for NFT:', nft.name, err);
+                // Show fallback on video error
+                const fallbackEl = cardRef.current?.querySelector('img[src="/default-nft.png"]');
+                if (fallbackEl) (fallbackEl as HTMLImageElement).style.opacity = '1';
+              }}
             />
           ) : shouldLoadAnimated && (nft.name === 'ACYL RADIO - Hidden Tales' || 
               nft.name === 'ACYL RADIO - WILL01' || 
@@ -376,6 +437,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
               className="w-full h-full object-cover"
               width={300}
               height={300}
+              priority={nft.featuredSortOrder !== undefined} // Prioritize loading of featured NFTs
             />
           )}
           {shouldShowPlayCount && (
