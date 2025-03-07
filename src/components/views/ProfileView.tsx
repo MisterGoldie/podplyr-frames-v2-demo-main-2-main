@@ -11,6 +11,7 @@ import { fetchUserNFTs } from '../../lib/nft';
 import { optimizeImage } from '../../utils/imageOptimizer';
 import { useUserImages } from '../../contexts/UserImageContext';
 import NotificationHeader from '../NotificationHeader';
+import FollowsModal from '../FollowsModal';
 
 interface ProfileViewProps {
   userContext: UserContext;
@@ -47,6 +48,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({
   // Add state for app-specific follower and following counts
   const [appFollowerCount, setAppFollowerCount] = useState<number>(0);
   const [appFollowingCount, setAppFollowingCount] = useState<number>(0);
+  
+  // State for follow modal
+  const [showFollowsModal, setShowFollowsModal] = useState(false);
+  const [followsModalType, setFollowsModalType] = useState<'followers' | 'following'>('followers');
 
   useEffect(() => {
     const loadNFTs = async () => {
@@ -156,6 +161,17 @@ const ProfileView: React.FC<ProfileViewProps> = ({
         autoHideDuration={3000}
         onReset={onReset}
       />
+      
+      {/* Follows Modal */}
+      {userContext?.user?.fid && showFollowsModal && (
+        <FollowsModal
+          isOpen={showFollowsModal}
+          onClose={() => setShowFollowsModal(false)}
+          userFid={userContext.user.fid}
+          type={followsModalType}
+          currentUserFid={userContext.user.fid}
+        />
+      )}
       <div className="space-y-8 pt-20 pb-48 overflow-y-auto h-screen overscroll-y-contain">
         {/* Profile Header */}
         <div className="relative flex flex-col items-center text-center p-8 space-y-6 rounded-3xl mx-4 w-[340px] h-[280px] mx-auto border border-purple-400/20 shadow-xl shadow-purple-900/30 overflow-hidden hover:border-indigo-400/30 transition-all duration-300"
@@ -310,16 +326,28 @@ const ProfileView: React.FC<ProfileViewProps> = ({
               {/* Follower and following counts */}
               {userContext?.user?.fid && (
                 <div className="flex items-center gap-2 mt-2 mb-1">
-                  <div className="bg-purple-500/20 rounded-full px-3 py-1 inline-flex items-center">
+                  <button 
+                    onClick={() => {
+                      setFollowsModalType('followers');
+                      setShowFollowsModal(true);
+                    }}
+                    className="bg-purple-500/20 hover:bg-purple-500/30 active:bg-purple-500/40 transition-colors rounded-full px-3 py-1 inline-flex items-center"
+                  >
                     <span className="font-mono text-xs text-purple-300 font-medium">
                       {appFollowerCount} Followers
                     </span>
-                  </div>
-                  <div className="bg-purple-500/20 rounded-full px-3 py-1 inline-flex items-center">
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setFollowsModalType('following');
+                      setShowFollowsModal(true);
+                    }}
+                    className="bg-purple-500/20 hover:bg-purple-500/30 active:bg-purple-500/40 transition-colors rounded-full px-3 py-1 inline-flex items-center"
+                  >
                     <span className="font-mono text-xs text-purple-300 font-medium">
                       {appFollowingCount} Following
                     </span>
-                  </div>
+                  </button>
                 </div>
               )}
               

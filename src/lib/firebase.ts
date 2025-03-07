@@ -1782,6 +1782,32 @@ export const getFollowersCount = async (userFid: number): Promise<number> => {
   }
 };
 
+// Get all users that follow the current user
+export const getFollowers = async (userFid: number): Promise<FollowedUser[]> => {
+  try {
+    const followersRef = collection(db, 'users', userFid.toString(), 'followers');
+    const q = query(followersRef, orderBy('timestamp', 'desc'));
+    const snapshot = await getDocs(q);
+    
+    const followers: FollowedUser[] = [];
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      followers.push({
+        fid: data.fid,
+        username: data.username,
+        display_name: data.display_name || data.username,
+        pfp_url: data.pfp_url || `https://avatar.vercel.sh/${data.username}`,
+        timestamp: data.timestamp?.toDate() || new Date()
+      });
+    });
+    
+    return followers;
+  } catch (error) {
+    console.error('Error getting followers:', error);
+    return [];
+  }
+};
+
 // Subscribe to following users for real-time updates
 export const subscribeToFollowingUsers = (currentUserFid: number, callback: (users: FollowedUser[]) => void) => {
   if (!currentUserFid) {
@@ -1809,6 +1835,37 @@ export const subscribeToFollowingUsers = (currentUserFid: number, callback: (use
     callback(followingUsers);
   }, (error) => {
     console.error('Error subscribing to following users:', error);
+    callback([]);
+  });
+};
+
+// Subscribe to followers for real-time updates
+export const subscribeToFollowers = (userFid: number, callback: (users: FollowedUser[]) => void) => {
+  if (!userFid) {
+    callback([]);
+    return () => {}; // Return empty unsubscribe function
+  }
+  
+  const followersRef = collection(db, 'users', userFid.toString(), 'followers');
+  const q = query(followersRef, orderBy('timestamp', 'desc'));
+  
+  return onSnapshot(q, (snapshot) => {
+    const followers: FollowedUser[] = [];
+    
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      followers.push({
+        fid: data.fid,
+        username: data.username,
+        display_name: data.display_name || data.username,
+        pfp_url: data.pfp_url || `https://avatar.vercel.sh/${data.username}`,
+        timestamp: data.timestamp?.toDate() || new Date()
+      });
+    });
+    
+    callback(followers);
+  }, (error) => {
+    console.error('Error subscribing to followers:', error);
     callback([]);
   });
 };
