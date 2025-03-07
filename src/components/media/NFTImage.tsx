@@ -109,7 +109,9 @@ export const NFTImage: React.FC<NFTImageProps> = ({
     const isValidSrc = src && src !== '' && src !== 'undefined' && src !== 'null';
     
     if (isValidSrc) {
-      setImgSrc(src);
+      // Process the URL to handle special protocols like ar:// and ipfs://
+      const processedSrc = processMediaUrl(src);
+      setImgSrc(processedSrc);
       setError(false);
       setRetryCount(0);
       setCurrentGatewayIndex(0);
@@ -205,9 +207,9 @@ export const NFTImage: React.FC<NFTImageProps> = ({
       }
       
       setIsVideo(false);
-      // Clean and process the URL
-      if (src.includes('ipfs') || src.includes('nftstorage.link')) {
-        const cleanedUrl = getCleanIPFSUrl(src);
+      // Clean and process the URL - handle all special URL types including ar://
+      if (src.includes('ipfs') || src.includes('nftstorage.link') || src.startsWith('ar://')) {
+        const cleanedUrl = src.startsWith('ar://') ? src : getCleanIPFSUrl(src);
         setImgSrc(processMediaUrl(cleanedUrl));
       } else {
         setImgSrc(src);
@@ -259,7 +261,7 @@ export const NFTImage: React.FC<NFTImageProps> = ({
   };
 
   // Use regular img tag for IPFS content to bypass Next.js image optimization
-  const isIPFS = imgSrc.includes('ipfs') || imgSrc.includes('nftstorage.link');
+  const isIPFS = imgSrc.includes('ipfs') || imgSrc.includes('nftstorage.link') || imgSrc.includes('arweave.net');
   
   // CRITICAL: Additional validation before finalizing source
   // This ensures we NEVER show a blank card, even for malformed NFT data
@@ -269,7 +271,8 @@ export const NFTImage: React.FC<NFTImageProps> = ({
            source !== 'null' && 
            source !== '' &&
            source !== 'https://undefined' &&
-           source !== 'https://null';
+           source !== 'https://null' &&
+           !source.includes('undefined');
   };
   
   // CRITICAL: Always display fallback image when there's an error or invalid source - NO EXCEPTIONS
@@ -277,6 +280,34 @@ export const NFTImage: React.FC<NFTImageProps> = ({
   const absoluteFallbackSrc = fallbackSrc.startsWith('/') ? fallbackSrc : `/${fallbackSrc}`;
   const finalSrc = (error || isLoadingFallback || !validateSrc(imgSrc)) ? absoluteFallbackSrc : imgSrc;
   
+  // Check if this is an Arweave URL (either original ar:// or converted arweave.net)
+  const isArweave = finalSrc.includes('arweave.net') || finalSrc.startsWith('ar://');
+  
+  // For Arweave URLs, use regular img tag to bypass Next.js image restrictions
+  if (isArweave) {
+    // Convert ar:// to https://arweave.net/ if needed
+    const arweaveUrl = finalSrc.startsWith('ar://') 
+      ? finalSrc.replace('ar://', 'https://arweave.net/') 
+      : finalSrc;
+      
+    return (
+      <img
+        src={arweaveUrl}
+        alt={alt}
+        className={className}
+        width={width || 300}
+        height={height || 300}
+        onError={handleError}
+        // Add a data attribute to help with debugging
+        data-nft-image-status={error ? 'error' : 'loaded'}
+        data-nft-id={nft ? `${nft.contract}-${nft.tokenId}` : 'unknown'}
+        // Force re-render when source changes to ensure fallback works
+        key={`nft-img-${error ? 'fallback' : 'original'}-${nft?.contract || ''}-${nft?.tokenId || ''}-${isLoadingFallback ? 'fallback' : 'normal'}`}
+      />
+    );
+  }
+  
+  // For other content types, use Next.js Image or regular img based on IPFS status
   if (isVideo || !isIPFS) {
     return (
       <Image
