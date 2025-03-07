@@ -5,7 +5,7 @@ import { useToast } from '../../hooks/useToast';
 import Image from 'next/image';
 import { VirtualizedNFTGrid } from '../nft/VirtualizedNFTGrid';
 import type { NFT, UserContext } from '../../types/user';
-import { getLikedNFTs, getFollowersCount, getFollowingCount } from '../../lib/firebase';
+import { getLikedNFTs, getFollowersCount, getFollowingCount, updatePodplayrFollowerCount } from '../../lib/firebase';
 import { uploadProfileBackground } from '../../firebase';
 import { fetchUserNFTs } from '../../lib/nft';
 import { optimizeImage } from '../../utils/imageOptimizer';
@@ -123,15 +123,26 @@ const ProfileView: React.FC<ProfileViewProps> = ({
     const fetchFollowCounts = async () => {
       if (userContext?.user?.fid) {
         try {
-          // Get the counts from our app's database
-          const followerCount = await getFollowersCount(userContext.user.fid);
-          const followingCount = await getFollowingCount(userContext.user.fid);
-          
-          // Update state with the counts
-          setAppFollowerCount(followerCount);
-          setAppFollowingCount(followingCount);
-          
-          console.log(`App follow counts for profile: ${followerCount} followers, ${followingCount} following`);
+          // Special case for PODPlayr account (FID: 1014485)
+          // Update the follower count to reflect all users in the system
+          if (userContext.user.fid === 1014485) {
+            console.log('PODPlayr account detected - updating follower count');
+            // Update PODPlayr follower count based on all users in the system
+            const totalUsers = await updatePodplayrFollowerCount();
+            setAppFollowerCount(totalUsers);
+            setAppFollowingCount(0); // PODPlayr doesn't follow anyone
+            console.log(`Updated PODPlayr follower count: ${totalUsers} followers`);
+          } else {
+            // Regular user - get counts from our app's database
+            const followerCount = await getFollowersCount(userContext.user.fid);
+            const followingCount = await getFollowingCount(userContext.user.fid);
+            
+            // Update state with the counts
+            setAppFollowerCount(followerCount);
+            setAppFollowingCount(followingCount);
+            
+            console.log(`App follow counts for profile: ${followerCount} followers, ${followingCount} following`);
+          }
         } catch (error) {
           console.error('Error fetching follow counts for profile:', error);
           // Reset counts on error

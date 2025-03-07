@@ -21,6 +21,8 @@ import {
   serverTimestamp,
   writeBatch,
   DocumentSnapshot,
+  QueryDocumentSnapshot,
+  DocumentData,
   collectionGroup
 } from 'firebase/firestore';
 import type { NFT, FarcasterUser, SearchedUser, NFTPlayData, FollowedUser } from '../types/user';
@@ -1679,6 +1681,108 @@ export const followUser = async (currentUserFid: number, userToFollow: Farcaster
   }
 };
 
+// Update PODPlayr follower count based on total users in the system
+export const updatePodplayrFollowerCount = async (): Promise<number> => {
+  try {
+    console.log('Updating PODPlayr follower count based on total users');
+    
+    // Get all users from the users collection
+    const usersRef = collection(db, 'users');
+    const usersSnapshot = await getDocs(usersRef);
+    
+    // Count the total number of users (each document in the users collection represents a user)
+    const totalUsers = usersSnapshot.size;
+    
+    console.log(`Found ${totalUsers} total users in the system`);
+    
+    // Update the PODPlayr account document with the accurate follower count
+    const podplayrDocRef = doc(db, 'searchedusers', PODPLAYR_ACCOUNT.fid.toString());
+    const podplayrDoc = await getDoc(podplayrDocRef);
+    
+    if (podplayrDoc.exists()) {
+      // Update the existing document with the correct follower count
+      await updateDoc(podplayrDocRef, {
+        follower_count: totalUsers,
+        pfp_url: PODPLAYR_ACCOUNT.pfp_url // Ensure profile image is up to date
+      });
+      console.log(`Updated PODPlayr follower count to ${totalUsers}`);
+    } else {
+      // Create the PODPlayr account document if it doesn't exist
+      await setDoc(podplayrDocRef, {
+        fid: PODPLAYR_ACCOUNT.fid,
+        username: PODPLAYR_ACCOUNT.username,
+        display_name: PODPLAYR_ACCOUNT.display_name,
+        pfp_url: PODPLAYR_ACCOUNT.pfp_url,
+        follower_count: totalUsers,
+        following_count: 0,
+        timestamp: serverTimestamp()
+      });
+      console.log(`Created PODPlayr account with follower count ${totalUsers}`);
+    }
+    
+    // Update the followers subcollection for PODPlayr
+    await updatePodplayrFollowersSubcollection(usersSnapshot.docs);
+    
+    return totalUsers;
+  } catch (error) {
+    console.error('Error updating PODPlayr follower count:', error);
+    return 0;
+  }
+};
+
+// Update the followers subcollection for PODPlayr
+async function updatePodplayrFollowersSubcollection(userDocs: QueryDocumentSnapshot<DocumentData>[]): Promise<void> {
+  try {
+    console.log('Updating PODPlayr followers subcollection');
+    
+    // Process each user
+    for (const userDoc of userDocs) {
+      const userFid = userDoc.id;
+      
+      // Skip if this is the PODPlayr account itself
+      if (userFid === PODPLAYR_ACCOUNT.fid.toString()) continue;
+      
+      // Reference to this user in PODPlayr's followers collection
+      const followerRef = doc(db, 'users', PODPLAYR_ACCOUNT.fid.toString(), 'followers', userFid);
+      const followerDoc = await getDoc(followerRef);
+      
+      if (!followerDoc.exists()) {
+        // User is not in PODPlayr's followers collection, add them
+        console.log(`Adding user ${userFid} to PODPlayr's followers collection`);
+        
+        // Try to get user data from searchedusers collection
+        let followerData: any = {
+          fid: parseInt(userFid),
+          username: `user${userFid}`,
+          display_name: `User ${userFid}`,
+          pfp_url: `https://avatar.vercel.sh/user${userFid}`,
+          timestamp: serverTimestamp()
+        };
+        
+        try {
+          const userData = await getDoc(doc(db, 'searchedusers', userFid));
+          if (userData.exists()) {
+            const userInfo = userData.data();
+            if (userInfo.username) followerData.username = userInfo.username;
+            if (userInfo.display_name) followerData.display_name = userInfo.display_name;
+            if (userInfo.pfp_url) followerData.pfp_url = userInfo.pfp_url;
+          }
+        } catch (e) {
+          console.error(`Error getting user data for ${userFid}:`, e);
+          // Continue with default data if we can't get better data
+        }
+        
+        // Add user to PODPlayr's followers
+        await setDoc(followerRef, followerData);
+      }
+    }
+    
+    console.log('Successfully updated PODPlayr followers subcollection');
+  } catch (error) {
+    console.error('Error updating PODPlayr followers subcollection:', error);
+  }
+};
+
 // Ensure user follows the PODPlayr account
 export const ensurePodplayrFollow = async (userFid: number): Promise<void> => {
   try {
@@ -1707,27 +1811,8 @@ export const ensurePodplayrFollow = async (userFid: number): Promise<void> => {
       // Force follow the PODPlayr account
       await followUser(userFid, podplayrUser);
       
-      // Ensure the PODPlayr account document exists in searchedusers collection
-      const podplayrDocRef = doc(db, 'searchedusers', PODPLAYR_ACCOUNT.fid.toString());
-      const podplayrDoc = await getDoc(podplayrDocRef);
-      
-      if (!podplayrDoc.exists()) {
-        // Create the PODPlayr account document if it doesn't exist
-        await setDoc(podplayrDocRef, {
-          fid: PODPLAYR_ACCOUNT.fid,
-          username: PODPLAYR_ACCOUNT.username,
-          display_name: PODPLAYR_ACCOUNT.display_name,
-          pfp_url: PODPLAYR_ACCOUNT.pfp_url,
-          follower_count: 1, // Start with 1 follower (the current user)
-          following_count: 0,
-          timestamp: serverTimestamp()
-        });
-      } else {
-        // Update the existing PODPlayr document to ensure correct profile image
-        await updateDoc(podplayrDocRef, {
-          pfp_url: PODPLAYR_ACCOUNT.pfp_url
-        });
-      }
+      // Update the PODPlayr follower count to reflect all users
+      await updatePodplayrFollowerCount();
       
       console.log(`Successfully added mandatory follow to PODPlayr for user ${userFid}`);
     } else {
@@ -1738,6 +1823,12 @@ export const ensurePodplayrFollow = async (userFid: number): Promise<void> => {
       await updateDoc(followingRef, {
         pfp_url: PODPLAYR_ACCOUNT.pfp_url
       });
+      
+      // Periodically update the PODPlayr follower count (do this occasionally to keep it accurate)
+      // We use a random check to avoid doing this on every login for performance reasons
+      if (Math.random() < 0.2) { // 20% chance to update on login if already following
+        await updatePodplayrFollowerCount();
+      }
     }
   } catch (error) {
     console.error('Error ensuring PODPlayr follow:', error);
