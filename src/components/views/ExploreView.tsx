@@ -7,7 +7,7 @@ import { VirtualizedNFTGrid } from '../nft/VirtualizedNFTGrid';
 import Image from 'next/image';
 import { NFT, FarcasterUser, SearchedUser } from '../../types/user';
 import { getDoc, doc } from 'firebase/firestore';
-import { db, trackUserSearch } from '../../lib/firebase';
+import { db, trackUserSearch, isUserFollowed, toggleFollowUser, getFollowersCount, getFollowingCount } from '../../lib/firebase';
 import { useContext } from 'react';
 import { FarcasterContext } from '../../app/providers';
 import NotificationHeader from '../NotificationHeader';
@@ -37,6 +37,7 @@ interface ExploreViewProps {
   userNFTs: NFT[];
   searchType: string;
   searchParam: string;
+  likedNFTs?: NFT[]; // Add likedNFTs to allow component to track like changes
 }
 
 const ExploreView: React.FC<ExploreViewProps> = (props) => {
@@ -70,6 +71,7 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
     userNFTs,
     searchType,
     searchParam,
+    likedNFTs,
   } = props;
 
   // Add state variable for shared NFTs count
@@ -85,6 +87,16 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
 
   // 1. Keep the showBanner state
   const [showBanner, setShowBanner] = useState(false);
+  
+  // Add state to force refresh of grid when like status changes
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  
+  // Add state to track followed users
+  const [followedUsers, setFollowedUsers] = useState<Record<number, boolean>>({});
+  
+  // Add state for app-specific follower and following counts
+  const [appFollowerCount, setAppFollowerCount] = useState<number>(0);
+  const [appFollowingCount, setAppFollowingCount] = useState<number>(0);
 
   // 2. Completely revise the useEffect that handles banner visibility
   useEffect(() => {
@@ -136,6 +148,36 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
       setShowBanner(false);
     }
   }, [isLoadingNFTs]);
+  
+  // Fetch app-specific follower and following counts when a user is selected
+  useEffect(() => {
+    const fetchFollowCounts = async () => {
+      if (selectedUser && selectedUser.fid) {
+        try {
+          // Get the counts from our app's database
+          const followerCount = await getFollowersCount(selectedUser.fid);
+          const followingCount = await getFollowingCount(selectedUser.fid);
+          
+          // Update state with the counts
+          setAppFollowerCount(followerCount);
+          setAppFollowingCount(followingCount);
+          
+          console.log(`App follow counts for ${selectedUser.username}: ${followerCount} followers, ${followingCount} following`);
+        } catch (error) {
+          console.error('Error fetching follow counts:', error);
+          // Reset counts on error
+          setAppFollowerCount(0);
+          setAppFollowingCount(0);
+        }
+      } else {
+        // Reset counts when no user is selected
+        setAppFollowerCount(0);
+        setAppFollowingCount(0);
+      }
+    };
+    
+    fetchFollowCounts();
+  }, [selectedUser]);
 
   // 4. Add a separate useEffect to clear the banner when user changes
   useEffect(() => {
@@ -261,6 +303,104 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
     );
   }
 
+  // Wrapper for like toggle that updates UI state
+  const handleLikeToggle = async (nft: NFT) => {
+    console.log('ExploreView: handleLikeToggle called for:', nft.name);
+    if (onLikeToggle) {
+      try {
+        await onLikeToggle(nft);
+        // Force refresh to update like state in UI
+        setRefreshTrigger(prev => prev + 1);
+        console.log('ExploreView: Like toggled, triggering refresh');
+      } catch (error) {
+        console.error('Error toggling like in ExploreView:', error);
+      }
+    } else {
+      console.warn('onLikeToggle not available in ExploreView');
+    }
+  };
+
+  // Add effect to force re-render when liked NFTs change
+  useEffect(() => {
+    if (likedNFTs) {
+      console.log('ExploreView: likedNFTs changed, triggering refresh');
+      setRefreshTrigger(prev => prev + 1);
+    }
+  }, [likedNFTs]);
+  
+  // Check if users are followed when search results or selected user changes
+  useEffect(() => {
+    const checkFollowStatus = async () => {
+      if (!effectiveUserFid) return;
+      
+      const newFollowedUsers: Record<number, boolean> = {};
+      
+      // Check follow status for search results
+      if (searchResults && searchResults.length > 0) {
+        for (const user of searchResults) {
+          if (user.fid) {
+            const isFollowed = await isUserFollowed(effectiveUserFid, user.fid);
+            newFollowedUsers[user.fid] = isFollowed;
+          }
+        }
+      }
+      
+      // Check follow status for selected user
+      if (selectedUser && selectedUser.fid) {
+        const isFollowed = await isUserFollowed(effectiveUserFid, selectedUser.fid);
+        newFollowedUsers[selectedUser.fid] = isFollowed;
+      }
+      
+      // Check follow status for recent searches
+      if (recentSearches && recentSearches.length > 0) {
+        for (const user of recentSearches) {
+          if (user.fid) {
+            const isFollowed = await isUserFollowed(effectiveUserFid, user.fid);
+            newFollowedUsers[user.fid] = isFollowed;
+          }
+        }
+      }
+      
+      setFollowedUsers(newFollowedUsers);
+    };
+    
+    checkFollowStatus();
+  }, [searchResults, selectedUser, recentSearches, effectiveUserFid]);
+  
+  // Handle follow/unfollow button click
+  const handleFollowToggle = async (user: FarcasterUser, event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    if (!effectiveUserFid || !user.fid) return;
+    
+    try {
+      const isNowFollowed = await toggleFollowUser(effectiveUserFid, user);
+      
+      // Update local state for follow button
+      setFollowedUsers(prev => ({
+        ...prev,
+        [user.fid]: isNowFollowed
+      }));
+      
+      // Immediately update follower/following counts in the UI
+      if (selectedUser && selectedUser.fid === user.fid) {
+        // If this is the selected user, update their follower count
+        setAppFollowerCount(prev => isNowFollowed ? prev + 1 : Math.max(0, prev - 1));
+      }
+      
+      // If the current user is selected, update their following count
+      if (selectedUser && selectedUser.fid === effectiveUserFid) {
+        setAppFollowingCount(prev => isNowFollowed ? prev + 1 : Math.max(0, prev - 1));
+      }
+      
+      console.log(`User ${isNowFollowed ? 'followed' : 'unfollowed'}: ${user.username}`);
+      console.log('Updated follower/following counts in UI');
+    } catch (error) {
+      console.error('Error toggling follow status:', error);
+    }
+  };
+  
   return (
     <>
       {/* Header that transforms between normal and connection states */}
@@ -306,47 +446,91 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
       <div className="space-y-8 pt-20 pb-48 overflow-y-auto h-screen">
         {selectedUser && (
           <div className="px-4 mb-8">
-            {/* Back button - now inside the scrollable content but with proper spacing */}
+            {/* Back button - redesigned for better visibility */}
             <button 
               onClick={onBack}
-              className="mb-6 flex items-center gap-3 text-green-400 hover:text-green-300 transition-all px-4 py-2 rounded-lg bg-gray-800/20 hover:bg-gray-800/40 active:bg-gray-800/60"
+              className="mb-6 flex items-center gap-3 text-green-400 hover:text-green-300 transition-all px-5 py-3 rounded-lg
+                       bg-gradient-to-br from-gray-900/90 to-gray-800/80 hover:from-gray-800/90 hover:to-gray-700/80
+                       shadow-lg shadow-black/40 border border-green-500/20 transform hover:scale-[1.02] active:scale-[0.98] duration-200"
             >
               <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor">
                 <path d="M400-80 0-480l400-400 56 57-343 343 343 343-56 57Z"/>
               </svg>
-              <span className="font-mono text-sm tracking-wide">Back to Search</span>
+              <span className="font-mono text-sm tracking-wide font-medium">Back to Search</span>
             </button>
 
-            {/* User Profile Header */}
-            <div className="flex items-center gap-6 p-6 rounded-2xl bg-gray-800/20 backdrop-blur-sm border border-gray-800/40">
-              <a 
-                href={`https://warpcast.com/${selectedUser.username}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  window.open(`https://warpcast.com/${selectedUser.username}`, '_blank');
-                }}
-                className="block transition-transform hover:scale-105 active:scale-95"
-              >
-                <div className="w-20 h-20 rounded-full overflow-hidden flex-shrink-0 relative ring-2 ring-gray-800/60">
-                  <Image
-                    src={selectedUser.pfp_url || `https://avatar.vercel.sh/${selectedUser.username}`}
-                    alt={selectedUser.display_name || selectedUser.username}
-                    className="object-cover"
-                    fill
-                    sizes="80px"
-                  />
+            {/* User Profile Header - Redesigned with app theme colors */}
+            <div className="flex flex-col rounded-2xl bg-gradient-to-b from-gray-900/90 to-black/90 border border-green-500/30 shadow-xl shadow-black/50 overflow-hidden">
+              {/* Top section with gradient accent */}
+              <div className="h-3 w-full bg-gradient-to-r from-purple-500/60 via-green-400/60 to-purple-500/60"></div>
+              
+              {/* Content section */}
+              <div className="flex items-center gap-6 p-6">
+                <div className="relative">
+                  <a 
+                    href={`https://warpcast.com/${selectedUser.username}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      window.open(`https://warpcast.com/${selectedUser.username}`, '_blank');
+                    }}
+                    className="block transition-transform hover:scale-105 active:scale-95 duration-200"
+                  >
+                    <div className="w-24 h-24 rounded-full overflow-hidden flex-shrink-0 relative ring-3 ring-purple-500/40 shadow-lg shadow-black/50">
+                      <Image
+                        src={selectedUser.pfp_url || `https://avatar.vercel.sh/${selectedUser.username}`}
+                        alt={selectedUser.display_name || selectedUser.username}
+                        className="object-cover"
+                        fill
+                        sizes="80px"
+                      />
+                    </div>
+                  </a>
+                  <div 
+                    onClick={(e) => handleFollowToggle(selectedUser, e)}
+                    className={`absolute -bottom-1 -right-1 w-7 h-7 ${followedUsers[selectedUser.fid] ? 'bg-green-600 hover:bg-green-500' : 'bg-purple-600 hover:bg-purple-500'} rounded-full flex items-center justify-center shadow-lg border-2 ${followedUsers[selectedUser.fid] ? 'border-green-400/30' : 'border-purple-400/30'} transition-all duration-200 cursor-pointer transform hover:scale-110 active:scale-95`}
+                  >
+                    {followedUsers[selectedUser.fid] ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </div>
                 </div>
-              </a>
-              <div className="space-y-2 flex-1 min-w-0">
-                <h2 className="text-2xl font-mono text-green-400 truncate">@{selectedUser.username}</h2>
-                {!isLoadingNFTs && (
-                  <p className="font-mono text-sm text-gray-500">
-                    Total Media NFTs: {nfts.length}
-                  </p>
-                )}
+                <div className="space-y-2 flex-1 min-w-0">
+                  <h2 className="text-2xl font-mono text-green-400 truncate">@{selectedUser.username}</h2>
+                  
+                  {/* App-specific follower and following counts */}
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="bg-purple-500/20 rounded-full px-3 py-1 inline-flex items-center">
+                      <span className="font-mono text-xs text-purple-300 font-medium">
+                        {appFollowerCount} Followers
+                      </span>
+                    </div>
+                    <div className="bg-purple-500/20 rounded-full px-3 py-1 inline-flex items-center">
+                      <span className="font-mono text-xs text-purple-300 font-medium">
+                        {appFollowingCount} Following
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* NFT count */}
+                  {!isLoadingNFTs && (
+                    <div className="flex items-center">
+                      <div className="bg-green-500/20 rounded-full px-3 py-1 inline-flex items-center">
+                        <span className="font-mono text-sm text-green-300 font-medium">
+                          {nfts.length} Media NFTs
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -367,7 +551,7 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
             {searchResults.length > 0 && !selectedUser ? (
               <div className="mt-8">
                 <h2 className="text-2xl font-semibold mb-4 font-mono text-green-400">Search Results</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {searchResults.map((user) => (
                     <div
                       key={user.fid}
@@ -383,21 +567,69 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                         // Directly initiate wallet search without showing intermediate profile view
                         handleUserSelect(user);
                       }}
-                      className="group relative bg-gray-800/20 backdrop-blur-sm rounded-xl p-4 hover:bg-gray-800/40 transition-all cursor-pointer border border-gray-800/40 hover:border-green-400/40"
+                      className="group relative bg-gradient-to-br from-gray-900/80 to-gray-800/60 backdrop-blur-sm rounded-xl overflow-hidden shadow-lg shadow-black/30 hover:shadow-green-900/20 transition-all duration-300 cursor-pointer border border-gray-700/40 hover:border-green-400/40"
                     >
-                      <div className="flex items-center gap-4">
-                          <div className="w-14 h-14 rounded-full overflow-hidden flex-shrink-0 relative ring-2 ring-gray-800/60 group-hover:ring-green-400/40 transition-all">
-                            <Image
-                              src={user.pfp_url || `https://avatar.vercel.sh/${user.username}`}
-                              alt={user.display_name || user.username}
-                              className="object-cover"
-                              fill
-                              sizes="56px"
-                            />
+                      {/* Card content with improved layout */}
+                      <div className="flex flex-col h-full">
+                        {/* Top colored accent bar */}
+                        <div className="h-1 w-full bg-gradient-to-r from-purple-500/60 via-green-400/40 to-purple-500/60"></div>
+                        
+                        {/* User info section */}
+                        <div className="p-4 flex items-center gap-4">
+                          <div className="relative">
+                            {/* Profile image with improved styling */}
+                            <div className="w-16 h-16 rounded-full overflow-hidden flex-shrink-0 relative ring-2 ring-purple-500/30 group-hover:ring-green-400/40 transition-all duration-300 shadow-md shadow-black/20">
+                              <Image
+                                src={user.pfp_url || `https://avatar.vercel.sh/${user.username}`}
+                                alt={user.display_name || user.username}
+                                className="object-cover"
+                                fill
+                                sizes="64px"
+                              />
+                            </div>
+                            
+                            {/* Follow/unfollow button */}
+                            <div 
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleFollowToggle(user, e);
+                              }}
+                              className={`absolute -bottom-1 -right-1 w-7 h-7 ${followedUsers[user.fid] ? 'bg-green-600 hover:bg-green-500' : 'bg-purple-600 hover:bg-purple-500'} rounded-full flex items-center justify-center shadow-lg border-2 ${followedUsers[user.fid] ? 'border-green-400/30' : 'border-purple-400/30'} transition-all duration-200 cursor-pointer transform hover:scale-110 active:scale-95`}
+                            >
+                              {followedUsers[user.fid] ? (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+                                </svg>
+                              )}
+                            </div>
                           </div>
-                        <div className="space-y-1 flex-1 min-w-0">
-                          <h3 className="font-mono text-green-400 truncate group-hover:text-green-300 transition-colors">{user.display_name || user.username}</h3>
-                          <p className="font-mono text-gray-400 text-sm truncate">@{user.username}</p>
+                          
+                          {/* User details with improved typography */}
+                          <div className="space-y-1 flex-1 min-w-0">
+                            <h3 className="font-mono text-lg text-green-400 truncate group-hover:text-green-300 transition-colors">
+                              {user.display_name || user.username}
+                            </h3>
+                            <div className="flex items-center gap-2">
+                              <p className="font-mono text-gray-400 text-sm truncate">@{user.username}</p>
+                            </div>
+                            
+                            {/* Stats row */}
+                            <div className="flex items-center gap-2 mt-1">
+                              {followedUsers[user.fid] && (
+                                <span className="text-xs font-mono px-2 py-0.5 bg-green-500/20 text-green-400 rounded-full flex items-center">
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                  Following
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -408,11 +640,11 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
 
             {/* Recently Searched Users Section - with cleaner, more distinct styling */}
             {!searchResults.length && !selectedUser && recentSearches.length > 0 && (
-              <div className="mb-8">
+              <div className="mb-8 px-4">
                 <h2 className="text-xl font-mono text-green-400 mb-4">
                   {effectiveUserFid ? "Recently Searched" : "Popular Users"}
                 </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                   {recentSearches.map((user) => (
                     <button
                       key={`recent-search-${user.fid}-${user.username}`}
@@ -448,34 +680,69 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                         // The subscription in Demo.tsx will handle it
                         handleUserSelect(farcasterUser);
                       }}
-                      className="relative bg-gray-800/70 rounded-xl p-4 
-                                hover:bg-gray-700/80 
-                                transition-colors duration-200 cursor-pointer 
-                                border-l-2 border-gray-700 hover:border-l-2 hover:border-green-500"
+                      className="w-full text-left"
                     >
-                      <div className="flex items-center gap-4">
-                        {/* Avatar - clean styling */}
-                        <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 relative">
-                          <Image
-                            src={user.pfp_url || '/default-nft.png'}
-                            alt={user.display_name || user.username}
-                            className="object-cover"
-                            fill
-                            sizes="48px"
-                          />
-                        </div>
+                      {/* Card with improved layout */}
+                      <div className="group relative bg-gradient-to-br from-gray-900/80 to-gray-800/60 backdrop-blur-sm rounded-xl overflow-hidden shadow-lg shadow-black/30 hover:shadow-green-900/20 transition-all duration-300 cursor-pointer border border-gray-700/40 hover:border-green-400/40">
+                        {/* Top colored accent bar */}
+                        <div className="h-1 w-full bg-gradient-to-r from-purple-500/60 via-green-400/40 to-purple-500/60"></div>
                         
-                        {/* Text content container */}
-                        <div className="flex flex-col min-w-0 flex-1">
-                          {/* Display name */}
-                          <h3 className="font-mono text-green-400 truncate w-full">
-                            {user.display_name || user.username}
-                          </h3>
+                        {/* User info section */}
+                        <div className="p-4 flex items-center gap-4">
+                          <div className="relative">
+                            {/* Profile image with improved styling */}
+                            <div className="w-16 h-16 rounded-full overflow-hidden flex-shrink-0 relative ring-2 ring-purple-500/30 group-hover:ring-green-400/40 transition-all duration-300 shadow-md shadow-black/20">
+                              <Image
+                                src={user.pfp_url || '/default-nft.png'}
+                                alt={user.display_name || user.username}
+                                className="object-cover"
+                                fill
+                                sizes="64px"
+                              />
+                            </div>
+                            
+                            {/* Follow/unfollow button */}
+                            <div 
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleFollowToggle(user, e);
+                              }}
+                              className={`absolute -bottom-1 -right-1 w-7 h-7 ${followedUsers[user.fid] ? 'bg-green-600 hover:bg-green-500' : 'bg-purple-600 hover:bg-purple-500'} rounded-full flex items-center justify-center shadow-lg border-2 ${followedUsers[user.fid] ? 'border-green-400/30' : 'border-purple-400/30'} transition-all duration-200 cursor-pointer transform hover:scale-110 active:scale-95`}
+                            >
+                              {followedUsers[user.fid] ? (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+                                </svg>
+                              )}
+                            </div>
+                          </div>
                           
-                          {/* Username */}
-                          <p className="font-mono text-gray-400 text-sm truncate w-full">
-                            @{user.username}
-                          </p>
+                          {/* User details with improved typography */}
+                          <div className="space-y-1 flex-1 min-w-0">
+                            <h3 className="font-mono text-lg text-green-400 truncate group-hover:text-green-300 transition-colors">
+                              {user.display_name || user.username}
+                            </h3>
+                            <div className="flex items-center gap-2">
+                              <p className="font-mono text-gray-400 text-sm truncate">@{user.username}</p>
+                            </div>
+                            
+                            {/* Stats row */}
+                            <div className="flex items-center gap-2 mt-1">
+                              {followedUsers[user.fid] && (
+                                <span className="text-xs font-mono px-2 py-0.5 bg-green-500/20 text-green-400 rounded-full flex items-center">
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                  Following
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </button>
@@ -500,7 +767,7 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                 </div>
               ) : nfts.length === 0 ? (
                 <div className="col-span-full text-center py-12">
-                  <p className="font-mono text-gray-400">No audio NFTs found</p>
+                  <p className="font-mono text-gray-400">No media NFTs found</p>
                 </div>
               ) : (
                 <>

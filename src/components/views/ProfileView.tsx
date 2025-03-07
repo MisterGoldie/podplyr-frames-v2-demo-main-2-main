@@ -5,12 +5,13 @@ import { useToast } from '../../hooks/useToast';
 import Image from 'next/image';
 import { VirtualizedNFTGrid } from '../nft/VirtualizedNFTGrid';
 import type { NFT, UserContext } from '../../types/user';
-import { getLikedNFTs } from '../../lib/firebase';
+import { getLikedNFTs, getFollowersCount, getFollowingCount, updatePodplayrFollowerCount } from '../../lib/firebase';
 import { uploadProfileBackground } from '../../firebase';
 import { fetchUserNFTs } from '../../lib/nft';
 import { optimizeImage } from '../../utils/imageOptimizer';
 import { useUserImages } from '../../contexts/UserImageContext';
 import NotificationHeader from '../NotificationHeader';
+import FollowsModal from '../FollowsModal';
 
 interface ProfileViewProps {
   userContext: UserContext;
@@ -43,6 +44,14 @@ const ProfileView: React.FC<ProfileViewProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const { backgroundImage, profileImage, setBackgroundImage } = useUserImages();
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
+  
+  // Add state for app-specific follower and following counts
+  const [appFollowerCount, setAppFollowerCount] = useState<number>(0);
+  const [appFollowingCount, setAppFollowingCount] = useState<number>(0);
+  
+  // State for follow modal
+  const [showFollowsModal, setShowFollowsModal] = useState(false);
+  const [followsModalType, setFollowsModalType] = useState<'followers' | 'following'>('followers');
 
   useEffect(() => {
     const loadNFTs = async () => {
@@ -94,6 +103,62 @@ const ProfileView: React.FC<ProfileViewProps> = ({
 
     loadLikedNFTs();
   }, [userContext?.user?.fid]);
+  
+  // Handle follow status changes to update counts immediately
+  const handleFollowStatusChange = (newFollowStatus: boolean, targetFid: number) => {
+    // If viewing your own profile, update the following count
+    if (userContext?.user?.fid === targetFid) return; // Don't update if the user followed themselves (shouldn't happen)
+    
+    if (newFollowStatus) {
+      // Increment following count when a user follows someone
+      setAppFollowingCount(prev => prev + 1);
+    } else {
+      // Decrement following count when a user unfollows someone
+      setAppFollowingCount(prev => Math.max(0, prev - 1));
+    }
+  };
+  
+  // Fetch app-specific follower and following counts
+  useEffect(() => {
+    const fetchFollowCounts = async () => {
+      if (userContext?.user?.fid) {
+        try {
+          // Special case for PODPlayr account (FID: 1014485)
+          // Update the follower count to reflect all users in the system
+          if (userContext.user.fid === 1014485) {
+            console.log('PODPlayr account detected - updating follower count');
+            // Update PODPlayr follower count based on all users in the system
+            const totalUsers = await updatePodplayrFollowerCount();
+            setAppFollowerCount(totalUsers);
+            setAppFollowingCount(0); // PODPlayr doesn't follow anyone
+            console.log(`Updated PODPlayr follower count: ${totalUsers} followers`);
+          } else {
+            // Regular user - get counts from our app's database
+            const followerCount = await getFollowersCount(userContext.user.fid);
+            const followingCount = await getFollowingCount(userContext.user.fid);
+            
+            // Update state with the counts
+            setAppFollowerCount(followerCount);
+            setAppFollowingCount(followingCount);
+            
+            console.log(`App follow counts for profile: ${followerCount} followers, ${followingCount} following`);
+          }
+        } catch (error) {
+          console.error('Error fetching follow counts for profile:', error);
+          // Reset counts on error
+          setAppFollowerCount(0);
+          setAppFollowingCount(0);
+        }
+      }
+    };
+    
+    fetchFollowCounts();
+    
+    // Set up a refresh interval to keep counts updated
+    const intervalId = setInterval(fetchFollowCounts, 30000); // Refresh every 30 seconds
+    
+    return () => clearInterval(intervalId); // Clean up on unmount
+  }, [userContext?.user?.fid]);
 
   // This function checks if an NFT is liked
   const isNFTLiked = (nft: NFT, ignoreCurrentPage?: boolean): boolean => {
@@ -121,6 +186,18 @@ const ProfileView: React.FC<ProfileViewProps> = ({
         autoHideDuration={3000}
         onReset={onReset}
       />
+      
+      {/* Follows Modal */}
+      {userContext?.user?.fid && showFollowsModal && (
+        <FollowsModal
+          isOpen={showFollowsModal}
+          onClose={() => setShowFollowsModal(false)}
+          userFid={userContext.user.fid}
+          type={followsModalType}
+          currentUserFid={userContext.user.fid}
+          onFollowStatusChange={handleFollowStatusChange}
+        />
+      )}
       <div className="space-y-8 pt-20 pb-48 overflow-y-auto h-screen overscroll-y-contain">
         {/* Profile Header */}
         <div className="relative flex flex-col items-center text-center p-8 space-y-6 rounded-3xl mx-4 w-[340px] h-[280px] mx-auto border border-purple-400/20 shadow-xl shadow-purple-900/30 overflow-hidden hover:border-indigo-400/30 transition-all duration-300"
@@ -271,6 +348,35 @@ const ProfileView: React.FC<ProfileViewProps> = ({
               <h2 className="text-2xl font-mono text-purple-400 text-shadow">
                 {userContext?.user?.username ? `@${userContext.user.username}` : 'Welcome to PODPlayr'}
               </h2>
+              
+              {/* Follower and following counts */}
+              {userContext?.user?.fid && (
+                <div className="flex items-center gap-2 mt-2 mb-1">
+                  <button 
+                    onClick={() => {
+                      setFollowsModalType('followers');
+                      setShowFollowsModal(true);
+                    }}
+                    className="bg-purple-500/20 hover:bg-purple-500/30 active:bg-purple-500/40 transition-colors rounded-full px-3 py-1 inline-flex items-center"
+                  >
+                    <span className="font-mono text-xs text-purple-300 font-medium">
+                      {appFollowerCount} Followers
+                    </span>
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setFollowsModalType('following');
+                      setShowFollowsModal(true);
+                    }}
+                    className="bg-purple-500/20 hover:bg-purple-500/30 active:bg-purple-500/40 transition-colors rounded-full px-3 py-1 inline-flex items-center"
+                  >
+                    <span className="font-mono text-xs text-purple-300 font-medium">
+                      {appFollowingCount} Following
+                    </span>
+                  </button>
+                </div>
+              )}
+              
               {!isLoading && userContext?.user?.fid && (
                 <p className="font-mono text-sm text-purple-300/60 text-shadow mt-1">
                   {nfts.length} {nfts.length === 1 ? 'NFT' : 'NFTs'} found
@@ -293,7 +399,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
             </div>
           ) : !userContext?.user?.fid ? (
             <div className="text-center py-12">
-              <p className="text-gray-400 text-lg">Currently you can only create a profile through Farcaster</p>
+              <p className="text-gray-400 text-lg">Currently you can only create a profile through Warpcast</p>
             </div>
           ) : error ? (
             <div className="text-center py-12">
@@ -326,7 +432,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
               <h3 className="text-xl text-red-500 mb-2">No Media NFTs Found</h3>
               <p className="text-gray-400">
                 {!userContext?.user?.fid
-                  ? 'Currently you can only create a profile through Farcaster'
+                  ? 'Currently you can only create a profile through Warpcast'
                   : 'No media NFTs found in your connected wallets'
                 }
               </p>

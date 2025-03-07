@@ -79,12 +79,24 @@ export const NFTCard: React.FC<NFTCardProps> = ({
       (nft.contract && nft.tokenId)
     );
     
+    // Validate image URL before using it
+    const validateMediaUrl = (url: string | undefined): boolean => {
+      if (!url) return false;
+      return (
+        url !== 'undefined' && 
+        url !== 'null' && 
+        url !== '' &&
+        !url.includes('undefined') &&
+        !url.includes('null://')
+      );
+    };
+    
     // Check for media - we need at least one valid media source
     const hasMedia = Boolean(
-      nft.image || 
-      nft.metadata?.image ||
-      nft.audio ||
-      nft.metadata?.animation_url
+      validateMediaUrl(nft.image) || 
+      validateMediaUrl(nft.metadata?.image) ||
+      validateMediaUrl(nft.audio) ||
+      validateMediaUrl(nft.metadata?.animation_url)
     );
     
     // Log detailed info for invalid NFTs to help diagnose issues
@@ -104,23 +116,43 @@ export const NFTCard: React.FC<NFTCardProps> = ({
     return hasDisplayInfo && hasMedia;
   }, [nft]);
   
-  // NEW: Early return with fallback UI for invalid NFTs
-  if (!isValidNFT) {
-    return (
-      <div className="relative bg-gray-800 rounded-lg overflow-hidden aspect-square shadow-lg">
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900">
-          <svg className="w-12 h-12 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+  // We'll define a function to render the invalid NFT UI
+  // but we won't return early - this ensures all hooks run in consistent order
+  const renderInvalidNFT = () => (
+    <div className="relative bg-gray-800 rounded-lg overflow-hidden aspect-square shadow-lg">
+      <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900">
+        {/* Always show the placeholder image */}
+        <img 
+          src="/default-nft.png" 
+          alt="NFT Placeholder" 
+          className="absolute inset-0 w-full h-full object-cover opacity-50"
+          loading="lazy"
+        />
+        <div className="z-10 bg-black/50 p-2 rounded-lg flex flex-col items-center">
+          <svg className="w-10 h-10 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
           </svg>
-          <span className="mt-2 text-xs text-gray-400">NFT data unavailable</span>
+          <span className="mt-2 text-xs text-white font-medium">NFT data unavailable</span>
         </div>
       </div>
-    );
-  }
+    </div>
+  );
   
   // Memoize the nft object to prevent infinite updates
   const memoizedNft = useMemo(() => [nft], [nft.contract, nft.tokenId]);
   const { getPreloadedImage, preloadImage } = useSessionImageCache(memoizedNft);
+  
+  // Validate image URL to prevent loading errors
+  const validateImageUrl = (url: string | undefined): boolean => {
+    if (!url) return false;
+    return (
+      url !== 'undefined' && 
+      url !== 'null' && 
+      url !== '' &&
+      !url.includes('undefined') &&
+      !url.includes('null://')
+    );
+  };
   // Get like state based on context - if we're in library view, NFT is always liked
   const { isLiked: likeStateFromHook, likesCount: globalLikesCount } = useNFTLikeState(nft, userFid || 0);
   
@@ -180,7 +212,9 @@ export const NFTCard: React.FC<NFTCardProps> = ({
 
   // Get cached image if available
   const cachedImage = getPreloadedImage(nft);
-  const imageUrl = cachedImage ? cachedImage.src : processMediaUrl(nft.image || nft.metadata?.image || '');
+  const rawImageUrl = nft.image || nft.metadata?.image || '';
+  const imageUrl = cachedImage ? cachedImage.src : 
+    validateImageUrl(rawImageUrl) ? processMediaUrl(rawImageUrl) : '/default-nft.png';
 
   const startOverlayTimer = (e: React.MouseEvent | React.TouchEvent) => {
     // Clear any existing timeout
@@ -246,7 +280,16 @@ export const NFTCard: React.FC<NFTCardProps> = ({
     animation: `fadeInUp 0.5s ease-out ${animationDelay}s forwards`
   };
 
+  // All hooks are guaranteed to be called before any return statements now
+
+  // For list mode
   if (viewMode === 'list') {
+    // If NFT is invalid, render fallback UI
+    if (!isValidNFT) {
+      return renderInvalidNFT();
+    }
+
+    // Otherwise render normal list view
     return (
       <>
         <style>{animationKeyframes}</style>
@@ -257,12 +300,29 @@ export const NFTCard: React.FC<NFTCardProps> = ({
           data-nft-id={`${nft.contract}-${nft.tokenId}`}
         >
           <div className="relative w-16 h-16 flex-shrink-0">
+            {/* Always include invisible fallback that can be shown if media fails */}
+            <img 
+              src="/default-nft.png" 
+              alt="Fallback NFT" 
+              className="absolute inset-0 w-full h-full object-cover opacity-0 rounded-md"
+              loading="eager"
+              onLoad={(e) => {
+                // Keep fallback hidden unless needed
+                if (e.currentTarget) e.currentTarget.style.opacity = '0';
+              }}
+            />
+            
             {shouldLoadAnimated && nft.metadata?.animation_url?.toLowerCase().endsWith('.mp4') || 
              nft.metadata?.animation_url?.toLowerCase().endsWith('.webm') ? (
               <DirectVideoPlayer
                 nft={nft}
                 onLoadComplete={() => {}}
-                onError={() => {}}
+                onError={(err) => {
+                  console.warn('Video player error for NFT in list view:', nft.name, err);
+                  // Show fallback on video error
+                  const fallbackEl = cardRef.current?.querySelector('img[src="/default-nft.png"]');
+                  if (fallbackEl) (fallbackEl as HTMLImageElement).style.opacity = '1';
+                }}
               />
             ) : shouldLoadAnimated && (nft.name === 'ACYL RADIO - Hidden Tales' || 
                 nft.name === 'ACYL RADIO - WILL01' || 
@@ -281,6 +341,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
                 className="w-full h-full object-cover rounded-md"
                 width={64}
                 height={64}
+                priority={nft.featuredSortOrder !== undefined} // Prioritize loading of featured NFTs
               />
             )}
             {shouldShowBadge && (
@@ -312,6 +373,13 @@ export const NFTCard: React.FC<NFTCardProps> = ({
     );
   }
 
+  // For grid mode (default)
+  // If NFT is invalid, render the fallback UI
+  if (!isValidNFT) {
+    return renderInvalidNFT();
+  }
+
+  // Otherwise render normal grid view  
   return (
     <>
       <style>{animationKeyframes}</style>
@@ -328,12 +396,29 @@ export const NFTCard: React.FC<NFTCardProps> = ({
         data-nft-id={`${nft.contract}-${nft.tokenId}`}
       >
         <div className="aspect-square relative">
+          {/* Double protection - if media fails to load, show default fallback image */}
+          <img 
+            src="/default-nft.png" 
+            alt="Fallback NFT" 
+            className="absolute inset-0 w-full h-full object-cover opacity-0"
+            loading="eager"
+            onLoad={(e) => {
+              // Keep the fallback hidden unless needed
+              if (e.currentTarget) e.currentTarget.style.opacity = '0';
+            }}
+          />
+          
           {shouldLoadAnimated && nft.metadata?.animation_url?.toLowerCase().endsWith('.mp4') || 
            nft.metadata?.animation_url?.toLowerCase().endsWith('.webm') ? (
             <DirectVideoPlayer
               nft={nft}
               onLoadComplete={() => {}}
-              onError={() => {}}
+              onError={(err) => {
+                console.warn('Video player error for NFT:', nft.name, err);
+                // Show fallback on video error
+                const fallbackEl = cardRef.current?.querySelector('img[src="/default-nft.png"]');
+                if (fallbackEl) (fallbackEl as HTMLImageElement).style.opacity = '1';
+              }}
             />
           ) : shouldLoadAnimated && (nft.name === 'ACYL RADIO - Hidden Tales' || 
               nft.name === 'ACYL RADIO - WILL01' || 
@@ -352,6 +437,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
               className="w-full h-full object-cover"
               width={300}
               height={300}
+              priority={nft.featuredSortOrder !== undefined} // Prioritize loading of featured NFTs
             />
           )}
           {shouldShowPlayCount && (
@@ -363,39 +449,94 @@ export const NFTCard: React.FC<NFTCardProps> = ({
             `absolute inset-0 bg-black/20 transition-all duration-1000 ease-in-out ${showOverlay ? 'opacity-100' : 'opacity-0'}` : 
             'absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200'
           } />
-          {onLikeToggle ? (
-            <button 
-              onClick={async (e) => {
-                e.stopPropagation();
-                console.log('💖 HEART BUTTON CLICKED for NFT:', nft.name, 'userFid:', userFid);
-                
-                if (!userFid || userFid <= 0) {
-                  console.error('Invalid userFid:', userFid, 'Cannot toggle like without a valid user.');
-                  return;
-                }
-                
-                try {
-                  await onLikeToggle(nft);
-                } catch (error) {
-                  console.error('Error in like toggle operation:', error);
-                }
-                
-                if (e) startOverlayTimer(e);
-              }}
-              className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center text-red-500 transition-all duration-300 hover:scale-125 z-10"
-              aria-label="Toggle like"
-            >
+          {/* Add extremely aggressive logging to detect any issues */}
+          <div 
+            className="absolute top-2 right-2 z-30"
+            onClick={(e) => {
+              console.log('⚠️ PARENT DIV CLICKED');
+              e.stopPropagation();
+            }}
+          >
+            {onLikeToggle ? (
+              <button 
+                onClick={async (e) => {
+                  console.log('🔴🔴🔴 BUTTON CLICKED DIRECTLY 🔴🔴🔴', { 
+                    nftName: nft?.name,
+                    buttonElement: e.currentTarget,
+                    hasOnLikeToggle: !!onLikeToggle,
+                    userFid 
+                  });
+                  
+                  e.stopPropagation();
+                  e.preventDefault();
+                  
+                  // In demo mode, don't block like functionality even without userFid
+                  // This allows testing the like feature in the demo without login
+                  if (!userFid) {
+                    console.warn('No userFid provided, but proceeding with like operation in demo mode');
+                  }
+                  
+                  // Removed alert for cleaner UX
+                  
+                  try {
+                    if (onLikeToggle) {
+                      await onLikeToggle(nft);
+                      console.log('✅ Like toggle successfully processed for:', nft.name);
+                    } else {
+                      console.error('❌ onLikeToggle function is not available');
+                      // Provide visual feedback that something went wrong
+                      const button = e.currentTarget as HTMLElement;
+                      button.classList.add('animate-shake');
+                      setTimeout(() => button.classList.remove('animate-shake'), 500);
+                    }
+                  } catch (error) {
+                    console.error('❌ Error in like toggle operation:', error);
+                    // Provide visual feedback on error
+                    const button = e.currentTarget as HTMLElement;
+                    button.classList.add('animate-shake');
+                    setTimeout(() => button.classList.remove('animate-shake'), 500);
+                  }
+                  
+                  if (e) startOverlayTimer(e);
+                }}
+                className="w-8 h-8 flex items-center justify-center text-red-500 transition-all duration-300 hover:scale-125 z-10"
+                aria-label="Toggle like"
+              >
               {isLiked ? (
-                <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                <svg 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  height="24" 
+                  viewBox="0 -960 960 960" 
+                  width="24" 
+                  fill="red"
+                >
                   <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
                 </svg>
               ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor" className="text-white hover:text-red-500">
+                <svg 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  height="24" 
+                  viewBox="0 -960 960 960" 
+                  width="24" 
+                  fill="white" 
+                  stroke="red"
+                  strokeWidth="1"
+                >
                   <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Zm0-108q96-86 158-147.5t98-107q36-45.5 50-81t14-70.5q0-60-40-100t-100-40q-47 0-87 26.5T518-680h-76q-15-41-55-67.5T300-774q-60 0-100 40t-40 100q0 35 14 70.5t50 81q36 45.5 98 107T480-228Zm0-273Z"/>
                 </svg>
               )}
             </button>
-          ) : null}
+            ) : (
+              <button 
+                onClick={() => console.log('❌ Like button clicked but NO onLikeToggle function available')}
+                className="w-8 h-8 flex items-center justify-center opacity-50 cursor-not-allowed"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="gray">
+                  <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Zm0-108q96-86 158-147.5t98-107q36-45.5 50-81t14-70.5q0-60-40-100t-100-40q-47 0-87 26.5T518-680h-76q-15-41-55-67.5T300-774q-60 0-100 40t-40 100q0 35 14 70.5t50 81q36 45.5 98 107T480-228Zm0-273Z"/>
+                </svg>
+              </button>
+            )}
+          </div>
           {useCenteredPlay ? (
             <div className={`absolute inset-0 flex flex-col items-center justify-center transition-all duration-1000 ease-in-out delay-75 z-20 ${showOverlay ? 'opacity-100' : 'opacity-0'}`}>
               <button 

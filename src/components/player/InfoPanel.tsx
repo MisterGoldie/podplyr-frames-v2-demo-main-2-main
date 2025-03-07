@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useNFTPlayCount } from '../../hooks/useNFTPlayCount';
-import { useNFTLikes } from '../../hooks/useNFTLikes';
+import { useNFTLikeState } from '../../hooks/useNFTLikeState';
 import { useNFTTopPlayed } from '../../hooks/useNFTTopPlayed';
 import type { NFT } from '../../types/user';
 
 interface InfoPanelProps {
   nft: NFT;
   onClose: () => void;
+  userFid?: number;
 }
 
-const InfoPanel: React.FC<InfoPanelProps> = ({ nft, onClose }) => {
+const InfoPanel: React.FC<InfoPanelProps> = ({ nft, onClose, userFid = 0 }) => {
   const { playCount, loading } = useNFTPlayCount(nft);
-  const { likesCount, isLoading: likesLoading } = useNFTLikes(nft);
+  const { isLiked, likesCount, isLoading: likesLoading } = useNFTLikeState(nft, userFid);
   const { hasBeenInTopPlayed, loading: topPlayedLoading } = useNFTTopPlayed(nft);
   const [isClosing, setIsClosing] = useState(false);
 
@@ -50,7 +51,7 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ nft, onClose }) => {
             <h2 className="text-purple-300 font-mono text-base font-semibold">{nft.name}</h2>
             <div className="flex items-center gap-2 mt-1">
               <div className="flex items-center gap-1.5 bg-purple-500/10 px-2 py-0.5 rounded-full">
-                <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="currentColor" className="text-purple-400">
+                <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="#4ADE80" className="text-green-400">
                   <path d="M320-200v-560l440 280-440 280Z"/>
                 </svg>
                 <span className="text-purple-300 text-xs font-mono">
@@ -58,17 +59,23 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ nft, onClose }) => {
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1.5 bg-purple-500/10 px-2 py-0.5 rounded-full">
-                  <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="currentColor" className="text-purple-400">
-                    <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
-                  </svg>
+                <div className={`flex items-center gap-1.5 ${isLiked ? 'bg-purple-500/20' : 'bg-purple-500/10'} px-2 py-0.5 rounded-full`}>
+                  {isLiked ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="red" className="text-red-500">
+                      <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="currentColor" className="text-purple-400">
+                      <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Zm0-108q96-86 158-147.5t98-107q36-45.5 50-81t14-70.5q0-60-40-100t-100-40q-47 0-87 26.5T518-680h-76q-15-41-55-67.5T300-774q-60 0-100 40t-40 100q0 35 14 70.5t50 81q36 45.5 98 107T480-228Zm0-273Z"/>
+                    </svg>
+                  )}
                   <span className="text-purple-300 text-xs font-mono">
                     {likesLoading ? '...' : `${likesCount} likes`}
                   </span>
                 </div>
                 {!topPlayedLoading && hasBeenInTopPlayed && (
                   <div className="flex items-center gap-1.5 bg-purple-500/10 px-2 py-0.5 rounded-full">
-                    <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="currentColor" className="text-purple-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="#FFD700" className="text-yellow-400">
                       <path d="m233-80 65-281L80-550l288-25 112-265 112 265 288 25-218 189 65 281-247-149L233-80Z"/>
                     </svg>
                     <span className="text-purple-300 text-xs font-mono">Top Played</span>

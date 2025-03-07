@@ -21,9 +21,11 @@ import {
   serverTimestamp,
   writeBatch,
   DocumentSnapshot,
+  QueryDocumentSnapshot,
+  DocumentData,
   collectionGroup
 } from 'firebase/firestore';
-import type { NFT, FarcasterUser, SearchedUser, NFTPlayData } from '../types/user';
+import type { NFT, FarcasterUser, SearchedUser, NFTPlayData, FollowedUser } from '../types/user';
 import { fetchUserNFTsFromAlchemy } from './alchemy';
 import { getMediaKey } from '~/utils/media';
 
@@ -838,16 +840,19 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
     const likedNFTs: NFT[] = [];
     const seenMediaKeys = new Set<string>();
     const seenNFTKeys = new Set<string>(); // Track NFTs by contract-tokenId
-    const missingGlobalLikes = new Set<string>();
+    const missingGlobalLikes = new Map<string, any>(); // Store mediaKey -> user like data
     
-    // First, collect all media keys
-    const mediaKeys = querySnapshot.docs.map(doc => doc.id);
+    // First, collect all media keys and user like data
+    const mediaKeysWithData = querySnapshot.docs.map(doc => ({
+      mediaKey: doc.id,
+      data: doc.data()
+    }));
     
     // Batch get all global likes to reduce number of requests
     const batchSize = 10;
-    for (let i = 0; i < mediaKeys.length; i += batchSize) {
-      const batch = mediaKeys.slice(i, i + batchSize);
-      const promises = batch.map(mediaKey => {
+    for (let i = 0; i < mediaKeysWithData.length; i += batchSize) {
+      const batch = mediaKeysWithData.slice(i, i + batchSize);
+      const promises = batch.map(({ mediaKey, data: userLikeData }) => {
         if (seenMediaKeys.has(mediaKey)) {
           console.log(`Skipping duplicate mediaKey: ${mediaKey}`);
           return null;
@@ -855,9 +860,24 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
         seenMediaKeys.add(mediaKey);
         
         return getDoc(doc(db, 'global_likes', mediaKey))
-          .then(globalLikeDoc => {
+          .then(async globalLikeDoc => {
             if (!globalLikeDoc.exists()) {
-              missingGlobalLikes.add(mediaKey);
+              // Save the user like data for fixing missing global likes later
+              missingGlobalLikes.set(mediaKey, userLikeData);
+              
+              // Try to get the NFT data from the user's like document
+              if (userLikeData.nft) {
+                const nftData = userLikeData.nft;
+                const nftKey = `${nftData.contract}-${nftData.tokenId}`.toLowerCase();
+                
+                if (seenNFTKeys.has(nftKey)) {
+                  return null;
+                }
+                seenNFTKeys.add(nftKey);
+                
+                // Return the NFT from user data so it's not lost
+                return nftData;
+              }
               return null;
             }
             
@@ -903,10 +923,60 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
       likedNFTs.push(...results.filter(Boolean) as NFT[]);
     }
     
-    // Log missing global likes once at the end instead of for each one
+    // Fix missing global likes
     if (missingGlobalLikes.size > 0) {
-      console.warn(`Missing ${missingGlobalLikes.size} global like documents. First few:`, 
-        [...missingGlobalLikes].slice(0, 3));
+      console.warn(`Found ${missingGlobalLikes.size} missing global like documents. Fixing...`);
+      
+      // Create a batch to update all missing global likes
+      const batch = writeBatch(db);
+      
+      // Track which NFTs need to be added to likedNFTs after fixing
+      const nftsToAdd: NFT[] = [];
+      
+      for (const [mediaKey, userLikeData] of missingGlobalLikes.entries()) {
+        if (!userLikeData.nft) {
+          console.warn(`No NFT data found in user like document for mediaKey: ${mediaKey}`);
+          continue;
+        }
+        
+        const nft = userLikeData.nft;
+        
+        // Create global like document
+        const globalLikeRef = doc(db, 'global_likes', mediaKey);
+        batch.set(globalLikeRef, {
+          mediaKey,
+          nftContract: nft.contract,
+          tokenId: nft.tokenId,
+          name: nft.name || 'Untitled',
+          description: nft.description || '',
+          image: nft.image || '',
+          audioUrl: nft.audio || nft.metadata?.animation_url || '',
+          collection: nft.collection?.name || 'Unknown Collection',
+          network: nft.network || 'ethereum',
+          likeCount: 1,  // Start with 1 like (the current user)
+          timestamp: serverTimestamp(),
+          lastLiked: serverTimestamp()
+        });
+        
+        // Add to the list of NFTs to include
+        if (!seenNFTKeys.has(`${nft.contract}-${nft.tokenId}`.toLowerCase())) {
+          nftsToAdd.push(nft);
+          seenNFTKeys.add(`${nft.contract}-${nft.tokenId}`.toLowerCase());
+        }
+      }
+      
+      // Commit the batch update
+      if (missingGlobalLikes.size > 0) {
+        try {
+          await batch.commit();
+          console.log(`Fixed ${missingGlobalLikes.size} missing global like documents`);
+          
+          // Add the newly fixed NFTs to our return list
+          likedNFTs.push(...nftsToAdd);
+        } catch (error) {
+          console.error('Error fixing missing global likes:', error);
+        }
+      }
     }
 
     console.log(`Processed ${likedNFTs.length} liked NFTs after deduplication`);
@@ -923,12 +993,12 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
   
   if (!fid || fid <= 0) {
     console.error('Invalid fid provided to toggleLikeNFT:', fid);
-    throw new Error('Invalid user ID provided');
+    return false; // Return false instead of throwing to avoid breaking the UI
   }
   
   if (!nft || !nft.contract || !nft.tokenId) {
     console.error('Invalid NFT data provided to toggleLikeNFT:', nft);
-    throw new Error('Invalid NFT data provided');
+    return false; // Return false instead of throwing to avoid breaking the UI
   }
   
   try {
@@ -951,101 +1021,133 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
     
     // Get both documents in parallel for efficiency
     console.log('Fetching existing documents...');
-    const [userLikeDoc, globalLikeDoc] = await Promise.all([
-      getDoc(userLikeRef),
-      getDoc(globalLikeRef)
-    ]).catch(error => {
+    let userLikeDoc, globalLikeDoc;
+    try {
+      [userLikeDoc, globalLikeDoc] = await Promise.all([
+        getDoc(userLikeRef),
+        getDoc(globalLikeRef)
+      ]);
+    } catch (error) {
       console.error('Error fetching documents:', error);
-      throw new Error(`Failed to fetch documents: ${error.message}`);
-    });
+      return false; // Return false instead of throwing to avoid breaking the UI
+    }
     
     console.log('Document fetch complete. User like exists:', userLikeDoc.exists(), 'Global like exists:', globalLikeDoc.exists());
     
     const batch = writeBatch(db);
     
     if (userLikeDoc.exists()) {
-      // Remove like
-      // Remove from user's likes
+      // UNLIKE FLOW - Remove like from user's likes
+      console.log('User like exists - removing like');
       batch.delete(userLikeRef);
       
       if (globalLikeDoc.exists()) {
-        // Get accurate count of users who currently like this NFT
-        // This is the key improvement - we're ensuring the global like count is accurate
-        const likesCollectionRef = collection(db, 'users');
-        const usersWithLikeQuery = query(
-          collectionGroup(db, 'likes'),
-          where(documentId(), '==', mediaKey)
-        );
-        const usersWithLikeSnapshot = await getDocs(usersWithLikeQuery);
-        
-        // Count how many users have this mediaKey in their likes, excluding the current user
-        const actualLikeCount = usersWithLikeSnapshot.docs
-          .filter(doc => doc.ref.parent?.parent?.id !== fid.toString())
-          .length;
-        
-        console.log(`Actual users liking this NFT (excluding current user): ${actualLikeCount}`);
-        if (actualLikeCount <= 0) {
-          // If no other users like this NFT, delete the global document
-          console.log('No other users like this NFT, deleting global document');
-          batch.delete(globalLikeRef);
-        } else {
-          // Otherwise update with the accurate count
-          batch.update(globalLikeRef, {
-            likeCount: actualLikeCount,
-            lastUnliked: serverTimestamp()
-          });
+        try {
+          // Get accurate count of users who currently like this NFT without using collection group query
+          console.log('Finding other users who like this NFT...');
+          let actualLikeCount = 0;
+          
+          // Query all users collections to check who has this mediaKey in their likes
+          const usersRef = collection(db, 'users');
+          const usersSnapshot = await getDocs(usersRef);
+          
+          // Check each user's likes collection for this mediaKey
+          const checkLikePromises = [];
+          for (const userDoc of usersSnapshot.docs) {
+            // Skip the current user as we're already removing their like
+            if (userDoc.id === fid.toString()) continue;
+            
+            const checkLikePromise = (async () => {
+              try {
+                const userLikeDocRef = doc(db, 'users', userDoc.id, 'likes', mediaKey);
+                const userLikeSnapshot = await getDoc(userLikeDocRef);
+                if (userLikeSnapshot.exists()) {
+                  return true;
+                }
+                return false;
+              } catch (e) {
+                console.error(`Error checking like for user ${userDoc.id}:`, e);
+                return false;
+              }
+            })();
+            
+            checkLikePromises.push(checkLikePromise);
+          }
+          
+          // Wait for all checks to complete and count likes
+          const userLikeResults = await Promise.all(checkLikePromises);
+          actualLikeCount = userLikeResults.filter(Boolean).length;
+          
+          console.log(`Actual users liking this NFT (excluding current user): ${actualLikeCount}`);
+          if (actualLikeCount <= 0) {
+            // If no other users like this NFT, delete the global document
+            console.log('No other users like this NFT, deleting global document');
+            batch.delete(globalLikeRef);
+          } else {
+            // Otherwise update with the accurate count
+            console.log('Updating global like count to:', actualLikeCount);
+            batch.update(globalLikeRef, {
+              likeCount: actualLikeCount,
+              lastUnliked: serverTimestamp()
+            });
+          }
+        } catch (error) {
+          console.error('Error counting other user likes:', error);
+          // Safer fallback: decrement count by 1
+          const globalData = globalLikeDoc.data();
+          const currentCount = globalData?.likeCount || 1;
+          if (currentCount <= 1) {
+            batch.delete(globalLikeRef);
+          } else {
+            batch.update(globalLikeRef, {
+              likeCount: currentCount - 1,
+              lastUnliked: serverTimestamp()
+            });
+          }
         }
       }
 
       // Update likes count in nfts collection if it exists
-      const nftRef = doc(db, 'nfts', `${nft.contract}-${nft.tokenId}`);
-      const nftDoc = await getDoc(nftRef);
-      if (nftDoc.exists()) {
-        const currentLikes = nftDoc.data()?.likes || 1;
-        batch.update(nftRef, {
-          likes: Math.max(0, currentLikes - 1)
-        });
+      try {
+        const nftRef = doc(db, 'nfts', `${nft.contract}-${nft.tokenId}`);
+        const nftDoc = await getDoc(nftRef);
+        if (nftDoc.exists()) {
+          const currentLikes = nftDoc.data()?.likes || 1;
+          batch.update(nftRef, {
+            likes: Math.max(0, currentLikes - 1)
+          });
+        }
+      } catch (error) {
+        console.error('Error updating nft document, continuing anyway:', error);
+        // Non-critical, can continue without this update
       }
       
-      await batch.commit();
-      console.log('Removed like:', { mediaKey });
-      return false;
+      // Commit the batch operations
+      try {
+        await batch.commit();
+        console.log('Successfully removed like for:', mediaKey);
+        return false; // Return false to indicate NFT is not liked
+      } catch (error) {
+        console.error('Error committing unlike operation:', error);
+        return userLikeDoc.exists(); // Return previous state on error
+      }
     } else {
-      // Add like
-      // Always create both user and global documents
+      // LIKE FLOW - Add NFT to user's likes
+      console.log('User like does not exist - adding like');
       
-      // Add to user's likes with full NFT data
-      batch.set(userLikeRef, {
-        mediaKey,
-        nftContract: nft.contract,
-        tokenId: nft.tokenId,
-        name: nft.name || 'Untitled',
-        description: nft.description || nft.metadata?.description || '',
-        image: nft.image || nft.metadata?.image || '',
-        audioUrl: nft.audio || nft.metadata?.animation_url || '',
-        collection: nft.collection?.name || 'Unknown Collection',
-        network: nft.network || 'ethereum',
-        timestamp: serverTimestamp()
-      });
-      
-      if (globalLikeDoc.exists()) {
-        const globalData = globalLikeDoc.data();
-        // Update existing global like document
-        batch.update(globalLikeRef, {
-          likeCount: increment(1),
-          lastLiked: serverTimestamp(),
-          // Always update metadata to ensure consistency
-          name: nft.name || globalData?.name || 'Untitled',
-          description: nft.description || nft.metadata?.description || globalData?.description || '',
-          image: nft.image || nft.metadata?.image || globalData?.image || '',
-          audioUrl: nft.audio || nft.metadata?.animation_url || globalData?.audioUrl || '',
-          collection: nft.collection?.name || globalData?.collection || 'Unknown Collection',
-          network: nft.network || globalData?.network || 'ethereum'
-        });
-      } else {
-        // Create new global like document with full NFT data
-        batch.set(globalLikeRef, {
+      try {
+        // Store NFT data in the user like document
+        const userLikeData = {
           mediaKey,
+          nft: {
+            contract: nft.contract,
+            tokenId: nft.tokenId,
+            name: nft.name || 'Untitled',
+            description: nft.description || nft.metadata?.description || '',
+            image: nft.image || nft.metadata?.image || '',
+            audio: nft.audio || nft.metadata?.animation_url || '',
+            metadata: nft.metadata || {}
+          },
           nftContract: nft.contract,
           tokenId: nft.tokenId,
           name: nft.name || 'Untitled',
@@ -1054,45 +1156,77 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
           audioUrl: nft.audio || nft.metadata?.animation_url || '',
           collection: nft.collection?.name || 'Unknown Collection',
           network: nft.network || 'ethereum',
-          likeCount: 1,
-          firstLiked: serverTimestamp(),
-          lastLiked: serverTimestamp()
-        });
-      }
-
-      // Update likes count in nfts collection if it exists
-      const nftRef = doc(db, 'nfts', `${nft.contract}-${nft.tokenId}`);
-      const nftDoc = await getDoc(nftRef);
-      if (nftDoc.exists()) {
-        const currentLikes = nftDoc.data()?.likes || 0;
-        batch.update(nftRef, {
-          likes: currentLikes + 1
-        });
-      }
-      
-      console.log('Prepared batch with all operations, ready to commit');
-      try {
-        await batch.commit();
-        console.log('Added like:', { mediaKey });
-        return true;
-      } catch (commitError: unknown) {
-        console.error('Error committing batch for like operation:', commitError);
-        if (commitError instanceof Error) {
-          throw new Error(`Failed to commit like operation: ${commitError.message}`);
+          timestamp: serverTimestamp()
+        };
+        
+        batch.set(userLikeRef, userLikeData);
+        
+        if (globalLikeDoc.exists()) {
+          // Update existing global like document
+          const globalData = globalLikeDoc.data();
+          batch.update(globalLikeRef, {
+            likeCount: increment(1),
+            lastLiked: serverTimestamp(),
+            // Always update metadata to ensure consistency
+            name: nft.name || globalData?.name || 'Untitled',
+            description: nft.description || nft.metadata?.description || globalData?.description || '',
+            image: nft.image || nft.metadata?.image || globalData?.image || '',
+            audioUrl: nft.audio || nft.metadata?.animation_url || globalData?.audioUrl || '',
+            collection: nft.collection?.name || globalData?.collection || 'Unknown Collection',
+            network: nft.network || globalData?.network || 'ethereum'
+          });
         } else {
-          throw new Error('Failed to commit like operation: Unknown error');
+          // Create new global like document with full NFT data
+          batch.set(globalLikeRef, {
+            mediaKey,
+            nftContract: nft.contract,
+            tokenId: nft.tokenId,
+            name: nft.name || 'Untitled',
+            description: nft.description || nft.metadata?.description || '',
+            image: nft.image || nft.metadata?.image || '',
+            audioUrl: nft.audio || nft.metadata?.animation_url || '',
+            collection: nft.collection?.name || 'Unknown Collection',
+            network: nft.network || 'ethereum',
+            likeCount: 1,
+            firstLiked: serverTimestamp(),
+            lastLiked: serverTimestamp()
+          });
         }
+
+        // Update likes count in nfts collection if it exists (non-critical)
+        try {
+          const nftRef = doc(db, 'nfts', `${nft.contract}-${nft.tokenId}`);
+          const nftDoc = await getDoc(nftRef);
+          if (nftDoc.exists()) {
+            const currentLikes = nftDoc.data()?.likes || 0;
+            batch.update(nftRef, {
+              likes: currentLikes + 1
+            });
+          }
+        } catch (error) {
+          console.error('Error updating nft document, continuing anyway:', error);
+          // Non-critical, can continue without this update
+        }
+        
+        // Commit the batch operations
+        await batch.commit();
+        console.log('Successfully added like for:', mediaKey);
+        return true; // Return true to indicate NFT is liked
+      } catch (error) {
+        console.error('Error adding like:', error);
+        return false; // Return false to indicate operation failed
       }
     }
-  } catch (error: unknown) {
-    console.error('Error toggling NFT like:', error);
-    // Log additional details about the error
+  } catch (error) {
+    // This is the outermost error handler to ensure we never throw unhandled errors
+    console.error('Unhandled error in toggleLikeNFT:', error);
     if (error instanceof Error) {
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack
+      });
     }
-    // Return false but don't rethrow to avoid breaking the UI
-    return false;
+    return false; // Default to not liked on error
   }
 };
 
@@ -1462,6 +1596,471 @@ export const ensureFeaturedNFTsExist = async (nfts: NFT[]): Promise<void> => {
 
 // Declare searchTimeout at module level
 let searchTimeout: NodeJS.Timeout | undefined;
+
+// PODPlayr official account details
+export const PODPLAYR_ACCOUNT = {
+  fid: 1014485,
+  username: 'podplayr',
+  display_name: 'PODPlayr',
+  pfp_url: 'https://imagedelivery.net/BXluQx4ige9GuW0Ia56BHw/994e0d0e-3033-4261-64e3-5a91f64ba000/rectcrop3',
+  custody_address: '0xdbdb6eb5d90141675eb67d79745031e4668f3fd2',
+  connected_address: '0x239cc7fd1f85b18da2d3caf60e406167b2c8b972'
+};
+
+// Follow a Farcaster user
+export const followUser = async (currentUserFid: number, userToFollow: FarcasterUser): Promise<void> => {
+  try {
+    if (!currentUserFid || !userToFollow.fid) {
+      console.error('Invalid FIDs for follow operation', { currentUserFid, userToFollowFid: userToFollow.fid });
+      return;
+    }
+
+    console.log(`User ${currentUserFid} is following user ${userToFollow.fid}`);
+    
+    // Create a document in the following collection
+    const followingRef = doc(db, 'users', currentUserFid.toString(), 'following', userToFollow.fid.toString());
+    
+    // Create a document in the followers collection
+    const followerRef = doc(db, 'users', userToFollow.fid.toString(), 'followers', currentUserFid.toString());
+    
+    // References to the user documents to update counts
+    const currentUserRef = doc(db, 'searchedusers', currentUserFid.toString());
+    const targetUserRef = doc(db, 'searchedusers', userToFollow.fid.toString());
+    
+    // Prepare the follow data
+    let pfpUrl = userToFollow.pfp_url || `https://avatar.vercel.sh/${userToFollow.username}`;
+    
+    // Special handling for PODPlayr account to ensure correct profile image
+    if (userToFollow.fid === PODPLAYR_ACCOUNT.fid) {
+      console.log('Following PODPlayr account - using official profile image');
+      pfpUrl = PODPLAYR_ACCOUNT.pfp_url;
+    }
+    
+    const followData = {
+      fid: userToFollow.fid,
+      username: userToFollow.username,
+      display_name: userToFollow.display_name || userToFollow.username,
+      pfp_url: pfpUrl,
+      timestamp: serverTimestamp()
+    };
+    
+    // Get the current user's data to store in follower entry
+    const currentUserSnapshot = await getDoc(currentUserRef);
+    const currentUserData = currentUserSnapshot.data() || {};
+    
+    // Prepare the follower data with complete profile information
+    const followerData = {
+      fid: currentUserFid,
+      username: currentUserData.username || `user${currentUserFid}`,
+      display_name: currentUserData.display_name || currentUserData.username || `User ${currentUserFid}`,
+      pfp_url: currentUserData.pfp_url || `https://avatar.vercel.sh/${currentUserData.username || currentUserFid}`,
+      timestamp: serverTimestamp()
+    };
+    
+    // Use a batch write to ensure all operations succeed or fail together
+    const batch = writeBatch(db);
+    batch.set(followingRef, followData);
+    batch.set(followerRef, followerData);
+    
+    // Update the following count for the current user
+    batch.update(currentUserRef, {
+      following_count: increment(1)
+    });
+    
+    // Update the follower count for the target user
+    batch.update(targetUserRef, {
+      follower_count: increment(1)
+    });
+    
+    // Commit the batch
+    await batch.commit();
+    console.log(`Successfully followed user ${userToFollow.username}`);
+  } catch (error) {
+    console.error('Error following user:', error);
+    throw error;
+  }
+};
+
+// Update PODPlayr follower count based on total users in the system
+export const updatePodplayrFollowerCount = async (): Promise<number> => {
+  try {
+    console.log('Updating PODPlayr follower count based on total users');
+    
+    // Get all users from the users collection
+    const usersRef = collection(db, 'users');
+    const usersSnapshot = await getDocs(usersRef);
+    
+    // Count the total number of users (each document in the users collection represents a user)
+    const totalUsers = usersSnapshot.size;
+    
+    console.log(`Found ${totalUsers} total users in the system`);
+    
+    // Update the PODPlayr account document with the accurate follower count
+    const podplayrDocRef = doc(db, 'searchedusers', PODPLAYR_ACCOUNT.fid.toString());
+    const podplayrDoc = await getDoc(podplayrDocRef);
+    
+    if (podplayrDoc.exists()) {
+      // Update the existing document with the correct follower count
+      await updateDoc(podplayrDocRef, {
+        follower_count: totalUsers,
+        pfp_url: PODPLAYR_ACCOUNT.pfp_url // Ensure profile image is up to date
+      });
+      console.log(`Updated PODPlayr follower count to ${totalUsers}`);
+    } else {
+      // Create the PODPlayr account document if it doesn't exist
+      await setDoc(podplayrDocRef, {
+        fid: PODPLAYR_ACCOUNT.fid,
+        username: PODPLAYR_ACCOUNT.username,
+        display_name: PODPLAYR_ACCOUNT.display_name,
+        pfp_url: PODPLAYR_ACCOUNT.pfp_url,
+        follower_count: totalUsers,
+        following_count: 0,
+        timestamp: serverTimestamp()
+      });
+      console.log(`Created PODPlayr account with follower count ${totalUsers}`);
+    }
+    
+    // Update the followers subcollection for PODPlayr
+    await updatePodplayrFollowersSubcollection(usersSnapshot.docs);
+    
+    return totalUsers;
+  } catch (error) {
+    console.error('Error updating PODPlayr follower count:', error);
+    return 0;
+  }
+};
+
+// Update the followers subcollection for PODPlayr
+async function updatePodplayrFollowersSubcollection(userDocs: QueryDocumentSnapshot<DocumentData>[]): Promise<void> {
+  try {
+    console.log('Updating PODPlayr followers subcollection');
+    
+    // Process each user
+    for (const userDoc of userDocs) {
+      const userFid = userDoc.id;
+      
+      // Skip if this is the PODPlayr account itself
+      if (userFid === PODPLAYR_ACCOUNT.fid.toString()) continue;
+      
+      // Reference to this user in PODPlayr's followers collection
+      const followerRef = doc(db, 'users', PODPLAYR_ACCOUNT.fid.toString(), 'followers', userFid);
+      const followerDoc = await getDoc(followerRef);
+      
+      if (!followerDoc.exists()) {
+        // User is not in PODPlayr's followers collection, add them
+        console.log(`Adding user ${userFid} to PODPlayr's followers collection`);
+        
+        // Try to get user data from searchedusers collection
+        let followerData: any = {
+          fid: parseInt(userFid),
+          username: `user${userFid}`,
+          display_name: `User ${userFid}`,
+          pfp_url: `https://avatar.vercel.sh/user${userFid}`,
+          timestamp: serverTimestamp()
+        };
+        
+        try {
+          const userData = await getDoc(doc(db, 'searchedusers', userFid));
+          if (userData.exists()) {
+            const userInfo = userData.data();
+            if (userInfo.username) followerData.username = userInfo.username;
+            if (userInfo.display_name) followerData.display_name = userInfo.display_name;
+            if (userInfo.pfp_url) followerData.pfp_url = userInfo.pfp_url;
+          }
+        } catch (e) {
+          console.error(`Error getting user data for ${userFid}:`, e);
+          // Continue with default data if we can't get better data
+        }
+        
+        // Add user to PODPlayr's followers
+        await setDoc(followerRef, followerData);
+      }
+    }
+    
+    console.log('Successfully updated PODPlayr followers subcollection');
+  } catch (error) {
+    console.error('Error updating PODPlayr followers subcollection:', error);
+  }
+};
+
+// Ensure user follows the PODPlayr account
+export const ensurePodplayrFollow = async (userFid: number): Promise<void> => {
+  try {
+    if (!userFid) return;
+    
+    console.log(`Checking if user ${userFid} follows PODPlayr account`);
+    
+    // Check if the user already follows PODPlayr
+    const isFollowing = await isUserFollowed(userFid, PODPLAYR_ACCOUNT.fid);
+    
+    if (!isFollowing) {
+      console.log(`User ${userFid} does not follow PODPlayr - adding mandatory follow`);
+      
+      // Create PODPlayr user object
+      const podplayrUser: FarcasterUser = {
+        fid: PODPLAYR_ACCOUNT.fid,
+        username: PODPLAYR_ACCOUNT.username,
+        display_name: PODPLAYR_ACCOUNT.display_name,
+        pfp_url: PODPLAYR_ACCOUNT.pfp_url,
+        custody_address: PODPLAYR_ACCOUNT.custody_address,
+        verified_addresses: { eth_addresses: [PODPLAYR_ACCOUNT.connected_address] },
+        follower_count: 0,
+        following_count: 0
+      };
+      
+      // Force follow the PODPlayr account
+      await followUser(userFid, podplayrUser);
+      
+      // Update the PODPlayr follower count to reflect all users
+      await updatePodplayrFollowerCount();
+      
+      console.log(`Successfully added mandatory follow to PODPlayr for user ${userFid}`);
+    } else {
+      console.log(`User ${userFid} already follows PODPlayr account`);
+      
+      // Even if already following, ensure the profile image is up to date
+      const followingRef = doc(db, 'users', userFid.toString(), 'following', PODPLAYR_ACCOUNT.fid.toString());
+      await updateDoc(followingRef, {
+        pfp_url: PODPLAYR_ACCOUNT.pfp_url
+      });
+      
+      // Periodically update the PODPlayr follower count (do this occasionally to keep it accurate)
+      // We use a random check to avoid doing this on every login for performance reasons
+      if (Math.random() < 0.2) { // 20% chance to update on login if already following
+        await updatePodplayrFollowerCount();
+      }
+    }
+  } catch (error) {
+    console.error('Error ensuring PODPlayr follow:', error);
+  }
+};
+
+// Unfollow a Farcaster user
+export const unfollowUser = async (currentUserFid: number, userToUnfollow: FarcasterUser): Promise<void> => {
+  try {
+    if (!currentUserFid || !userToUnfollow.fid) {
+      console.error('Invalid FIDs for unfollow operation', { currentUserFid, userToUnfollowFid: userToUnfollow.fid });
+      return;
+    }
+
+    console.log(`User ${currentUserFid} is unfollowing user ${userToUnfollow.fid}`);
+    
+    // References to the documents to delete
+    const followingRef = doc(db, 'users', currentUserFid.toString(), 'following', userToUnfollow.fid.toString());
+    const followerRef = doc(db, 'users', userToUnfollow.fid.toString(), 'followers', currentUserFid.toString());
+    
+    // References to the user documents to update counts
+    const currentUserRef = doc(db, 'searchedusers', currentUserFid.toString());
+    const targetUserRef = doc(db, 'searchedusers', userToUnfollow.fid.toString());
+    
+    // Use a batch write to ensure all operations succeed or fail together
+    const batch = writeBatch(db);
+    batch.delete(followingRef);
+    batch.delete(followerRef);
+    
+    // Update the following count for the current user
+    batch.update(currentUserRef, {
+      following_count: increment(-1)
+    });
+    
+    // Update the follower count for the target user
+    batch.update(targetUserRef, {
+      follower_count: increment(-1)
+    });
+    
+    // Commit the batch
+    await batch.commit();
+    console.log(`Successfully unfollowed user ${userToUnfollow.username}`);
+  } catch (error) {
+    console.error('Error unfollowing user:', error);
+    throw error;
+  }
+};
+
+// Check if a user is followed
+export const isUserFollowed = async (currentUserFid: number, userFid: number): Promise<boolean> => {
+  try {
+    if (!currentUserFid || !userFid) {
+      return false;
+    }
+    
+    const followingRef = doc(db, 'users', currentUserFid.toString(), 'following', userFid.toString());
+    const followDoc = await getDoc(followingRef);
+    
+    return followDoc.exists();
+  } catch (error) {
+    console.error('Error checking if user is followed:', error);
+    return false;
+  }
+};
+
+// Toggle follow status for a user
+export const toggleFollowUser = async (currentUserFid: number, user: FarcasterUser): Promise<boolean> => {
+  try {
+    // Prevent unfollowing the PODPlayr account
+    if (user.fid === PODPLAYR_ACCOUNT.fid) {
+      console.log('Attempted to unfollow PODPlayr account - operation blocked');
+      // If not already following, follow the PODPlayr account
+      const isAlreadyFollowing = await isUserFollowed(currentUserFid, PODPLAYR_ACCOUNT.fid);
+      if (!isAlreadyFollowing) {
+        await followUser(currentUserFid, user);
+      }
+      return true; // Always return true for PODPlayr account
+    }
+    
+    const isFollowed = await isUserFollowed(currentUserFid, user.fid);
+    
+    if (isFollowed) {
+      await unfollowUser(currentUserFid, user);
+      return false; // User is now unfollowed
+    } else {
+      await followUser(currentUserFid, user);
+      return true; // User is now followed
+    }
+  } catch (error) {
+    console.error('Error toggling follow status:', error);
+    throw error;
+  }
+};
+
+// Get all users that the current user is following
+export const getFollowingUsers = async (currentUserFid: number): Promise<FollowedUser[]> => {
+  try {
+    const followingRef = collection(db, 'users', currentUserFid.toString(), 'following');
+    const querySnapshot = await getDocs(followingRef);
+    
+    const followingUsers: FollowedUser[] = [];
+    
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      followingUsers.push({
+        fid: data.fid,
+        username: data.username,
+        display_name: data.display_name || data.username,
+        pfp_url: data.pfp_url || `https://avatar.vercel.sh/${data.username}`,
+        timestamp: data.timestamp?.toDate() || new Date()
+      });
+    });
+    
+    // Sort by most recently followed first
+    return followingUsers.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+  } catch (error) {
+    console.error('Error getting following users:', error);
+    return [];
+  }
+};
+
+// Get the count of users that the current user is following
+export const getFollowingCount = async (userFid: number): Promise<number> => {
+  try {
+    const followingRef = collection(db, 'users', userFid.toString(), 'following');
+    const querySnapshot = await getDocs(followingRef);
+    return querySnapshot.size;
+  } catch (error) {
+    console.error('Error getting following count:', error);
+    return 0;
+  }
+};
+
+// Get the count of users that follow the current user
+export const getFollowersCount = async (userFid: number): Promise<number> => {
+  try {
+    const followersRef = collection(db, 'users', userFid.toString(), 'followers');
+    const querySnapshot = await getDocs(followersRef);
+    return querySnapshot.size;
+  } catch (error) {
+    console.error('Error getting followers count:', error);
+    return 0;
+  }
+};
+
+// Get all users that follow the current user
+export const getFollowers = async (userFid: number): Promise<FollowedUser[]> => {
+  try {
+    const followersRef = collection(db, 'users', userFid.toString(), 'followers');
+    const q = query(followersRef, orderBy('timestamp', 'desc'));
+    const snapshot = await getDocs(q);
+    
+    const followers: FollowedUser[] = [];
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      followers.push({
+        fid: data.fid,
+        username: data.username,
+        display_name: data.display_name || data.username,
+        pfp_url: data.pfp_url || `https://avatar.vercel.sh/${data.username}`,
+        timestamp: data.timestamp?.toDate() || new Date()
+      });
+    });
+    
+    return followers;
+  } catch (error) {
+    console.error('Error getting followers:', error);
+    return [];
+  }
+};
+
+// Subscribe to following users for real-time updates
+export const subscribeToFollowingUsers = (currentUserFid: number, callback: (users: FollowedUser[]) => void) => {
+  if (!currentUserFid) {
+    callback([]);
+    return () => {}; // Return empty unsubscribe function
+  }
+  
+  const followingRef = collection(db, 'users', currentUserFid.toString(), 'following');
+  const q = query(followingRef, orderBy('timestamp', 'desc'));
+  
+  return onSnapshot(q, (snapshot) => {
+    const followingUsers: FollowedUser[] = [];
+    
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      followingUsers.push({
+        fid: data.fid,
+        username: data.username,
+        display_name: data.display_name || data.username,
+        pfp_url: data.pfp_url || `https://avatar.vercel.sh/${data.username}`,
+        timestamp: data.timestamp?.toDate() || new Date()
+      });
+    });
+    
+    callback(followingUsers);
+  }, (error) => {
+    console.error('Error subscribing to following users:', error);
+    callback([]);
+  });
+};
+
+// Subscribe to followers for real-time updates
+export const subscribeToFollowers = (userFid: number, callback: (users: FollowedUser[]) => void) => {
+  if (!userFid) {
+    callback([]);
+    return () => {}; // Return empty unsubscribe function
+  }
+  
+  const followersRef = collection(db, 'users', userFid.toString(), 'followers');
+  const q = query(followersRef, orderBy('timestamp', 'desc'));
+  
+  return onSnapshot(q, (snapshot) => {
+    const followers: FollowedUser[] = [];
+    
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      followers.push({
+        fid: data.fid,
+        username: data.username,
+        display_name: data.display_name || data.username,
+        pfp_url: data.pfp_url || `https://avatar.vercel.sh/${data.username}`,
+        timestamp: data.timestamp?.toDate() || new Date()
+      });
+    });
+    
+    callback(followers);
+  }, (error) => {
+    console.error('Error subscribing to followers:', error);
+    callback([]);
+  });
+};
 
 export const searchUsers = async (query: string): Promise<FarcasterUser[]> => {
   // Clear any pending search

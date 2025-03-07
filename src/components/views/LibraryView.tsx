@@ -380,7 +380,7 @@ class LibraryView extends React.Component<LibraryViewProps> {
               <h3 className="text-xl text-purple-400 mb-2">Your Library is Empty</h3>
               <p className="text-gray-400">
                 {!userContext?.user?.fid
-                  ? 'Must be on Farcaster to add to your library'
+                  ? 'Must be on Warpcast to add to your library'
                   : 'Like some media NFTs to add them to your library.'
                 }
               </p>

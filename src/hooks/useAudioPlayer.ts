@@ -306,20 +306,29 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
 
       try {
         if (isMobile) {
-          // On mobile, we need to handle autoplay restrictions
-          audio.muted = true; // Start muted to bypass autoplay restrictions
-          const playPromise = audio.play();
-          
-          if (playPromise !== undefined) {
-            playPromise.then(() => {
-              // Autoplay started successfully, now unmute
-              audio.muted = false;
+          // Improved mobile audio handling
+          // First try to play normally without muting
+          try {
+            await audio.play();
+            setIsPlaying(true);
+          } catch (mobileError) {
+            // If normal play fails, try the muted approach as fallback
+            console.log('First play attempt failed on mobile, trying muted approach');
+            audio.muted = true; // Start muted to bypass autoplay restrictions
+            
+            try {
+              await audio.play();
+              // Autoplay started successfully with muting, now unmute
+              setTimeout(() => {
+                audio.muted = false;
+              }, 300); // Small delay to ensure browser accepts the unmute
               setIsPlaying(true);
-            }).catch(error => {
-              // Autoplay was prevented
-              console.warn("Mobile autoplay prevented:", error);
+            } catch (mutedError) {
+              // Both approaches failed
+              console.warn("Mobile audio playback failed even with muting:", mutedError);
               setIsPlaying(false);
-            });
+              throw mutedError; // Re-throw to be caught by the outer catch
+            }
           }
         } else {
           // Normal desktop play behavior

@@ -278,7 +278,8 @@ export const Player: React.FC<PlayerProps> = (props) => {
           onPictureInPicture={onPictureInPicture}
           lastPosition={lastPositionRef.current}
           isMinimized={isMinimized}
-          isAnimating={isAnimating}          
+          isAnimating={isAnimating}
+          userFid={userFid}          
         />
       )}
       {showMaximized && (
