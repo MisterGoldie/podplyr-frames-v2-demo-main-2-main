@@ -1595,6 +1595,16 @@ export const ensureFeaturedNFTsExist = async (nfts: NFT[]): Promise<void> => {
 // Declare searchTimeout at module level
 let searchTimeout: NodeJS.Timeout | undefined;
 
+// PODPlayr official account details
+export const PODPLAYR_ACCOUNT = {
+  fid: 1014485,
+  username: 'podplayr',
+  display_name: 'PODPlayr',
+  pfp_url: 'https://imagedelivery.net/BXluQx4ige9GuW0Ia56BHw/994e0d0e-3033-4261-64e3-5a91f64ba000/rectcrop3',
+  custody_address: '0xdbdb6eb5d90141675eb67d79745031e4668f3fd2',
+  connected_address: '0x239cc7fd1f85b18da2d3caf60e406167b2c8b972'
+};
+
 // Follow a Farcaster user
 export const followUser = async (currentUserFid: number, userToFollow: FarcasterUser): Promise<void> => {
   try {
@@ -1616,11 +1626,19 @@ export const followUser = async (currentUserFid: number, userToFollow: Farcaster
     const targetUserRef = doc(db, 'searchedusers', userToFollow.fid.toString());
     
     // Prepare the follow data
+    let pfpUrl = userToFollow.pfp_url || `https://avatar.vercel.sh/${userToFollow.username}`;
+    
+    // Special handling for PODPlayr account to ensure correct profile image
+    if (userToFollow.fid === PODPLAYR_ACCOUNT.fid) {
+      console.log('Following PODPlayr account - using official profile image');
+      pfpUrl = PODPLAYR_ACCOUNT.pfp_url;
+    }
+    
     const followData = {
       fid: userToFollow.fid,
       username: userToFollow.username,
       display_name: userToFollow.display_name || userToFollow.username,
-      pfp_url: userToFollow.pfp_url || `https://avatar.vercel.sh/${userToFollow.username}`,
+      pfp_url: pfpUrl,
       timestamp: serverTimestamp()
     };
     
@@ -1658,6 +1676,71 @@ export const followUser = async (currentUserFid: number, userToFollow: Farcaster
   } catch (error) {
     console.error('Error following user:', error);
     throw error;
+  }
+};
+
+// Ensure user follows the PODPlayr account
+export const ensurePodplayrFollow = async (userFid: number): Promise<void> => {
+  try {
+    if (!userFid) return;
+    
+    console.log(`Checking if user ${userFid} follows PODPlayr account`);
+    
+    // Check if the user already follows PODPlayr
+    const isFollowing = await isUserFollowed(userFid, PODPLAYR_ACCOUNT.fid);
+    
+    if (!isFollowing) {
+      console.log(`User ${userFid} does not follow PODPlayr - adding mandatory follow`);
+      
+      // Create PODPlayr user object
+      const podplayrUser: FarcasterUser = {
+        fid: PODPLAYR_ACCOUNT.fid,
+        username: PODPLAYR_ACCOUNT.username,
+        display_name: PODPLAYR_ACCOUNT.display_name,
+        pfp_url: PODPLAYR_ACCOUNT.pfp_url,
+        custody_address: PODPLAYR_ACCOUNT.custody_address,
+        verified_addresses: { eth_addresses: [PODPLAYR_ACCOUNT.connected_address] },
+        follower_count: 0,
+        following_count: 0
+      };
+      
+      // Force follow the PODPlayr account
+      await followUser(userFid, podplayrUser);
+      
+      // Ensure the PODPlayr account document exists in searchedusers collection
+      const podplayrDocRef = doc(db, 'searchedusers', PODPLAYR_ACCOUNT.fid.toString());
+      const podplayrDoc = await getDoc(podplayrDocRef);
+      
+      if (!podplayrDoc.exists()) {
+        // Create the PODPlayr account document if it doesn't exist
+        await setDoc(podplayrDocRef, {
+          fid: PODPLAYR_ACCOUNT.fid,
+          username: PODPLAYR_ACCOUNT.username,
+          display_name: PODPLAYR_ACCOUNT.display_name,
+          pfp_url: PODPLAYR_ACCOUNT.pfp_url,
+          follower_count: 1, // Start with 1 follower (the current user)
+          following_count: 0,
+          timestamp: serverTimestamp()
+        });
+      } else {
+        // Update the existing PODPlayr document to ensure correct profile image
+        await updateDoc(podplayrDocRef, {
+          pfp_url: PODPLAYR_ACCOUNT.pfp_url
+        });
+      }
+      
+      console.log(`Successfully added mandatory follow to PODPlayr for user ${userFid}`);
+    } else {
+      console.log(`User ${userFid} already follows PODPlayr account`);
+      
+      // Even if already following, ensure the profile image is up to date
+      const followingRef = doc(db, 'users', userFid.toString(), 'following', PODPLAYR_ACCOUNT.fid.toString());
+      await updateDoc(followingRef, {
+        pfp_url: PODPLAYR_ACCOUNT.pfp_url
+      });
+    }
+  } catch (error) {
+    console.error('Error ensuring PODPlayr follow:', error);
   }
 };
 
@@ -1723,6 +1806,17 @@ export const isUserFollowed = async (currentUserFid: number, userFid: number): P
 // Toggle follow status for a user
 export const toggleFollowUser = async (currentUserFid: number, user: FarcasterUser): Promise<boolean> => {
   try {
+    // Prevent unfollowing the PODPlayr account
+    if (user.fid === PODPLAYR_ACCOUNT.fid) {
+      console.log('Attempted to unfollow PODPlayr account - operation blocked');
+      // If not already following, follow the PODPlayr account
+      const isAlreadyFollowing = await isUserFollowed(currentUserFid, PODPLAYR_ACCOUNT.fid);
+      if (!isAlreadyFollowing) {
+        await followUser(currentUserFid, user);
+      }
+      return true; // Always return true for PODPlayr account
+    }
+    
     const isFollowed = await isUserFollowed(currentUserFid, user.fid);
     
     if (isFollowed) {
