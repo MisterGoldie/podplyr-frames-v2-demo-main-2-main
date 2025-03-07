@@ -20,6 +20,7 @@ interface MinimizedPlayerProps {
   onPictureInPicture?: () => void;
   lastPosition?: number;
   isAnimating?: boolean;
+  userFid?: number;
 }
 
 export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
@@ -35,6 +36,7 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
   isMinimized,
   isAnimating,
   lastPosition,
+  userFid = 0,
 }) => {
   // State for swipe and info panel
   const [touchStart, setTouchStart] = useState<number | null>(null);
@@ -156,7 +158,7 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
   // Fixed styling with black background and animation
   return (
     <>
-      {showInfo && <InfoPanel nft={nft} onClose={() => setShowInfo(false)} />}
+      {showInfo && <InfoPanel nft={nft} onClose={() => setShowInfo(false)} userFid={userFid} />}
       <div 
         className="fixed bottom-20 left-0 right-0 bg-black border-t border-purple-400/20 h-20 z-[100] will-change-transform overflow-hidden"
         style={{

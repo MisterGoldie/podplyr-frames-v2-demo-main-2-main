@@ -838,16 +838,19 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
     const likedNFTs: NFT[] = [];
     const seenMediaKeys = new Set<string>();
     const seenNFTKeys = new Set<string>(); // Track NFTs by contract-tokenId
-    const missingGlobalLikes = new Set<string>();
+    const missingGlobalLikes = new Map<string, any>(); // Store mediaKey -> user like data
     
-    // First, collect all media keys
-    const mediaKeys = querySnapshot.docs.map(doc => doc.id);
+    // First, collect all media keys and user like data
+    const mediaKeysWithData = querySnapshot.docs.map(doc => ({
+      mediaKey: doc.id,
+      data: doc.data()
+    }));
     
     // Batch get all global likes to reduce number of requests
     const batchSize = 10;
-    for (let i = 0; i < mediaKeys.length; i += batchSize) {
-      const batch = mediaKeys.slice(i, i + batchSize);
-      const promises = batch.map(mediaKey => {
+    for (let i = 0; i < mediaKeysWithData.length; i += batchSize) {
+      const batch = mediaKeysWithData.slice(i, i + batchSize);
+      const promises = batch.map(({ mediaKey, data: userLikeData }) => {
         if (seenMediaKeys.has(mediaKey)) {
           console.log(`Skipping duplicate mediaKey: ${mediaKey}`);
           return null;
@@ -855,9 +858,24 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
         seenMediaKeys.add(mediaKey);
         
         return getDoc(doc(db, 'global_likes', mediaKey))
-          .then(globalLikeDoc => {
+          .then(async globalLikeDoc => {
             if (!globalLikeDoc.exists()) {
-              missingGlobalLikes.add(mediaKey);
+              // Save the user like data for fixing missing global likes later
+              missingGlobalLikes.set(mediaKey, userLikeData);
+              
+              // Try to get the NFT data from the user's like document
+              if (userLikeData.nft) {
+                const nftData = userLikeData.nft;
+                const nftKey = `${nftData.contract}-${nftData.tokenId}`.toLowerCase();
+                
+                if (seenNFTKeys.has(nftKey)) {
+                  return null;
+                }
+                seenNFTKeys.add(nftKey);
+                
+                // Return the NFT from user data so it's not lost
+                return nftData;
+              }
               return null;
             }
             
@@ -903,10 +921,60 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
       likedNFTs.push(...results.filter(Boolean) as NFT[]);
     }
     
-    // Log missing global likes once at the end instead of for each one
+    // Fix missing global likes
     if (missingGlobalLikes.size > 0) {
-      console.warn(`Missing ${missingGlobalLikes.size} global like documents. First few:`, 
-        [...missingGlobalLikes].slice(0, 3));
+      console.warn(`Found ${missingGlobalLikes.size} missing global like documents. Fixing...`);
+      
+      // Create a batch to update all missing global likes
+      const batch = writeBatch(db);
+      
+      // Track which NFTs need to be added to likedNFTs after fixing
+      const nftsToAdd: NFT[] = [];
+      
+      for (const [mediaKey, userLikeData] of missingGlobalLikes.entries()) {
+        if (!userLikeData.nft) {
+          console.warn(`No NFT data found in user like document for mediaKey: ${mediaKey}`);
+          continue;
+        }
+        
+        const nft = userLikeData.nft;
+        
+        // Create global like document
+        const globalLikeRef = doc(db, 'global_likes', mediaKey);
+        batch.set(globalLikeRef, {
+          mediaKey,
+          nftContract: nft.contract,
+          tokenId: nft.tokenId,
+          name: nft.name || 'Untitled',
+          description: nft.description || '',
+          image: nft.image || '',
+          audioUrl: nft.audio || nft.metadata?.animation_url || '',
+          collection: nft.collection?.name || 'Unknown Collection',
+          network: nft.network || 'ethereum',
+          likeCount: 1,  // Start with 1 like (the current user)
+          timestamp: serverTimestamp(),
+          lastLiked: serverTimestamp()
+        });
+        
+        // Add to the list of NFTs to include
+        if (!seenNFTKeys.has(`${nft.contract}-${nft.tokenId}`.toLowerCase())) {
+          nftsToAdd.push(nft);
+          seenNFTKeys.add(`${nft.contract}-${nft.tokenId}`.toLowerCase());
+        }
+      }
+      
+      // Commit the batch update
+      if (missingGlobalLikes.size > 0) {
+        try {
+          await batch.commit();
+          console.log(`Fixed ${missingGlobalLikes.size} missing global like documents`);
+          
+          // Add the newly fixed NFTs to our return list
+          likedNFTs.push(...nftsToAdd);
+        } catch (error) {
+          console.error('Error fixing missing global likes:', error);
+        }
+      }
     }
 
     console.log(`Processed ${likedNFTs.length} liked NFTs after deduplication`);
@@ -923,12 +991,12 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
   
   if (!fid || fid <= 0) {
     console.error('Invalid fid provided to toggleLikeNFT:', fid);
-    throw new Error('Invalid user ID provided');
+    return false; // Return false instead of throwing to avoid breaking the UI
   }
   
   if (!nft || !nft.contract || !nft.tokenId) {
     console.error('Invalid NFT data provided to toggleLikeNFT:', nft);
-    throw new Error('Invalid NFT data provided');
+    return false; // Return false instead of throwing to avoid breaking the UI
   }
   
   try {
@@ -951,101 +1019,133 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
     
     // Get both documents in parallel for efficiency
     console.log('Fetching existing documents...');
-    const [userLikeDoc, globalLikeDoc] = await Promise.all([
-      getDoc(userLikeRef),
-      getDoc(globalLikeRef)
-    ]).catch(error => {
+    let userLikeDoc, globalLikeDoc;
+    try {
+      [userLikeDoc, globalLikeDoc] = await Promise.all([
+        getDoc(userLikeRef),
+        getDoc(globalLikeRef)
+      ]);
+    } catch (error) {
       console.error('Error fetching documents:', error);
-      throw new Error(`Failed to fetch documents: ${error.message}`);
-    });
+      return false; // Return false instead of throwing to avoid breaking the UI
+    }
     
     console.log('Document fetch complete. User like exists:', userLikeDoc.exists(), 'Global like exists:', globalLikeDoc.exists());
     
     const batch = writeBatch(db);
     
     if (userLikeDoc.exists()) {
-      // Remove like
-      // Remove from user's likes
+      // UNLIKE FLOW - Remove like from user's likes
+      console.log('User like exists - removing like');
       batch.delete(userLikeRef);
       
       if (globalLikeDoc.exists()) {
-        // Get accurate count of users who currently like this NFT
-        // This is the key improvement - we're ensuring the global like count is accurate
-        const likesCollectionRef = collection(db, 'users');
-        const usersWithLikeQuery = query(
-          collectionGroup(db, 'likes'),
-          where(documentId(), '==', mediaKey)
-        );
-        const usersWithLikeSnapshot = await getDocs(usersWithLikeQuery);
-        
-        // Count how many users have this mediaKey in their likes, excluding the current user
-        const actualLikeCount = usersWithLikeSnapshot.docs
-          .filter(doc => doc.ref.parent?.parent?.id !== fid.toString())
-          .length;
-        
-        console.log(`Actual users liking this NFT (excluding current user): ${actualLikeCount}`);
-        if (actualLikeCount <= 0) {
-          // If no other users like this NFT, delete the global document
-          console.log('No other users like this NFT, deleting global document');
-          batch.delete(globalLikeRef);
-        } else {
-          // Otherwise update with the accurate count
-          batch.update(globalLikeRef, {
-            likeCount: actualLikeCount,
-            lastUnliked: serverTimestamp()
-          });
+        try {
+          // Get accurate count of users who currently like this NFT without using collection group query
+          console.log('Finding other users who like this NFT...');
+          let actualLikeCount = 0;
+          
+          // Query all users collections to check who has this mediaKey in their likes
+          const usersRef = collection(db, 'users');
+          const usersSnapshot = await getDocs(usersRef);
+          
+          // Check each user's likes collection for this mediaKey
+          const checkLikePromises = [];
+          for (const userDoc of usersSnapshot.docs) {
+            // Skip the current user as we're already removing their like
+            if (userDoc.id === fid.toString()) continue;
+            
+            const checkLikePromise = (async () => {
+              try {
+                const userLikeDocRef = doc(db, 'users', userDoc.id, 'likes', mediaKey);
+                const userLikeSnapshot = await getDoc(userLikeDocRef);
+                if (userLikeSnapshot.exists()) {
+                  return true;
+                }
+                return false;
+              } catch (e) {
+                console.error(`Error checking like for user ${userDoc.id}:`, e);
+                return false;
+              }
+            })();
+            
+            checkLikePromises.push(checkLikePromise);
+          }
+          
+          // Wait for all checks to complete and count likes
+          const userLikeResults = await Promise.all(checkLikePromises);
+          actualLikeCount = userLikeResults.filter(Boolean).length;
+          
+          console.log(`Actual users liking this NFT (excluding current user): ${actualLikeCount}`);
+          if (actualLikeCount <= 0) {
+            // If no other users like this NFT, delete the global document
+            console.log('No other users like this NFT, deleting global document');
+            batch.delete(globalLikeRef);
+          } else {
+            // Otherwise update with the accurate count
+            console.log('Updating global like count to:', actualLikeCount);
+            batch.update(globalLikeRef, {
+              likeCount: actualLikeCount,
+              lastUnliked: serverTimestamp()
+            });
+          }
+        } catch (error) {
+          console.error('Error counting other user likes:', error);
+          // Safer fallback: decrement count by 1
+          const globalData = globalLikeDoc.data();
+          const currentCount = globalData?.likeCount || 1;
+          if (currentCount <= 1) {
+            batch.delete(globalLikeRef);
+          } else {
+            batch.update(globalLikeRef, {
+              likeCount: currentCount - 1,
+              lastUnliked: serverTimestamp()
+            });
+          }
         }
       }
 
       // Update likes count in nfts collection if it exists
-      const nftRef = doc(db, 'nfts', `${nft.contract}-${nft.tokenId}`);
-      const nftDoc = await getDoc(nftRef);
-      if (nftDoc.exists()) {
-        const currentLikes = nftDoc.data()?.likes || 1;
-        batch.update(nftRef, {
-          likes: Math.max(0, currentLikes - 1)
-        });
+      try {
+        const nftRef = doc(db, 'nfts', `${nft.contract}-${nft.tokenId}`);
+        const nftDoc = await getDoc(nftRef);
+        if (nftDoc.exists()) {
+          const currentLikes = nftDoc.data()?.likes || 1;
+          batch.update(nftRef, {
+            likes: Math.max(0, currentLikes - 1)
+          });
+        }
+      } catch (error) {
+        console.error('Error updating nft document, continuing anyway:', error);
+        // Non-critical, can continue without this update
       }
       
-      await batch.commit();
-      console.log('Removed like:', { mediaKey });
-      return false;
+      // Commit the batch operations
+      try {
+        await batch.commit();
+        console.log('Successfully removed like for:', mediaKey);
+        return false; // Return false to indicate NFT is not liked
+      } catch (error) {
+        console.error('Error committing unlike operation:', error);
+        return userLikeDoc.exists(); // Return previous state on error
+      }
     } else {
-      // Add like
-      // Always create both user and global documents
+      // LIKE FLOW - Add NFT to user's likes
+      console.log('User like does not exist - adding like');
       
-      // Add to user's likes with full NFT data
-      batch.set(userLikeRef, {
-        mediaKey,
-        nftContract: nft.contract,
-        tokenId: nft.tokenId,
-        name: nft.name || 'Untitled',
-        description: nft.description || nft.metadata?.description || '',
-        image: nft.image || nft.metadata?.image || '',
-        audioUrl: nft.audio || nft.metadata?.animation_url || '',
-        collection: nft.collection?.name || 'Unknown Collection',
-        network: nft.network || 'ethereum',
-        timestamp: serverTimestamp()
-      });
-      
-      if (globalLikeDoc.exists()) {
-        const globalData = globalLikeDoc.data();
-        // Update existing global like document
-        batch.update(globalLikeRef, {
-          likeCount: increment(1),
-          lastLiked: serverTimestamp(),
-          // Always update metadata to ensure consistency
-          name: nft.name || globalData?.name || 'Untitled',
-          description: nft.description || nft.metadata?.description || globalData?.description || '',
-          image: nft.image || nft.metadata?.image || globalData?.image || '',
-          audioUrl: nft.audio || nft.metadata?.animation_url || globalData?.audioUrl || '',
-          collection: nft.collection?.name || globalData?.collection || 'Unknown Collection',
-          network: nft.network || globalData?.network || 'ethereum'
-        });
-      } else {
-        // Create new global like document with full NFT data
-        batch.set(globalLikeRef, {
+      try {
+        // Store NFT data in the user like document
+        const userLikeData = {
           mediaKey,
+          nft: {
+            contract: nft.contract,
+            tokenId: nft.tokenId,
+            name: nft.name || 'Untitled',
+            description: nft.description || nft.metadata?.description || '',
+            image: nft.image || nft.metadata?.image || '',
+            audio: nft.audio || nft.metadata?.animation_url || '',
+            metadata: nft.metadata || {}
+          },
           nftContract: nft.contract,
           tokenId: nft.tokenId,
           name: nft.name || 'Untitled',
@@ -1054,45 +1154,77 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
           audioUrl: nft.audio || nft.metadata?.animation_url || '',
           collection: nft.collection?.name || 'Unknown Collection',
           network: nft.network || 'ethereum',
-          likeCount: 1,
-          firstLiked: serverTimestamp(),
-          lastLiked: serverTimestamp()
-        });
-      }
-
-      // Update likes count in nfts collection if it exists
-      const nftRef = doc(db, 'nfts', `${nft.contract}-${nft.tokenId}`);
-      const nftDoc = await getDoc(nftRef);
-      if (nftDoc.exists()) {
-        const currentLikes = nftDoc.data()?.likes || 0;
-        batch.update(nftRef, {
-          likes: currentLikes + 1
-        });
-      }
-      
-      console.log('Prepared batch with all operations, ready to commit');
-      try {
-        await batch.commit();
-        console.log('Added like:', { mediaKey });
-        return true;
-      } catch (commitError: unknown) {
-        console.error('Error committing batch for like operation:', commitError);
-        if (commitError instanceof Error) {
-          throw new Error(`Failed to commit like operation: ${commitError.message}`);
+          timestamp: serverTimestamp()
+        };
+        
+        batch.set(userLikeRef, userLikeData);
+        
+        if (globalLikeDoc.exists()) {
+          // Update existing global like document
+          const globalData = globalLikeDoc.data();
+          batch.update(globalLikeRef, {
+            likeCount: increment(1),
+            lastLiked: serverTimestamp(),
+            // Always update metadata to ensure consistency
+            name: nft.name || globalData?.name || 'Untitled',
+            description: nft.description || nft.metadata?.description || globalData?.description || '',
+            image: nft.image || nft.metadata?.image || globalData?.image || '',
+            audioUrl: nft.audio || nft.metadata?.animation_url || globalData?.audioUrl || '',
+            collection: nft.collection?.name || globalData?.collection || 'Unknown Collection',
+            network: nft.network || globalData?.network || 'ethereum'
+          });
         } else {
-          throw new Error('Failed to commit like operation: Unknown error');
+          // Create new global like document with full NFT data
+          batch.set(globalLikeRef, {
+            mediaKey,
+            nftContract: nft.contract,
+            tokenId: nft.tokenId,
+            name: nft.name || 'Untitled',
+            description: nft.description || nft.metadata?.description || '',
+            image: nft.image || nft.metadata?.image || '',
+            audioUrl: nft.audio || nft.metadata?.animation_url || '',
+            collection: nft.collection?.name || 'Unknown Collection',
+            network: nft.network || 'ethereum',
+            likeCount: 1,
+            firstLiked: serverTimestamp(),
+            lastLiked: serverTimestamp()
+          });
         }
+
+        // Update likes count in nfts collection if it exists (non-critical)
+        try {
+          const nftRef = doc(db, 'nfts', `${nft.contract}-${nft.tokenId}`);
+          const nftDoc = await getDoc(nftRef);
+          if (nftDoc.exists()) {
+            const currentLikes = nftDoc.data()?.likes || 0;
+            batch.update(nftRef, {
+              likes: currentLikes + 1
+            });
+          }
+        } catch (error) {
+          console.error('Error updating nft document, continuing anyway:', error);
+          // Non-critical, can continue without this update
+        }
+        
+        // Commit the batch operations
+        await batch.commit();
+        console.log('Successfully added like for:', mediaKey);
+        return true; // Return true to indicate NFT is liked
+      } catch (error) {
+        console.error('Error adding like:', error);
+        return false; // Return false to indicate operation failed
       }
     }
-  } catch (error: unknown) {
-    console.error('Error toggling NFT like:', error);
-    // Log additional details about the error
+  } catch (error) {
+    // This is the outermost error handler to ensure we never throw unhandled errors
+    console.error('Unhandled error in toggleLikeNFT:', error);
     if (error instanceof Error) {
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack
+      });
     }
-    // Return false but don't rethrow to avoid breaking the UI
-    return false;
+    return false; // Default to not liked on error
   }
 };
 
