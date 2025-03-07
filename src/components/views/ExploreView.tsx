@@ -543,7 +543,7 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                 </div>
               ) : nfts.length === 0 ? (
                 <div className="col-span-full text-center py-12">
-                  <p className="font-mono text-gray-400">No audio NFTs found</p>
+                  <p className="font-mono text-gray-400">No media NFTs found</p>
                 </div>
               ) : (
                 <>
