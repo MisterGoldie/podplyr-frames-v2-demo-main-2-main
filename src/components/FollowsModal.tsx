@@ -12,6 +12,7 @@ interface FollowsModalProps {
   userFid: number;
   type: 'followers' | 'following';
   currentUserFid: number;
+  onFollowStatusChange?: (newFollowStatus: boolean, targetFid: number) => void;
 }
 
 interface NotificationProps {
@@ -41,7 +42,8 @@ const FollowsModal: React.FC<FollowsModalProps> = ({
   onClose,
   userFid,
   type,
-  currentUserFid
+  currentUserFid,
+  onFollowStatusChange
 }) => {
   const [users, setUsers] = useState<FollowedUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -145,6 +147,11 @@ const FollowsModal: React.FC<FollowsModalProps> = ({
         showNotification(`You are now following @${user.username}`);
       } else {
         showNotification(`You unfollowed @${user.username}`, 'info');
+      }
+      
+      // Notify parent component about follow status change to update counts immediately
+      if (onFollowStatusChange && currentUserFid === userFid) {
+        onFollowStatusChange(newStatus, user.fid);
       }
     } catch (error) {
       console.error('Error toggling follow:', error);

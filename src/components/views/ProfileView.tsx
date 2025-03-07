@@ -104,6 +104,20 @@ const ProfileView: React.FC<ProfileViewProps> = ({
     loadLikedNFTs();
   }, [userContext?.user?.fid]);
   
+  // Handle follow status changes to update counts immediately
+  const handleFollowStatusChange = (newFollowStatus: boolean, targetFid: number) => {
+    // If viewing your own profile, update the following count
+    if (userContext?.user?.fid === targetFid) return; // Don't update if the user followed themselves (shouldn't happen)
+    
+    if (newFollowStatus) {
+      // Increment following count when a user follows someone
+      setAppFollowingCount(prev => prev + 1);
+    } else {
+      // Decrement following count when a user unfollows someone
+      setAppFollowingCount(prev => Math.max(0, prev - 1));
+    }
+  };
+  
   // Fetch app-specific follower and following counts
   useEffect(() => {
     const fetchFollowCounts = async () => {
@@ -170,6 +184,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
           userFid={userContext.user.fid}
           type={followsModalType}
           currentUserFid={userContext.user.fid}
+          onFollowStatusChange={handleFollowStatusChange}
         />
       )}
       <div className="space-y-8 pt-20 pb-48 overflow-y-auto h-screen overscroll-y-contain">
