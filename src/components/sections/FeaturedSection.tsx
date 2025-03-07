@@ -79,6 +79,20 @@ export const FEATURED_NFTS: NFT[] = [
         {"trait_type":"Game","value":"The Forest"}
       ]
     }
+  },
+  {
+    name: 'Group (Think) Love',
+    image: 'https://arweave.net/F_5sg4RBg3kKQnuvHFhbX8fh4eB7xdlsk_VaTJNK7EI',
+    contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb',
+    tokenId: '79428737e9',
+    audio: 'https://arweave.net/KPKrKgdACqggYesQqRCR4MeLWDlpR6i16xL-Q_e35q4',
+    metadata: {
+      animation_url: 'https://arweave.net/KPKrKgdACqggYesQqRCR4MeLWDlpR6i16xL-Q_e35q4',
+      description: '"Group (Think) Love" is intended as a piece of meta-satire, exploring the human condition in the age of AI—where computers are rapidly becoming not only our intimate companions and closest confidants but reflections of ourselves. It delves into the essence of artificial intelligence, highlighting its role as the amalgamation of all human knowledge, creativity, and culture, and positions AI as the familial successor in human evolution. Crafted entirely through AI tools, it simultaneously references pivotal moments and ideas from AI culture itself, embodying the very subject it critiques.',
+      attributes: [
+        {"trait_type":"Artist","value":"MSTRBSTRD"}
+      ]
+    }
   }
 ];
 
@@ -150,7 +164,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({
                 <div key={uniqueKey} className="flex-shrink-0 w-[200px] group">
                   <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-gray-800/20 shadow-purple-500/20 shadow-lg transition-all">
                     {/* Special handling for GIF images */}
-                    {(nft.name === 'ACYL RADIO - Hidden Tales' || 
+                    {(nft.name === 'Salem Tries - The Forest EP1' || 
                       nft.name === 'ACYL RADIO - WILL01' || 
                       nft.name === 'ACYL RADIO - Chili Sounds 🌶️') ? (
                       <NFTGifImage
