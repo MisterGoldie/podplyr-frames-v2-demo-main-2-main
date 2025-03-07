@@ -214,18 +214,19 @@ const FollowsModal: React.FC<FollowsModalProps> = ({
           </button>
         </div>
         
-        {/* Body - Instagram style */}
-        <div className="overflow-y-auto max-h-[calc(90vh-70px)]">
+        {/* Body - Instagram style with improved scrolling */}
+        <div className="overflow-y-auto overscroll-contain -webkit-overflow-scrolling-touch max-h-[min(500px,_calc(85vh-70px))]" style={{ scrollbarWidth: 'thin' }}>
           {loading ? (
             <div className="flex justify-center items-center p-8">
-              <div className="w-8 h-8 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin"></div>
+              <div className="w-8 h-8 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mb-2"></div>
+              <p className="text-gray-400 text-sm mt-2">Loading...</p>
             </div>
           ) : users.length === 0 ? (
             <div className="text-center py-8 text-gray-400">
               No {type} yet
             </div>
           ) : (
-            <ul className="divide-y divide-purple-400/10">
+            <ul className="divide-y divide-purple-400/10 pb-2">
               {users.map(user => (
                 <li key={user.fid} className="hover:bg-purple-500/5 transition-colors">
                   <div className="flex items-center justify-between px-4 py-3">
