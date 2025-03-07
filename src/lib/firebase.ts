@@ -1624,9 +1624,16 @@ export const followUser = async (currentUserFid: number, userToFollow: Farcaster
       timestamp: serverTimestamp()
     };
     
-    // Prepare the follower data
+    // Get the current user's data to store in follower entry
+    const currentUserSnapshot = await getDoc(currentUserRef);
+    const currentUserData = currentUserSnapshot.data() || {};
+    
+    // Prepare the follower data with complete profile information
     const followerData = {
       fid: currentUserFid,
+      username: currentUserData.username || `user${currentUserFid}`,
+      display_name: currentUserData.display_name || currentUserData.username || `User ${currentUserFid}`,
+      pfp_url: currentUserData.pfp_url || `https://avatar.vercel.sh/${currentUserData.username || currentUserFid}`,
       timestamp: serverTimestamp()
     };
     
