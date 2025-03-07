@@ -53,20 +53,6 @@ export const FEATURED_NFTS: NFT[] = [
     }
   },
   {
-    name: 'ACYL RADIO - Hidden Tales',
-    image: 'https://bafybeibsf5dgystecvgp2g6n2w2jameg3bx2trf725cb4clcaowkbsot6u.ipfs.w3s.link/COMPRESSED%20GIF%20ANN%20MARIE.gif',
-    contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb',
-    tokenId: '79428737e7',
-    audio: 'https://arweave.net/Hr4GVDpKhq_dgZZA5SBAEapx9IJ1qDnDZ-Y40lExBHk',
-    metadata: {
-      animation_url: 'https://agoxezbhxilfttm6q4ojfdgiokuictgjt6vng5f4pxutjqg7sgza.arweave.net/AZ1yZCe6FlnNnocckozIcqiBTMmfqtN0vH3pNMDfkbI',
-      description: 'Ann Marie Alanes | @annmariealanes',
-      attributes: [
-        {"trait_type":"Host","value":"Ann Marie Alanes"}
-      ]
-    }
-  },
-  {
     name: 'ACYL RADIO - Chili Sounds 🌶️',
     image: 'https://bafybeibvxzzzzitvejioqkhfpic5rjixrffgkr4jw46bidxnmdgbfvjynu.ipfs.w3s.link/COMPRESSED.gif',
     contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb',
@@ -77,6 +63,20 @@ export const FEATURED_NFTS: NFT[] = [
       description: 'ACYL RADIO - Chili Sounds | @themrsazon',
       attributes: [
         {"trait_type":"Host","value":"Mr. Sazon"}
+      ]
+    }
+  },
+  {
+    name: 'Salem Tries - The Forest EP1',
+    image: 'https://arweave.net/QxJXPOfv_BXT3m2-o75f_x5wOssE7xE5seTVeKB1PI4',
+    contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb',
+    tokenId: '79428737e7',
+    audio: 'https://arweave.net/Df6hOV1--hsJBtTL1cEbhBkRZuggxSpR9eM0DXsdcv0',
+    metadata: {
+      animation_url: 'https://arweave.net/Df6hOV1--hsJBtTL1cEbhBkRZuggxSpR9eM0DXsdcv0',
+      description: 'Join Salem as she plays The Forest for the first time.',
+      attributes: [
+        {"trait_type":"Game","value":"The Forest"}
       ]
     }
   }
