@@ -37,6 +37,7 @@ interface ExploreViewProps {
   userNFTs: NFT[];
   searchType: string;
   searchParam: string;
+  likedNFTs?: NFT[]; // Add likedNFTs to allow component to track like changes
 }
 
 const ExploreView: React.FC<ExploreViewProps> = (props) => {
@@ -70,6 +71,7 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
     userNFTs,
     searchType,
     searchParam,
+    likedNFTs,
   } = props;
 
   // Add state variable for shared NFTs count
@@ -85,6 +87,9 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
 
   // 1. Keep the showBanner state
   const [showBanner, setShowBanner] = useState(false);
+  
+  // Add state to force refresh of grid when like status changes
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // 2. Completely revise the useEffect that handles banner visibility
   useEffect(() => {
@@ -261,6 +266,31 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
     );
   }
 
+  // Wrapper for like toggle that updates UI state
+  const handleLikeToggle = async (nft: NFT) => {
+    console.log('ExploreView: handleLikeToggle called for:', nft.name);
+    if (onLikeToggle) {
+      try {
+        await onLikeToggle(nft);
+        // Force refresh to update like state in UI
+        setRefreshTrigger(prev => prev + 1);
+        console.log('ExploreView: Like toggled, triggering refresh');
+      } catch (error) {
+        console.error('Error toggling like in ExploreView:', error);
+      }
+    } else {
+      console.warn('onLikeToggle not available in ExploreView');
+    }
+  };
+
+  // Add effect to force re-render when liked NFTs change
+  useEffect(() => {
+    if (likedNFTs) {
+      console.log('ExploreView: likedNFTs changed, triggering refresh');
+      setRefreshTrigger(prev => prev + 1);
+    }
+  }, [likedNFTs]);
+  
   return (
     <>
       {/* Header that transforms between normal and connection states */}
