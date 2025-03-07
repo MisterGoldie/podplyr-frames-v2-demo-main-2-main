@@ -51,7 +51,7 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ nft, onClose, userFid = 0 }) => {
             <h2 className="text-purple-300 font-mono text-base font-semibold">{nft.name}</h2>
             <div className="flex items-center gap-2 mt-1">
               <div className="flex items-center gap-1.5 bg-purple-500/10 px-2 py-0.5 rounded-full">
-                <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="currentColor" className="text-purple-400">
+                <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="#4ADE80" className="text-green-400">
                   <path d="M320-200v-560l440 280-440 280Z"/>
                 </svg>
                 <span className="text-purple-300 text-xs font-mono">
