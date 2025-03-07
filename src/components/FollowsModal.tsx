@@ -258,7 +258,7 @@ const FollowsModal: React.FC<FollowsModalProps> = ({
                       </div>
                     </a>
                     
-                    {currentUserFid !== user.fid && (
+                    {currentUserFid !== user.fid && user.fid !== 1014485 && (
                       <button
                         onClick={() => handleToggleFollow(user)}
                         disabled={processingFollow[user.fid]}
@@ -278,6 +278,13 @@ const FollowsModal: React.FC<FollowsModalProps> = ({
                           'Follow'
                         )}
                       </button>
+                    )}
+                    
+                    {/* Special badge for PODPlayr account */}
+                    {user.fid === 1014485 && (
+                      <div className="px-3 py-1 rounded-lg text-xs font-medium bg-purple-600/20 text-purple-300 border border-purple-500/30">
+                        Official
+                      </div>
                     )}
                   </div>
                 </li>
