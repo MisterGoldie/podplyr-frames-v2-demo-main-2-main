@@ -154,7 +154,7 @@ const FollowsModal: React.FC<FollowsModalProps> = ({
     }
   };
   
-  if (!isOpen) return null;
+  // We no longer need this early return since AnimatePresence will handle it
   
   // Handle outside click to close
   useEffect(() => {
@@ -174,14 +174,32 @@ const FollowsModal: React.FC<FollowsModalProps> = ({
   }, [isOpen, onClose]);
   
   return (
-    <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${isOpen ? 'visible' : 'invisible'}`}>
-      <div className="fixed inset-0 bg-black/80" onClick={onClose}></div>
-      
-      {/* Instagram-style modal */}
-      <div 
-        ref={modalRef}
-        className="relative bg-black border border-purple-400/30 rounded-xl max-w-md w-full max-h-[90vh] overflow-hidden shadow-xl"
-      >
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-black/80" 
+            onClick={onClose}
+          />
+          
+          {/* Instagram-style modal */}
+          <motion.div 
+            ref={modalRef}
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            transition={{ 
+              type: "spring",
+              stiffness: 350,
+              damping: 25,
+              duration: 0.3
+            }}
+            className="relative bg-black border border-purple-400/30 rounded-xl max-w-md w-full max-h-[90vh] overflow-hidden shadow-xl"
+          >
         {/* Header */}
         <div className="border-b border-purple-400/20 p-4 flex justify-between items-center sticky top-0 bg-black z-10">
           <h2 className="text-xl font-semibold text-white capitalize">{type}</h2>
@@ -259,19 +277,19 @@ const FollowsModal: React.FC<FollowsModalProps> = ({
             </ul>
           )}
         </div>
-      </div>
-      
-      {/* Notification */}
-      <AnimatePresence>
-        {notification.isVisible && (
-          <FollowNotification 
-            message={notification.message} 
-            type={notification.type} 
-            isVisible={notification.isVisible} 
-          />
-        )}
-      </AnimatePresence>
-    </div>
+          </motion.div>
+          
+          {/* Notification */}
+          {notification.isVisible && (
+            <FollowNotification 
+              message={notification.message} 
+              type={notification.type} 
+              isVisible={notification.isVisible} 
+            />
+          )}
+        </div>
+      )}
+    </AnimatePresence>
   );
 };
 
