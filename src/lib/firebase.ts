@@ -1611,6 +1611,10 @@ export const followUser = async (currentUserFid: number, userToFollow: Farcaster
     // Create a document in the followers collection
     const followerRef = doc(db, 'users', userToFollow.fid.toString(), 'followers', currentUserFid.toString());
     
+    // References to the user documents to update counts
+    const currentUserRef = doc(db, 'searchedusers', currentUserFid.toString());
+    const targetUserRef = doc(db, 'searchedusers', userToFollow.fid.toString());
+    
     // Prepare the follow data
     const followData = {
       fid: userToFollow.fid,
@@ -1626,10 +1630,20 @@ export const followUser = async (currentUserFid: number, userToFollow: Farcaster
       timestamp: serverTimestamp()
     };
     
-    // Use a batch write to ensure both operations succeed or fail together
+    // Use a batch write to ensure all operations succeed or fail together
     const batch = writeBatch(db);
     batch.set(followingRef, followData);
     batch.set(followerRef, followerData);
+    
+    // Update the following count for the current user
+    batch.update(currentUserRef, {
+      following_count: increment(1)
+    });
+    
+    // Update the follower count for the target user
+    batch.update(targetUserRef, {
+      follower_count: increment(1)
+    });
     
     // Commit the batch
     await batch.commit();
@@ -1654,10 +1668,24 @@ export const unfollowUser = async (currentUserFid: number, userToUnfollow: Farca
     const followingRef = doc(db, 'users', currentUserFid.toString(), 'following', userToUnfollow.fid.toString());
     const followerRef = doc(db, 'users', userToUnfollow.fid.toString(), 'followers', currentUserFid.toString());
     
-    // Use a batch write to ensure both operations succeed or fail together
+    // References to the user documents to update counts
+    const currentUserRef = doc(db, 'searchedusers', currentUserFid.toString());
+    const targetUserRef = doc(db, 'searchedusers', userToUnfollow.fid.toString());
+    
+    // Use a batch write to ensure all operations succeed or fail together
     const batch = writeBatch(db);
     batch.delete(followingRef);
     batch.delete(followerRef);
+    
+    // Update the following count for the current user
+    batch.update(currentUserRef, {
+      following_count: increment(-1)
+    });
+    
+    // Update the follower count for the target user
+    batch.update(targetUserRef, {
+      follower_count: increment(-1)
+    });
     
     // Commit the batch
     await batch.commit();
@@ -1727,6 +1755,30 @@ export const getFollowingUsers = async (currentUserFid: number): Promise<Followe
   } catch (error) {
     console.error('Error getting following users:', error);
     return [];
+  }
+};
+
+// Get the count of users that the current user is following
+export const getFollowingCount = async (userFid: number): Promise<number> => {
+  try {
+    const followingRef = collection(db, 'users', userFid.toString(), 'following');
+    const querySnapshot = await getDocs(followingRef);
+    return querySnapshot.size;
+  } catch (error) {
+    console.error('Error getting following count:', error);
+    return 0;
+  }
+};
+
+// Get the count of users that follow the current user
+export const getFollowersCount = async (userFid: number): Promise<number> => {
+  try {
+    const followersRef = collection(db, 'users', userFid.toString(), 'followers');
+    const querySnapshot = await getDocs(followersRef);
+    return querySnapshot.size;
+  } catch (error) {
+    console.error('Error getting followers count:', error);
+    return 0;
   }
 };
 

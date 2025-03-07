@@ -7,7 +7,7 @@ import { VirtualizedNFTGrid } from '../nft/VirtualizedNFTGrid';
 import Image from 'next/image';
 import { NFT, FarcasterUser, SearchedUser } from '../../types/user';
 import { getDoc, doc } from 'firebase/firestore';
-import { db, trackUserSearch, isUserFollowed, toggleFollowUser } from '../../lib/firebase';
+import { db, trackUserSearch, isUserFollowed, toggleFollowUser, getFollowersCount, getFollowingCount } from '../../lib/firebase';
 import { useContext } from 'react';
 import { FarcasterContext } from '../../app/providers';
 import NotificationHeader from '../NotificationHeader';
@@ -93,6 +93,10 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
   
   // Add state to track followed users
   const [followedUsers, setFollowedUsers] = useState<Record<number, boolean>>({});
+  
+  // Add state for app-specific follower and following counts
+  const [appFollowerCount, setAppFollowerCount] = useState<number>(0);
+  const [appFollowingCount, setAppFollowingCount] = useState<number>(0);
 
   // 2. Completely revise the useEffect that handles banner visibility
   useEffect(() => {
@@ -144,6 +148,36 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
       setShowBanner(false);
     }
   }, [isLoadingNFTs]);
+  
+  // Fetch app-specific follower and following counts when a user is selected
+  useEffect(() => {
+    const fetchFollowCounts = async () => {
+      if (selectedUser && selectedUser.fid) {
+        try {
+          // Get the counts from our app's database
+          const followerCount = await getFollowersCount(selectedUser.fid);
+          const followingCount = await getFollowingCount(selectedUser.fid);
+          
+          // Update state with the counts
+          setAppFollowerCount(followerCount);
+          setAppFollowingCount(followingCount);
+          
+          console.log(`App follow counts for ${selectedUser.username}: ${followerCount} followers, ${followingCount} following`);
+        } catch (error) {
+          console.error('Error fetching follow counts:', error);
+          // Reset counts on error
+          setAppFollowerCount(0);
+          setAppFollowingCount(0);
+        }
+      } else {
+        // Reset counts when no user is selected
+        setAppFollowerCount(0);
+        setAppFollowingCount(0);
+      }
+    };
+    
+    fetchFollowCounts();
+  }, [selectedUser]);
 
   // 4. Add a separate useEffect to clear the banner when user changes
   useEffect(() => {
@@ -459,6 +493,22 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                 </div>
                 <div className="space-y-2 flex-1 min-w-0">
                   <h2 className="text-2xl font-mono text-green-400 truncate">@{selectedUser.username}</h2>
+                  
+                  {/* App-specific follower and following counts */}
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="bg-purple-500/20 rounded-full px-3 py-1 inline-flex items-center">
+                      <span className="font-mono text-xs text-purple-300 font-medium">
+                        {appFollowerCount} Followers
+                      </span>
+                    </div>
+                    <div className="bg-purple-500/20 rounded-full px-3 py-1 inline-flex items-center">
+                      <span className="font-mono text-xs text-purple-300 font-medium">
+                        {appFollowingCount} Following
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* NFT count */}
                   {!isLoadingNFTs && (
                     <div className="flex items-center">
                       <div className="bg-green-500/20 rounded-full px-3 py-1 inline-flex items-center">
