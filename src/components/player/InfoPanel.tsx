@@ -75,7 +75,7 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ nft, onClose, userFid = 0 }) => {
                 </div>
                 {!topPlayedLoading && hasBeenInTopPlayed && (
                   <div className="flex items-center gap-1.5 bg-purple-500/10 px-2 py-0.5 rounded-full">
-                    <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="currentColor" className="text-purple-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="#FFD700" className="text-yellow-400">
                       <path d="m233-80 65-281L80-550l288-25 112-265 112 265 288 25-218 189 65 281-247-149L233-80Z"/>
                     </svg>
                     <span className="text-purple-300 text-xs font-mono">Top Played</span>
