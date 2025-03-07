@@ -377,13 +377,25 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
     try {
       const isNowFollowed = await toggleFollowUser(effectiveUserFid, user);
       
-      // Update local state
+      // Update local state for follow button
       setFollowedUsers(prev => ({
         ...prev,
         [user.fid]: isNowFollowed
       }));
       
+      // Immediately update follower/following counts in the UI
+      if (selectedUser && selectedUser.fid === user.fid) {
+        // If this is the selected user, update their follower count
+        setAppFollowerCount(prev => isNowFollowed ? prev + 1 : Math.max(0, prev - 1));
+      }
+      
+      // If the current user is selected, update their following count
+      if (selectedUser && selectedUser.fid === effectiveUserFid) {
+        setAppFollowingCount(prev => isNowFollowed ? prev + 1 : Math.max(0, prev - 1));
+      }
+      
       console.log(`User ${isNowFollowed ? 'followed' : 'unfollowed'}: ${user.username}`);
+      console.log('Updated follower/following counts in UI');
     } catch (error) {
       console.error('Error toggling follow status:', error);
     }
