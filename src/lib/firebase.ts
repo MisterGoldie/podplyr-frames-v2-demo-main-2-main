@@ -23,7 +23,7 @@ import {
   DocumentSnapshot,
   collectionGroup
 } from 'firebase/firestore';
-import type { NFT, FarcasterUser, SearchedUser, NFTPlayData } from '../types/user';
+import type { NFT, FarcasterUser, SearchedUser, NFTPlayData, FollowedUser } from '../types/user';
 import { fetchUserNFTsFromAlchemy } from './alchemy';
 import { getMediaKey } from '~/utils/media';
 
@@ -1594,6 +1594,172 @@ export const ensureFeaturedNFTsExist = async (nfts: NFT[]): Promise<void> => {
 
 // Declare searchTimeout at module level
 let searchTimeout: NodeJS.Timeout | undefined;
+
+// Follow a Farcaster user
+export const followUser = async (currentUserFid: number, userToFollow: FarcasterUser): Promise<void> => {
+  try {
+    if (!currentUserFid || !userToFollow.fid) {
+      console.error('Invalid FIDs for follow operation', { currentUserFid, userToFollowFid: userToFollow.fid });
+      return;
+    }
+
+    console.log(`User ${currentUserFid} is following user ${userToFollow.fid}`);
+    
+    // Create a document in the following collection
+    const followingRef = doc(db, 'users', currentUserFid.toString(), 'following', userToFollow.fid.toString());
+    
+    // Create a document in the followers collection
+    const followerRef = doc(db, 'users', userToFollow.fid.toString(), 'followers', currentUserFid.toString());
+    
+    // Prepare the follow data
+    const followData = {
+      fid: userToFollow.fid,
+      username: userToFollow.username,
+      display_name: userToFollow.display_name || userToFollow.username,
+      pfp_url: userToFollow.pfp_url || `https://avatar.vercel.sh/${userToFollow.username}`,
+      timestamp: serverTimestamp()
+    };
+    
+    // Prepare the follower data
+    const followerData = {
+      fid: currentUserFid,
+      timestamp: serverTimestamp()
+    };
+    
+    // Use a batch write to ensure both operations succeed or fail together
+    const batch = writeBatch(db);
+    batch.set(followingRef, followData);
+    batch.set(followerRef, followerData);
+    
+    // Commit the batch
+    await batch.commit();
+    console.log(`Successfully followed user ${userToFollow.username}`);
+  } catch (error) {
+    console.error('Error following user:', error);
+    throw error;
+  }
+};
+
+// Unfollow a Farcaster user
+export const unfollowUser = async (currentUserFid: number, userToUnfollow: FarcasterUser): Promise<void> => {
+  try {
+    if (!currentUserFid || !userToUnfollow.fid) {
+      console.error('Invalid FIDs for unfollow operation', { currentUserFid, userToUnfollowFid: userToUnfollow.fid });
+      return;
+    }
+
+    console.log(`User ${currentUserFid} is unfollowing user ${userToUnfollow.fid}`);
+    
+    // References to the documents to delete
+    const followingRef = doc(db, 'users', currentUserFid.toString(), 'following', userToUnfollow.fid.toString());
+    const followerRef = doc(db, 'users', userToUnfollow.fid.toString(), 'followers', currentUserFid.toString());
+    
+    // Use a batch write to ensure both operations succeed or fail together
+    const batch = writeBatch(db);
+    batch.delete(followingRef);
+    batch.delete(followerRef);
+    
+    // Commit the batch
+    await batch.commit();
+    console.log(`Successfully unfollowed user ${userToUnfollow.username}`);
+  } catch (error) {
+    console.error('Error unfollowing user:', error);
+    throw error;
+  }
+};
+
+// Check if a user is followed
+export const isUserFollowed = async (currentUserFid: number, userFid: number): Promise<boolean> => {
+  try {
+    if (!currentUserFid || !userFid) {
+      return false;
+    }
+    
+    const followingRef = doc(db, 'users', currentUserFid.toString(), 'following', userFid.toString());
+    const followDoc = await getDoc(followingRef);
+    
+    return followDoc.exists();
+  } catch (error) {
+    console.error('Error checking if user is followed:', error);
+    return false;
+  }
+};
+
+// Toggle follow status for a user
+export const toggleFollowUser = async (currentUserFid: number, user: FarcasterUser): Promise<boolean> => {
+  try {
+    const isFollowed = await isUserFollowed(currentUserFid, user.fid);
+    
+    if (isFollowed) {
+      await unfollowUser(currentUserFid, user);
+      return false; // User is now unfollowed
+    } else {
+      await followUser(currentUserFid, user);
+      return true; // User is now followed
+    }
+  } catch (error) {
+    console.error('Error toggling follow status:', error);
+    throw error;
+  }
+};
+
+// Get all users that the current user is following
+export const getFollowingUsers = async (currentUserFid: number): Promise<FollowedUser[]> => {
+  try {
+    const followingRef = collection(db, 'users', currentUserFid.toString(), 'following');
+    const querySnapshot = await getDocs(followingRef);
+    
+    const followingUsers: FollowedUser[] = [];
+    
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      followingUsers.push({
+        fid: data.fid,
+        username: data.username,
+        display_name: data.display_name || data.username,
+        pfp_url: data.pfp_url || `https://avatar.vercel.sh/${data.username}`,
+        timestamp: data.timestamp?.toDate() || new Date()
+      });
+    });
+    
+    // Sort by most recently followed first
+    return followingUsers.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+  } catch (error) {
+    console.error('Error getting following users:', error);
+    return [];
+  }
+};
+
+// Subscribe to following users for real-time updates
+export const subscribeToFollowingUsers = (currentUserFid: number, callback: (users: FollowedUser[]) => void) => {
+  if (!currentUserFid) {
+    callback([]);
+    return () => {}; // Return empty unsubscribe function
+  }
+  
+  const followingRef = collection(db, 'users', currentUserFid.toString(), 'following');
+  const q = query(followingRef, orderBy('timestamp', 'desc'));
+  
+  return onSnapshot(q, (snapshot) => {
+    const followingUsers: FollowedUser[] = [];
+    
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      followingUsers.push({
+        fid: data.fid,
+        username: data.username,
+        display_name: data.display_name || data.username,
+        pfp_url: data.pfp_url || `https://avatar.vercel.sh/${data.username}`,
+        timestamp: data.timestamp?.toDate() || new Date()
+      });
+    });
+    
+    callback(followingUsers);
+  }, (error) => {
+    console.error('Error subscribing to following users:', error);
+    callback([]);
+  });
+};
 
 export const searchUsers = async (query: string): Promise<FarcasterUser[]> => {
   // Clear any pending search

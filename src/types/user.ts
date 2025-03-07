@@ -32,6 +32,14 @@ export interface SearchedUser {
   timestamp?: any; // FirebaseTimestamp
 }
 
+export interface FollowedUser {
+  fid: number;
+  username: string;
+  display_name?: string;
+  pfp_url?: string;
+  timestamp: Date; // When the user was followed
+}
+
 export interface NFTMetadata {
   name?: string;
   description?: string;
