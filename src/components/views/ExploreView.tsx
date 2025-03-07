@@ -306,47 +306,59 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
       <div className="space-y-8 pt-20 pb-48 overflow-y-auto h-screen">
         {selectedUser && (
           <div className="px-4 mb-8">
-            {/* Back button - now inside the scrollable content but with proper spacing */}
+            {/* Back button - redesigned for better visibility */}
             <button 
               onClick={onBack}
-              className="mb-6 flex items-center gap-3 text-green-400 hover:text-green-300 transition-all px-4 py-2 rounded-lg bg-gray-800/20 hover:bg-gray-800/40 active:bg-gray-800/60"
+              className="mb-6 flex items-center gap-3 text-green-400 hover:text-green-300 transition-all px-5 py-3 rounded-lg
+                       bg-gray-900/90 hover:bg-gray-800/90 active:bg-gray-800/100
+                       shadow-lg shadow-black/40 border border-green-500/20"
             >
               <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor">
                 <path d="M400-80 0-480l400-400 56 57-343 343 343 343-56 57Z"/>
               </svg>
-              <span className="font-mono text-sm tracking-wide">Back to Search</span>
+              <span className="font-mono text-sm tracking-wide font-medium">Back to Search</span>
             </button>
 
-            {/* User Profile Header */}
-            <div className="flex items-center gap-6 p-6 rounded-2xl bg-gray-800/20 backdrop-blur-sm border border-gray-800/40">
-              <a 
-                href={`https://warpcast.com/${selectedUser.username}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  window.open(`https://warpcast.com/${selectedUser.username}`, '_blank');
-                }}
-                className="block transition-transform hover:scale-105 active:scale-95"
-              >
-                <div className="w-20 h-20 rounded-full overflow-hidden flex-shrink-0 relative ring-2 ring-gray-800/60">
-                  <Image
-                    src={selectedUser.pfp_url || `https://avatar.vercel.sh/${selectedUser.username}`}
-                    alt={selectedUser.display_name || selectedUser.username}
-                    className="object-cover"
-                    fill
-                    sizes="80px"
-                  />
+            {/* User Profile Header - Redesigned with app theme colors */}
+            <div className="flex flex-col rounded-2xl bg-gradient-to-b from-gray-900 to-black border-t border-l border-r border-green-500/30 shadow-lg shadow-black/50 overflow-hidden">
+              {/* Top section with gradient accent */}
+              <div className="h-3 w-full bg-gradient-to-r from-green-500/80 via-green-400/60 to-green-500/80"></div>
+              
+              {/* Content section */}
+              <div className="flex items-center gap-6 p-6">
+                <a 
+                  href={`https://warpcast.com/${selectedUser.username}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.open(`https://warpcast.com/${selectedUser.username}`, '_blank');
+                  }}
+                  className="block transition-transform hover:scale-105 active:scale-95"
+                >
+                  <div className="w-20 h-20 rounded-full overflow-hidden flex-shrink-0 relative ring-2 ring-green-500/40 shadow-md shadow-black/50">
+                    <Image
+                      src={selectedUser.pfp_url || `https://avatar.vercel.sh/${selectedUser.username}`}
+                      alt={selectedUser.display_name || selectedUser.username}
+                      className="object-cover"
+                      fill
+                      sizes="80px"
+                    />
+                  </div>
+                </a>
+                <div className="space-y-2 flex-1 min-w-0">
+                  <h2 className="text-2xl font-mono text-green-400 truncate">@{selectedUser.username}</h2>
+                  {!isLoadingNFTs && (
+                    <div className="flex items-center">
+                      <div className="bg-green-500/20 rounded-full px-3 py-1 inline-flex items-center">
+                        <span className="font-mono text-sm text-green-300 font-medium">
+                          {nfts.length} Media NFTs
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </a>
-              <div className="space-y-2 flex-1 min-w-0">
-                <h2 className="text-2xl font-mono text-green-400 truncate">@{selectedUser.username}</h2>
-                {!isLoadingNFTs && (
-                  <p className="font-mono text-sm text-gray-500">
-                    Total Media NFTs: {nfts.length}
-                  </p>
-                )}
               </div>
             </div>
           </div>
@@ -408,7 +420,7 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
 
             {/* Recently Searched Users Section - with cleaner, more distinct styling */}
             {!searchResults.length && !selectedUser && recentSearches.length > 0 && (
-              <div className="mb-8">
+              <div className="mb-8 px-4">
                 <h2 className="text-xl font-mono text-green-400 mb-4">
                   {effectiveUserFid ? "Recently Searched" : "Popular Users"}
                 </h2>
@@ -448,10 +460,11 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                         // The subscription in Demo.tsx will handle it
                         handleUserSelect(farcasterUser);
                       }}
-                      className="relative bg-gray-800/70 rounded-xl p-4 
-                                hover:bg-gray-700/80 
+                      className="relative bg-gray-900/90 rounded-xl p-4 
+                                hover:bg-gray-800/90 
                                 transition-colors duration-200 cursor-pointer 
-                                border-l-2 border-gray-700 hover:border-l-2 hover:border-green-500"
+                                border border-purple-900/60 hover:border-green-500/60
+                                shadow-lg shadow-black/30"
                     >
                       <div className="flex items-center gap-4">
                         {/* Avatar - clean styling */}
