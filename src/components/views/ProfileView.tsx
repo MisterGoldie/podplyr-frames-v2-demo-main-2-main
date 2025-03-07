@@ -5,7 +5,7 @@ import { useToast } from '../../hooks/useToast';
 import Image from 'next/image';
 import { VirtualizedNFTGrid } from '../nft/VirtualizedNFTGrid';
 import type { NFT, UserContext } from '../../types/user';
-import { getLikedNFTs } from '../../lib/firebase';
+import { getLikedNFTs, getFollowersCount, getFollowingCount } from '../../lib/firebase';
 import { uploadProfileBackground } from '../../firebase';
 import { fetchUserNFTs } from '../../lib/nft';
 import { optimizeImage } from '../../utils/imageOptimizer';
@@ -43,6 +43,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const { backgroundImage, profileImage, setBackgroundImage } = useUserImages();
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
+  
+  // Add state for app-specific follower and following counts
+  const [appFollowerCount, setAppFollowerCount] = useState<number>(0);
+  const [appFollowingCount, setAppFollowingCount] = useState<number>(0);
 
   useEffect(() => {
     const loadNFTs = async () => {
@@ -93,6 +97,37 @@ const ProfileView: React.FC<ProfileViewProps> = ({
     };
 
     loadLikedNFTs();
+  }, [userContext?.user?.fid]);
+  
+  // Fetch app-specific follower and following counts
+  useEffect(() => {
+    const fetchFollowCounts = async () => {
+      if (userContext?.user?.fid) {
+        try {
+          // Get the counts from our app's database
+          const followerCount = await getFollowersCount(userContext.user.fid);
+          const followingCount = await getFollowingCount(userContext.user.fid);
+          
+          // Update state with the counts
+          setAppFollowerCount(followerCount);
+          setAppFollowingCount(followingCount);
+          
+          console.log(`App follow counts for profile: ${followerCount} followers, ${followingCount} following`);
+        } catch (error) {
+          console.error('Error fetching follow counts for profile:', error);
+          // Reset counts on error
+          setAppFollowerCount(0);
+          setAppFollowingCount(0);
+        }
+      }
+    };
+    
+    fetchFollowCounts();
+    
+    // Set up a refresh interval to keep counts updated
+    const intervalId = setInterval(fetchFollowCounts, 30000); // Refresh every 30 seconds
+    
+    return () => clearInterval(intervalId); // Clean up on unmount
   }, [userContext?.user?.fid]);
 
   // This function checks if an NFT is liked
@@ -271,6 +306,23 @@ const ProfileView: React.FC<ProfileViewProps> = ({
               <h2 className="text-2xl font-mono text-purple-400 text-shadow">
                 {userContext?.user?.username ? `@${userContext.user.username}` : 'Welcome to PODPlayr'}
               </h2>
+              
+              {/* Follower and following counts */}
+              {userContext?.user?.fid && (
+                <div className="flex items-center gap-2 mt-2 mb-1">
+                  <div className="bg-purple-500/20 rounded-full px-3 py-1 inline-flex items-center">
+                    <span className="font-mono text-xs text-purple-300 font-medium">
+                      {appFollowerCount} Followers
+                    </span>
+                  </div>
+                  <div className="bg-purple-500/20 rounded-full px-3 py-1 inline-flex items-center">
+                    <span className="font-mono text-xs text-purple-300 font-medium">
+                      {appFollowingCount} Following
+                    </span>
+                  </div>
+                </div>
+              )}
+              
               {!isLoading && userContext?.user?.fid && (
                 <p className="font-mono text-sm text-purple-300/60 text-shadow mt-1">
                   {nfts.length} {nfts.length === 1 ? 'NFT' : 'NFTs'} found
