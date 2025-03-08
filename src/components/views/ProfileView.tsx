@@ -171,6 +171,57 @@ const ProfileView: React.FC<ProfileViewProps> = ({
         likedNFT.tokenId === nft.tokenId
     );
   };
+  
+  // State for like notification
+  const [showLikeNotification, setShowLikeNotification] = useState(false);
+  const [likedNFTName, setLikedNFTName] = useState('');
+  const [isLikeAction, setIsLikeAction] = useState(true); // true = like, false = unlike
+  
+  // Handle like toggle with notification
+  const handleNFTLikeToggle = async (nft: NFT) => {
+    try {
+      // Determine if this is a like or unlike action before making the change
+      const currentlyLiked = isNFTLiked(nft, true);
+      const willBeLiked = !currentlyLiked;
+      
+      // Immediately update the UI state for instant feedback
+      if (willBeLiked) {
+        // Add to liked NFTs for immediate UI update
+        setLikedNFTs(prev => [...prev, nft]);
+      } else {
+        // Remove from liked NFTs for immediate UI update
+        setLikedNFTs(prev => prev.filter(item => 
+          !(item.contract === nft.contract && item.tokenId === nft.tokenId)
+        ));
+      }
+      
+      // Set notification properties
+      setIsLikeAction(willBeLiked);
+      setLikedNFTName(nft.name);
+      setShowLikeNotification(true);
+      
+      // Auto-hide notification after 3 seconds
+      setTimeout(() => {
+        setShowLikeNotification(false);
+      }, 3000);
+      
+      // Call the parent's onLikeToggle function (can happen in background)
+      await onLikeToggle(nft);
+    } catch (error) {
+      console.error('Error toggling like for NFT:', error);
+      
+      // If there was an error, revert the optimistic UI update
+      // by refreshing the liked NFTs
+      if (userContext?.user?.fid) {
+        try {
+          const liked = await getLikedNFTs(userContext.user.fid);
+          setLikedNFTs(liked);
+        } catch (e) {
+          console.error('Error refreshing liked NFTs after error:', e);
+        }
+      }
+    }
+  };
 
   const handleBackgroundUploadSuccess = () => {
     setShowSuccessBanner(true);
@@ -190,6 +241,16 @@ const ProfileView: React.FC<ProfileViewProps> = ({
         message="Background updated successfully"
         autoHideDuration={3000}
         onReset={onReset}
+      />
+      
+      {/* Like/Unlike Notification */}
+      <NotificationHeader
+        show={showLikeNotification}
+        onHide={() => setShowLikeNotification(false)}
+        type={isLikeAction ? "success" : "error"}
+        message={isLikeAction ? "Added to library" : "Removed from library"}
+        highlightText={likedNFTName}
+        autoHideDuration={3000}
       />
       
       {/* Follows Modal */}
@@ -427,7 +488,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                 handlePlayPause={handlePlayPause}
                 onPlayNFT={handlePlayAudio}
                 publicCollections={[]}
-                onLikeToggle={onLikeToggle}
+                onLikeToggle={handleNFTLikeToggle}
                 isNFTLiked={isNFTLiked}
                 userFid={userContext.user?.fid}
               />
