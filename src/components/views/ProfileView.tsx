@@ -171,6 +171,33 @@ const ProfileView: React.FC<ProfileViewProps> = ({
         likedNFT.tokenId === nft.tokenId
     );
   };
+  
+  // State for like notification
+  const [showLikeNotification, setShowLikeNotification] = useState(false);
+  const [likedNFTName, setLikedNFTName] = useState('');
+  const [isLikeAction, setIsLikeAction] = useState(true); // true = like, false = unlike
+  
+  // Handle like toggle with notification
+  const handleNFTLikeToggle = async (nft: NFT) => {
+    try {
+      // Call the parent's onLikeToggle function
+      await onLikeToggle(nft);
+      
+      // Determine if this was a like or unlike action
+      const wasLiked = !isNFTLiked(nft, true);
+      setIsLikeAction(wasLiked);
+      setLikedNFTName(nft.name);
+      setShowLikeNotification(true);
+      
+      // Auto-hide notification after 3 seconds
+      setTimeout(() => {
+        setShowLikeNotification(false);
+      }, 3000);
+      
+    } catch (error) {
+      console.error('Error toggling like for NFT:', error);
+    }
+  };
 
   const handleBackgroundUploadSuccess = () => {
     setShowSuccessBanner(true);
@@ -190,6 +217,16 @@ const ProfileView: React.FC<ProfileViewProps> = ({
         message="Background updated successfully"
         autoHideDuration={3000}
         onReset={onReset}
+      />
+      
+      {/* Like/Unlike Notification */}
+      <NotificationHeader
+        show={showLikeNotification}
+        onHide={() => setShowLikeNotification(false)}
+        type={isLikeAction ? "success" : "error"}
+        message={isLikeAction ? "Added to library" : "Removed from library"}
+        highlightText={likedNFTName}
+        autoHideDuration={3000}
       />
       
       {/* Follows Modal */}
@@ -427,7 +464,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                 handlePlayPause={handlePlayPause}
                 onPlayNFT={handlePlayAudio}
                 publicCollections={[]}
-                onLikeToggle={onLikeToggle}
+                onLikeToggle={handleNFTLikeToggle}
                 isNFTLiked={isNFTLiked}
                 userFid={userContext.user?.fid}
               />
