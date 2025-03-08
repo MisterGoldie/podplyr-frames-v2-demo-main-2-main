@@ -461,8 +461,15 @@ const Demo: React.FC = () => {
       const nftKey = `${nft.contract?.toLowerCase()}-${nft.tokenId}`;
       const isCurrentlyLiked = isNFTLiked(nft, true);
       
-      // If we're in library or the NFT is currently liked, we're unliking
-      if (currentPage.isLibrary || isCurrentlyLiked) {
+      // In library view, we're ALWAYS unliking
+      // In other views, check if the NFT is already liked
+      const isUnliking = currentPage.isLibrary || isCurrentlyLiked;
+      
+      console.log(`Operation: ${isUnliking ? 'UNLIKE' : 'LIKE'} on page: ${Object.keys(currentPage).find(key => currentPage[key as keyof PageState])}`);
+      console.log(`NFT liked status: ${isCurrentlyLiked ? 'LIKED' : 'NOT LIKED'}`);
+      
+      // If we're unliking (in library or the NFT is already liked)
+      if (isUnliking) {
         // PERMANENT REMOVAL: Add this NFT to our permanent blacklist
         console.log(`🚫 PERMANENTLY REMOVING ${nft.name} from library`);
         setPermanentlyRemovedNFTs(prev => {
@@ -509,6 +516,33 @@ const Demo: React.FC = () => {
         console.error('❌ Error in toggleLikeNFT:', error);
       }
       
+      // For likes (not unlikes), we need to update the UI immediately to show the NFT as liked
+      if (!isUnliking) {
+        console.log(`💖 Immediate UI update: Adding ${nft.name} to liked NFTs`);
+        // Add the NFT to the liked list if it's not already there
+        setLikedNFTs(prev => {
+          // Check if the NFT is already in the list
+          const nftExists = prev.some(item => {
+            if (!item.contract || !item.tokenId) return false;
+            const itemKey = `${item.contract.toLowerCase()}-${item.tokenId}`;
+            return itemKey === nftKey;
+          });
+          
+          // If it's already in the list, don't add it again
+          if (nftExists) {
+            console.log(`NFT ${nft.name} already in liked list, not adding again`);
+            return prev;
+          }
+          
+          // Otherwise add it to the list
+          console.log(`Adding ${nft.name} to liked list`);
+          return [...prev, nft];
+        });
+        
+        // Update the isLiked state
+        setIsLiked(true);
+      }
+      
       // Always refresh the list from Firebase, regardless of like or unlike operation
       try {
         console.log('🔄 Refreshing liked NFTs list...');
@@ -536,7 +570,6 @@ const Demo: React.FC = () => {
         console.log(`🧹 Filtered to ${uniqueNFTs.length} unique NFTs (from ${filteredNFTs.length})`);
         
         setLikedNFTs(uniqueNFTs);
-        setIsLiked(wasLiked);
       } catch (error) {
         console.error('❌ Error refreshing liked NFTs:', error);
       }
