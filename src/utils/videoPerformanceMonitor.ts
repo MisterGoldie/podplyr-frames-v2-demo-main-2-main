@@ -3,19 +3,25 @@
 let isLowPerformanceMode = false;
 let frameDropDetected = false;
 let totalVideosPlaying = 0;
-let isMobileDevice = false;
+let networkType: string | null = null;
 
 // Helper functions for monitoring performance
 export const videoPerformanceMonitor = {
   init() {
     // Check device capabilities once at init
-    isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    const isLowPowerDevice = isMobileDevice && typeof window.navigator.hardwareConcurrency === 'number' && 
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const isLowPowerDevice = isMobile && typeof window.navigator.hardwareConcurrency === 'number' && 
       window.navigator.hardwareConcurrency <= 4;
     
-    if (isLowPowerDevice || isMobileDevice) {
-      // Only log once to avoid console spam
-      console.log('Mobile or low-power device detected - enabling video optimizations');
+    // Check network conditions
+    this.checkNetworkConditions();
+    
+    // Listen for network changes
+    window.addEventListener('online', () => this.checkNetworkConditions());
+    window.addEventListener('offline', () => this.checkNetworkConditions());
+    
+    // Always enable optimizations on mobile
+    if (isMobile) {
       this.enableLowPerformanceMode();
     }
     
@@ -95,26 +101,58 @@ export const videoPerformanceMonitor = {
     }
   },
   
+  checkNetworkConditions() {
+    // Check if we're on a cellular connection
+    if ('connection' in navigator) {
+      const connection = (navigator as any).connection;
+      if (connection) {
+        networkType = connection.type || connection.effectiveType;
+        console.log('Network type detected:', networkType);
+        
+        // Listen for network type changes
+        if (connection.addEventListener) {
+          connection.addEventListener('change', () => {
+            networkType = connection.type || connection.effectiveType;
+            console.log('Network type changed:', networkType);
+          });
+        }
+      }
+    }
+  },
+  
   optimizeVideoElement(video: HTMLVideoElement) {
     // Apply essential optimizations to the video element
     video.setAttribute('playsinline', 'true');
     video.setAttribute('webkit-playsinline', 'true');
     
-    // Basic optimizations for all devices
-    video.preload = isMobileDevice ? 'metadata' : 'auto';
+    // Set crossorigin to anonymous to avoid CORS issues on some networks
+    video.setAttribute('crossorigin', 'anonymous');
     
-    // Simple mobile optimizations that won't affect scrolling
-    if (isMobileDevice) {
-      // Ensure videos play inline on mobile
-      if (video.hasAttribute('controls')) {
-        video.controls = false;
-      }
-      
-      // Ensure proper sizing
-      if (video.videoHeight > 480) {
-        video.style.objectFit = 'contain';
-      }
+    // Check if we're on a cellular connection (2g, 3g, 4g, etc.)
+    const isCellular = networkType && ['2g', '3g', '4g', 'cellular', 'slow-2g'].includes(networkType);
+    
+    // Adjust preload strategy based on network
+    video.preload = isCellular ? 'metadata' : 'auto';
+    
+    // Add error handling for network issues
+    video.onerror = (e) => {
+      console.error('Video error:', video.error);
+      this.handleVideoError(video);
+    };
+    
+    // Reduce quality for performance
+    if (video.videoHeight > 480) {
+      // Lower resolution videos perform better
+      video.style.objectFit = 'contain';
     }
+    
+    // Set timeout to detect stalled loading
+    setTimeout(() => {
+      if (video.readyState < 2 && !video.paused) { // HAVE_CURRENT_DATA
+        console.log('Video loading stalled, attempting recovery');
+        this.handleVideoError(video);
+      }
+    }, 10000);
     
     // Monitor this video's performance
     video.addEventListener('playing', () => {
@@ -162,13 +200,40 @@ export const videoPerformanceMonitor = {
     return frameDropDetected;
   },
   
-  isMobileDevice() {
-    return isMobileDevice;
-  },
-  
-  // Simple helper to optimize video sources for mobile
-  optimizeVideoSource(videoUrl: string): string {
-    // Just return the original URL for now to avoid any issues
-    return videoUrl;
+  // Handle video errors and recovery
+  handleVideoError(video: HTMLVideoElement) {
+    if (!video.src) return;
+    
+    console.log('Attempting to recover video playback');
+    
+    // Save current position and playing state
+    const currentTime = video.currentTime;
+    const wasPlaying = !video.paused;
+    
+    // Force reload with cache-busting
+    const currentSrc = video.src;
+    const cacheBuster = `${currentSrc.includes('?') ? '&' : '?'}cb=${Date.now()}`;
+    
+    // Pause and reset
+    video.pause();
+    
+    // Apply new source with cache buster
+    setTimeout(() => {
+      video.src = currentSrc + cacheBuster;
+      video.load();
+      
+      // Restore position
+      video.currentTime = currentTime;
+      
+      // Resume if it was playing
+      if (wasPlaying) {
+        const playPromise = video.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(error => {
+            console.log('Auto-play prevented after recovery:', error);
+          });
+        }
+      }
+    }, 100);
   }
 }; 
