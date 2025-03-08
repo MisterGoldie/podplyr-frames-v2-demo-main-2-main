@@ -509,36 +509,25 @@ const Demo: React.FC = () => {
         console.error('❌ Error in toggleLikeNFT:', error);
       }
       
-      // Always refresh the list from Firebase, regardless of like or unlike operation
-      try {
-        console.log('🔄 Refreshing liked NFTs list...');
-        const freshLikedNFTs = await getLikedNFTs(effectiveUserFid);
-      
+      // For likes (not unlikes), refresh the list from Firebase
+      if (wasLiked) {
+        try {
+          console.log('🔄 Refreshing liked NFTs list...');
+          const freshLikedNFTs = await getLikedNFTs(effectiveUserFid);
+        
         // CRITICAL: Apply our permanent removal list to filter out any NFTs
         // that should stay removed no matter what Firebase returns
-        const filteredNFTs = freshLikedNFTs.filter(item => {
-          if (!item.contract || !item.tokenId) return true;
-          const itemKey = `${item.contract.toLowerCase()}-${item.tokenId}`;
-          return !permanentlyRemovedNFTs.has(itemKey);
-        });
-        
-        // Ensure we don't have duplicates by using a Map with NFT keys
-        const uniqueNFTsMap = new Map();
-        filteredNFTs.forEach(item => {
-          if (item.contract && item.tokenId) {
+          const filteredNFTs = freshLikedNFTs.filter(item => {
+            if (!item.contract || !item.tokenId) return true;
             const itemKey = `${item.contract.toLowerCase()}-${item.tokenId}`;
-            uniqueNFTsMap.set(itemKey, item);
-          }
-        });
-        
-        // Convert Map back to array
-        const uniqueNFTs = Array.from(uniqueNFTsMap.values());
-        console.log(`🧹 Filtered to ${uniqueNFTs.length} unique NFTs (from ${filteredNFTs.length})`);
-        
-        setLikedNFTs(uniqueNFTs);
-        setIsLiked(wasLiked);
-      } catch (error) {
-        console.error('❌ Error refreshing liked NFTs:', error);
+            return !permanentlyRemovedNFTs.has(itemKey);
+          });
+          
+          setLikedNFTs(filteredNFTs);
+          setIsLiked(true);
+        } catch (error) {
+          console.error('❌ Error refreshing liked NFTs:', error);
+        }
       }
       
       // Debug like status after update
