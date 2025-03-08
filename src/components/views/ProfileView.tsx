@@ -174,6 +174,11 @@ const ProfileView: React.FC<ProfileViewProps> = ({
 
   const handleBackgroundUploadSuccess = () => {
     setShowSuccessBanner(true);
+    
+    // Ensure banner is hidden after the duration
+    setTimeout(() => {
+      setShowSuccessBanner(false);
+    }, 3000);
   };
 
   return (
