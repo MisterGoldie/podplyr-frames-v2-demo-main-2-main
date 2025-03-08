@@ -1,4 +1,4 @@
-import { createPublicClient, http } from 'viem';
+import { createPublicClient, http, toHex } from 'viem';
 import { mainnet } from 'viem/chains';
 
 const publicClient = createPublicClient({
@@ -17,11 +17,15 @@ export async function validateSignature(
     const messageBytes = Buffer.from(message);
     const signatureBytes = Buffer.from(signature, 'base64url');
 
+    // Convert Buffer to hex string with 0x prefix for viem compatibility
+    const messageHex = toHex(messageBytes);
+    const signatureHex = toHex(signatureBytes);
+
     // Verify the signature using viem
     const valid = await publicClient.verifyMessage({
       address: decodedHeader.signer as `0x${string}`,
-      message: messageBytes,
-      signature: signatureBytes as `0x${string}`,
+      message: messageHex,
+      signature: signatureHex,
     });
 
     return valid;

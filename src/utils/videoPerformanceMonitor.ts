@@ -75,8 +75,9 @@ export const videoPerformanceMonitor = {
               this.optimizeVideoElement(node as HTMLVideoElement);
             }
             
-            if (node.querySelectorAll) {
-              node.querySelectorAll('video').forEach(video => {
+            // Check if node is an Element (which has querySelectorAll method)
+            if (node instanceof Element) {
+              node.querySelectorAll('video').forEach((video: HTMLVideoElement) => {
                 this.optimizeVideoElement(video);
               });
             }
