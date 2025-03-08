@@ -1184,40 +1184,44 @@ const Demo: React.FC = () => {
   const handleDirectVideoPlayback = useCallback((nft: NFT) => {
     if (!nft.isVideo) return;
     
-    // Find all video elements
-    const videos = document.querySelectorAll('video');
+    // Find only the specific video element we need
     const targetVideoId = `video-${nft.contract}-${nft.tokenId}`;
+    const targetVideo = document.getElementById(targetVideoId) as HTMLVideoElement;
     
-    // Simply pause all other videos and play the target
-    videos.forEach(video => {
-      const isTarget = video.id === targetVideoId;
+    // Only manage the target video to avoid affecting other elements
+    if (targetVideo) {
+      // Ensure video has playsinline attribute for mobile
+      targetVideo.setAttribute('playsinline', 'true');
       
-      if (isTarget) {
-        // For the target video, just try to play it directly
-        try {
-          // First try unmuted
-          video.muted = false;
-          video.play().catch(() => {
-            // If that fails (expected on mobile), fall back to muted
-            video.muted = true;
-            video.play().catch(() => {
-              console.log('Failed to play video even when muted');
-            });
+      // For the target video, try to play it directly
+      try {
+        // First try unmuted
+        targetVideo.muted = false;
+        targetVideo.play().catch(() => {
+          // If that fails (expected on mobile), fall back to muted
+          targetVideo.muted = true;
+          targetVideo.play().catch(() => {
+            console.log('Failed to play video even when muted');
           });
-        } catch (e) {
-          console.log('Error playing video:', e);
-        }
-      } else {
-        // Just pause other videos
-        try {
-          if (!video.paused) {
-            video.pause();
-          }
-        } catch (e) {
-          // Ignore errors
-        }
+        });
+      } catch (e) {
+        console.log('Error playing video:', e);
       }
-    });
+    }
+    
+    // Pause other videos more carefully to avoid affecting scrolling
+    try {
+      // Get only videos that aren't our target
+      const otherVideos = document.querySelectorAll(`video:not(#${targetVideoId})`);
+      otherVideos.forEach(video => {
+        if (!(video as HTMLVideoElement).paused) {
+          (video as HTMLVideoElement).pause();
+        }
+      });
+    } catch (e) {
+      // Ignore errors
+      console.log('Error pausing other videos:', e);
+    }
   }, []);
 
   // IMPORTANT: Instead of replacing handlePlayAudio, modify the existing useAudioPlayer hook's function
@@ -1236,7 +1240,12 @@ const Demo: React.FC = () => {
 
   useEffect(() => {
     // Initialize video performance monitor on mount
-    videoPerformanceMonitor.init();
+    // Use a try-catch to prevent any errors from breaking the app
+    try {
+      videoPerformanceMonitor.init();
+    } catch (e) {
+      console.error('Error initializing video performance monitor:', e);
+    }
   }, []);
   // Add this near your NFT processing code to reduce redundant checks
   const processNFTs = useCallback((nfts: any[]) => {
@@ -1416,7 +1425,7 @@ const Demo: React.FC = () => {
           onError={setError}
         />
       )}
-      <div className="flex-1 container mx-auto px-4 py-6 pb-40 mt-16"> {/* Added mt-16 for header spacing */}
+      <div className="flex-1 container mx-auto px-4 py-6 pb-40"> {/* Removed mt-16 to restore original positioning */}
         {renderCurrentView()}
       </div>
 

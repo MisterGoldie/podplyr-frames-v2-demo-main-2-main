@@ -266,7 +266,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
       )}
       <div className="space-y-8 pt-20 pb-48 overflow-y-auto h-screen overscroll-y-contain">
         {/* Profile Header */}
-        <div className="relative flex flex-col items-center text-center p-8 space-y-6 rounded-3xl mx-4 w-[340px] h-[280px] mx-auto border border-purple-400/20 shadow-xl shadow-purple-900/30 overflow-hidden hover:border-indigo-400/30 transition-all duration-300"
+        <div className="relative flex flex-col items-center justify-between text-center p-8 pt-6 pb-4 rounded-3xl mx-4 w-[340px] h-[280px] mx-auto border border-purple-400/20 shadow-xl shadow-purple-900/30 overflow-hidden hover:border-indigo-400/30 transition-all duration-300"
           style={{
             background: backgroundImage 
               ? `url(${backgroundImage}) center/cover no-repeat`
@@ -377,7 +377,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
               ♫
             </div>
           </div>
-          <div className="relative z-10">
+          <div className="relative z-10 mb-auto">
             <div className="rounded-full ring-4 ring-purple-400/20 overflow-hidden w-[120px] h-[120px]">
               {userContext?.user?.username ? (
                 <a 
