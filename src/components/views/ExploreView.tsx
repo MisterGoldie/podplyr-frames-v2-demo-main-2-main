@@ -2,12 +2,19 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useVirtualizedNFTs } from '../../hooks/useVirtualizedNFTs';
+import FollowsModal from '../FollowsModal';
 import { SearchBar } from '../search/SearchBar';
 import { VirtualizedNFTGrid } from '../nft/VirtualizedNFTGrid';
 import Image from 'next/image';
 import { NFT, FarcasterUser, SearchedUser } from '../../types/user';
 import { getDoc, doc } from 'firebase/firestore';
 import { db, trackUserSearch, isUserFollowed, toggleFollowUser, getFollowersCount, getFollowingCount } from '../../lib/firebase';
+
+// Hardcoded list of FIDs for users who should have "thepod" badge
+const POD_MEMBER_FIDS = [15019, 7472, 14871, 414859, 892616, 892130];
+
+// PODPlayr official account FID
+const PODPLAYR_OFFICIAL_FID = 1014485;
 import { useContext } from 'react';
 import { FarcasterContext } from '../../app/providers';
 import NotificationHeader from '../NotificationHeader';
@@ -97,6 +104,10 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
   // Add state for app-specific follower and following counts
   const [appFollowerCount, setAppFollowerCount] = useState<number>(0);
   const [appFollowingCount, setAppFollowingCount] = useState<number>(0);
+  
+  // State for follows modal
+  const [showFollowsModal, setShowFollowsModal] = useState(false);
+  const [followsModalType, setFollowsModalType] = useState<'followers' | 'following'>('followers');
 
   // 2. Completely revise the useEffect that handles banner visibility
   useEffect(() => {
@@ -508,16 +519,28 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                   
                   {/* App-specific follower and following counts */}
                   <div className="flex items-center gap-2 mb-2">
-                    <div className="bg-purple-500/20 rounded-full px-3 py-1 inline-flex items-center">
+                    <button 
+                      onClick={() => {
+                        setFollowsModalType('followers');
+                        setShowFollowsModal(true);
+                      }}
+                      className="bg-purple-500/20 hover:bg-purple-500/30 active:bg-purple-500/40 transition-colors rounded-full px-3 py-1 inline-flex items-center"
+                    >
                       <span className="font-mono text-xs text-purple-300 font-medium">
                         {appFollowerCount} Followers
                       </span>
-                    </div>
-                    <div className="bg-purple-500/20 rounded-full px-3 py-1 inline-flex items-center">
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setFollowsModalType('following');
+                        setShowFollowsModal(true);
+                      }}
+                      className="bg-purple-500/20 hover:bg-purple-500/30 active:bg-purple-500/40 transition-colors rounded-full px-3 py-1 inline-flex items-center"
+                    >
                       <span className="font-mono text-xs text-purple-300 font-medium">
                         {appFollowingCount} Following
                       </span>
-                    </div>
+                    </button>
                   </div>
                   
                   {/* NFT count */}
@@ -626,6 +649,16 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                   </svg>
                                   Following
+                                </span>
+                              )}
+                              {POD_MEMBER_FIDS.includes(user.fid) && (
+                                <span className="text-xs font-mono px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded-full flex items-center">
+                                  thepod
+                                </span>
+                              )}
+                              {user.fid === PODPLAYR_OFFICIAL_FID && (
+                                <span className="text-xs font-mono px-2 py-0.5 bg-purple-800/40 text-purple-300 rounded-full flex items-center font-semibold">
+                                  Official
                                 </span>
                               )}
                             </div>
@@ -741,6 +774,16 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                                   Following
                                 </span>
                               )}
+                              {POD_MEMBER_FIDS.includes(user.fid) && (
+                                <span className="text-xs font-mono px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded-full flex items-center">
+                                  thepod
+                                </span>
+                              )}
+                              {user.fid === PODPLAYR_OFFICIAL_FID && (
+                                <span className="text-xs font-mono px-2 py-0.5 bg-purple-800/40 text-purple-300 rounded-full flex items-center font-semibold">
+                                  Official
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -800,6 +843,33 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
         autoHideDuration={0}
         onReset={onReset}
       />
+      {/* Follows Modal */}
+      {showFollowsModal && selectedUser && (
+        <FollowsModal
+          isOpen={showFollowsModal}
+          onClose={() => setShowFollowsModal(false)}
+          userFid={selectedUser.fid}
+          type={followsModalType}
+          currentUserFid={effectiveUserFid}
+          onFollowStatusChange={(newStatus: boolean, targetFid: number) => {
+            // Update UI immediately when follow status changes in modal
+            setFollowedUsers(prev => ({
+              ...prev,
+              [targetFid]: newStatus
+            }));
+            
+            // Update follower/following counts if this is the selected user
+            if (selectedUser && selectedUser.fid === targetFid) {
+              setAppFollowerCount(prev => newStatus ? prev + 1 : Math.max(0, prev - 1));
+            }
+            
+            // If the current user is selected, update their following count
+            if (selectedUser && selectedUser.fid === effectiveUserFid) {
+              setAppFollowingCount(prev => newStatus ? prev + 1 : Math.max(0, prev - 1));
+            }
+          }}
+        />
+      )}
     </>
   );
 };

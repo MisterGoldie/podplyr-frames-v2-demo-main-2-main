@@ -4,6 +4,12 @@ import { FarcasterUser } from '../../types/user';
 import { FarcasterContext } from '../../app/providers';
 import { trackUserSearch } from '../../lib/firebase';
 
+// Hardcoded list of FIDs for users who should have "thepod" badge
+const POD_MEMBER_FIDS = [15019, 7472, 14871, 414859, 892616, 892130];
+
+// PODPlayr official account FID
+const PODPLAYR_OFFICIAL_FID = 1014485;
+
 interface SearchBarProps {
   onSearch: (username: string) => void;
   isSearching: boolean;
@@ -121,9 +127,22 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, isSearching, han
                   }}
                 />
               </div>
-              <div>
+              <div className="flex-1">
                 <div className="font-medium text-green-400">{suggestion.display_name || suggestion.username}</div>
                 <div className="text-sm text-gray-400">@{suggestion.username}</div>
+                {/* Badges row */}
+                <div className="flex items-center gap-2 mt-1">
+                  {POD_MEMBER_FIDS.includes(suggestion.fid) && (
+                    <span className="text-xs font-mono px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded-full flex items-center">
+                      thepod
+                    </span>
+                  )}
+                  {suggestion.fid === PODPLAYR_OFFICIAL_FID && (
+                    <span className="text-xs font-mono px-2 py-0.5 bg-purple-800/40 text-purple-300 rounded-full flex items-center font-semibold">
+                      Official
+                    </span>
+                  )}
+                </div>
               </div>
             </button>
           ))}
