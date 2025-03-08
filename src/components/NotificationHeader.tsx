@@ -13,6 +13,7 @@ interface NotificationHeaderProps {
   icon?: React.ReactNode;
   logo?: string;
   onReset?: () => void;
+  onLogoClick?: () => void; // New prop for logo click to go home
 }
 
 const NotificationHeader: React.FC<NotificationHeaderProps> = ({
@@ -25,6 +26,7 @@ const NotificationHeader: React.FC<NotificationHeaderProps> = ({
   icon,
   logo = '/fontlogo.png',
   onReset,
+  onLogoClick, // Add the new prop
 }) => {
   // Use separate states for background and content to stagger transitions
   const [isBackgroundVisible, setIsBackgroundVisible] = useState(show);
@@ -118,7 +120,7 @@ const NotificationHeader: React.FC<NotificationHeaderProps> = ({
       <div className="relative w-full h-full flex items-center justify-center">
         {/* Logo container - always centered */}
         <button 
-          onClick={onReset} 
+          onClick={onLogoClick || onReset} 
           className={`cursor-pointer transition-all duration-500 ease-in-out transform ${
             isContentVisible ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
           }`}

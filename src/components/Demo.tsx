@@ -543,32 +543,66 @@ const Demo: React.FC = () => {
         setIsLiked(true);
       }
       
-      // Always refresh the list from Firebase, regardless of like or unlike operation
+      // For unlikes, we need to make sure the NFT stays removed
+      // For likes, we need to make sure the NFT is added
       try {
         console.log('🔄 Refreshing liked NFTs list...');
         const freshLikedNFTs = await getLikedNFTs(effectiveUserFid);
+        
+        // Log the permanent removal list for debugging
+        console.log(`Permanent removal list has ${permanentlyRemovedNFTs.size} items`);
+        if (permanentlyRemovedNFTs.size > 0) {
+          console.log('Permanently removed NFTs:');
+          Array.from(permanentlyRemovedNFTs).forEach(key => console.log(`- ${key}`));
+        }
       
         // CRITICAL: Apply our permanent removal list to filter out any NFTs
         // that should stay removed no matter what Firebase returns
         const filteredNFTs = freshLikedNFTs.filter(item => {
           if (!item.contract || !item.tokenId) return true;
           const itemKey = `${item.contract.toLowerCase()}-${item.tokenId}`;
-          return !permanentlyRemovedNFTs.has(itemKey);
+          const isRemoved = permanentlyRemovedNFTs.has(itemKey);
+          if (isRemoved) {
+            console.log(`Filtering out permanently removed NFT: ${item.name || 'unknown'} (${itemKey})`);
+          }
+          return !isRemoved;
         });
         
         // Ensure we don't have duplicates by using a Map with NFT keys
         const uniqueNFTsMap = new Map();
-        filteredNFTs.forEach(item => {
-          if (item.contract && item.tokenId) {
-            const itemKey = `${item.contract.toLowerCase()}-${item.tokenId}`;
-            uniqueNFTsMap.set(itemKey, item);
+        
+        // If we're unliking, make sure the current NFT is not in the final list
+        if (isUnliking) {
+          console.log(`Ensuring ${nft.name} (${nftKey}) is removed from final list`);
+          // Add all filtered NFTs except the one we're unliking
+          filteredNFTs.forEach(item => {
+            if (item.contract && item.tokenId) {
+              const itemKey = `${item.contract.toLowerCase()}-${item.tokenId}`;
+              if (itemKey !== nftKey) {
+                uniqueNFTsMap.set(itemKey, item);
+              }
+            }
+          });
+        } else {
+          // For likes, add all filtered NFTs
+          filteredNFTs.forEach(item => {
+            if (item.contract && item.tokenId) {
+              const itemKey = `${item.contract.toLowerCase()}-${item.tokenId}`;
+              uniqueNFTsMap.set(itemKey, item);
+            }
+          });
+          
+          // Make sure the NFT we just liked is in the list
+          if (nft.contract && nft.tokenId) {
+            uniqueNFTsMap.set(nftKey, nft);
           }
-        });
+        }
         
         // Convert Map back to array
         const uniqueNFTs = Array.from(uniqueNFTsMap.values());
         console.log(`🧹 Filtered to ${uniqueNFTs.length} unique NFTs (from ${filteredNFTs.length})`);
         
+        // Update the liked NFTs list
         setLikedNFTs(uniqueNFTs);
       } catch (error) {
         console.error('❌ Error refreshing liked NFTs:', error);
@@ -1365,6 +1399,14 @@ const Demo: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col no-select">
+      {/* Persistent header with logo that navigates to home page */}
+      <NotificationHeader
+        show={false} // Keeps the header in a state where it just shows the logo
+        message=""
+        onLogoClick={() => switchPage('isHome')}
+        type="info"
+      />
+      
       {userFid && (
         <UserDataLoader
           userFid={userFid}
@@ -1374,7 +1416,7 @@ const Demo: React.FC = () => {
           onError={setError}
         />
       )}
-      <div className="flex-1 container mx-auto px-4 py-6 pb-40">
+      <div className="flex-1 container mx-auto px-4 py-6 pb-40 mt-16"> {/* Added mt-16 for header spacing */}
         {renderCurrentView()}
       </div>
 
