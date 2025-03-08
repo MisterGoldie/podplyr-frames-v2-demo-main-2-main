@@ -180,12 +180,23 @@ const ProfileView: React.FC<ProfileViewProps> = ({
   // Handle like toggle with notification
   const handleNFTLikeToggle = async (nft: NFT) => {
     try {
-      // Call the parent's onLikeToggle function
-      await onLikeToggle(nft);
+      // Determine if this is a like or unlike action before making the change
+      const currentlyLiked = isNFTLiked(nft, true);
+      const willBeLiked = !currentlyLiked;
       
-      // Determine if this was a like or unlike action
-      const wasLiked = !isNFTLiked(nft, true);
-      setIsLikeAction(wasLiked);
+      // Immediately update the UI state for instant feedback
+      if (willBeLiked) {
+        // Add to liked NFTs for immediate UI update
+        setLikedNFTs(prev => [...prev, nft]);
+      } else {
+        // Remove from liked NFTs for immediate UI update
+        setLikedNFTs(prev => prev.filter(item => 
+          !(item.contract === nft.contract && item.tokenId === nft.tokenId)
+        ));
+      }
+      
+      // Set notification properties
+      setIsLikeAction(willBeLiked);
       setLikedNFTName(nft.name);
       setShowLikeNotification(true);
       
@@ -194,8 +205,21 @@ const ProfileView: React.FC<ProfileViewProps> = ({
         setShowLikeNotification(false);
       }, 3000);
       
+      // Call the parent's onLikeToggle function (can happen in background)
+      await onLikeToggle(nft);
     } catch (error) {
       console.error('Error toggling like for NFT:', error);
+      
+      // If there was an error, revert the optimistic UI update
+      // by refreshing the liked NFTs
+      if (userContext?.user?.fid) {
+        try {
+          const liked = await getLikedNFTs(userContext.user.fid);
+          setLikedNFTs(liked);
+        } catch (e) {
+          console.error('Error refreshing liked NFTs after error:', e);
+        }
+      }
     }
   };
 
