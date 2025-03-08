@@ -385,6 +385,12 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
     
     if (!effectiveUserFid || !user.fid) return;
     
+    // Prevent users from following themselves
+    if (effectiveUserFid === user.fid) {
+      console.log('Cannot follow yourself');
+      return;
+    }
+    
     try {
       const isNowFollowed = await toggleFollowUser(effectiveUserFid, user);
       
