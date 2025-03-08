@@ -1,4 +1,5 @@
-import { css } from '@emotion/react';
+import React from 'react';
+import { Global, css } from '@emotion/react';
 
 const retroStyles = css`
   .retro-container {
@@ -30,8 +31,6 @@ const retroStyles = css`
   /* Rest of the retro styles... */
 `;
 
-export const RetroStyles = () => (
-  <style jsx global>
-    {retroStyles}
-  </style>
+export const RetroStyles: React.FC = () => (
+  <Global styles={retroStyles} />
 ); 
