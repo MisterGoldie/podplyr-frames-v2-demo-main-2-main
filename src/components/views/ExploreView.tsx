@@ -9,6 +9,12 @@ import Image from 'next/image';
 import { NFT, FarcasterUser, SearchedUser } from '../../types/user';
 import { getDoc, doc } from 'firebase/firestore';
 import { db, trackUserSearch, isUserFollowed, toggleFollowUser, getFollowersCount, getFollowingCount } from '../../lib/firebase';
+
+// Hardcoded list of FIDs for users who should have "thepod" badge
+const POD_MEMBER_FIDS = [15019, 7472, 14871, 414859, 892616, 892130];
+
+// PODPlayr official account FID
+const PODPLAYR_OFFICIAL_FID = 1014485;
 import { useContext } from 'react';
 import { FarcasterContext } from '../../app/providers';
 import NotificationHeader from '../NotificationHeader';
@@ -645,6 +651,16 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                                   Following
                                 </span>
                               )}
+                              {POD_MEMBER_FIDS.includes(user.fid) && (
+                                <span className="text-xs font-mono px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded-full flex items-center">
+                                  thepod
+                                </span>
+                              )}
+                              {user.fid === PODPLAYR_OFFICIAL_FID && (
+                                <span className="text-xs font-mono px-2 py-0.5 bg-purple-800/40 text-purple-300 rounded-full flex items-center font-semibold">
+                                  Official
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -756,6 +772,16 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                   </svg>
                                   Following
+                                </span>
+                              )}
+                              {POD_MEMBER_FIDS.includes(user.fid) && (
+                                <span className="text-xs font-mono px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded-full flex items-center">
+                                  thepod
+                                </span>
+                              )}
+                              {user.fid === PODPLAYR_OFFICIAL_FID && (
+                                <span className="text-xs font-mono px-2 py-0.5 bg-purple-800/40 text-purple-300 rounded-full flex items-center font-semibold">
+                                  Official
                                 </span>
                               )}
                             </div>
