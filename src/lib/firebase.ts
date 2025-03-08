@@ -1897,6 +1897,12 @@ export const isUserFollowed = async (currentUserFid: number, userFid: number): P
 // Toggle follow status for a user
 export const toggleFollowUser = async (currentUserFid: number, user: FarcasterUser): Promise<boolean> => {
   try {
+    // Prevent users from following themselves
+    if (currentUserFid === user.fid) {
+      console.log('Cannot follow yourself - operation blocked at database level');
+      return false;
+    }
+    
     // Prevent unfollowing the PODPlayr account
     if (user.fid === PODPLAYR_ACCOUNT.fid) {
       console.log('Attempted to unfollow PODPlayr account - operation blocked');
