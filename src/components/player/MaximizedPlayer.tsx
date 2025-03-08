@@ -125,8 +125,11 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
     return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
   };
 
-  // Keep the renderVideo function exactly as in the original
+  // Keep the renderVideo function with minimal optimizations
   const renderVideo = () => {
+    // Import at the top of the file
+    const { videoPerformanceMonitor } = require('../../utils/videoPerformanceMonitor');
+    
     return (
       <div className="relative w-full h-full flex items-center justify-center">
         <video
@@ -151,6 +154,12 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
             if (videoRef.current && lastPosition && lastPosition > 0) {
               videoRef.current.currentTime = lastPosition;
               console.log("Restored position to:", lastPosition);
+            }
+            
+            // Apply only essential optimizations
+            if (videoRef.current) {
+              videoRef.current.setAttribute('playsinline', 'true');
+              videoPerformanceMonitor.optimizeVideoElement(videoRef.current);
             }
           }}
         />

@@ -3,16 +3,19 @@
 let isLowPerformanceMode = false;
 let frameDropDetected = false;
 let totalVideosPlaying = 0;
+let isMobileDevice = false;
 
 // Helper functions for monitoring performance
 export const videoPerformanceMonitor = {
   init() {
     // Check device capabilities once at init
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    const isLowPowerDevice = isMobile && typeof window.navigator.hardwareConcurrency === 'number' && 
+    isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const isLowPowerDevice = isMobileDevice && typeof window.navigator.hardwareConcurrency === 'number' && 
       window.navigator.hardwareConcurrency <= 4;
     
-    if (isLowPowerDevice) {
+    if (isLowPowerDevice || isMobileDevice) {
+      // Only log once to avoid console spam
+      console.log('Mobile or low-power device detected - enabling video optimizations');
       this.enableLowPerformanceMode();
     }
     
@@ -93,15 +96,24 @@ export const videoPerformanceMonitor = {
   },
   
   optimizeVideoElement(video: HTMLVideoElement) {
-    // Apply optimizations to the video element
+    // Apply essential optimizations to the video element
     video.setAttribute('playsinline', 'true');
     video.setAttribute('webkit-playsinline', 'true');
-    video.preload = 'metadata';
     
-    // Reduce quality for performance
-    if (video.videoHeight > 480) {
-      // Lower resolution videos perform better
-      video.style.objectFit = 'contain';
+    // Basic optimizations for all devices
+    video.preload = isMobileDevice ? 'metadata' : 'auto';
+    
+    // Simple mobile optimizations that won't affect scrolling
+    if (isMobileDevice) {
+      // Ensure videos play inline on mobile
+      if (video.hasAttribute('controls')) {
+        video.controls = false;
+      }
+      
+      // Ensure proper sizing
+      if (video.videoHeight > 480) {
+        video.style.objectFit = 'contain';
+      }
     }
     
     // Monitor this video's performance
@@ -148,5 +160,15 @@ export const videoPerformanceMonitor = {
   
   hasDetectedFrameDrops() {
     return frameDropDetected;
+  },
+  
+  isMobileDevice() {
+    return isMobileDevice;
+  },
+  
+  // Simple helper to optimize video sources for mobile
+  optimizeVideoSource(videoUrl: string): string {
+    // Just return the original URL for now to avoid any issues
+    return videoUrl;
   }
 }; 

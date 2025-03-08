@@ -461,8 +461,15 @@ const Demo: React.FC = () => {
       const nftKey = `${nft.contract?.toLowerCase()}-${nft.tokenId}`;
       const isCurrentlyLiked = isNFTLiked(nft, true);
       
-      // If we're in library or the NFT is currently liked, we're unliking
-      if (currentPage.isLibrary || isCurrentlyLiked) {
+      // In library view, we're ALWAYS unliking
+      // In other views, check if the NFT is already liked
+      const isUnliking = currentPage.isLibrary || isCurrentlyLiked;
+      
+      console.log(`Operation: ${isUnliking ? 'UNLIKE' : 'LIKE'} on page: ${Object.keys(currentPage).find(key => currentPage[key as keyof PageState])}`);
+      console.log(`NFT liked status: ${isCurrentlyLiked ? 'LIKED' : 'NOT LIKED'}`);
+      
+      // If we're unliking (in library or the NFT is already liked)
+      if (isUnliking) {
         // PERMANENT REMOVAL: Add this NFT to our permanent blacklist
         console.log(`🚫 PERMANENTLY REMOVING ${nft.name} from library`);
         setPermanentlyRemovedNFTs(prev => {
@@ -509,25 +516,96 @@ const Demo: React.FC = () => {
         console.error('❌ Error in toggleLikeNFT:', error);
       }
       
-      // For likes (not unlikes), refresh the list from Firebase
-      if (wasLiked) {
-        try {
-          console.log('🔄 Refreshing liked NFTs list...');
-          const freshLikedNFTs = await getLikedNFTs(effectiveUserFid);
-        
-        // CRITICAL: Apply our permanent removal list to filter out any NFTs
-        // that should stay removed no matter what Firebase returns
-          const filteredNFTs = freshLikedNFTs.filter(item => {
-            if (!item.contract || !item.tokenId) return true;
+      // For likes (not unlikes), we need to update the UI immediately to show the NFT as liked
+      if (!isUnliking) {
+        console.log(`💖 Immediate UI update: Adding ${nft.name} to liked NFTs`);
+        // Add the NFT to the liked list if it's not already there
+        setLikedNFTs(prev => {
+          // Check if the NFT is already in the list
+          const nftExists = prev.some(item => {
+            if (!item.contract || !item.tokenId) return false;
             const itemKey = `${item.contract.toLowerCase()}-${item.tokenId}`;
-            return !permanentlyRemovedNFTs.has(itemKey);
+            return itemKey === nftKey;
           });
           
-          setLikedNFTs(filteredNFTs);
-          setIsLiked(true);
-        } catch (error) {
-          console.error('❌ Error refreshing liked NFTs:', error);
+          // If it's already in the list, don't add it again
+          if (nftExists) {
+            console.log(`NFT ${nft.name} already in liked list, not adding again`);
+            return prev;
+          }
+          
+          // Otherwise add it to the list
+          console.log(`Adding ${nft.name} to liked list`);
+          return [...prev, nft];
+        });
+        
+        // Update the isLiked state
+        setIsLiked(true);
+      }
+      
+      // For unlikes, we need to make sure the NFT stays removed
+      // For likes, we need to make sure the NFT is added
+      try {
+        console.log('🔄 Refreshing liked NFTs list...');
+        const freshLikedNFTs = await getLikedNFTs(effectiveUserFid);
+        
+        // Log the permanent removal list for debugging
+        console.log(`Permanent removal list has ${permanentlyRemovedNFTs.size} items`);
+        if (permanentlyRemovedNFTs.size > 0) {
+          console.log('Permanently removed NFTs:');
+          Array.from(permanentlyRemovedNFTs).forEach(key => console.log(`- ${key}`));
         }
+      
+        // CRITICAL: Apply our permanent removal list to filter out any NFTs
+        // that should stay removed no matter what Firebase returns
+        const filteredNFTs = freshLikedNFTs.filter(item => {
+          if (!item.contract || !item.tokenId) return true;
+          const itemKey = `${item.contract.toLowerCase()}-${item.tokenId}`;
+          const isRemoved = permanentlyRemovedNFTs.has(itemKey);
+          if (isRemoved) {
+            console.log(`Filtering out permanently removed NFT: ${item.name || 'unknown'} (${itemKey})`);
+          }
+          return !isRemoved;
+        });
+        
+        // Ensure we don't have duplicates by using a Map with NFT keys
+        const uniqueNFTsMap = new Map();
+        
+        // If we're unliking, make sure the current NFT is not in the final list
+        if (isUnliking) {
+          console.log(`Ensuring ${nft.name} (${nftKey}) is removed from final list`);
+          // Add all filtered NFTs except the one we're unliking
+          filteredNFTs.forEach(item => {
+            if (item.contract && item.tokenId) {
+              const itemKey = `${item.contract.toLowerCase()}-${item.tokenId}`;
+              if (itemKey !== nftKey) {
+                uniqueNFTsMap.set(itemKey, item);
+              }
+            }
+          });
+        } else {
+          // For likes, add all filtered NFTs
+          filteredNFTs.forEach(item => {
+            if (item.contract && item.tokenId) {
+              const itemKey = `${item.contract.toLowerCase()}-${item.tokenId}`;
+              uniqueNFTsMap.set(itemKey, item);
+            }
+          });
+          
+          // Make sure the NFT we just liked is in the list
+          if (nft.contract && nft.tokenId) {
+            uniqueNFTsMap.set(nftKey, nft);
+          }
+        }
+        
+        // Convert Map back to array
+        const uniqueNFTs = Array.from(uniqueNFTsMap.values());
+        console.log(`🧹 Filtered to ${uniqueNFTs.length} unique NFTs (from ${filteredNFTs.length})`);
+        
+        // Update the liked NFTs list
+        setLikedNFTs(uniqueNFTs);
+      } catch (error) {
+        console.error('❌ Error refreshing liked NFTs:', error);
       }
       
       // Debug like status after update
@@ -1106,40 +1184,44 @@ const Demo: React.FC = () => {
   const handleDirectVideoPlayback = useCallback((nft: NFT) => {
     if (!nft.isVideo) return;
     
-    // Find all video elements
-    const videos = document.querySelectorAll('video');
+    // Find only the specific video element we need
     const targetVideoId = `video-${nft.contract}-${nft.tokenId}`;
+    const targetVideo = document.getElementById(targetVideoId) as HTMLVideoElement;
     
-    // Simply pause all other videos and play the target
-    videos.forEach(video => {
-      const isTarget = video.id === targetVideoId;
+    // Only manage the target video to avoid affecting other elements
+    if (targetVideo) {
+      // Ensure video has playsinline attribute for mobile
+      targetVideo.setAttribute('playsinline', 'true');
       
-      if (isTarget) {
-        // For the target video, just try to play it directly
-        try {
-          // First try unmuted
-          video.muted = false;
-          video.play().catch(() => {
-            // If that fails (expected on mobile), fall back to muted
-            video.muted = true;
-            video.play().catch(() => {
-              console.log('Failed to play video even when muted');
-            });
+      // For the target video, try to play it directly
+      try {
+        // First try unmuted
+        targetVideo.muted = false;
+        targetVideo.play().catch(() => {
+          // If that fails (expected on mobile), fall back to muted
+          targetVideo.muted = true;
+          targetVideo.play().catch(() => {
+            console.log('Failed to play video even when muted');
           });
-        } catch (e) {
-          console.log('Error playing video:', e);
-        }
-      } else {
-        // Just pause other videos
-        try {
-          if (!video.paused) {
-            video.pause();
-          }
-        } catch (e) {
-          // Ignore errors
-        }
+        });
+      } catch (e) {
+        console.log('Error playing video:', e);
       }
-    });
+    }
+    
+    // Pause other videos more carefully to avoid affecting scrolling
+    try {
+      // Get only videos that aren't our target
+      const otherVideos = document.querySelectorAll(`video:not(#${targetVideoId})`);
+      otherVideos.forEach(video => {
+        if (!(video as HTMLVideoElement).paused) {
+          (video as HTMLVideoElement).pause();
+        }
+      });
+    } catch (e) {
+      // Ignore errors
+      console.log('Error pausing other videos:', e);
+    }
   }, []);
 
   // IMPORTANT: Instead of replacing handlePlayAudio, modify the existing useAudioPlayer hook's function
@@ -1158,7 +1240,12 @@ const Demo: React.FC = () => {
 
   useEffect(() => {
     // Initialize video performance monitor on mount
-    videoPerformanceMonitor.init();
+    // Use a try-catch to prevent any errors from breaking the app
+    try {
+      videoPerformanceMonitor.init();
+    } catch (e) {
+      console.error('Error initializing video performance monitor:', e);
+    }
   }, []);
   // Add this near your NFT processing code to reduce redundant checks
   const processNFTs = useCallback((nfts: any[]) => {
@@ -1321,6 +1408,14 @@ const Demo: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col no-select">
+      {/* Persistent header with logo that navigates to home page */}
+      <NotificationHeader
+        show={false} // Keeps the header in a state where it just shows the logo
+        message=""
+        onLogoClick={() => switchPage('isHome')}
+        type="info"
+      />
+      
       {userFid && (
         <UserDataLoader
           userFid={userFid}
@@ -1330,7 +1425,7 @@ const Demo: React.FC = () => {
           onError={setError}
         />
       )}
-      <div className="flex-1 container mx-auto px-4 py-6 pb-40">
+      <div className="flex-1 container mx-auto px-4 py-6 pb-40"> {/* Removed mt-16 to restore original positioning */}
         {renderCurrentView()}
       </div>
 
