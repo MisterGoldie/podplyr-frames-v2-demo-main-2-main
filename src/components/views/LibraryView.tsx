@@ -6,6 +6,25 @@ import { NFTImage } from '../media/NFTImage';
 import { getMediaKey } from '~/utils/media';
 import Image from 'next/image';
 import NotificationHeader from '../NotificationHeader';
+import { useNFTNotification } from '../../context/NFTNotificationContext';
+import NFTNotification from '../NFTNotification';
+
+// This component is a wrapper that uses the hook and passes it to the class component
+const NotificationHandler = ({ nft, onTrigger }: { nft: NFT | null, onTrigger: () => void }) => {
+  const nftNotification = useNFTNotification();
+  
+  React.useEffect(() => {
+    if (nft) {
+      console.log('🔔 NotificationHandler: Showing unlike notification for', nft.name);
+      nftNotification.showNotification('unlike', nft);
+      // Call the callback to reset the nft state immediately
+      onTrigger();
+    }
+  }, [nft, nftNotification, onTrigger]);
+  
+  // This component doesn't render anything visible, but it's responsible for triggering notifications
+  return null;
+};
 
 interface LibraryViewProps {
   likedNFTs: NFT[];
@@ -148,13 +167,13 @@ class SimpleNFTCard extends React.Component<SimpleNFTCardProps> {
 
 // Main LibraryView component as a class component
 class LibraryView extends React.Component<LibraryViewProps> {
+  // State for the component including notification handling
   state = {
     viewMode: 'grid' as 'grid' | 'list',
     searchFilter: '',
     filterSort: 'recent' as 'recent' | 'name',
     isLoading: true, // Add loading state, initially true
-    showUnlikeNotification: false,
-    unlikedNFTName: ''
+    nftToNotify: null as NFT | null // Track the NFT that needs a notification
   };
 
   componentDidMount() {
@@ -222,19 +241,12 @@ class LibraryView extends React.Component<LibraryViewProps> {
   }
 
   handleUnlike = async (nft: NFT) => {
-    // Set the notification state
-    this.setState({
-      unlikedNFTName: nft.name,
-      showUnlikeNotification: true
-    });
-    
-    // Hide notification after 3 seconds
-    setTimeout(() => {
-      this.setState({ showUnlikeNotification: false });
-    }, 3000);
-    
-    // Call the original onLikeToggle function
     try {
+      // Set the NFT that needs a notification
+      // The NotificationHandler component will pick this up and show the notification
+      this.setState({ nftToNotify: nft });
+      
+      // Call the original onLikeToggle function
       await this.props.onLikeToggle(nft);
       
       // Force a re-render after the unlike operation
@@ -242,6 +254,11 @@ class LibraryView extends React.Component<LibraryViewProps> {
     } catch (error) {
       console.error('Error unliking NFT:', error);
     }
+  };
+  
+  // Reset the NFT to notify after the notification has been triggered
+  resetNftToNotify = () => {
+    this.setState({ nftToNotify: null });
   };
 
   render() {
@@ -254,7 +271,7 @@ class LibraryView extends React.Component<LibraryViewProps> {
       onLikeToggle 
     } = this.props;
     
-    const { viewMode, searchFilter, filterSort, isLoading, showUnlikeNotification, unlikedNFTName } = this.state;
+    const { viewMode, searchFilter, filterSort, isLoading } = this.state;
     const uniqueNFTs = this.getUniqueNFTs();
     const filteredNFTs = this.getFilteredNFTs();
 
@@ -276,27 +293,17 @@ class LibraryView extends React.Component<LibraryViewProps> {
       <>
         <style>{animationKeyframes}</style>
 
-        <NotificationHeader
-          show={showUnlikeNotification}
-          onHide={() => this.setState({ showUnlikeNotification: false })}
-          type="error"
-          message="Removed"
-          highlightText={unlikedNFTName}
-          autoHideDuration={3000}
+        {/* Add NFTNotification component to ensure notifications work in LibraryView */}
+        <NFTNotification onReset={onReset} />
+        
+        {/* Add the NotificationHandler component to handle unlike notifications */}
+        <NotificationHandler 
+          nft={this.state.nftToNotify} 
+          onTrigger={this.resetNftToNotify} 
         />
-
-        <header className="fixed top-0 left-0 right-0 h-16 bg-black border-b border-black flex items-center justify-center z-50">
-          <button onClick={onReset} className="cursor-pointer">
-            <Image
-              src="/fontlogo.png"
-              alt="PODPlayr Logo"
-              width={120}
-              height={30}
-              className="logo-image"
-              priority={true}
-            />
-          </button>
-        </header>
+        
+        {/* Add NFTNotification component for consistent notification behavior */}
+        <NFTNotification onReset={this.props.onReset} />
 
         <div 
           className="space-y-8 pt-20 pb-12 min-h-screen overflow-y-auto"

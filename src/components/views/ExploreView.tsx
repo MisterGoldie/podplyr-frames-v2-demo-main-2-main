@@ -18,6 +18,8 @@ const PODPLAYR_OFFICIAL_FID = 1014485;
 import { useContext } from 'react';
 import { FarcasterContext } from '../../app/providers';
 import NotificationHeader from '../NotificationHeader';
+import { useNFTNotification } from '../../context/NFTNotificationContext';
+import NFTNotification from '../NFTNotification';
 
 interface ExploreViewProps {
   onSearch: (query: string) => void;
@@ -53,6 +55,9 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
   
   // Use the FID from props if available, otherwise use the one from context
   const effectiveUserFid = props.userFid || contextFid.fid || 0;
+
+  // Get NFT notification context
+  const nftNotification = useNFTNotification();
 
   const {
     onSearch,
@@ -420,44 +425,10 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
   
   return (
     <>
-      {/* Header that transforms between normal and connection states */}
-      <header 
-        className={`fixed top-0 left-0 right-0 h-16 flex items-center justify-center z-50 transition-all duration-500 ease-in-out ${
-          showBanner 
-            ? 'bg-purple-600 border-b border-purple-700' 
-            : 'bg-black border-b border-black'
-        }`}
-      >
-        {/* Logo with smooth fade out when connection appears */}
-        <div className={`transition-all duration-500 ease-in-out absolute ${
-          showBanner ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
-        }`}>
-          <button onClick={onReset} className="cursor-pointer">
-            <Image
-              src="/fontlogo.png"
-              alt="PODPlayr Logo"
-              width={120}
-              height={30}
-              className="logo-image"
-              priority={true}
-            />
-          </button>
-        </div>
-        
-        {/* Connection message with smooth fade in */}
-        <div className={`flex items-center justify-center transition-all duration-500 ease-in-out ${
-          showBanner ? 'opacity-100 scale-100' : 'opacity-0 scale-95 absolute'
-        }`}>
-          <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-purple-600" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
-            </svg>
-          </div>
-          <div className="text-white ml-3 text-lg">
-            Connection with <span className="font-semibold">{username}</span>
-          </div>
-        </div>
-      </header>
+      {/* Add NFTNotification component to ensure notifications work in ExploreView */}
+      <NFTNotification onReset={onReset} />
+      
+      {/* We don't need a custom header here - NotificationHeader will handle this */}
       
       {/* Main content with adjusted padding */}
       <div className="space-y-8 pt-20 pb-48 overflow-y-auto h-screen">
@@ -849,6 +820,9 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
         autoHideDuration={0}
         onReset={onReset}
       />
+      
+      {/* Add NFTNotification component to handle like/unlike notifications */}
+      <NFTNotification onReset={onReset} />
       {/* Follows Modal */}
       {showFollowsModal && selectedUser && (
         <FollowsModal

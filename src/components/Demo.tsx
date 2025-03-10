@@ -47,6 +47,7 @@ import { VideoSyncManager } from './media/VideoSyncManager';
 import { videoPerformanceMonitor } from '../utils/videoPerformanceMonitor';
 import { AnimatePresence, motion } from 'framer-motion';
 import NotificationHeader from './NotificationHeader';
+import NFTNotification from './NFTNotification';
 
 const NFT_CACHE_KEY = 'podplayr_nft_cache_';
 const TWO_HOURS = 2 * 60 * 60 * 1000;
@@ -568,33 +569,83 @@ const Demo: React.FC = () => {
           return !isRemoved;
         });
         
-        // Ensure we don't have duplicates by using a Map with NFT keys
+        // Ensure we don't have duplicates by using a Map with mediaKey as the primary key
         const uniqueNFTsMap = new Map();
         
         // If we're unliking, make sure the current NFT is not in the final list
         if (isUnliking) {
           console.log(`Ensuring ${nft.name} (${nftKey}) is removed from final list`);
-          // Add all filtered NFTs except the one we're unliking
+          // Get the mediaKey of the NFT we're unliking
+          const unlikingMediaKey = getMediaKey(nft);
+          console.log(`MediaKey of unliking NFT: ${unlikingMediaKey}`);
+          
+          // Add all filtered NFTs except the one we're unliking (checking both mediaKey and contract-tokenId)
           filteredNFTs.forEach(item => {
             if (item.contract && item.tokenId) {
-              const itemKey = `${item.contract.toLowerCase()}-${item.tokenId}`;
-              if (itemKey !== nftKey) {
-                uniqueNFTsMap.set(itemKey, item);
+              const itemMediaKey = getMediaKey(item);
+              const itemContractKey = `${item.contract.toLowerCase()}-${item.tokenId}`;
+              
+              // Skip if either the mediaKey or contract-tokenId matches the unliked NFT
+              if ((unlikingMediaKey && itemMediaKey === unlikingMediaKey) || itemContractKey === nftKey) {
+                console.log(`Skipping NFT with matching mediaKey or contract-tokenId: ${item.name}`);
+                return;
               }
+              
+              // Use mediaKey as the primary key if available, fallback to contract-tokenId
+              const mapKey = itemMediaKey || itemContractKey;
+              uniqueNFTsMap.set(mapKey, item);
             }
           });
         } else {
-          // For likes, add all filtered NFTs
+          // For likes, add all filtered NFTs using mediaKey as the primary key
           filteredNFTs.forEach(item => {
             if (item.contract && item.tokenId) {
-              const itemKey = `${item.contract.toLowerCase()}-${item.tokenId}`;
-              uniqueNFTsMap.set(itemKey, item);
+              const itemMediaKey = getMediaKey(item);
+              const itemContractKey = `${item.contract.toLowerCase()}-${item.tokenId}`;
+              
+              // Use mediaKey as the primary key if available, fallback to contract-tokenId
+              const mapKey = itemMediaKey || itemContractKey;
+              
+              // If we already have this mediaKey, merge the NFT data to ensure we have the most complete information
+              if (uniqueNFTsMap.has(mapKey)) {
+                const existingNFT = uniqueNFTsMap.get(mapKey);
+                const mergedNFT = {
+                  ...existingNFT,
+                  ...item,
+                  // Ensure metadata is properly merged
+                  metadata: {
+                    ...(existingNFT.metadata || {}),
+                    ...(item.metadata || {})
+                  }
+                };
+                uniqueNFTsMap.set(mapKey, mergedNFT);
+              } else {
+                uniqueNFTsMap.set(mapKey, item);
+              }
             }
           });
           
           // Make sure the NFT we just liked is in the list
           if (nft.contract && nft.tokenId) {
-            uniqueNFTsMap.set(nftKey, nft);
+            const nftMediaKey = getMediaKey(nft);
+            const mapKey = nftMediaKey || nftKey;
+            
+            // If we already have this mediaKey, merge the NFT data
+            if (uniqueNFTsMap.has(mapKey)) {
+              const existingNFT = uniqueNFTsMap.get(mapKey);
+              const mergedNFT = {
+                ...existingNFT,
+                ...nft,
+                // Ensure metadata is properly merged
+                metadata: {
+                  ...(existingNFT.metadata || {}),
+                  ...(nft.metadata || {})
+                }
+              };
+              uniqueNFTsMap.set(mapKey, mergedNFT);
+            } else {
+              uniqueNFTsMap.set(mapKey, nft);
+            }
           }
         }
         
@@ -628,17 +679,30 @@ const Demo: React.FC = () => {
       return true;
     }
 
-    // Otherwise check if it's in the likedNFTs array
+    // Get the mediaKey for content-based tracking
     const nftMediaKey = getMediaKey(nft);
+    
+    if (nftMediaKey) {
+      // First try to match by mediaKey (content-based approach)
+      const mediaKeyMatch = likedNFTs.some(item => {
+        const itemMediaKey = getMediaKey(item);
+        return itemMediaKey === nftMediaKey;
+      });
+      
+      if (mediaKeyMatch) {
+        return true;
+      }
+    }
+    
+    // Fallback to contract-tokenId comparison if no mediaKey match found
     const nftKey = `${nft.contract}-${nft.tokenId}`.toLowerCase();
     
-    // Use a more reliable, direct comparison
-    const isLiked = likedNFTs.some(item => {
+    const contractMatch = likedNFTs.some(item => {
       const itemKey = `${item.contract}-${item.tokenId}`.toLowerCase();
       return itemKey === nftKey;
     });
     
-    return isLiked;
+    return contractMatch;
   };
 
   const switchPage = (page: keyof PageState) => {
@@ -1416,6 +1480,11 @@ const Demo: React.FC = () => {
         type="info"
       />
       
+      {/* Global NFT Notification component */}
+      <NFTNotification onReset={() => switchPage('isHome')} />
+      
+
+      
       {userFid && (
         <UserDataLoader
           userFid={userFid}
@@ -1480,16 +1549,8 @@ const Demo: React.FC = () => {
         className={isPlayerMinimized ? '' : 'hidden'}
       />
 
-      {libraryViewRef.current && (
-        <NotificationHeader
-          show={libraryViewRef.current?.state.showUnlikeNotification}
-          onHide={() => libraryViewRef.current?.setState({ showUnlikeNotification: false })}
-          type="error"
-          message="Removed"
-          highlightText={libraryViewRef.current?.state.unlikedNFTName}
-          autoHideDuration={3000}
-        />
-      )}
+      {/* Use our new unified NFTNotification component */}
+      <NFTNotification onReset={() => switchPage('isHome')} />
     </div>
   );
 };

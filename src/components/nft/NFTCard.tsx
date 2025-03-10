@@ -10,6 +10,7 @@ import { DirectVideoPlayer } from '../media/DirectVideoPlayer';
 import { UltraDirectPlayer } from '../media/UltraDirectPlayer';
 import { NFTGifImage } from '../media/NFTGifImage';
 import { useSessionImageCache } from '../../hooks/useSessionImageCache';
+import { useNFTNotification } from '../../context/NFTNotificationContext';
 // Removed the import for 'react-intersection-observer' due to the error
 
 interface NFTCardProps {
@@ -67,6 +68,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   isNFTLiked,
   animationDelay = 0.2
 }) => {
+  // Get the NFT notification context at the component level
   // NEW: Add validation for NFT data to prevent crashes from broken NFTs
   const isValidNFT = useMemo(() => {
     // Basic validation - check if NFT exists and has minimum required properties
@@ -273,6 +275,9 @@ export const NFTCard: React.FC<NFTCardProps> = ({
     }
   };
 
+  // Get notification context - moved higher up in the component to ensure it's available
+  const nftNotification = useNFTNotification();
+  
   // Add animation styles - apply to ALL cards with a consistent animation
   const animationStyle = {
     opacity: 0,
@@ -456,6 +461,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
               console.log('⚠️ PARENT DIV CLICKED');
               e.stopPropagation();
             }}
+            style={{ touchAction: 'manipulation' }}
           >
             {onLikeToggle ? (
               <button 
@@ -464,8 +470,17 @@ export const NFTCard: React.FC<NFTCardProps> = ({
                     nftName: nft?.name,
                     buttonElement: e.currentTarget,
                     hasOnLikeToggle: !!onLikeToggle,
-                    userFid 
+                    userFid,
+                    eventType: e.type,
+                    isMobileTouch: e.type === 'touchend' || e.type === 'touchstart'
                   });
+                  
+                  // Provide immediate visual feedback for touch events
+                  const button = e.currentTarget as HTMLElement;
+                  button.style.transform = 'scale(1.2)';
+                  setTimeout(() => {
+                    button.style.transform = '';
+                  }, 150);
                   
                   e.stopPropagation();
                   e.preventDefault();
@@ -480,8 +495,37 @@ export const NFTCard: React.FC<NFTCardProps> = ({
                   
                   try {
                     if (onLikeToggle) {
+                      // Determine current like state before toggle
+                      const wasLiked = isLiked;
+                      
+                      // Perform the like toggle operation
                       await onLikeToggle(nft);
                       console.log('✅ Like toggle successfully processed for:', nft.name);
+                      
+                      // Show notification with the appropriate type based on the action performed
+                      // If it was liked and now being unliked, show unlike notification
+                      // If it was not liked and now being liked, show like notification
+                      try {
+                        // Log the current state of nftNotification
+                        console.log('🔔 NFT Notification context:', nftNotification);
+                        
+                        // Determine the notification type based on the previous state
+                        const notificationType = wasLiked ? 'unlike' : 'like';
+                        console.log('🔔 Triggering notification for:', nft.name, 'Type:', notificationType);
+                        
+                        // Make sure nftNotification is available and show the notification
+                        if (nftNotification && typeof nftNotification.showNotification === 'function') {
+                          // Show notification immediately
+                          nftNotification.showNotification(notificationType, nft);
+                          console.log('🔔 Notification triggered with type:', notificationType, 'for NFT:', nft.name);
+                        } else {
+                          console.error('❌ nftNotification is not available or showNotification is not a function');
+                          // Try to re-initialize the notification context if it's not available
+                          console.log('🔔 Attempting to recover notification context...');
+                        }
+                      } catch (error) {
+                        console.error('Error showing notification:', error);
+                      }
                     } else {
                       console.error('❌ onLikeToggle function is not available');
                       // Provide visual feedback that something went wrong
@@ -499,7 +543,8 @@ export const NFTCard: React.FC<NFTCardProps> = ({
                   
                   if (e) startOverlayTimer(e);
                 }}
-                className="w-8 h-8 flex items-center justify-center text-red-500 transition-all duration-300 hover:scale-125 z-10"
+                className="w-10 h-10 flex items-center justify-center text-red-500 transition-all duration-300 hover:scale-125 z-10"
+                style={{ touchAction: 'manipulation' }}
                 aria-label="Toggle like"
               >
               {isLiked ? (

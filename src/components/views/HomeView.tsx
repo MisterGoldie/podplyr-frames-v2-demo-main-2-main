@@ -9,6 +9,8 @@ import FeaturedSection from '../sections/FeaturedSection';
 import { getMediaKey } from '../../utils/media';
 import { FarcasterContext } from '../../app/providers';
 import NotificationHeader from '../NotificationHeader';
+import NFTNotification from '../NFTNotification';
+import { useNFTNotification } from '../../context/NFTNotificationContext';
 
 interface HomeViewProps {
   recentlyPlayedNFTs: NFT[];
@@ -35,6 +37,8 @@ const HomeView: React.FC<HomeViewProps> = ({
   onLikeToggle,
   likedNFTs
 }) => {
+  // Get NFT notification context
+  const nftNotification = useNFTNotification();
   const [showLikeNotification, setShowLikeNotification] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
 
@@ -204,18 +208,7 @@ const HomeView: React.FC<HomeViewProps> = ({
         </button>
       </header>
       <div className="space-y-8 pt-20 pb-40 overflow-y-auto h-screen overscroll-y-contain">
-        {/* Blue notification for liking NFTs on the Home page */}
-        <NotificationHeader
-          show={showLikeNotification}
-          onHide={() => {
-            setShowLikeNotification(false);
-            // Add buffer time before allowing new animations
-            setTimeout(() => setIsAnimating(false), 700);
-          }}
-          type="info"
-          message="Added to library"
-          autoHideDuration={3000}
-        />
+        {/* Notifications are now handled by the global NFTNotification component */}
 
         {/* Recently Played Section */}
         <section>
@@ -319,6 +312,9 @@ const HomeView: React.FC<HomeViewProps> = ({
           />
         </section>
       </div>
+      
+      {/* Add NFTNotification component to handle like/unlike notifications */}
+      <NFTNotification onReset={onReset} />
     </>
   );
 };
