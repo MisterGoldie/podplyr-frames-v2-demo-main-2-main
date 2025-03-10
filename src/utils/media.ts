@@ -67,26 +67,6 @@ export const isAudioUrlUsedAsImage = (nft: NFT, imageUrl: string): boolean => {
 export const processMediaUrl = (url: string, fallbackUrl: string = '/default-nft.png'): string => {
   if (!url) return fallbackUrl;
 
-  // Special handling for Mux videos
-  if (url.includes('mux.com') || url.includes('stream.mux.com')) {
-    // For Mux videos, add special parameters to improve mobile playback
-    const separator = url.includes('?') ? '&' : '?';
-    
-    // Force low latency mode and reduced quality for cellular connections
-    const isMobile = typeof window !== 'undefined' && 
-                    (navigator.userAgent.match(/Android/i) ||
-                     navigator.userAgent.match(/iPhone/i) ||
-                     navigator.userAgent.match(/iPad/i));
-    
-    if (isMobile) {
-      // Add Mux-specific parameters for mobile optimization
-      return `${url}${separator}redundant_streams=true&min_height=240&max_height=720&min_bitrate=400&max_bitrate=1500&t=${Date.now()}`;
-    }
-    
-    // For desktop, just add cache busting
-    return `${url}${separator}t=${Date.now()}`;
-  }
-
   // If it's already a working HTTP(S) URL and not an IPFS gateway URL, return it as is
   if ((url.startsWith('http://') || url.startsWith('https://')) && 
       !url.includes('/ipfs/') && 
@@ -256,31 +236,16 @@ export const getMediaKey = (nft: NFT): string => {
 export function getDirectMediaUrl(url: string): string {
   if (!url) return '';
   
-  // Special handling for Mux videos
-  if (url.includes('mux.com') || url.includes('stream.mux.com')) {
-    const separator = url.includes('?') ? '&' : '?';
-    
-    // Force low latency mode and reduced quality for cellular connections
-    const isMobile = typeof window !== 'undefined' && 
-                    (navigator.userAgent.match(/Android/i) ||
-                     navigator.userAgent.match(/iPhone/i) ||
-                     navigator.userAgent.match(/iPad/i));
-    
-    if (isMobile) {
-      // Add Mux-specific parameters for mobile optimization
-      return `${url}${separator}redundant_streams=true&min_height=240&max_height=720&min_bitrate=400&max_bitrate=1500&t=${Date.now()}`;
-    }
-    
-    // For desktop, just add cache busting
-    return `${url}${separator}t=${Date.now()}`;
-  }
-  
   // Handle IPFS URLs - try multiple gateways for better performance
   if (url.includes('ipfs://')) {
     const ipfsHash = url.replace('ipfs://', '');
     
     // For video content, use a CDN-backed gateway
     return `https://cloudflare-ipfs.com/ipfs/${ipfsHash}`;
+    
+    // Fallbacks if needed:
+    // return `https://ipfs.io/ipfs/${ipfsHash}`;
+    // return `https://gateway.pinata.cloud/ipfs/${ipfsHash}`;
   }
   
   // Handle Arweave URLs

@@ -10,13 +10,13 @@ const frame = {
   version: "next",
   imageUrl: `${appUrl}/image.png`,
   button: {
-    title: "Play Now",
+    title: "Enter POD Playr",
     action: {
       type: "launch_frame",
       name: "POD Playr",
       url: appUrl,
       splashImageUrl: `${appUrl}/splash.png`,
-      splashBackgroundColor: "#1A0B2E",
+      splashBackgroundColor: "#000000",
     },
   },
 };
@@ -34,7 +34,7 @@ export async function generateMetadata(): Promise<Metadata> {
           url: `${appUrl}/image.png`,
           width: 1200,
           height: 630,
-          alt: "POD Playr Audio Player",
+          alt: "POD Playr Media Player",
         },
       ],
     },

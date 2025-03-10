@@ -123,111 +123,39 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
     return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
   };
 
-  // Enhanced renderVideo function with specific Mux video optimizations
+  // Keep the renderVideo function exactly as in the original
   const renderVideo = () => {
-    // Import the video performance monitor
-    const { videoPerformanceMonitor } = require('../../utils/videoPerformanceMonitor');
-    
-    // Process the video URL with special handling for Mux
-    const videoUrl = processMediaUrl(nft.metadata?.animation_url || '');
-    const isMuxVideo = videoUrl.includes('mux.com') || videoUrl.includes('stream.mux.com');
-    
-    // Initialize loading state
-    useEffect(() => {
-      setVideoLoading(true);
-    }, [nft.metadata?.animation_url]);
-    
-    // Handle video errors with special Mux handling
-    const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
-      console.error('Video error occurred:', e);
-      if (videoRef.current && videoRef.current.error) {
-        console.error('Error code:', videoRef.current.error.code, 'Message:', videoRef.current.error.message);
-        
-        // For Mux videos, try a more aggressive recovery approach
-        if (isMuxVideo) {
-          // Force reload with lower quality settings
-          const currentSrc = videoRef.current.src;
-          const separator = currentSrc.includes('?') ? '&' : '?';
-          const newSrc = `${currentSrc}${separator}redundant_streams=true&min_height=240&max_bitrate=800&t=${Date.now()}`;
-          
-          console.log('Attempting Mux-specific recovery with:', newSrc);
-          videoRef.current.src = newSrc;
-          videoRef.current.load();
-          
-          if (isPlaying) {
-            videoRef.current.play().catch(e => {
-              console.error('Failed to restart Mux video after recovery:', e);
-            });
-          }
-        } else {
-          // For non-Mux videos, use the standard error handler
-          videoPerformanceMonitor.handleVideoError(videoRef.current);
-        }
-      }
-    };
-    
-    // Add Mux-specific attributes for better mobile playback
-    const muxAttributes = isMuxVideo ? {
-      playsInline: true,
-      preload: "metadata",
-      'x-mux-disable-seeking': "false",
-      'x-mux-min-rebuffer-duration': "500",
-      'x-mux-rebuffer-size': "2"
-    } : {};
-    
     return (
       <div className="relative w-full h-full flex items-center justify-center">
         <video
           ref={videoRef}
           id={`video-${nft.contract}-${nft.tokenId}`}
-          src={videoUrl}
+          src={processMediaUrl(nft.metadata?.animation_url || '')}
           playsInline
           loop
           muted={!nft.metadata?.animation_url?.match(/\.(mp4|webm|mov)$/i)}
           autoPlay={isPlaying}
-          preload={isMuxVideo ? "metadata" : "auto"}
+          preload="auto"
           className="w-auto h-auto object-contain rounded-lg max-h-[60vh] min-h-[40vh] min-w-[60%] max-w-full"
           style={{ 
             opacity: 1, 
             willChange: 'transform',
             objectFit: 'contain'
           }}
-          onError={handleVideoError}
-          onLoadStart={() => setVideoLoading(true)}
-          onStalled={() => {
-            console.log('Video playback stalled, attempting recovery');
-            handleVideoError({ currentTarget: videoRef.current } as any);
-          }}
           onLoadedData={() => {
             setVideoLoading(false);
-            console.log('Video loaded successfully');
             
             // Set the video time to the saved position when loaded
             if (videoRef.current && lastPosition && lastPosition > 0) {
               videoRef.current.currentTime = lastPosition;
               console.log("Restored position to:", lastPosition);
             }
-            
-            // Apply video optimizations
-            if (videoRef.current) {
-              videoPerformanceMonitor.optimizeVideoElement(videoRef.current);
-              
-              // For Mux videos, set additional attributes
-              if (isMuxVideo) {
-                videoRef.current.setAttribute('x-mux-disable-seeking', 'false');
-                videoRef.current.setAttribute('x-mux-min-rebuffer-duration', '500');
-                videoRef.current.setAttribute('x-mux-rebuffer-size', '2');
-              }
-            }
           }}
-          crossOrigin="anonymous"
-          {...muxAttributes}
         />
 
         {videoLoading && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/30 backdrop-blur-sm rounded-lg">
-            <div className="loader mb-2"></div>
-            <div className="text-white text-sm font-medium">Loading video...</div>
+          <div className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm rounded-lg">
+            <div className="loader"></div>
           </div>
         )}
       </div>
@@ -253,32 +181,16 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
     position: 'relative' as 'relative'
   };
 
-  // Enhanced effect to handle play/pause with better error recovery
+  // Add one simple effect to handle play/pause
   useEffect(() => {
     // Only run this if we have a video element
     if (!videoRef.current) return;
     
-    // Import the video performance monitor
-    const { videoPerformanceMonitor } = require('../../utils/videoPerformanceMonitor');
-    
-    // Play/pause logic with error handling
+    // Simple play/pause logic
     if (isPlaying) {
-      const playPromise = videoRef.current.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(e => {
-          console.error("Video play error:", e);
-          
-          // Try to recover from the error
-          setTimeout(() => {
-            if (videoRef.current) {
-              videoPerformanceMonitor.handleVideoError(videoRef.current);
-              videoRef.current.play().catch(e2 => {
-                console.error("Second play attempt failed:", e2);
-              });
-            }
-          }, 1000);
-        });
-      }
+      videoRef.current.play().catch(e => {
+        console.error("Video play error:", e);
+      });
     } else {
       videoRef.current.pause();
     }
