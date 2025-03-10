@@ -1835,6 +1835,12 @@ export const ensurePodplayrFollow = async (userFid: number): Promise<void> => {
   try {
     if (!userFid) return;
     
+    // Prevent PODPlayr from following itself
+    if (userFid === PODPLAYR_ACCOUNT.fid) {
+      console.log('Skipping self-follow for PODPlayr account');
+      return;
+    }
+    
     console.log(`Checking if user ${userFid} follows PODPlayr account`);
     
     // Check if the user already follows PODPlayr

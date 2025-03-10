@@ -241,6 +241,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
         message="Background updated successfully"
         autoHideDuration={3000}
         onReset={onReset}
+        onLogoClick={onReset}
       />
       
       {/* Like/Unlike Notification */}
@@ -251,6 +252,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
         message={isLikeAction ? "Added to library" : "Removed from library"}
         highlightText={likedNFTName}
         autoHideDuration={3000}
+        onLogoClick={onReset}
       />
       
       {/* Follows Modal */}
