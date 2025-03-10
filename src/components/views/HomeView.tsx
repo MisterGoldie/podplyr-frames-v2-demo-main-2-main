@@ -37,10 +37,8 @@ const HomeView: React.FC<HomeViewProps> = ({
   onLikeToggle,
   likedNFTs
 }) => {
-  // Get NFT notification context
-  const nftNotification = useNFTNotification();
-  const [showLikeNotification, setShowLikeNotification] = useState(false);
-  const [isAnimating, setIsAnimating] = useState(false);
+  // Get NFT notification context (use directly for instant notifications)
+  const { showNotification } = useNFTNotification();
 
   // Initialize featured NFTs once on mount
   useEffect(() => {
@@ -86,36 +84,26 @@ const HomeView: React.FC<HomeViewProps> = ({
   // Get user's FID from context
   const { fid: userFid = 0 } = useContext(FarcasterContext);
 
-  // Create a wrapper for the existing like function that also shows the notification
+  // Create a wrapper for the existing like function that shows notification IMMEDIATELY
   const handleNFTLike = async (nft: NFT): Promise<void> => {
     // Check if the NFT is already liked BEFORE toggling
     const wasLiked = checkDirectlyLiked(nft);
     
-    // Call the original like function to toggle the status
-    if (onLikeToggle) {
-      await onLikeToggle(nft);
-    }
+    // Show notification with a small delay to sync with heart icon animation
+    // This ensures the notification appears after the heart turns red
+    const notificationType = !wasLiked ? 'like' : 'unlike';
     
-    // Only show notification if we're ADDING to library (not removing)
-    if (!wasLiked) {
-      // Don't trigger a new animation if one is already running
-      if (isAnimating) return;
-      
-      // Start animation sequence
-      setIsAnimating(true);
-      
-      // Show notification
-      setShowLikeNotification(true);
-      
-      // Hide after specified duration
-      setTimeout(() => {
-        setShowLikeNotification(false);
-        
-        // Allow new animations after a buffer period for fade-out
-        setTimeout(() => {
-          setIsAnimating(false);
-        }, 700); // Match this to the duration in NotificationHeader
-      }, 3000);
+    // Add a small delay (150ms) to match the heart animation timing
+    setTimeout(() => {
+      showNotification(notificationType, nft);
+    }, 150); // Timing synchronized with heart icon animation
+    
+    // Call the original like function to toggle the status in the background
+    // Don't await this - let it happen in the background while notification shows
+    if (onLikeToggle) {
+      onLikeToggle(nft).catch(error => {
+        console.error('Error toggling like status:', error);
+      });
     }
   };
 

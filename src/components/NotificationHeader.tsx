@@ -28,30 +28,24 @@ const NotificationHeader: React.FC<NotificationHeaderProps> = ({
   onReset,
   onLogoClick, // Add the new prop
 }) => {
-  // Initialize with explicitly false states to prevent showing on startup
-  const [isBackgroundVisible, setIsBackgroundVisible] = useState(false);
-  const [isContentVisible, setIsContentVisible] = useState(false);
+  // Use separate states for background and content to stagger transitions
+  const [isBackgroundVisible, setIsBackgroundVisible] = useState(show);
+  const [isContentVisible, setIsContentVisible] = useState(show);
   
-  // Immediate transition for better visibility
+  // Smoother transition handling with staggered timing
   useEffect(() => {
     if (show) {
-      // Force a complete reset of states to ensure proper rendering
-      setIsBackgroundVisible(false);
-      setIsContentVisible(false);
-      
-      // Force a reflow before showing
-      setTimeout(() => {
-        setIsBackgroundVisible(true);
-        setIsContentVisible(true);
-        console.log('🔔 NOTIFICATION SHOWING with type:', type);
-      }, 5);
+      // When showing, change background first, then content
+      setIsBackgroundVisible(true);
+      const timer = setTimeout(() => setIsContentVisible(true), 50);
+      return () => clearTimeout(timer);
     } else {
       // When hiding, change content first, then background
       setIsContentVisible(false);
       const timer = setTimeout(() => setIsBackgroundVisible(false), 200);
       return () => clearTimeout(timer);
     }
-  }, [show, type]);
+  }, [show]);
   
   // Auto-hide functionality
   useEffect(() => {
@@ -66,21 +60,17 @@ const NotificationHeader: React.FC<NotificationHeaderProps> = ({
   
   // Get appropriate styles for different notification types
   const getStyles = () => {
-    // Force log the type for debugging
-    console.log('NOTIFICATION HEADER TYPE:', type);
-    
-    // Return solid colors based on type with no borders
     switch(type) {
       case 'success':
-        return 'bg-green-600';
+        return 'bg-green-600 border-b border-green-700';
       case 'warning':
-        return 'bg-yellow-600';
+        return 'bg-yellow-600 border-b border-yellow-700';
       case 'error':
-        return 'bg-red-600';
+        return 'bg-red-600 border-b border-red-700';
       case 'connection':
-        return 'bg-purple-600';
+        return 'bg-purple-600 border-b border-purple-700';
       default:
-        return 'bg-blue-600';
+        return 'bg-blue-600 border-b border-blue-700';
     }
   };
   
@@ -122,46 +112,53 @@ const NotificationHeader: React.FC<NotificationHeaderProps> = ({
 
   return (
     <header 
-      className={`fixed top-0 left-0 right-0 h-16 flex items-center justify-center z-[9999] ${
-        show ? getStyles() : 'bg-black'
+      className={`fixed top-0 left-0 right-0 h-16 flex items-center justify-center z-50 transition-all duration-700 ease-out ${
+        isBackgroundVisible ? getStyles() : 'bg-black border-b border-black'
       }`}
     >
-      {/* Show either notification content or logo based on 'show' prop */}
-      {show ? (
-        /* Notification content */
-        <div className="w-full h-full flex items-center justify-center">
-          <div className="flex items-center justify-center">
+      {/* Container for both logo and notification */}
+      <div className="relative w-full h-full flex items-center justify-center">
+        {/* Logo container - always centered */}
+        <button 
+          onClick={onLogoClick || onReset} 
+          className={`cursor-pointer transition-all duration-500 ease-in-out transform ${
+            isContentVisible ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
+          }`}
+        >
+          <Image
+            src={logo}
+            alt="PODPlayr Logo"
+            width={120}
+            height={30}
+            className="logo-image"
+            priority={true}
+          />
+        </button>
+        
+        {/* Notification content */}
+        {show && (
+          <div 
+            className={`absolute inset-0 flex items-center justify-center transition-all duration-500 ease-in-out transform ${
+              isContentVisible 
+                ? 'opacity-100 scale-100' 
+                : 'opacity-0 scale-95 pointer-events-none'
+            }`}
+            style={{ willChange: 'transform, opacity' }}
+          >
             <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center mr-3">
               {icon || getDefaultIcon()}
             </div>
-            <div className="text-white text-sm flex items-center font-mono">
-              <span className="font-bold">{message}</span>
+            <div className="text-white text-lg flex items-center">
+              {message}
               {highlightText && (
-                <span className={`font-medium ml-2 truncate max-w-[150px] inline-block ${type === 'success' ? 'text-green-300 font-bold' : 'text-red-300 font-bold'}`}>
+                <span className="font-semibold ml-2 truncate max-w-[120px] inline-block">
                   {highlightText}
                 </span>
               )}
             </div>
           </div>
-        </div>
-      ) : (
-        /* Logo container */
-        <div className="w-full h-full flex items-center justify-center">
-          <button 
-            onClick={onLogoClick || onReset} 
-            className="cursor-pointer"
-          >
-            <Image
-              src={logo}
-              alt="PODPlayr Logo"
-              width={120}
-              height={30}
-              className="logo-image"
-              priority={true}
-            />
-          </button>
-        </div>
-      )}
+        )}
+      </div>
     </header>
   );
 };

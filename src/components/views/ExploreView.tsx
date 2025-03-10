@@ -319,18 +319,42 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
     );
   }
 
-  // Wrapper for like toggle that updates UI state
+  // Wrapper for like toggle that updates UI state and shows notifications IMMEDIATELY
   const handleLikeToggle = async (nft: NFT) => {
     console.log('ExploreView: handleLikeToggle called for:', nft.name);
+    
+    // Determine current like state before toggling
+    const wasLiked = isNFTLiked ? isNFTLiked(nft) : false;
+    
+    // IMPORTANT: Show notification IMMEDIATELY before any Firebase operations
+    // This ensures smooth animation regardless of backend delays
+    try {
+      // Get the notification type based on the current state
+      const notificationType = wasLiked ? 'unlike' : 'like';
+      console.log('🔔 ExploreView: Triggering IMMEDIATE notification:', notificationType, 'for', nft.name);
+      
+      // Add a small delay to sync with the heart icon animation (150ms)
+      // This ensures the notification appears after the heart turns red
+      setTimeout(() => {
+        // Show notification using the global context
+        if (nftNotification && typeof nftNotification.showNotification === 'function') {
+          nftNotification.showNotification(notificationType, nft);
+        }
+      }, 150); // Timing synchronized with heart icon animation
+    } catch (error) {
+      console.error('Error showing notification in ExploreView:', error);
+    }
+    
+    // Perform Firebase operations in the background
     if (onLikeToggle) {
-      try {
-        await onLikeToggle(nft);
-        // Force refresh to update like state in UI
+      // Don't await this - let it happen in the background
+      onLikeToggle(nft).then(() => {
+        // Update UI state after background operation completes
         setRefreshTrigger(prev => prev + 1);
-        console.log('ExploreView: Like toggled, triggering refresh');
-      } catch (error) {
+        console.log('ExploreView: Like toggled in background, triggering refresh');
+      }).catch(error => {
         console.error('Error toggling like in ExploreView:', error);
-      }
+      });
     } else {
       console.warn('onLikeToggle not available in ExploreView');
     }

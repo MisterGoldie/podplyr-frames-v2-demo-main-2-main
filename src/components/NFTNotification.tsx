@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import NotificationHeader from './NotificationHeader';
 import { useNFTNotification } from '../context/NFTNotificationContext';
 
-// Simple animation for notifications only
+// Enhanced animation for notifications with smoother transitions
 
 interface NFTNotificationProps {
   onReset?: () => void;
@@ -13,12 +13,13 @@ const NFTNotification: React.FC<NFTNotificationProps> = ({ onReset }) => {
   const [animationKey, setAnimationKey] = useState(0);
 
   // Force re-render of component when notification becomes visible
-  // This ensures animation plays every time
+  // This ensures animation plays every time with no delay
   useEffect(() => {
     if (isVisible) {
-      // Increment key to force component re-render with fresh animation
+      // Immediately increment key to force component re-render with fresh animation
       setAnimationKey(prev => prev + 1);
       
+      // Log notification details for debugging
       console.log('🔔 NFTNotification is visible:', { 
         type: notificationType, 
         name: nftName,
@@ -27,11 +28,6 @@ const NFTNotification: React.FC<NFTNotificationProps> = ({ onReset }) => {
       });
     }
   }, [isVisible, notificationType, nftName]);
-  
-  // Force log the notification type to debug
-  console.log('CURRENT NOTIFICATION TYPE:', notificationType, 'IS VISIBLE:', isVisible);
-
-
 
   return (
     <div key={animationKey} className="notification-wrapper">

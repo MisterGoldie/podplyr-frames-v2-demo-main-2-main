@@ -494,38 +494,39 @@ export const NFTCard: React.FC<NFTCardProps> = ({
                   // Removed alert for cleaner UX
                   
                   try {
-                    if (onLikeToggle) {
-                      // Determine current like state before toggle
-                      const wasLiked = isLiked;
+                    // Determine current like state before toggle
+                    const wasLiked = isLiked;
+                    
+                    // IMPORTANT: Show notification IMMEDIATELY before any Firebase operations
+                    // This ensures smooth animation regardless of backend delays
+                    try {
+                      // Determine the notification type based on the current state
+                      const notificationType = wasLiked ? 'unlike' : 'like';
+                      console.log('🔔 Triggering IMMEDIATE notification for:', nft.name, 'Type:', notificationType);
                       
-                      // Perform the like toggle operation
-                      await onLikeToggle(nft);
-                      console.log('✅ Like toggle successfully processed for:', nft.name);
-                      
-                      // Show notification with the appropriate type based on the action performed
-                      // If it was liked and now being unliked, show unlike notification
-                      // If it was not liked and now being liked, show like notification
-                      try {
-                        // Log the current state of nftNotification
-                        console.log('🔔 NFT Notification context:', nftNotification);
-                        
-                        // Determine the notification type based on the previous state
-                        const notificationType = wasLiked ? 'unlike' : 'like';
-                        console.log('🔔 Triggering notification for:', nft.name, 'Type:', notificationType);
-                        
+                      // Add a small delay to sync with the heart icon animation (150ms)
+                      // This ensures the notification appears after the heart turns red
+                      setTimeout(() => {
                         // Make sure nftNotification is available and show the notification
                         if (nftNotification && typeof nftNotification.showNotification === 'function') {
-                          // Show notification immediately
                           nftNotification.showNotification(notificationType, nft);
                           console.log('🔔 Notification triggered with type:', notificationType, 'for NFT:', nft.name);
                         } else {
                           console.error('❌ nftNotification is not available or showNotification is not a function');
-                          // Try to re-initialize the notification context if it's not available
-                          console.log('🔔 Attempting to recover notification context...');
                         }
-                      } catch (error) {
-                        console.error('Error showing notification:', error);
-                      }
+                      }, 150); // Timing synchronized with heart icon animation
+                    } catch (error) {
+                      console.error('Error showing notification:', error);
+                    }
+                    
+                    // Perform the like toggle operation in the background
+                    // Don't block the UI or notification on this
+                    if (onLikeToggle) {
+                      onLikeToggle(nft).then(() => {
+                        console.log('✅ Like toggle successfully processed for:', nft.name);
+                      }).catch(error => {
+                        console.error('Error toggling like status:', error);
+                      });
                     } else {
                       console.error('❌ onLikeToggle function is not available');
                       // Provide visual feedback that something went wrong
