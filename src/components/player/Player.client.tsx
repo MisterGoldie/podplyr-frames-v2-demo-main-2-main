@@ -62,19 +62,17 @@ export const PlayerClient: FC<PlayerClientProps> = (props) => {
     // Get the video URL
     const rawVideoUrl = props.nft.metadata?.animation_url || '';
     
-    // Apply cellular optimizations
-    const isCellular = isCellularConnection();
-    const cellularSettings = getCellularVideoSettings();
+    // Get cellular connection info and settings
+    const { isCellular, generation } = isCellularConnection();
+    const settings = getCellularVideoSettings();
     
     // Get optimized URL based on network conditions
     const videoUrl = isCellular 
       ? getOptimizedCellularVideoUrl(rawVideoUrl)
       : rawVideoUrl;
     
-    // Set appropriate preload strategy
-    video.preload = isCellular 
-      ? (cellularSettings.preloadStrategy as any) 
-      : 'auto';
+    // Set appropriate preload strategy based on network
+    video.preload = isCellular ? 'metadata' : 'auto';
     
     // Flag to prevent operations on unmounted component
     let isActive = true;
@@ -84,45 +82,66 @@ export const PlayerClient: FC<PlayerClientProps> = (props) => {
       try {
         // Use HLS.js for streaming if applicable
         if (isHlsUrl(videoUrl) && Hls.isSupported()) {
-          // Get HLS instance with the URL as parameter
-          hlsInstance = getHlsInstance(videoUrl);
+          // Create HLS instance with cellular-optimized config if needed
+          hlsInstance = getHlsInstance(videoUrl, isCellular ? settings.hlsConfig : undefined);
           
-          // Then attach the media element
           if (hlsInstance) {
             hlsInstance.attachMedia(video);
             
             hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
               if (!isActive) return;
-              if (props.isPlaying) video.play().catch(e => console.error("HLS play error:", e));
+              
+              // Log network conditions for debugging
+              console.log('Network conditions:', {
+                isCellular,
+                generation,
+                settings: {
+                  maxResolution: settings.maxResolution,
+                  maxBitrate: settings.maxBitrate
+                }
+              });
+              
+              if (props.isPlaying) {
+                video.play().catch(e => console.error("HLS play error:", e));
+              }
+            });
+            
+            // Handle quality level loading
+            hlsInstance.on(Hls.Events.LEVEL_LOADING, (_, data) => {
+              console.log('Loading quality level:', data.level);
             });
           }
         } else {
           // Regular video source handling
           if (videoUrl !== video.src) {
-            console.log("Setting optimized video source:", 
-              isCellular ? "Cellular optimized" : "Normal",
-              videoUrl
-            );
+            console.log("Setting video source:", {
+              isCellular,
+              generation,
+              isOptimized: isCellular,
+              url: videoUrl
+            });
+            
             video.src = videoUrl;
             video.load();
           }
           
-          // Handle playback with delay for buffering
+          // Handle playback with appropriate delay for buffering
+          const bufferDelay = isCellular ? 500 : 300;
           setTimeout(() => {
             if (!isActive) return;
             if (props.isPlaying) {
               video.play().catch(err => {
                 console.error("Video play error:", err);
-                // One retry
+                // One retry with longer delay
                 setTimeout(() => {
                   if (!isActive) return;
                   video.play().catch(e => console.error("Retry failed:", e));
-                }, 500);
+                }, bufferDelay);
               });
             } else {
               video.pause();
             }
-          }, 300); // Longer delay for buffering
+          }, bufferDelay);
         }
       } catch (err) {
         console.error("Video setup error:", err);
@@ -131,16 +150,14 @@ export const PlayerClient: FC<PlayerClientProps> = (props) => {
     
     setupVideo();
     
-    // CRITICAL: Proper cleanup
+    // Cleanup function
     return () => {
       isActive = false;
       
-      // Clean up HLS if needed
       if (hlsInstance) {
         hlsInstance.destroy();
       }
       
-      // Clean up video element
       if (video) {
         video.pause();
         video.src = '';
@@ -149,26 +166,21 @@ export const PlayerClient: FC<PlayerClientProps> = (props) => {
     };
   }, [props.nft, props.isPlaying]);
 
-  // Add this effect to keep the video synchronized with the player controls
+  // Keep video synchronized with player controls
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !props.nft?.isVideo && !props.nft?.metadata?.animation_url) return;
     
-    // CRITICAL FIX: Force the video position to match the player progress
-    // This ensures the video and controls stay in sync
     if (Math.abs(video.currentTime - props.progress) > 0.5) {
       video.currentTime = props.progress;
     }
     
-    // Listen for video time updates and report back accurate positions
     const handleTimeUpdate = () => {
-      // This ensures the parent component knows the actual video position
       if (Math.abs(video.currentTime - props.progress) > 0.5 && props.onSeek) {
         props.onSeek(video.currentTime);
       }
     };
     
-    // Add the listener to keep things in sync
     video.addEventListener('timeupdate', handleTimeUpdate);
     
     return () => {
