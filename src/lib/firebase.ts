@@ -1206,7 +1206,10 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
           timestamp: serverTimestamp()
         };
         
-        batch.set(userLikeRef, userLikeData);
+        // We want to store only essential NFT data, excluding duplicative or derived fields
+        const sanitizedUserLikeData = JSON.parse(JSON.stringify(userLikeData));
+        
+        batch.set(userLikeRef, sanitizedUserLikeData);
         
         if (globalLikeDoc.exists()) {
           // Update existing global like document

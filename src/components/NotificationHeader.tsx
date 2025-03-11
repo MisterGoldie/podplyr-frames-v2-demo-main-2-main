@@ -162,7 +162,7 @@ const NotificationHeader: React.FC<NotificationHeaderProps> = ({
           />
         </button>
         
-        {/* Notification content */}
+        {/* Notification content - UPDATED */}
         {show && (
           <div 
             className={`absolute inset-0 flex items-center justify-center transition-all duration-700 ease-in-out transform ${
@@ -172,16 +172,19 @@ const NotificationHeader: React.FC<NotificationHeaderProps> = ({
             }`}
             style={{ willChange: 'transform, opacity' }}
           >
-            <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center mr-3">
-              {icon || getDefaultIcon()}
-            </div>
-            <div className="text-white text-lg flex items-center">
-              {message}
-              {highlightText && (
-                <span className="font-semibold ml-2 truncate max-w-[180px] inline-block">
-                  {highlightText}
-                </span>
-              )}
+            {/* Fixed-width container to ensure consistent layout */}
+            <div className="w-full max-w-md flex items-center justify-center px-4">
+              <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center mr-3 flex-shrink-0">
+                {icon || getDefaultIcon()}
+              </div>
+              <div className="text-white text-lg flex items-center overflow-hidden">
+                <span className="flex-shrink-0 whitespace-nowrap">{message}</span>
+                {highlightText && (
+                  <span className="font-semibold ml-2 truncate">
+                    {highlightText}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         )}

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useConnection } from '../context/ConnectionContext';
 
 // No props needed since we're using context
@@ -10,44 +10,46 @@ interface ConnectionHeaderProps {}
  * and will stay visible as long as the user is viewing the connected wallet
  */
 const ConnectionHeader: React.FC<ConnectionHeaderProps> = () => {
-  // Get connection data from context
   const { connectionUsername, connectionLikedCount, showConnectionHeader } = useConnection();
+  
+  // Use separate states for background and content to stagger transitions - EXACTLY like NotificationHeader
+  const [isBackgroundVisible, setIsBackgroundVisible] = useState(showConnectionHeader);
+  const [isContentVisible, setIsContentVisible] = useState(showConnectionHeader);
+  
+  // Smooth transition handling with staggered timing - EXACTLY like NotificationHeader
+  useEffect(() => {
+    if (showConnectionHeader) {
+      // When showing, change background first, then content
+      setIsBackgroundVisible(true);
+      const timer = setTimeout(() => setIsContentVisible(true), 50);
+      return () => clearTimeout(timer);
+    } else {
+      // When hiding, change content first, then background
+      setIsContentVisible(false);
+      const timer = setTimeout(() => setIsBackgroundVisible(false), 200);
+      return () => clearTimeout(timer);
+    }
+  }, [showConnectionHeader]);
   
   // Format the display name with the like count
   const displayName = connectionLikedCount > 0 
     ? `${connectionUsername} (×${connectionLikedCount})` 
     : connectionUsername;
     
-  // STRICT validation: Don't render if ANY conditions fail
-  // 1. Don't show if the flag is off
-  // 2. Don't show if no username
-  // 3. Don't show if liked count is 0
-  // This creates a failsafe that prevents incorrect displays
   if (!showConnectionHeader || !connectionUsername || connectionLikedCount <= 0) {
-    console.log('🛡 ConnectionHeader failsafe prevented display', {
-      showConnectionHeader,
-      connectionUsername,
-      connectionLikedCount
-    });
-    
-    // When connection header is hidden, force logo visibility
-    setTimeout(() => {
-      console.log('🟢 CONNECTION HEADER HIDDEN - FORCING LOGO VISIBLE');
-      const logoImages = document.querySelectorAll('.logo-image');
-      logoImages.forEach(logo => {
-        (logo as HTMLElement).style.opacity = '1';
-        (logo as HTMLElement).style.visibility = 'visible';
-        (logo as HTMLElement).style.display = 'block';
-      });
-    }, 50);
-    
     return null;
   }
   
   return (
-    <header className="fixed top-0 left-0 right-0 h-16 flex items-center justify-center z-50 bg-purple-600 border-b border-purple-700">
+    <header className={`fixed top-0 left-0 right-0 h-16 flex items-center justify-center z-50 transition-all duration-700 ease-out ${
+      isBackgroundVisible ? 'bg-purple-600 border-b border-purple-700' : 'bg-black border-b border-black'
+    }`}>
       <div className="relative w-full h-full flex items-center justify-center">
-        <div className="flex items-center justify-center max-w-full px-4">
+        <div className={`flex items-center justify-center max-w-full px-4 transition-all duration-700 ease-in-out transform ${
+          isContentVisible 
+            ? 'opacity-100 scale-100' 
+            : 'opacity-0 scale-95 pointer-events-none'
+        }`}>
           <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center mr-3">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-purple-600" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />

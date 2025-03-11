@@ -175,35 +175,24 @@ const LocalConnectionNotification: React.FC<LocalConnectionNotificationProps> = 
   }
 
   return (
-    <header 
-      ref={headerRef}
-      className={`fixed top-0 left-0 right-0 h-16 flex items-center justify-center z-50 transition-all duration-700 ease-out ${
-        isBackgroundVisible ? 'bg-purple-600 border-b border-purple-700' : 'bg-black border-b border-black'
-      }`}
-    >
-      {/* Container for the notification */}
-      <div className="relative w-full h-full flex items-center justify-center">
-        {/* Notification content */}
-        <div 
-          ref={contentRef}
-          className={`flex items-center justify-center max-w-full px-4 transition-all duration-500 ease-in-out transform ${
-            isContentVisible 
-              ? 'opacity-100 scale-100' 
-              : 'opacity-0 scale-95 pointer-events-none'
-          }`}
-          style={{ willChange: 'transform, opacity' }}
-        >
-          <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center mr-3">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-purple-600" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
-            </svg>
-          </div>
-          <div className="text-white text-lg flex items-center flex-shrink-0 overflow-visible">
-            <span className="flex-shrink-0">Connection with</span>
-            <span className="font-semibold ml-2 whitespace-nowrap overflow-visible">
-              {username} (×{likedCount})
-            </span>
-          </div>
+    <header className={`fixed top-0 left-0 right-0 h-16 flex items-center justify-center z-50 transition-all duration-700 ease-out ${
+      isBackgroundVisible ? 'bg-purple-600 border-b border-purple-700' : 'bg-black border-b border-black'
+    }`}>
+      <div className={`relative w-full h-full flex items-center justify-center transition-all duration-700 ease-in-out transform ${
+        isContentVisible 
+          ? 'opacity-100 scale-100' 
+          : 'opacity-0 scale-95 pointer-events-none'
+      }`}>
+        <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center mr-3">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-purple-600" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
+          </svg>
+        </div>
+        <div className="text-white text-lg flex items-center flex-shrink-0 overflow-visible">
+          <span className="flex-shrink-0">Connection with</span>
+          <span className="font-semibold ml-2 whitespace-nowrap overflow-visible">
+            {username} (×{likedCount})
+          </span>
         </div>
       </div>
     </header>

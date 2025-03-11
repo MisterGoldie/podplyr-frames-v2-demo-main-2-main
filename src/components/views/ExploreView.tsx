@@ -401,34 +401,40 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
   const { setShowConnectionHeader, setConnectionUsername, setConnectionLikedCount } = useConnection();
   
   // Track previous selected user to prevent infinite loops
-  const prevSelectedUserRef = useRef<string | null>(null);
+  const prevSelectedUserRef = useRef<number | null>(null);
   
-  // IMMEDIATELY hide connection header when: 
-  // 1. User changes
-  // 2. Loading state changes 
-  // 3. Number of NFTs changes
+  // Replace the aggressive reset with this more careful approach
   useEffect(() => {
-    // AGGRESSIVELY hide connection notification on ANY state change
-    setShowConnectionHeader(false);
-    setConnectionUsername('');
-    setConnectionLikedCount(0);
-    console.log('🔕 AGGRESSIVE RESET of connection header on state change');
-    
-    // Force reset of previous user reference
-    prevSelectedUserRef.current = null;
-  }, [selectedUser, isLoadingNFTs, nfts.length]);
-  
-  // Special check for zero NFTs case - must ALWAYS hide notification
-  useEffect(() => {
-    if (nfts.length === 0 && selectedUser) {
-      console.log(`❌ User ${selectedUser.username} has ZERO NFTs - forcing notification OFF`);
+    if (!selectedUser) {
+      // Only reset when there's no selected user
+      console.log('🔄 Reset connection header - no user selected');
       setShowConnectionHeader(false);
       setConnectionUsername('');
       setConnectionLikedCount(0);
     }
-  }, [nfts.length, selectedUser]);
+  }, [selectedUser]);
   
-  // Connection notification is now handled by the isolated LocalConnectionNotification component
+  // Add this effect to detect connections
+  useEffect(() => {
+    // Only run this effect when we have a user and NFTs are loaded
+    if (selectedUser && !isLoadingNFTs && nfts.length > 0 && isNFTLiked) {
+      // Count liked NFTs
+      let count = 0;
+      for (const nft of nfts) {
+        if (isNFTLiked(nft, true)) {
+          count++;
+        }
+      }
+      
+      // Show connection if we have liked NFTs
+      if (count > 0) {
+        console.log(`Found ${count} liked NFTs for ${selectedUser.username}`);
+        setConnectionUsername(selectedUser.username);
+        setConnectionLikedCount(count);
+        setShowConnectionHeader(true);
+      }
+    }
+  }, [selectedUser, isLoadingNFTs, nfts, isNFTLiked]);
 
   // Add a cleanup effect that runs when component unmounts or page changes
   useEffect(() => {
