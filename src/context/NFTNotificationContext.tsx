@@ -78,6 +78,16 @@ export const NFTNotificationProvider: React.FC<NFTNotificationProviderProps> = (
 
   const hideNotification = () => {
     setIsVisible(false);
+    
+    // Ensure the logo is visible after any notification is hidden
+    setTimeout(() => {
+      const logoElement = document.querySelector('.logo-image');
+      if (logoElement) {
+        // Force the logo to be visible
+        (logoElement as HTMLElement).style.opacity = '1';
+        (logoElement as HTMLElement).style.visibility = 'visible';
+      }
+    }, 700); // Wait for animation to finish
   };
 
   return (

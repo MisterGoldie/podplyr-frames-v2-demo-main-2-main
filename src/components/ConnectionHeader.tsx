@@ -29,6 +29,18 @@ const ConnectionHeader: React.FC<ConnectionHeaderProps> = () => {
       connectionUsername,
       connectionLikedCount
     });
+    
+    // When connection header is hidden, force logo visibility
+    setTimeout(() => {
+      console.log('🟢 CONNECTION HEADER HIDDEN - FORCING LOGO VISIBLE');
+      const logoImages = document.querySelectorAll('.logo-image');
+      logoImages.forEach(logo => {
+        (logo as HTMLElement).style.opacity = '1';
+        (logo as HTMLElement).style.visibility = 'visible';
+        (logo as HTMLElement).style.display = 'block';
+      });
+    }, 50);
+    
     return null;
   }
   

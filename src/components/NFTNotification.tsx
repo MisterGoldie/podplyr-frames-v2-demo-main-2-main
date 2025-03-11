@@ -49,6 +49,17 @@ const NFTNotification: React.FC<NFTNotificationProps> = ({
     // Log once when notification changes
     console.log('🔔 Notification changed:', { notificationType, nftName, isVisible });
     
+    // Force logo visibility when notification appears
+    // This ensures we can always see the logo after notification disappears
+    const allLogos = document.querySelectorAll('.logo-image');
+    allLogos.forEach(logo => {
+      // Store original state for restoration
+      if (!(logo as any)._originalOpacity) {
+        (logo as any)._originalOpacity = (logo as HTMLElement).style.opacity;
+        (logo as any)._originalVisibility = (logo as HTMLElement).style.visibility;
+      }
+    });
+    
     switch (notificationType) {
       case 'like':
         return {

@@ -113,6 +113,26 @@ const NotificationHeader: React.FC<NotificationHeaderProps> = ({
     }
   };
 
+  // Force logo visible when notification is hidden, but don't interfere with animations
+  useEffect(() => {
+    if (!show) {
+      // Wait for animations to complete before forcing logo visibility
+      const timer = setTimeout(() => {
+        console.log('🟢 FORCING LOGO VISIBLE IN NOTIFICATION HEADER');
+        
+        // Find ALL logo images in this component and force them to be visible
+        const logoImages = document.querySelectorAll('.logo-image');
+        logoImages.forEach(logo => {
+          (logo as HTMLElement).style.opacity = '1';
+          (logo as HTMLElement).style.visibility = 'visible';
+          (logo as HTMLElement).style.display = 'block';
+        });
+      }, 700); // Match the animation duration
+      
+      return () => clearTimeout(timer);
+    }
+  }, [show]);
+  
   return (
     <header 
       className={`fixed top-0 left-0 right-0 h-16 flex items-center justify-center z-50 transition-all duration-700 ease-out ${
@@ -124,9 +144,13 @@ const NotificationHeader: React.FC<NotificationHeaderProps> = ({
         {/* Logo container - always centered */}
         <button 
           onClick={onLogoClick || onReset} 
-          className={`cursor-pointer transition-all duration-500 ease-in-out transform ${
-            isContentVisible ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
-          }`}
+          className="cursor-pointer absolute inset-0 flex items-center justify-center"
+          style={{ 
+            opacity: show ? 0 : 1,
+            visibility: show ? 'hidden' : 'visible',
+            transition: 'opacity 0.3s ease-out, visibility 0.3s ease-out',
+            zIndex: 10
+          }}
         >
           <Image
             src={logo}
@@ -141,7 +165,7 @@ const NotificationHeader: React.FC<NotificationHeaderProps> = ({
         {/* Notification content */}
         {show && (
           <div 
-            className={`absolute inset-0 flex items-center justify-center transition-all duration-500 ease-in-out transform ${
+            className={`absolute inset-0 flex items-center justify-center transition-all duration-700 ease-in-out transform ${
               isContentVisible 
                 ? 'opacity-100 scale-100' 
                 : 'opacity-0 scale-95 pointer-events-none'

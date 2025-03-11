@@ -442,18 +442,18 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
 
   return (
     <>
-      {/* NFT Notification handles all notification types now */}
+      {/* Logo header that shows when no notification is visible */}
+      <NotificationHeader 
+        show={false}
+        message=""
+        onReset={onReset}
+      />
+      
+      {/* NFT Notification for like/unlike actions */}
       <NFTNotification onReset={onReset} />
       
-      {/* Completely isolated connection notification component */}
-      {selectedUser && (
-        <LocalConnectionNotification
-          selectedUser={selectedUser}
-          nfts={nfts}
-          isLoadingNFTs={isLoadingNFTs}
-          isNFTLiked={isNFTLiked || (() => false)}
-        />
-      )}
+      {/* Connection Header - controlled by ConnectionContext */}
+      <ConnectionHeader />
       
       {/* Main content with adjusted padding */}
       <div className="space-y-8 pt-20 pb-48 overflow-y-auto h-screen">
