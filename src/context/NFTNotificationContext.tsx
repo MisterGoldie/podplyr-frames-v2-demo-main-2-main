@@ -70,13 +70,10 @@ export const NFTNotificationProvider: React.FC<NFTNotificationProviderProps> = (
     setIsVisible(true);
     console.log('🚨🚨 CONNECTION NOTIFICATION VISIBLE NOW for:', displayName);
 
-    // Auto-hide after 4 seconds
-    const id = setTimeout(() => {
-      console.log('🔔❌ Auto-hiding notification');
-      setIsVisible(false);
-    }, 4000);
-    
-    setTimeoutId(id);
+    // DO NOT auto-hide connection notifications
+    // They will stay visible until the user navigates away
+    // or explicitly hides them by clicking back
+    console.log('💜 Connection notification will stay visible until user navigates away');
   };
 
   const hideNotification = () => {

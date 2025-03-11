@@ -83,7 +83,7 @@ const NFTNotification: React.FC<NFTNotificationProps> = ({
           type={notificationProps.type as any}
           message={notificationProps.message}
           highlightText={notificationProps.highlightText}
-          autoHideDuration={notificationType === 'connection' ? 6000 : 4000} // Longer duration for connection notifications
+          autoHideDuration={notificationType === 'connection' ? undefined : 4000} // No auto-hide for connection notifications
           onLogoClick={onReset}
         />
       )}

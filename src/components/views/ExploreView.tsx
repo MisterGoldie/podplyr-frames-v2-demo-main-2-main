@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useVirtualizedNFTs } from '../../hooks/useVirtualizedNFTs';
 import FollowsModal from '../FollowsModal';
 import { SearchBar } from '../search/SearchBar';
@@ -20,6 +20,9 @@ import { FarcasterContext } from '../../app/providers';
 import NotificationHeader from '../NotificationHeader';
 import { useNFTNotification } from '../../context/NFTNotificationContext';
 import NFTNotification from '../NFTNotification';
+import LocalConnectionNotification from '../LocalConnectionNotification';
+import ConnectionHeader from '../ConnectionHeader';
+import { useConnection } from '../../context/ConnectionContext';
 
 interface ExploreViewProps {
   onSearch: (query: string) => void;
@@ -392,61 +395,65 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
   };
   
   // Get the NFT notification context
-  const { showConnectionNotification } = useNFTNotification();
+  const { showConnectionNotification, hideNotification } = useNFTNotification();
+  
+  // Get the connection context for direct control
+  const { setShowConnectionHeader, setConnectionUsername, setConnectionLikedCount } = useConnection();
   
   // Track previous selected user to prevent infinite loops
   const prevSelectedUserRef = useRef<string | null>(null);
   
-  // Show connection notification ONLY when a user is selected AND they have liked NFTs
+  // IMMEDIATELY hide connection header when: 
+  // 1. User changes
+  // 2. Loading state changes 
+  // 3. Number of NFTs changes
   useEffect(() => {
-    // Only proceed if we have a selected user, isNFTLiked function, and NFTs to check
-    if (selectedUser && isNFTLiked && nfts.length > 0) {
-      console.log(`🔍 Checking for liked NFTs from ${selectedUser.username}...`);
-      
-      // Check if any NFTs are liked
-      let hasLikes = false;
-      let likedCount = 0;
-      
-      for (const nft of nfts) {
-        if (isNFTLiked(nft, true)) {
-          hasLikes = true;
-          likedCount++;
-        }
-      }
-      
-      console.log(`💜 ${selectedUser.username} has ${likedCount} liked NFTs`);
-      
-      // ONLY show notification if user has liked NFTs and it's different from previous
-      if (hasLikes && (!prevSelectedUserRef.current || prevSelectedUserRef.current !== selectedUser.username)) {
-        console.log(`💜 FOUND ${likedCount} LIKED NFTs - Showing connection notification for ${selectedUser.username}`);
-        
-        // Update previous user reference
-        prevSelectedUserRef.current = selectedUser.username;
-        
-        // Set username state
-        setUsername(selectedUser.username);
-        
-        // Show the connection notification with the count
-        showConnectionNotification(selectedUser.username, likedCount);
-      } else if (hasLikes) {
-        console.log(`💜 User has liked NFTs but notification already shown for ${selectedUser.username}`);
-      } else {
-        console.log(`💔 No liked NFTs found for ${selectedUser.username} - NOT showing connection`);
-      }
-    } else if (selectedUser) {
-      // User selected but no liked NFTs found
-      console.log(`💔 ${selectedUser.username} has no liked NFTs or no NFTs to check - NOT showing connection`);
-    } else {
-      // Reset previous user reference when no user is selected
-      prevSelectedUserRef.current = null;
-    }
+    // AGGRESSIVELY hide connection notification on ANY state change
+    setShowConnectionHeader(false);
+    setConnectionUsername('');
+    setConnectionLikedCount(0);
+    console.log('🔕 AGGRESSIVE RESET of connection header on state change');
     
-  }, [selectedUser, nfts, isNFTLiked, showConnectionNotification]);
+    // Force reset of previous user reference
+    prevSelectedUserRef.current = null;
+  }, [selectedUser, isLoadingNFTs, nfts.length]);
+  
+  // Special check for zero NFTs case - must ALWAYS hide notification
+  useEffect(() => {
+    if (nfts.length === 0 && selectedUser) {
+      console.log(`❌ User ${selectedUser.username} has ZERO NFTs - forcing notification OFF`);
+      setShowConnectionHeader(false);
+      setConnectionUsername('');
+      setConnectionLikedCount(0);
+    }
+  }, [nfts.length, selectedUser]);
+  
+  // Connection notification is now handled by the isolated LocalConnectionNotification component
+
+  // Add a cleanup effect that runs when component unmounts or page changes
+  useEffect(() => {
+    // Return cleanup function
+    return () => {
+      console.log('ExploreView unmounting - cleaning up all state');
+      // Hide any active notifications
+      hideNotification();
+    };
+  }, []);
 
   return (
     <>
       {/* NFT Notification handles all notification types now */}
       <NFTNotification onReset={onReset} />
+      
+      {/* Completely isolated connection notification component */}
+      {selectedUser && (
+        <LocalConnectionNotification
+          selectedUser={selectedUser}
+          nfts={nfts}
+          isLoadingNFTs={isLoadingNFTs}
+          isNFTLiked={isNFTLiked || (() => false)}
+        />
+      )}
       
       {/* Main content with adjusted padding */}
       <div className="space-y-8 pt-20 pb-48 overflow-y-auto h-screen">
@@ -454,7 +461,14 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
           <div className="px-4 mb-8">
             {/* Back button - redesigned for better visibility */}
             <button 
-              onClick={onBack}
+              onClick={() => {
+                // Reset any active notifications
+                hideNotification();
+                console.log('🗑 Reset notifications on back button click');
+                
+                // Call the original onBack function
+                onBack();
+              }}
               className="mb-6 flex items-center gap-3 text-green-400 hover:text-green-300 transition-all px-5 py-3 rounded-lg
                        bg-gradient-to-br from-gray-900/90 to-gray-800/80 hover:from-gray-800/90 hover:to-gray-700/80
                        shadow-lg shadow-black/40 border border-green-500/20 transform hover:scale-[1.02] active:scale-[0.98] duration-200"

@@ -10,6 +10,7 @@ import { Toaster } from 'react-hot-toast';
 import NetworkProvider from '../providers/NetworkProvider';
 import { ensurePodplayrFollow, updatePodplayrFollowerCount } from '../lib/firebase';
 import { NFTNotificationProvider } from '../context/NFTNotificationContext';
+import { ConnectionProvider } from '../context/ConnectionContext';
 
 const WagmiProvider = dynamic(
   () => import("~/components/providers/WagmiProvider"),
@@ -62,7 +63,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
           >
             <VideoPlayProvider>
               <NFTNotificationProvider>
-                <Frame 
+                <ConnectionProvider>
+                  <Frame 
                   onContextUpdate={(context) => {
                     console.log('Farcaster context:', context);
                     if (context?.user?.fid && context.user.fid !== 1) {
@@ -73,6 +75,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
                 />
                 <Toaster position="top-center" />
                 {children}
+                </ConnectionProvider>
               </NFTNotificationProvider>
             </VideoPlayProvider>
           </UserImageProvider>
