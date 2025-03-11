@@ -3,7 +3,6 @@
 let isLowPerformanceMode = false;
 let frameDropDetected = false;
 let totalVideosPlaying = 0;
-let networkType: string | null = null;
 
 // Helper functions for monitoring performance
 export const videoPerformanceMonitor = {
@@ -13,15 +12,7 @@ export const videoPerformanceMonitor = {
     const isLowPowerDevice = isMobile && typeof window.navigator.hardwareConcurrency === 'number' && 
       window.navigator.hardwareConcurrency <= 4;
     
-    // Check network conditions
-    this.checkNetworkConditions();
-    
-    // Listen for network changes
-    window.addEventListener('online', () => this.checkNetworkConditions());
-    window.addEventListener('offline', () => this.checkNetworkConditions());
-    
-    // Always enable optimizations on mobile
-    if (isMobile) {
+    if (isLowPowerDevice) {
       this.enableLowPerformanceMode();
     }
     
@@ -84,9 +75,10 @@ export const videoPerformanceMonitor = {
               this.optimizeVideoElement(node as HTMLVideoElement);
             }
             
-            // Check if node is an Element (which has querySelectorAll method)
-            if (node instanceof Element) {
-              node.querySelectorAll('video').forEach((video: HTMLVideoElement) => {
+            // Check if node has querySelectorAll (Element or Document)
+            if (node.nodeType === Node.ELEMENT_NODE || node.nodeType === Node.DOCUMENT_NODE) {
+              const element = node as Element;
+              element.querySelectorAll('video').forEach((video: HTMLVideoElement) => {
                 this.optimizeVideoElement(video);
               });
             }
@@ -101,58 +93,17 @@ export const videoPerformanceMonitor = {
     }
   },
   
-  checkNetworkConditions() {
-    // Check if we're on a cellular connection
-    if ('connection' in navigator) {
-      const connection = (navigator as any).connection;
-      if (connection) {
-        networkType = connection.type || connection.effectiveType;
-        console.log('Network type detected:', networkType);
-        
-        // Listen for network type changes
-        if (connection.addEventListener) {
-          connection.addEventListener('change', () => {
-            networkType = connection.type || connection.effectiveType;
-            console.log('Network type changed:', networkType);
-          });
-        }
-      }
-    }
-  },
-  
   optimizeVideoElement(video: HTMLVideoElement) {
-    // Apply essential optimizations to the video element
+    // Apply optimizations to the video element
     video.setAttribute('playsinline', 'true');
     video.setAttribute('webkit-playsinline', 'true');
-    
-    // Set crossorigin to anonymous to avoid CORS issues on some networks
-    video.setAttribute('crossorigin', 'anonymous');
-    
-    // Check if we're on a cellular connection (2g, 3g, 4g, etc.)
-    const isCellular = networkType && ['2g', '3g', '4g', 'cellular', 'slow-2g'].includes(networkType);
-    
-    // Adjust preload strategy based on network
-    video.preload = isCellular ? 'metadata' : 'auto';
-    
-    // Add error handling for network issues
-    video.onerror = (e) => {
-      console.error('Video error:', video.error);
-      this.handleVideoError(video);
-    };
+    video.preload = 'metadata';
     
     // Reduce quality for performance
     if (video.videoHeight > 480) {
       // Lower resolution videos perform better
       video.style.objectFit = 'contain';
     }
-    
-    // Set timeout to detect stalled loading
-    setTimeout(() => {
-      if (video.readyState < 2 && !video.paused) { // HAVE_CURRENT_DATA
-        console.log('Video loading stalled, attempting recovery');
-        this.handleVideoError(video);
-      }
-    }, 10000);
     
     // Monitor this video's performance
     video.addEventListener('playing', () => {
@@ -198,42 +149,5 @@ export const videoPerformanceMonitor = {
   
   hasDetectedFrameDrops() {
     return frameDropDetected;
-  },
-  
-  // Handle video errors and recovery
-  handleVideoError(video: HTMLVideoElement) {
-    if (!video.src) return;
-    
-    console.log('Attempting to recover video playback');
-    
-    // Save current position and playing state
-    const currentTime = video.currentTime;
-    const wasPlaying = !video.paused;
-    
-    // Force reload with cache-busting
-    const currentSrc = video.src;
-    const cacheBuster = `${currentSrc.includes('?') ? '&' : '?'}cb=${Date.now()}`;
-    
-    // Pause and reset
-    video.pause();
-    
-    // Apply new source with cache buster
-    setTimeout(() => {
-      video.src = currentSrc + cacheBuster;
-      video.load();
-      
-      // Restore position
-      video.currentTime = currentTime;
-      
-      // Resume if it was playing
-      if (wasPlaying) {
-        const playPromise = video.play();
-        if (playPromise !== undefined) {
-          playPromise.catch(error => {
-            console.log('Auto-play prevented after recovery:', error);
-          });
-        }
-      }
-    }, 100);
   }
 }; 

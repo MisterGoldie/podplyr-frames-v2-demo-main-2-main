@@ -29,7 +29,7 @@ export default function Image() {
           style={{
             fontSize: 60,
             fontWeight: 'bold',
-            color: '#FFFFFF',
+            color: '#000000',
             textAlign: 'center',
           }}
         >

@@ -200,7 +200,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({
                     {userFid && parseInt(String(userFid)) > 0 && onLikeToggle && (
                       <button 
                         onClick={() => onLikeToggle(nft)}
-                        className="absolute top-2 right-2 text-red-500 transition-all duration-200 hover:scale-125 z-10"
+                        className="absolute top-2 right-2 w-10 h-10 flex items-center justify-center text-red-500 transition-all duration-300 hover:scale-125 z-10"
                       >
                         {isNFTLiked(nft) ? (
                           <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">

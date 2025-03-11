@@ -12,6 +12,8 @@ import { optimizeImage } from '../../utils/imageOptimizer';
 import { useUserImages } from '../../contexts/UserImageContext';
 import NotificationHeader from '../NotificationHeader';
 import FollowsModal from '../FollowsModal';
+import { useNFTNotification } from '../../context/NFTNotificationContext';
+import NFTNotification from '../NFTNotification';
 
 interface ProfileViewProps {
   userContext: UserContext;
@@ -234,6 +236,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({
 
   return (
     <>
+      {/* Add NFTNotification component to ensure notifications work in ProfileView */}
+      <NFTNotification onReset={onReset} />
+      
       <NotificationHeader
         show={showSuccessBanner}
         onHide={() => setShowSuccessBanner(false)}
@@ -241,17 +246,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({
         message="Background updated successfully"
         autoHideDuration={3000}
         onReset={onReset}
+        onLogoClick={onReset}
       />
       
-      {/* Like/Unlike Notification */}
-      <NotificationHeader
-        show={showLikeNotification}
-        onHide={() => setShowLikeNotification(false)}
-        type={isLikeAction ? "success" : "error"}
-        message={isLikeAction ? "Added to library" : "Removed from library"}
-        highlightText={likedNFTName}
-        autoHideDuration={3000}
-      />
+      {/* Notifications are now handled by the global NFTNotification component */}
       
       {/* Follows Modal */}
       {userContext?.user?.fid && showFollowsModal && (

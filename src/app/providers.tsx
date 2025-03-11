@@ -9,6 +9,8 @@ import { UserImageProvider } from '../contexts/UserImageContext';
 import { Toaster } from 'react-hot-toast';
 import NetworkProvider from '../providers/NetworkProvider';
 import { ensurePodplayrFollow, updatePodplayrFollowerCount } from '../lib/firebase';
+import { NFTNotificationProvider } from '../context/NFTNotificationContext';
+import { ConnectionProvider } from '../context/ConnectionContext';
 
 const WagmiProvider = dynamic(
   () => import("~/components/providers/WagmiProvider"),
@@ -60,17 +62,21 @@ export function Providers({ children }: { children: React.ReactNode }) {
             initialProfileImage={initialProfileImage}
           >
             <VideoPlayProvider>
-              <Frame 
-                onContextUpdate={(context) => {
-                  console.log('Farcaster context:', context);
-                  if (context?.user?.fid && context.user.fid !== 1) {
-                    setFid(context.user.fid);
-                    setInitialProfileImage(context.user.pfpUrl);
-                  }
-                }}
-              />
-              <Toaster position="top-center" />
-              {children}
+              <NFTNotificationProvider>
+                <ConnectionProvider>
+                  <Frame 
+                  onContextUpdate={(context) => {
+                    console.log('Farcaster context:', context);
+                    if (context?.user?.fid && context.user.fid !== 1) {
+                      setFid(context.user.fid);
+                      setInitialProfileImage(context.user.pfpUrl);
+                    }
+                  }}
+                />
+                <Toaster position="top-center" />
+                {children}
+                </ConnectionProvider>
+              </NFTNotificationProvider>
             </VideoPlayProvider>
           </UserImageProvider>
         </NetworkProvider>

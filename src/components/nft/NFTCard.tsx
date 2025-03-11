@@ -10,6 +10,7 @@ import { DirectVideoPlayer } from '../media/DirectVideoPlayer';
 import { UltraDirectPlayer } from '../media/UltraDirectPlayer';
 import { NFTGifImage } from '../media/NFTGifImage';
 import { useSessionImageCache } from '../../hooks/useSessionImageCache';
+import { useNFTNotification } from '../../context/NFTNotificationContext';
 // Removed the import for 'react-intersection-observer' due to the error
 
 interface NFTCardProps {
@@ -31,6 +32,7 @@ interface NFTCardProps {
   userFid?: number;
   isNFTLiked?: (nft: NFT) => boolean;
   animationDelay?: number;
+  smallCard?: boolean; // If true, adjusts styling for smaller cards in the recently played section
 }
 
 // Add keyframes for the animation
@@ -61,12 +63,14 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   badge,
   playCountBadge,
   showTitleOverlay = false,
+  smallCard = false,
   useCenteredPlay = false,
   isLibraryView = false,
   userFid = 0,
   isNFTLiked,
   animationDelay = 0.2
 }) => {
+  // Get the NFT notification context at the component level
   // NEW: Add validation for NFT data to prevent crashes from broken NFTs
   const isValidNFT = useMemo(() => {
     // Basic validation - check if NFT exists and has minimum required properties
@@ -273,6 +277,9 @@ export const NFTCard: React.FC<NFTCardProps> = ({
     }
   };
 
+  // Get notification context - moved higher up in the component to ensure it's available
+  const nftNotification = useNFTNotification();
+  
   // Add animation styles - apply to ALL cards with a consistent animation
   const animationStyle = {
     opacity: 0,
@@ -451,11 +458,12 @@ export const NFTCard: React.FC<NFTCardProps> = ({
           } />
           {/* Add extremely aggressive logging to detect any issues */}
           <div 
-            className="absolute top-2 right-2 z-30"
+            className={`absolute z-30 ${smallCard ? 'top-1 right-1' : 'top-2 right-2'}`}
             onClick={(e) => {
               console.log('⚠️ PARENT DIV CLICKED');
               e.stopPropagation();
             }}
+            style={{ touchAction: 'manipulation' }}
           >
             {onLikeToggle ? (
               <button 
@@ -464,8 +472,17 @@ export const NFTCard: React.FC<NFTCardProps> = ({
                     nftName: nft?.name,
                     buttonElement: e.currentTarget,
                     hasOnLikeToggle: !!onLikeToggle,
-                    userFid 
+                    userFid,
+                    eventType: e.type,
+                    isMobileTouch: e.type === 'touchend' || e.type === 'touchstart'
                   });
+                  
+                  // Provide immediate visual feedback for touch events
+                  const button = e.currentTarget as HTMLElement;
+                  button.style.transform = 'scale(1.2)';
+                  setTimeout(() => {
+                    button.style.transform = '';
+                  }, 150);
                   
                   e.stopPropagation();
                   e.preventDefault();
@@ -479,9 +496,39 @@ export const NFTCard: React.FC<NFTCardProps> = ({
                   // Removed alert for cleaner UX
                   
                   try {
+                    // Determine current like state before toggle
+                    const wasLiked = isLiked;
+                    
+                    // IMPORTANT: Show notification IMMEDIATELY before any Firebase operations
+                    // This ensures smooth animation regardless of backend delays
+                    try {
+                      // Determine the notification type based on the current state
+                      const notificationType = wasLiked ? 'unlike' : 'like';
+                      console.log('🔔 Triggering IMMEDIATE notification for:', nft.name, 'Type:', notificationType);
+                      
+                      // Add a small delay to sync with the heart icon animation (150ms)
+                      // This ensures the notification appears after the heart turns red
+                      setTimeout(() => {
+                        // Make sure nftNotification is available and show the notification
+                        if (nftNotification && typeof nftNotification.showNotification === 'function') {
+                          nftNotification.showNotification(notificationType, nft);
+                          console.log('🔔 Notification triggered with type:', notificationType, 'for NFT:', nft.name);
+                        } else {
+                          console.error('❌ nftNotification is not available or showNotification is not a function');
+                        }
+                      }, 150); // Timing synchronized with heart icon animation
+                    } catch (error) {
+                      console.error('Error showing notification:', error);
+                    }
+                    
+                    // Perform the like toggle operation in the background
+                    // Don't block the UI or notification on this
                     if (onLikeToggle) {
-                      await onLikeToggle(nft);
-                      console.log('✅ Like toggle successfully processed for:', nft.name);
+                      onLikeToggle(nft).then(() => {
+                        console.log('✅ Like toggle successfully processed for:', nft.name);
+                      }).catch(error => {
+                        console.error('Error toggling like status:', error);
+                      });
                     } else {
                       console.error('❌ onLikeToggle function is not available');
                       // Provide visual feedback that something went wrong
@@ -499,7 +546,8 @@ export const NFTCard: React.FC<NFTCardProps> = ({
                   
                   if (e) startOverlayTimer(e);
                 }}
-                className="w-8 h-8 flex items-center justify-center text-red-500 transition-all duration-300 hover:scale-125 z-10"
+                className="w-10 h-10 flex items-center justify-center text-red-500 transition-all duration-300 hover:scale-125 z-10"
+                style={{ touchAction: 'manipulation' }}
                 aria-label="Toggle like"
               >
               {isLiked ? (

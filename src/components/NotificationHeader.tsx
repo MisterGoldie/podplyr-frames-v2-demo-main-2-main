@@ -28,6 +28,9 @@ const NotificationHeader: React.FC<NotificationHeaderProps> = ({
   onReset,
   onLogoClick, // Add the new prop
 }) => {
+  // Add debug logs
+  console.log(`NotificationHeader Props: show=${show}, type=${type}, message=${message}, highlight=${highlightText}`);
+  
   // Use separate states for background and content to stagger transitions
   const [isBackgroundVisible, setIsBackgroundVisible] = useState(show);
   const [isContentVisible, setIsContentVisible] = useState(show);
@@ -79,19 +82,19 @@ const NotificationHeader: React.FC<NotificationHeaderProps> = ({
     switch(type) {
       case 'success':
         return (
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-600" viewBox="0 0 20 20" fill="currentColor">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
           </svg>
         );
       case 'warning':
         return (
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-600" viewBox="0 0 20 20" fill="currentColor">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-500" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
           </svg>
         );
       case 'error':
         return (
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-600" viewBox="0 0 20 20" fill="currentColor">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
           </svg>
         );
@@ -110,6 +113,26 @@ const NotificationHeader: React.FC<NotificationHeaderProps> = ({
     }
   };
 
+  // Force logo visible when notification is hidden, but don't interfere with animations
+  useEffect(() => {
+    if (!show) {
+      // Wait for animations to complete before forcing logo visibility
+      const timer = setTimeout(() => {
+        console.log('🟢 FORCING LOGO VISIBLE IN NOTIFICATION HEADER');
+        
+        // Find ALL logo images in this component and force them to be visible
+        const logoImages = document.querySelectorAll('.logo-image');
+        logoImages.forEach(logo => {
+          (logo as HTMLElement).style.opacity = '1';
+          (logo as HTMLElement).style.visibility = 'visible';
+          (logo as HTMLElement).style.display = 'block';
+        });
+      }, 700); // Match the animation duration
+      
+      return () => clearTimeout(timer);
+    }
+  }, [show]);
+  
   return (
     <header 
       className={`fixed top-0 left-0 right-0 h-16 flex items-center justify-center z-50 transition-all duration-700 ease-out ${
@@ -121,9 +144,13 @@ const NotificationHeader: React.FC<NotificationHeaderProps> = ({
         {/* Logo container - always centered */}
         <button 
           onClick={onLogoClick || onReset} 
-          className={`cursor-pointer transition-all duration-500 ease-in-out transform ${
-            isContentVisible ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
-          }`}
+          className="cursor-pointer absolute inset-0 flex items-center justify-center"
+          style={{ 
+            opacity: show ? 0 : 1,
+            visibility: show ? 'hidden' : 'visible',
+            transition: 'opacity 0.3s ease-out, visibility 0.3s ease-out',
+            zIndex: 10
+          }}
         >
           <Image
             src={logo}
@@ -135,26 +162,29 @@ const NotificationHeader: React.FC<NotificationHeaderProps> = ({
           />
         </button>
         
-        {/* Notification content */}
+        {/* Notification content - UPDATED */}
         {show && (
           <div 
-            className={`absolute inset-0 flex items-center justify-center transition-all duration-500 ease-in-out transform ${
+            className={`absolute inset-0 flex items-center justify-center transition-all duration-700 ease-in-out transform ${
               isContentVisible 
                 ? 'opacity-100 scale-100' 
                 : 'opacity-0 scale-95 pointer-events-none'
             }`}
             style={{ willChange: 'transform, opacity' }}
           >
-            <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center mr-3">
-              {icon || getDefaultIcon()}
-            </div>
-            <div className="text-white text-lg flex items-center">
-              {message}
-              {highlightText && (
-                <span className="font-semibold ml-2 truncate max-w-[120px] inline-block">
-                  {highlightText}
-                </span>
-              )}
+            {/* Fixed-width container to ensure consistent layout */}
+            <div className="w-full max-w-md flex items-center justify-center px-4">
+              <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center mr-3 flex-shrink-0">
+                {icon || getDefaultIcon()}
+              </div>
+              <div className="text-white text-lg flex items-center overflow-hidden">
+                <span className="flex-shrink-0 whitespace-nowrap">{message}</span>
+                {highlightText && (
+                  <span className="font-semibold ml-2 truncate">
+                    {highlightText}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         )}

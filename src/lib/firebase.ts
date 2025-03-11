@@ -1206,7 +1206,10 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
           timestamp: serverTimestamp()
         };
         
-        batch.set(userLikeRef, userLikeData);
+        // We want to store only essential NFT data, excluding duplicative or derived fields
+        const sanitizedUserLikeData = JSON.parse(JSON.stringify(userLikeData));
+        
+        batch.set(userLikeRef, sanitizedUserLikeData);
         
         if (globalLikeDoc.exists()) {
           // Update existing global like document
@@ -1834,6 +1837,12 @@ async function updatePodplayrFollowersSubcollection(userDocs: QueryDocumentSnaps
 export const ensurePodplayrFollow = async (userFid: number): Promise<void> => {
   try {
     if (!userFid) return;
+    
+    // Prevent PODPlayr from following itself
+    if (userFid === PODPLAYR_ACCOUNT.fid) {
+      console.log('Skipping self-follow for PODPlayr account');
+      return;
+    }
     
     console.log(`Checking if user ${userFid} follows PODPlayr account`);
     

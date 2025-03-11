@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useVirtualizedNFTs } from '../../hooks/useVirtualizedNFTs';
 import FollowsModal from '../FollowsModal';
 import { SearchBar } from '../search/SearchBar';
@@ -18,6 +18,11 @@ const PODPLAYR_OFFICIAL_FID = 1014485;
 import { useContext } from 'react';
 import { FarcasterContext } from '../../app/providers';
 import NotificationHeader from '../NotificationHeader';
+import { useNFTNotification } from '../../context/NFTNotificationContext';
+import NFTNotification from '../NFTNotification';
+import LocalConnectionNotification from '../LocalConnectionNotification';
+import ConnectionHeader from '../ConnectionHeader';
+import { useConnection } from '../../context/ConnectionContext';
 
 interface ExploreViewProps {
   onSearch: (query: string) => void;
@@ -53,6 +58,9 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
   
   // Use the FID from props if available, otherwise use the one from context
   const effectiveUserFid = props.userFid || contextFid.fid || 0;
+
+  // Get NFT notification context
+  const nftNotification = useNFTNotification();
 
   const {
     onSearch,
@@ -92,9 +100,7 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
   const [hasSharedNFTs, setHasSharedNFTs] = useState(false);
   const [username, setUsername] = useState('');
 
-  // 1. Keep the showBanner state
-  const [showBanner, setShowBanner] = useState(false);
-  
+  // Remove the old showBanner state as we're using the NFTNotification system now
   // Add state to force refresh of grid when like status changes
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   
@@ -108,57 +114,6 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
   // State for follows modal
   const [showFollowsModal, setShowFollowsModal] = useState(false);
   const [followsModalType, setFollowsModalType] = useState<'followers' | 'following'>('followers');
-
-  // 2. Completely revise the useEffect that handles banner visibility
-  useEffect(() => {
-    // Always immediately hide the banner on any change to these dependencies
-    setShowBanner(false);
-    
-    // Only proceed with checks when we have the data we need and loading is complete
-    if (!selectedUser || !nfts || nfts.length === 0 || isLoadingNFTs || !isNFTLiked) {
-      return; // Exit early if conditions aren't met
-    }
-    
-    console.log(`📊 Checking ${nfts.length} NFTs from ${selectedUser.username} for connections...`);
-    setUsername(selectedUser.username);
-    
-    // Delay the check to ensure all data is loaded
-    const checkTimer = setTimeout(() => {
-      // Track if we found any liked NFTs
-      let foundLiked = false;
-      
-      // Check each NFT individually
-      for (const nft of nfts) {
-        if (!nft.contract || !nft.tokenId) continue; // Skip invalid NFTs
-        
-        // Use ignoreCurrentPage=true to check the real liked status
-        const isLiked = isNFTLiked(nft, true);
-        
-        if (isLiked) {
-          console.log(`✅ FOUND LIKED NFT: ${nft.name || 'Unnamed NFT'}`);
-          foundLiked = true;
-          break; // Exit loop once we find at least one
-        }
-      }
-      
-      console.log(`📊 Connection found with ${selectedUser.username}: ${foundLiked}`);
-      
-      // Only show banner if liked NFTs were actually found
-      if (foundLiked) {
-        setShowBanner(true);
-      }
-    }, 500); // Wait 500ms after data is loaded
-    
-    // Clean up timer if component unmounts or dependencies change
-    return () => clearTimeout(checkTimer);
-  }, [selectedUser, nfts, isLoadingNFTs, isNFTLiked]);
-
-  // 3. Add a separate useEffect to ensure banner is hidden when loading starts
-  useEffect(() => {
-    if (isLoadingNFTs) {
-      setShowBanner(false);
-    }
-  }, [isLoadingNFTs]);
   
   // Fetch app-specific follower and following counts when a user is selected
   useEffect(() => {
@@ -190,10 +145,7 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
     fetchFollowCounts();
   }, [selectedUser]);
 
-  // 4. Add a separate useEffect to clear the banner when user changes
-  useEffect(() => {
-    setShowBanner(false);
-  }, [selectedUser]);
+  // This effect was for the old banner system, which has been replaced with the NFTNotification system
 
   // Add effect to check for shared NFTs when viewing a profile
   useEffect(() => {
@@ -314,18 +266,42 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
     );
   }
 
-  // Wrapper for like toggle that updates UI state
+  // Wrapper for like toggle that updates UI state and shows notifications IMMEDIATELY
   const handleLikeToggle = async (nft: NFT) => {
     console.log('ExploreView: handleLikeToggle called for:', nft.name);
+    
+    // Determine current like state before toggling
+    const wasLiked = isNFTLiked ? isNFTLiked(nft) : false;
+    
+    // IMPORTANT: Show notification IMMEDIATELY before any Firebase operations
+    // This ensures smooth animation regardless of backend delays
+    try {
+      // Get the notification type based on the current state
+      const notificationType = wasLiked ? 'unlike' : 'like';
+      console.log('🔔 ExploreView: Triggering IMMEDIATE notification:', notificationType, 'for', nft.name);
+      
+      // Add a small delay to sync with the heart icon animation (150ms)
+      // This ensures the notification appears after the heart turns red
+      setTimeout(() => {
+        // Show notification using the global context
+        if (nftNotification && typeof nftNotification.showNotification === 'function') {
+          nftNotification.showNotification(notificationType, nft);
+        }
+      }, 150); // Timing synchronized with heart icon animation
+    } catch (error) {
+      console.error('Error showing notification in ExploreView:', error);
+    }
+    
+    // Perform Firebase operations in the background
     if (onLikeToggle) {
-      try {
-        await onLikeToggle(nft);
-        // Force refresh to update like state in UI
+      // Don't await this - let it happen in the background
+      onLikeToggle(nft).then(() => {
+        // Update UI state after background operation completes
         setRefreshTrigger(prev => prev + 1);
-        console.log('ExploreView: Like toggled, triggering refresh');
-      } catch (error) {
+        console.log('ExploreView: Like toggled in background, triggering refresh');
+      }).catch(error => {
         console.error('Error toggling like in ExploreView:', error);
-      }
+      });
     } else {
       console.warn('onLikeToggle not available in ExploreView');
     }
@@ -418,46 +394,72 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
     }
   };
   
+  // Get the NFT notification context
+  const { showConnectionNotification, hideNotification } = useNFTNotification();
+  
+  // Get the connection context for direct control
+  const { setShowConnectionHeader, setConnectionUsername, setConnectionLikedCount } = useConnection();
+  
+  // Track previous selected user to prevent infinite loops
+  const prevSelectedUserRef = useRef<number | null>(null);
+  
+  // Replace the aggressive reset with this more careful approach
+  useEffect(() => {
+    if (!selectedUser) {
+      // Only reset when there's no selected user
+      console.log('🔄 Reset connection header - no user selected');
+      setShowConnectionHeader(false);
+      setConnectionUsername('');
+      setConnectionLikedCount(0);
+    }
+  }, [selectedUser]);
+  
+  // Add this effect to detect connections
+  useEffect(() => {
+    // Only run this effect when we have a user and NFTs are loaded
+    if (selectedUser && !isLoadingNFTs && nfts.length > 0 && isNFTLiked) {
+      // Count liked NFTs
+      let count = 0;
+      for (const nft of nfts) {
+        if (isNFTLiked(nft, true)) {
+          count++;
+        }
+      }
+      
+      // Show connection if we have liked NFTs
+      if (count > 0) {
+        console.log(`Found ${count} liked NFTs for ${selectedUser.username}`);
+        setConnectionUsername(selectedUser.username);
+        setConnectionLikedCount(count);
+        setShowConnectionHeader(true);
+      }
+    }
+  }, [selectedUser, isLoadingNFTs, nfts, isNFTLiked]);
+
+  // Add a cleanup effect that runs when component unmounts or page changes
+  useEffect(() => {
+    // Return cleanup function
+    return () => {
+      console.log('ExploreView unmounting - cleaning up all state');
+      // Hide any active notifications
+      hideNotification();
+    };
+  }, []);
+
   return (
     <>
-      {/* Header that transforms between normal and connection states */}
-      <header 
-        className={`fixed top-0 left-0 right-0 h-16 flex items-center justify-center z-50 transition-all duration-500 ease-in-out ${
-          showBanner 
-            ? 'bg-purple-600 border-b border-purple-700' 
-            : 'bg-black border-b border-black'
-        }`}
-      >
-        {/* Logo with smooth fade out when connection appears */}
-        <div className={`transition-all duration-500 ease-in-out absolute ${
-          showBanner ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
-        }`}>
-          <button onClick={onReset} className="cursor-pointer">
-            <Image
-              src="/fontlogo.png"
-              alt="PODPlayr Logo"
-              width={120}
-              height={30}
-              className="logo-image"
-              priority={true}
-            />
-          </button>
-        </div>
-        
-        {/* Connection message with smooth fade in */}
-        <div className={`flex items-center justify-center transition-all duration-500 ease-in-out ${
-          showBanner ? 'opacity-100 scale-100' : 'opacity-0 scale-95 absolute'
-        }`}>
-          <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-purple-600" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
-            </svg>
-          </div>
-          <div className="text-white ml-3 text-lg">
-            Connection with <span className="font-semibold">{username}</span>
-          </div>
-        </div>
-      </header>
+      {/* Logo header that shows when no notification is visible */}
+      <NotificationHeader 
+        show={false}
+        message=""
+        onReset={onReset}
+      />
+      
+      {/* NFT Notification for like/unlike actions */}
+      <NFTNotification onReset={onReset} />
+      
+      {/* Connection Header - controlled by ConnectionContext */}
+      <ConnectionHeader />
       
       {/* Main content with adjusted padding */}
       <div className="space-y-8 pt-20 pb-48 overflow-y-auto h-screen">
@@ -465,7 +467,26 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
           <div className="px-4 mb-8">
             {/* Back button - redesigned for better visibility */}
             <button 
-              onClick={onBack}
+              onClick={() => {
+                // Reset any active notifications
+                hideNotification();
+                console.log('🗑 Reset notifications on back button click');
+                
+                // Use our special forced animation mode that guarantees completion
+                if (window && (window as any).__FORCE_CONNECTION_ANIMATION_DELAY) {
+                  console.log('🚀 Using guaranteed animation system');
+                  // This will delay navigation until animation completes
+                  (window as any).__FORCE_CONNECTION_ANIMATION_DELAY(() => {
+                    console.log('✅ Animation completed, now triggering navigation');
+                    // Only call onBack after animation finishes
+                    onBack();
+                  });
+                } else {
+                  // Fallback if our system isn't available
+                  console.log('⚠️ Fallback: forced animation system not available');
+                  onBack();
+                }
+              }}
               className="mb-6 flex items-center gap-3 text-green-400 hover:text-green-300 transition-all px-5 py-3 rounded-lg
                        bg-gradient-to-br from-gray-900/90 to-gray-800/80 hover:from-gray-800/90 hover:to-gray-700/80
                        shadow-lg shadow-black/40 border border-green-500/20 transform hover:scale-[1.02] active:scale-[0.98] duration-200"
@@ -840,15 +861,8 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
           </div>
         )}
       </div>
-      <NotificationHeader
-        show={showBanner}
-        onHide={() => setShowBanner(false)}
-        type="connection"
-        message="Connection with"
-        highlightText={username}
-        autoHideDuration={0}
-        onReset={onReset}
-      />
+      {/* NFTNotification component now handles all notification types */}
+      <NFTNotification onReset={onReset} />
       {/* Follows Modal */}
       {showFollowsModal && selectedUser && (
         <FollowsModal

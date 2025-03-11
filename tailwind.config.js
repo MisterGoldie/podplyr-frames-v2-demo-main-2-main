@@ -8,6 +8,10 @@ module.exports = {
   theme: {
     extend: {
       keyframes: {
+        'pulse-subtle': {
+          '0%, 100%': { opacity: 1 },
+          '50%': { opacity: 0.95 },
+        },
         'float-slow': {
           '0%': { transform: 'translateY(0) translateX(0) rotate(0deg)' },
           '33%': { transform: 'translateY(-30px) translateX(10px) rotate(8deg)' },
@@ -64,6 +68,7 @@ module.exports = {
         }
       },
       animation: {
+        'pulse-subtle': 'pulse-subtle 3s ease-in-out infinite',
         'float-slow': 'float-slow 12s ease-in-out infinite',
         'float-medium': 'float-medium 14s ease-in-out infinite',
         'float-fast': 'float-fast 10s ease-in-out infinite',
