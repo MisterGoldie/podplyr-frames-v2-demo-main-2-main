@@ -121,16 +121,20 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
     
     // Only proceed with checks when we have the data we need and loading is complete
     if (!selectedUser || !nfts || nfts.length === 0 || isLoadingNFTs || !isNFTLiked) {
+      console.log('🔍 DEBUG: Skipping connection check - missing data');
       return; // Exit early if conditions aren't met
     }
     
     console.log(`📊 Checking ${nfts.length} NFTs from ${selectedUser.username} for connections...`);
+    
+    // Always update the username immediately when selected user changes
     setUsername(selectedUser.username);
     
     // Delay the check to ensure all data is loaded
     const checkTimer = setTimeout(() => {
       // Track if we found any liked NFTs
       let foundLiked = false;
+      let foundCount = 0;
       
       // Check each NFT individually
       for (const nft of nfts) {
@@ -142,15 +146,22 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
         if (isLiked) {
           console.log(`✅ FOUND LIKED NFT: ${nft.name || 'Unnamed NFT'}`);
           foundLiked = true;
-          break; // Exit loop once we find at least one
+          foundCount++;
+          // Don't break here to count all liked NFTs
         }
       }
       
-      console.log(`📊 Connection found with ${selectedUser.username}: ${foundLiked}`);
+      console.log(`📊 Connection found with ${selectedUser.username}: ${foundLiked} (${foundCount} NFTs)`);
       
       // Only show banner if liked NFTs were actually found
       if (foundLiked) {
+        console.log(`🎯 Setting showBanner to TRUE for ${selectedUser.username}`);
+        setHasLikedNFTs(true);
+        setSharedNFTsCount(foundCount);
         setShowBanner(true);
+      } else {
+        setHasLikedNFTs(false);
+        setSharedNFTsCount(0);
       }
     }, 500); // Wait 500ms after data is loaded
     
@@ -447,12 +458,61 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
     }
   };
   
+  // Get the NFT notification context
+  const { showConnectionNotification } = useNFTNotification();
+  
+  // Track previous selected user to prevent infinite loops
+  const prevSelectedUserRef = useRef<string | null>(null);
+  
+  // Show connection notification ONLY when a user is selected AND they have liked NFTs
+  useEffect(() => {
+    // Only proceed if we have a selected user, isNFTLiked function, and NFTs to check
+    if (selectedUser && isNFTLiked && nfts.length > 0) {
+      console.log(`🔍 Checking for liked NFTs from ${selectedUser.username}...`);
+      
+      // Check if any NFTs are liked
+      let hasLikes = false;
+      let likedCount = 0;
+      
+      for (const nft of nfts) {
+        if (isNFTLiked(nft, true)) {
+          hasLikes = true;
+          likedCount++;
+        }
+      }
+      
+      console.log(`💜 ${selectedUser.username} has ${likedCount} liked NFTs`);
+      
+      // ONLY show notification if user has liked NFTs and it's different from previous
+      if (hasLikes && (!prevSelectedUserRef.current || prevSelectedUserRef.current !== selectedUser.username)) {
+        console.log(`💜 FOUND LIKED NFTs - Showing connection notification for ${selectedUser.username}`);
+        
+        // Update previous user reference
+        prevSelectedUserRef.current = selectedUser.username;
+        
+        // Set username state
+        setUsername(selectedUser.username);
+        
+        // Show the connection notification
+        showConnectionNotification(selectedUser.username);
+      } else if (hasLikes) {
+        console.log(`💜 User has liked NFTs but notification already shown for ${selectedUser.username}`);
+      } else {
+        console.log(`💔 No liked NFTs found for ${selectedUser.username} - NOT showing connection`);
+      }
+    } else if (selectedUser) {
+      // User selected but no liked NFTs found
+      console.log(`💔 ${selectedUser.username} has no liked NFTs or no NFTs to check - NOT showing connection`);
+    } else {
+      // Reset previous user reference when no user is selected
+      prevSelectedUserRef.current = null;
+    }
+  }, [selectedUser, nfts, isNFTLiked, showConnectionNotification]);
+
   return (
     <>
-      {/* Add NFTNotification component to ensure notifications work in ExploreView */}
+      {/* NFT Notification handles all notification types now */}
       <NFTNotification onReset={onReset} />
-      
-      {/* We don't need a custom header here - NotificationHeader will handle this */}
       
       {/* Main content with adjusted padding */}
       <div className="space-y-8 pt-20 pb-48 overflow-y-auto h-screen">

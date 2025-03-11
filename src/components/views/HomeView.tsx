@@ -234,6 +234,7 @@ const HomeView: React.FC<HomeViewProps> = ({
                             userFid={userFid}
                             isNFTLiked={() => checkDirectlyLiked(nft)}
                             animationDelay={0.2 + (index * 0.05)}
+                            smallCard={true} // Position heart icon properly for smaller cards
                           />
                           <h3 className="font-mono text-white text-sm truncate mt-3">{nft.name}</h3>
                         </div>

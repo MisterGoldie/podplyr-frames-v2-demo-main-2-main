@@ -1,10 +1,11 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { NFT } from '../types/user';
 
-type NotificationType = 'like' | 'unlike';
+type NotificationType = 'like' | 'unlike' | 'connection';
 
 interface NFTNotificationContextType {
   showNotification: (type: NotificationType, nft: NFT) => void;
+  showConnectionNotification: (username: string) => void;
   hideNotification: () => void;
   isVisible: boolean;
   notificationType: NotificationType | null;
@@ -48,10 +49,29 @@ export const NFTNotificationProvider: React.FC<NFTNotificationProviderProps> = (
     // Show notification immediately
     setIsVisible(true);
     console.log('🚨🚨 NOTIFICATION VISIBLE NOW:', { type, name: nft.name });
+  };
+  
+  // New function to show connection notifications
+  const showConnectionNotification = (username: string) => {
+    console.log('💜 Showing CONNECTION notification for:', username);
+    
+    // Clear any existing timeout
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      setTimeoutId(null);
+    }
+
+    // Set notification data
+    setNotificationType('connection');
+    setNftName(username); // Use the username as the highlight text
+    
+    // Show notification immediately
+    setIsVisible(true);
+    console.log('🚨🚨 CONNECTION NOTIFICATION VISIBLE NOW for:', username);
 
     // Auto-hide after 4 seconds
     const id = setTimeout(() => {
-      console.log('🔔❌ Auto-hiding notification for:', nft.name);
+      console.log('🔔❌ Auto-hiding notification');
       setIsVisible(false);
     }, 4000);
     
@@ -66,6 +86,7 @@ export const NFTNotificationProvider: React.FC<NFTNotificationProviderProps> = (
     <NFTNotificationContext.Provider
       value={{
         showNotification,
+        showConnectionNotification,
         hideNotification,
         isVisible,
         notificationType,

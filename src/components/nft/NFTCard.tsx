@@ -32,6 +32,7 @@ interface NFTCardProps {
   userFid?: number;
   isNFTLiked?: (nft: NFT) => boolean;
   animationDelay?: number;
+  smallCard?: boolean; // If true, adjusts styling for smaller cards in the recently played section
 }
 
 // Add keyframes for the animation
@@ -62,6 +63,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   badge,
   playCountBadge,
   showTitleOverlay = false,
+  smallCard = false,
   useCenteredPlay = false,
   isLibraryView = false,
   userFid = 0,
@@ -456,7 +458,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
           } />
           {/* Add extremely aggressive logging to detect any issues */}
           <div 
-            className="absolute top-2 right-2 z-30"
+            className={`absolute z-30 ${smallCard ? 'top-1 right-1' : 'top-2 right-2'}`}
             onClick={(e) => {
               console.log('⚠️ PARENT DIV CLICKED');
               e.stopPropagation();

@@ -28,6 +28,9 @@ const NotificationHeader: React.FC<NotificationHeaderProps> = ({
   onReset,
   onLogoClick, // Add the new prop
 }) => {
+  // Add debug logs
+  console.log(`NotificationHeader Props: show=${show}, type=${type}, message=${message}, highlight=${highlightText}`);
+  
   // Use separate states for background and content to stagger transitions
   const [isBackgroundVisible, setIsBackgroundVisible] = useState(show);
   const [isContentVisible, setIsContentVisible] = useState(show);

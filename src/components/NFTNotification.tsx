@@ -6,11 +6,24 @@ import { useNFTNotification } from '../context/NFTNotificationContext';
 
 interface NFTNotificationProps {
   onReset?: () => void;
+  showConnectionBanner?: boolean;
+  connectionUsername?: string;
+  onHideConnection?: () => void;
 }
 
-const NFTNotification: React.FC<NFTNotificationProps> = ({ onReset }) => {
+const NFTNotification: React.FC<NFTNotificationProps> = ({ 
+  onReset, 
+  showConnectionBanner = false,
+  connectionUsername = '',
+  onHideConnection
+}) => {
   const { isVisible, hideNotification, notificationType, nftName } = useNFTNotification();
   const [animationKey, setAnimationKey] = useState(0);
+  
+  // Debug logs for connection banner
+  useEffect(() => {
+    console.log(`🔍 CONNECTION BANNER: show=${showConnectionBanner}, username=${connectionUsername}`);
+  }, [showConnectionBanner, connectionUsername]);
 
   // Force re-render of component when notification becomes visible
   // This ensures animation plays every time with no delay
@@ -29,21 +42,61 @@ const NFTNotification: React.FC<NFTNotificationProps> = ({ onReset }) => {
     }
   }, [isVisible, notificationType, nftName]);
 
+  // Determine notification type and message - only when dependencies change
+  const notificationProps = React.useMemo(() => {
+    if (!notificationType || !isVisible) return null;
+    
+    // Log once when notification changes
+    console.log('🔔 Notification changed:', { notificationType, nftName, isVisible });
+    
+    switch (notificationType) {
+      case 'like':
+        return {
+          type: 'success',
+          message: 'Added to library',
+          highlightText: nftName ? nftName.replace(/\s*[×Xx]\s*$/, '') : ''
+        };
+      case 'unlike':
+        return {
+          type: 'error',
+          message: 'Removed from library',
+          highlightText: nftName ? nftName.replace(/\s*[×Xx]\s*$/, '') : ''
+        };
+      case 'connection':
+        return {
+          type: 'connection',
+          message: 'Connection with',
+          highlightText: nftName || ''
+        };
+      default:
+        return null;
+    }
+  }, [notificationType, nftName, isVisible]);
+
   return (
     <div key={animationKey} className="notification-wrapper">
-      {/* Always render the notification component but control visibility with the show prop */}
-      <NotificationHeader
-        show={Boolean(notificationType && isVisible)}
-        onHide={hideNotification}
-        type={notificationType === 'like' ? 'success' : 'error'}
-        message={notificationType === 'like' ? 'Added to library' : 'Removed from library'}
-        highlightText={nftName ? nftName.replace(/\s*[×Xx]\s*$/, '') : ''} // Remove any X at the end of the name
-        autoHideDuration={4000}
-        onLogoClick={onReset}
-      />
+      {/* Unified notification system */}
+      {notificationProps && (
+        <NotificationHeader
+          show={isVisible}
+          onHide={hideNotification}
+          type={notificationProps.type as any}
+          message={notificationProps.message}
+          highlightText={notificationProps.highlightText}
+          autoHideDuration={notificationType === 'connection' ? 6000 : 4000} // Longer duration for connection notifications
+          onLogoClick={onReset}
+        />
+      )}
       <style jsx>{`
         .notification-wrapper {
           position: relative;
+          z-index: 9999;
+        }
+        .connection-banner {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
           z-index: 9999;
         }
       `}</style>
