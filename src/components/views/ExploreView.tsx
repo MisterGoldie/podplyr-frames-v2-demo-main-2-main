@@ -97,9 +97,7 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
   const [hasSharedNFTs, setHasSharedNFTs] = useState(false);
   const [username, setUsername] = useState('');
 
-  // 1. Keep the showBanner state
-  const [showBanner, setShowBanner] = useState(false);
-  
+  // Remove the old showBanner state as we're using the NFTNotification system now
   // Add state to force refresh of grid when like status changes
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   
@@ -113,68 +111,6 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
   // State for follows modal
   const [showFollowsModal, setShowFollowsModal] = useState(false);
   const [followsModalType, setFollowsModalType] = useState<'followers' | 'following'>('followers');
-
-  // 2. Completely revise the useEffect that handles banner visibility
-  useEffect(() => {
-    // Always immediately hide the banner on any change to these dependencies
-    setShowBanner(false);
-    
-    // Only proceed with checks when we have the data we need and loading is complete
-    if (!selectedUser || !nfts || nfts.length === 0 || isLoadingNFTs || !isNFTLiked) {
-      console.log('🔍 DEBUG: Skipping connection check - missing data');
-      return; // Exit early if conditions aren't met
-    }
-    
-    console.log(`📊 Checking ${nfts.length} NFTs from ${selectedUser.username} for connections...`);
-    
-    // Always update the username immediately when selected user changes
-    setUsername(selectedUser.username);
-    
-    // Delay the check to ensure all data is loaded
-    const checkTimer = setTimeout(() => {
-      // Track if we found any liked NFTs
-      let foundLiked = false;
-      let foundCount = 0;
-      
-      // Check each NFT individually
-      for (const nft of nfts) {
-        if (!nft.contract || !nft.tokenId) continue; // Skip invalid NFTs
-        
-        // Use ignoreCurrentPage=true to check the real liked status
-        const isLiked = isNFTLiked(nft, true);
-        
-        if (isLiked) {
-          console.log(`✅ FOUND LIKED NFT: ${nft.name || 'Unnamed NFT'}`);
-          foundLiked = true;
-          foundCount++;
-          // Don't break here to count all liked NFTs
-        }
-      }
-      
-      console.log(`📊 Connection found with ${selectedUser.username}: ${foundLiked} (${foundCount} NFTs)`);
-      
-      // Only show banner if liked NFTs were actually found
-      if (foundLiked) {
-        console.log(`🎯 Setting showBanner to TRUE for ${selectedUser.username}`);
-        setHasLikedNFTs(true);
-        setSharedNFTsCount(foundCount);
-        setShowBanner(true);
-      } else {
-        setHasLikedNFTs(false);
-        setSharedNFTsCount(0);
-      }
-    }, 500); // Wait 500ms after data is loaded
-    
-    // Clean up timer if component unmounts or dependencies change
-    return () => clearTimeout(checkTimer);
-  }, [selectedUser, nfts, isLoadingNFTs, isNFTLiked]);
-
-  // 3. Add a separate useEffect to ensure banner is hidden when loading starts
-  useEffect(() => {
-    if (isLoadingNFTs) {
-      setShowBanner(false);
-    }
-  }, [isLoadingNFTs]);
   
   // Fetch app-specific follower and following counts when a user is selected
   useEffect(() => {
@@ -206,10 +142,7 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
     fetchFollowCounts();
   }, [selectedUser]);
 
-  // 4. Add a separate useEffect to clear the banner when user changes
-  useEffect(() => {
-    setShowBanner(false);
-  }, [selectedUser]);
+  // This effect was for the old banner system, which has been replaced with the NFTNotification system
 
   // Add effect to check for shared NFTs when viewing a profile
   useEffect(() => {
@@ -485,7 +418,7 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
       
       // ONLY show notification if user has liked NFTs and it's different from previous
       if (hasLikes && (!prevSelectedUserRef.current || prevSelectedUserRef.current !== selectedUser.username)) {
-        console.log(`💜 FOUND LIKED NFTs - Showing connection notification for ${selectedUser.username}`);
+        console.log(`💜 FOUND ${likedCount} LIKED NFTs - Showing connection notification for ${selectedUser.username}`);
         
         // Update previous user reference
         prevSelectedUserRef.current = selectedUser.username;
@@ -493,8 +426,8 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
         // Set username state
         setUsername(selectedUser.username);
         
-        // Show the connection notification
-        showConnectionNotification(selectedUser.username);
+        // Show the connection notification with the count
+        showConnectionNotification(selectedUser.username, likedCount);
       } else if (hasLikes) {
         console.log(`💜 User has liked NFTs but notification already shown for ${selectedUser.username}`);
       } else {
@@ -507,6 +440,7 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
       // Reset previous user reference when no user is selected
       prevSelectedUserRef.current = null;
     }
+    
   }, [selectedUser, nfts, isNFTLiked, showConnectionNotification]);
 
   return (
@@ -895,17 +829,7 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
           </div>
         )}
       </div>
-      <NotificationHeader
-        show={showBanner}
-        onHide={() => setShowBanner(false)}
-        type="connection"
-        message="Connection with"
-        highlightText={username}
-        autoHideDuration={0}
-        onReset={onReset}
-      />
-      
-      {/* Add NFTNotification component to handle like/unlike notifications */}
+      {/* NFTNotification component now handles all notification types */}
       <NFTNotification onReset={onReset} />
       {/* Follows Modal */}
       {showFollowsModal && selectedUser && (

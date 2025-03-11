@@ -154,7 +154,7 @@ const NotificationHeader: React.FC<NotificationHeaderProps> = ({
             <div className="text-white text-lg flex items-center">
               {message}
               {highlightText && (
-                <span className="font-semibold ml-2 truncate max-w-[120px] inline-block">
+                <span className="font-semibold ml-2 truncate max-w-[180px] inline-block">
                   {highlightText}
                 </span>
               )}
