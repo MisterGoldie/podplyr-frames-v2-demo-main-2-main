@@ -466,8 +466,20 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                 hideNotification();
                 console.log('🗑 Reset notifications on back button click');
                 
-                // Call the original onBack function
-                onBack();
+                // Use our special forced animation mode that guarantees completion
+                if (window && (window as any).__FORCE_CONNECTION_ANIMATION_DELAY) {
+                  console.log('🚀 Using guaranteed animation system');
+                  // This will delay navigation until animation completes
+                  (window as any).__FORCE_CONNECTION_ANIMATION_DELAY(() => {
+                    console.log('✅ Animation completed, now triggering navigation');
+                    // Only call onBack after animation finishes
+                    onBack();
+                  });
+                } else {
+                  // Fallback if our system isn't available
+                  console.log('⚠️ Fallback: forced animation system not available');
+                  onBack();
+                }
               }}
               className="mb-6 flex items-center gap-3 text-green-400 hover:text-green-300 transition-all px-5 py-3 rounded-lg
                        bg-gradient-to-br from-gray-900/90 to-gray-800/80 hover:from-gray-800/90 hover:to-gray-700/80
