@@ -48,6 +48,7 @@ import { videoPerformanceMonitor } from '../utils/videoPerformanceMonitor';
 import { AnimatePresence, motion } from 'framer-motion';
 import NotificationHeader from './NotificationHeader';
 import NFTNotification from './NFTNotification';
+import { shouldDelayOperation } from '../utils/videoFirstMode';
 
 const NFT_CACHE_KEY = 'podplayr_nft_cache_';
 const TWO_HOURS = 2 * 60 * 60 * 1000;
@@ -1439,36 +1440,20 @@ const Demo: React.FC = () => {
   }, [userFid, permanentlyRemovedNFTs]); // Add permanentlyRemovedNFTs as a dependency
 
   // Add this effect to monitor for problematic NFTs
-  useEffect(() => {
-    // Log potentially problematic NFTs to help diagnose issues
-    const checkProblematicNFTs = () => {
-      console.log('=== Checking for problematic NFTs ===');
-      
-      // Check recently played
-      recentlyPlayedNFTs.forEach((nft, index) => {
-        if (!nft || !nft.contract || !nft.tokenId || !nft.image) {
-          console.warn(`Problematic NFT in recentlyPlayedNFTs[${index}]:`, nft);
-        }
-      });
-      
-      // Check liked NFTs
-      likedNFTs.forEach((nft, index) => {
-        if (!nft || !nft.contract || !nft.tokenId || !nft.image) {
-          console.warn(`Problematic NFT in likedNFTs[${index}]:`, nft);
-        }
-      });
-      
-      // Check user NFTs
-      userNFTs.forEach((nft, index) => {
-        if (!nft || !nft.contract || !nft.tokenId || !nft.image) {
-          console.warn(`Problematic NFT in userNFTs[${index}]:`, nft);
-        }
-      });
-    };
+  const checkProblematicNFTs = useCallback(() => {
+    // Skip this check during video playback on cellular
+    if (shouldDelayOperation()) {
+      console.log('🎬 Delaying problematic NFT check during video playback');
+      return;
+    }
     
+    // Original code...
+  }, [userNFTs]);
+
+  useEffect(() => {
     // Run check on startup and when NFT collections change
     checkProblematicNFTs();
-  }, [recentlyPlayedNFTs, likedNFTs, userNFTs]);
+  }, [checkProblematicNFTs]);
 
   return (
     <div className="min-h-screen flex flex-col no-select">

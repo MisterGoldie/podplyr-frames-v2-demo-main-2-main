@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import Image from 'next/image';
 
 type NotificationType = 'success' | 'info' | 'warning' | 'error' | 'connection';
@@ -16,7 +16,8 @@ interface NotificationHeaderProps {
   onLogoClick?: () => void; // New prop for logo click to go home
 }
 
-const NotificationHeader: React.FC<NotificationHeaderProps> = ({
+// Use memo to prevent unnecessary re-renders
+const NotificationHeader: React.FC<NotificationHeaderProps> = memo(({
   show,
   onHide,
   type = 'info',
@@ -28,8 +29,13 @@ const NotificationHeader: React.FC<NotificationHeaderProps> = ({
   onReset,
   onLogoClick, // Add the new prop
 }) => {
-  // Add debug logs
-  console.log(`NotificationHeader Props: show=${show}, type=${type}, message=${message}, highlight=${highlightText}`);
+  // Remove console.log in production
+  if (process.env.NODE_ENV !== 'production') {
+    // Only log when props actually change
+    React.useEffect(() => {
+      console.log('NotificationHeader Props:', { show, type, message, highlightText });
+    }, [show, type, message, highlightText]);
+  }
   
   // Use separate states for background and content to stagger transitions
   const [isBackgroundVisible, setIsBackgroundVisible] = useState(show);
@@ -191,6 +197,6 @@ const NotificationHeader: React.FC<NotificationHeaderProps> = ({
       </div>
     </header>
   );
-};
+});
 
 export default NotificationHeader; 
