@@ -5,8 +5,26 @@ import { processMediaUrl } from '../../utils/media';
 import type { NFT } from '../../types/user';
 import sdk from '@farcaster/frame-sdk';
 
-// Keep the exact same props as the original Player component
-interface MaximizedPlayerProps {
+// Fix the MaximizedPlayerProps interface to include isAnimating
+// export interface MaximizedPlayerProps {
+//   nft: NFT;
+//   isPlaying: boolean;
+//   onPlayPause: () => void;
+//   onNext?: () => void;
+//   onPrevious?: () => void;
+//   isMinimized: boolean;
+//   onMinimizeToggle: () => void;
+//   progress: number;
+//   duration: number;
+//   onSeek: (time: number) => void;
+//   onLikeToggle?: (nft: NFT) => void;
+//   isLiked?: boolean;
+//   onPictureInPicture?: () => void;
+//   lastPosition?: number;
+// }
+
+// Adding isAnimating to the interface:
+export interface MaximizedPlayerProps {
   nft: NFT;
   isPlaying: boolean;
   onPlayPause: () => void;
@@ -21,6 +39,7 @@ interface MaximizedPlayerProps {
   isLiked?: boolean;
   onPictureInPicture?: () => void;
   lastPosition?: number;
+  isAnimating: boolean; // Add this property
 }
 
 export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
@@ -37,7 +56,8 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
   onLikeToggle,
   isLiked,
   onPictureInPicture,
-  lastPosition
+  lastPosition,
+  isAnimating
 }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [showControls, setShowControls] = useState(true);

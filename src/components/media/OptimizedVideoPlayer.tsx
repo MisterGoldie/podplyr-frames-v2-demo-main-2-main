@@ -6,7 +6,7 @@ import { processMediaUrl } from '../../utils/media';
 import { NFTImage } from './NFTImage';
 import { setupHls, destroyHls, isHlsUrl, getHlsUrl } from '../../utils/hlsUtils';
 import { getNetworkInfo, isMobileDevice } from '../../utils/deviceDetection';
-import { isCellularConnection, getCellularGeneration, getCellularVideoSettings, getOptimizedCellularVideoUrl, getPreviewVideoUrl } from '../../utils/cellularOptimizer';
+import { isCellularConnection, getCellularVideoSettings, getOptimizedCellularVideoUrl, getPreviewVideoUrl } from '../../utils/cellularOptimizer';
 
 interface OptimizedVideoPlayerProps {
   nft: NFT;
@@ -466,10 +466,16 @@ export const OptimizedVideoPlayer: React.FC<OptimizedVideoPlayerProps> = ({
   useEffect(() => {
     const checkCellular = () => {
       const cellular = isCellularConnection();
-      setIsCellular(cellular);
+      setIsCellular(cellular.isCellular);
       
-      if (cellular) {
-        setCellularGeneration(getCellularGeneration());
+      if (cellular.isCellular) {
+        // Extract cellular generation from the result or call getCellularGeneration
+        const generation = cellular.generation;
+        // Convert to the expected type, defaulting to '4G' if not matching
+        const typedGeneration = (generation === '2G' || generation === '3G' || 
+                               generation === '4G' || generation === '5G') 
+                               ? generation : '4G';
+        setCellularGeneration(typedGeneration);
       }
     };
     
@@ -604,8 +610,14 @@ export const OptimizedVideoPlayer: React.FC<OptimizedVideoPlayerProps> = ({
         ? getHlsUrl(rawVideoUrl) 
         : getOptimizedCellularVideoUrl(rawVideoUrl);
       
-      // Adjust video preload
-      video.preload = cellularSettings.preloadStrategy;
+      // Adjust video preload based on cellular generation
+      if (cellularGeneration === '2G' || cellularGeneration === '3G') {
+        video.preload = 'none';
+      } else if (cellularGeneration === '4G') {
+        video.preload = 'metadata';
+      } else {
+        video.preload = 'auto';
+      }
       
       // For HLS, use cellular-optimized setup
       if (useHls) {
@@ -634,7 +646,10 @@ export const OptimizedVideoPlayer: React.FC<OptimizedVideoPlayerProps> = ({
       }
       
       // Reduce video quality via CSS for 3G/4G to reduce GPU load
-      video.style.maxHeight = `${cellularSettings.maxHeight}px`;
+      // Extract height from resolution string (e.g., "720p" -> 720)
+      const resolutionMatch = cellularSettings.preferredResolution.match(/(\d+)p/);
+      const maxHeight = resolutionMatch ? parseInt(resolutionMatch[1]) : 480; // Default to 480
+      video.style.maxHeight = `${maxHeight}px`;
     } else {
       // Regular loading for non-cellular connections (existing code)
       // ...
