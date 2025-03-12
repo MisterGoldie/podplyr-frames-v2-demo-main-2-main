@@ -2,7 +2,7 @@
 
 import { Player as BasePlayer } from './Player';
 import { NFT } from '../../types/user';
-import { FC, useEffect, useRef } from 'react';
+import { FC, useEffect, useRef, useCallback, memo } from 'react';
 import { 
   isCellularConnection, 
   getOptimizedCellularVideoUrl,
@@ -24,8 +24,9 @@ interface PlayerClientProps {
   onSeek: (time: number) => void;
 }
 
-export const PlayerClient: FC<PlayerClientProps> = (props) => {
+export const PlayerClient: FC<PlayerClientProps> = memo((props) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const prevProgressRef = useRef(props.progress);
 
   useEffect(() => {
     if (!props.nft?.isVideo && !props.nft?.metadata?.animation_url) return;
@@ -188,5 +189,14 @@ export const PlayerClient: FC<PlayerClientProps> = (props) => {
     };
   }, [props.progress, props.nft, props.onSeek]);
 
+  // Only update progress when it changes significantly (e.g., by 1%)
+  useEffect(() => {
+    const progressDiff = Math.abs(props.progress - prevProgressRef.current);
+    if (progressDiff > 0.01) {
+      prevProgressRef.current = props.progress;
+      // Handle progress update
+    }
+  }, [props.progress]);
+
   return <BasePlayer {...props} />;
-}; 
+}); 
