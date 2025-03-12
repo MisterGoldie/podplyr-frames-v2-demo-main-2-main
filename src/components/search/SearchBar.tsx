@@ -142,7 +142,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, isSearching, han
                       Official
                     </span>
                   )}
-                  {(suggestion.fid === 7472 || suggestion.fid === 14871 || suggestion.fid === 414859 || suggestion.fid === 356115 || suggestion.fid === 296462 || suggestion.fid === 195864) && (
+                  {[7472, 14871, 414859, 356115, 296462, 195864, 1020224].includes(suggestion.fid) && (
                     <span className="text-xs font-mono px-2 py-0.5 rounded-full flex items-center font-semibold" 
                           style={{ 
                             background: 'linear-gradient(90deg, rgba(255,0,0,0.2) 0%, rgba(255,154,0,0.2) 25%, rgba(208,222,33,0.2) 50%, rgba(79,220,74,0.2) 75%, rgba(63,218,216,0.2) 100%)', 

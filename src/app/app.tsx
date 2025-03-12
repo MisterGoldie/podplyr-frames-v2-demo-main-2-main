@@ -2,6 +2,9 @@
 
 import dynamic from "next/dynamic";
 import { PlayerProvider } from "../contexts/PlayerContext";
+import { useEffect } from "react";
+import { setupWarningSuppressions } from "../utils/suppressWarnings";
+import { setupArweaveUrlInterceptor } from "../utils/networkErrorHandler";
 
 const Demo = dynamic(() => import("../components/Demo"), {
   ssr: false,
@@ -13,6 +16,17 @@ const Demo = dynamic(() => import("../components/Demo"), {
 });
 
 export default function App() {
+  // Set up warning suppressions and network handlers
+  useEffect(() => {
+    // Only suppress warnings in development
+    if (process.env.NODE_ENV === 'development') {
+      setupWarningSuppressions();
+    }
+    
+    // Set up Arweave URL interceptor in all environments
+    setupArweaveUrlInterceptor();
+  }, []);
+
   return (
     <PlayerProvider>
       <main className="min-h-screen flex flex-col">

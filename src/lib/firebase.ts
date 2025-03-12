@@ -1607,18 +1607,51 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const fetchWithRetry = async (url: string, options: RequestInit, maxRetries = 3): Promise<Response> => {
   for (let i = 0; i < maxRetries; i++) {
     try {
-      const response = await fetch(url, options);
+      // Add timeout to fetch requests
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      const enhancedOptions = {
+        ...options,
+        signal: controller.signal
+      };
+      
+      const response = await fetch(url, enhancedOptions);
+      clearTimeout(timeoutId);
+      
       if (response.status === 429) { // Rate limit
         const waitTime = Math.pow(2, i) * 1000; // Exponential backoff
         firebaseLogger.info(`Rate limited, waiting ${waitTime}ms before retry ${i + 1}/${maxRetries}`);
         await delay(waitTime);
         continue;
       }
+      
+      // Handle other common error codes
+      if (response.status >= 500) {
+        firebaseLogger.warn(`Server error ${response.status} from ${url}, retry ${i + 1}/${maxRetries}`);
+        await delay(Math.pow(2, i) * 1000);
+        continue;
+      }
+      
       return response;
-    } catch (error) {
+    } catch (error: any) {
+      // Clear any timeout if there was an error
+      
+      // Check for network connectivity issues
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        firebaseLogger.warn(`Network error on attempt ${i + 1}/${maxRetries}: ${error.message}`);
+        // Check if we're online
+        if (!navigator.onLine) {
+          firebaseLogger.error('Device appears to be offline');
+        }
+      } else if (error.name === 'AbortError') {
+        firebaseLogger.warn(`Request timeout on attempt ${i + 1}/${maxRetries}`);
+      } else {
+        firebaseLogger.error(`Fetch attempt ${i + 1} failed:`, error);
+      }
+      
       if (i === maxRetries - 1) throw error;
-      firebaseLogger.error(`Fetch attempt ${i + 1} failed:`, error);
-      await delay(1000); // Wait 1s between retries
+      await delay(Math.pow(2, i) * 1000); // Exponential backoff
     }
   }
   throw new Error(`Failed after ${maxRetries} retries`);
