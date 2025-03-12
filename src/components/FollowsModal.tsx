@@ -183,7 +183,7 @@ const FollowsModal: React.FC<FollowsModalProps> = ({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ paddingBottom: '100px' }}>
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -193,7 +193,7 @@ const FollowsModal: React.FC<FollowsModalProps> = ({
             onClick={onClose}
           />
           
-          {/* Instagram-style modal */}
+          {/* Modal matching the screenshot exactly */}
           <motion.div 
             ref={modalRef}
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -205,93 +205,98 @@ const FollowsModal: React.FC<FollowsModalProps> = ({
               damping: 25,
               duration: 0.3
             }}
-            className="relative bg-black border border-purple-400/30 rounded-xl max-w-md w-full max-h-[90vh] overflow-hidden shadow-xl"
+            className="relative bg-black border border-purple-400/30 rounded-xl max-w-md w-full overflow-hidden shadow-xl flex flex-col mx-4"
           >
-        {/* Header */}
-        <div className="border-b border-purple-400/20 p-4 flex justify-between items-center sticky top-0 bg-black z-10">
-          <h2 className="text-xl font-semibold text-white capitalize">{type}</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-white transition-colors"
-            aria-label="Close modal"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
-            </svg>
-          </button>
-        </div>
-        
-        {/* Body - Instagram style with improved scrolling */}
-        <div className="overflow-y-auto overscroll-contain -webkit-overflow-scrolling-touch max-h-[min(500px,_calc(85vh-70px))]" style={{ scrollbarWidth: 'thin' }}>
-          {loading ? (
-            <div className="flex justify-center items-center p-8">
-              <div className="w-8 h-8 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mb-2"></div>
-              <p className="text-gray-400 text-sm mt-2">Loading...</p>
+            {/* Header */}
+            <div className="border-b border-purple-400/20 p-4 flex justify-between items-center bg-black z-10 sticky top-0">
+              <h2 className="text-xl font-semibold text-white capitalize">{type}</h2>
+              <button
+                onClick={onClose}
+                className="text-gray-400 hover:text-white transition-colors"
+                aria-label="Close modal"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+              </button>
             </div>
-          ) : users.length === 0 ? (
-            <div className="text-center py-8 text-gray-400">
-              No {type} yet
-            </div>
-          ) : (
-            <ul className="divide-y divide-purple-400/10 pb-2">
-              {users.map(user => (
-                <li key={user.fid} className="hover:bg-purple-500/5 transition-colors">
-                  <div className="flex items-center justify-between px-4 py-3">
-                    <a
-                      href={`https://warpcast.com/${user.username}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center flex-1"
-                    >
-                      <div className="h-12 w-12 rounded-full overflow-hidden mr-3 border border-purple-400/20">
-                        <Image
-                          src={user.pfp_url || '/default-avatar.png'}
-                          alt={user.username || 'User profile picture'}
-                          width={48}
-                          height={48}
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-white">{user.display_name}</p>
-                        <p className="text-sm text-gray-400">@{user.username}</p>
-                      </div>
-                    </a>
-                    
-                    {currentUserFid !== user.fid && user.fid !== 1014485 && (
-                      <button
-                        onClick={() => handleToggleFollow(user)}
-                        disabled={processingFollow[user.fid]}
-                        className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${followStatus[user.fid] 
-                          ? 'bg-gray-700 hover:bg-gray-600 text-white' 
-                          : 'bg-purple-600 hover:bg-purple-500 text-white'} ${
-                            processingFollow[user.fid] ? 'opacity-70 cursor-not-allowed' : ''
-                          }`}
-                      >
-                        {processingFollow[user.fid] ? (
-                          <span className="flex items-center">
-                            <span className="w-3 h-3 mr-1 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                          </span>
-                        ) : followStatus[user.fid] ? (
-                          'Following'
-                        ) : (
-                          'Follow'
+            
+            {/* Body - Auto height with max-height to handle fewer users */}
+            <div className="overflow-y-auto overscroll-contain -webkit-overflow-scrolling-touch" 
+                 style={{ 
+                   scrollbarWidth: 'thin',
+                   minHeight: '100px',
+                   maxHeight: '375px' // Max height for 5 users, but will shrink if fewer
+                 }}>
+              {loading ? (
+                <div className="flex justify-center items-center p-8">
+                  <div className="w-8 h-8 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mb-2"></div>
+                  <p className="text-gray-400 text-sm mt-2">Loading...</p>
+                </div>
+              ) : users.length === 0 ? (
+                <div className="text-center py-8 text-gray-400">
+                  No {type} yet
+                </div>
+              ) : (
+                <ul className="divide-y divide-purple-400/10 pb-2">
+                  {users.map(user => (
+                    <li key={user.fid} className="hover:bg-purple-500/5 transition-colors">
+                      <div className="flex items-center justify-between px-4 py-3">
+                        <a
+                          href={`https://warpcast.com/${user.username}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center flex-1"
+                        >
+                          <div className="h-12 w-12 rounded-full overflow-hidden mr-3 border border-purple-400/20">
+                            <Image
+                              src={user.pfp_url || '/default-avatar.png'}
+                              alt={user.username || 'User profile picture'}
+                              width={48}
+                              height={48}
+                              className="h-full w-full object-cover"
+                            />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-white">{user.display_name}</p>
+                            <p className="text-sm text-gray-400">@{user.username}</p>
+                          </div>
+                        </a>
+                        
+                        {currentUserFid !== user.fid && user.fid !== 1014485 && (
+                          <button
+                            onClick={() => handleToggleFollow(user)}
+                            disabled={processingFollow[user.fid]}
+                            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${followStatus[user.fid] 
+                              ? 'bg-gray-700 hover:bg-gray-600 text-white' 
+                              : 'bg-purple-600 hover:bg-purple-500 text-white'} ${
+                                processingFollow[user.fid] ? 'opacity-70 cursor-not-allowed' : ''
+                              }`}
+                          >
+                            {processingFollow[user.fid] ? (
+                              <span className="flex items-center">
+                                <span className="w-3 h-3 mr-1 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                              </span>
+                            ) : followStatus[user.fid] ? (
+                              'Following'
+                            ) : (
+                              'Follow'
+                            )}
+                          </button>
                         )}
-                      </button>
-                    )}
-                    
-                    {/* Special badge for PODPlayr account */}
-                    {user.fid === 1014485 && (
-                      <div className="px-3 py-1 rounded-lg text-xs font-medium bg-purple-600/20 text-purple-300 border border-purple-500/30">
-                        Official
+                        
+                        {/* Special badge for PODPlayr account */}
+                        {user.fid === 1014485 && (
+                          <div className="px-3 py-1 rounded-lg text-xs font-medium bg-purple-600/20 text-purple-300 border border-purple-500/30">
+                            Official
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </motion.div>
           
           {/* Notification */}
