@@ -6,6 +6,12 @@
 // Track which videos we've already prewarmed
 const prewarmedVideos = new Set<string>();
 
+// First, define an interface for your stream variant
+interface StreamVariant {
+  url: string;
+  bandwidth: number;
+}
+
 /**
  * Prewarm a video by preloading its initial segments
  */
@@ -104,7 +110,7 @@ export const prewarmVideo = async (playbackId: string): Promise<boolean> => {
  */
 function extractStreamUrls(content: string, baseUrl: string): string[] {
   const lines = content.split('\n');
-  const urls: string[] = [];
+  const urls: StreamVariant[] = [];
   
   for (let i = 0; i < lines.length; i++) {
     // Find quality playlists
@@ -121,15 +127,16 @@ function extractStreamUrls(content: string, baseUrl: string): string[] {
         urls.push({
           url: fullUrl,
           bandwidth
-        });
+        } as StreamVariant);
       }
     }
   }
   
   // Sort by bandwidth (lowest first)
-  return urls
-    .sort((a, b) => a.bandwidth - b.bandwidth)
-    .map(item => item.url);
+  const sortedVariants: StreamVariant[] = urls
+    .sort((a: StreamVariant, b: StreamVariant) => a.bandwidth - b.bandwidth);
+  
+  return sortedVariants.map(item => item.url);
 }
 
 /**

@@ -1,3 +1,10 @@
+declare global {
+  interface Window {
+    firebase?: any;
+    updateNFTPlayCount?: any;
+  }
+}
+
 let isVideoPlaybackActive = false;
 let pausedOperations: Array<() => void> = [];
 

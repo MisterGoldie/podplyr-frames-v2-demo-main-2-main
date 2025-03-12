@@ -6,7 +6,7 @@ export const getOptimalResolution = (): string => {
   
   // Get network speed if available
   let speed = 0;
-  if (navigator.connection) {
+  if (typeof navigator !== 'undefined' && 'connection' in navigator) {
     speed = (navigator.connection as any).downlink || 0; // in Mbps
   }
   
