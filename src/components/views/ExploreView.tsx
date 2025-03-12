@@ -688,6 +688,16 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                                   Official
                                 </span>
                               )}
+                              {(user.fid === 7472 || user.fid === 14871 || user.fid === 414859 || user.fid === 356115 || user.fid === 296462 || user.fid === 195864) && (
+                                <span className="text-xs font-mono px-2 py-0.5 rounded-full flex items-center font-semibold" 
+                                      style={{ 
+                                        background: 'linear-gradient(90deg, rgba(255,0,0,0.2) 0%, rgba(255,154,0,0.2) 25%, rgba(208,222,33,0.2) 50%, rgba(79,220,74,0.2) 75%, rgba(63,218,216,0.2) 100%)', 
+                                        color: '#f0f0f0',
+                                        textShadow: '0 0 2px rgba(0,0,0,0.5)'
+                                      }}>
+                                  ACYL
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -809,6 +819,16 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                               {user.fid === PODPLAYR_OFFICIAL_FID && (
                                 <span className="text-xs font-mono px-2 py-0.5 bg-purple-800/40 text-purple-300 rounded-full flex items-center font-semibold">
                                   Official
+                                </span>
+                              )}
+                              {(user.fid === 7472 || user.fid === 14871 || user.fid === 414859 || user.fid === 356115 || user.fid === 296462 || user.fid === 195864) && (
+                                <span className="text-xs font-mono px-2 py-0.5 rounded-full flex items-center font-semibold" 
+                                      style={{ 
+                                        background: 'linear-gradient(90deg, rgba(255,0,0,0.2) 0%, rgba(255,154,0,0.2) 25%, rgba(208,222,33,0.2) 50%, rgba(79,220,74,0.2) 75%, rgba(63,218,216,0.2) 100%)', 
+                                        color: '#f0f0f0',
+                                        textShadow: '0 0 2px rgba(0,0,0,0.5)'
+                                      }}>
+                                  ACYL
                                 </span>
                               )}
                             </div>
