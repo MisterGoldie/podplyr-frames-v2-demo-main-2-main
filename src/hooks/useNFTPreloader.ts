@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import type { NFT } from '../types/user';
-import { processMediaUrl, getMediaKey } from '../utils/media';
+import { getMediaKey } from '../utils/media';
 
 // Network speed detection
 const detectNetworkSpeed = () => {
@@ -14,7 +14,8 @@ const detectNetworkSpeed = () => {
 };
 
 const preloadSingleImage = async (nft: NFT, imageMap: Map<string, HTMLImageElement>) => {
-  const imageUrl = processMediaUrl(nft.metadata?.image || nft.image || '');
+  // Use the original URL without any processing
+  const imageUrl = nft.metadata?.image || nft.image || '';
   if (!imageUrl) return;
 
   const key = getMediaKey(nft);
@@ -26,6 +27,7 @@ const preloadSingleImage = async (nft: NFT, imageMap: Map<string, HTMLImageEleme
       resolve();
     };
     img.onerror = () => {
+      console.warn('Failed to preload image for NFT:', nft.name);
       resolve(); // Resolve even on error to not block other images
     };
     img.src = imageUrl;
@@ -121,9 +123,41 @@ export const useNFTPreloader = (nfts: NFT[]) => {
     return preloadedImages.get(key);
   };
 
+  const preloadImage = useCallback((nft: NFT) => {
+    // Use the original URL without any processing
+    const imageUrl = nft.image || nft.metadata?.image;
+    if (!imageUrl) return;
+    
+    // Create a key for this NFT
+    const key = `${nft.contract}-${nft.tokenId}`;
+    
+    // Skip if already preloaded
+    if (preloadedImages.has(key)) return;
+    
+    // Create a new image element
+    const img = new Image();
+    
+    // Set the source to preload - use original URL
+    img.src = imageUrl;
+    
+    // Store the preloaded image
+    img.onload = () => {
+      setPreloadedImages(prev => {
+        const newMap = new Map(prev);
+        newMap.set(key, img);
+        return newMap;
+      });
+    };
+    
+    img.onerror = () => {
+      console.warn('Failed to preload image in preloadImage for NFT:', nft.name);
+    };
+  }, [preloadedImages]);
+
   return {
     isLoading,
     getPreloadedImage,
-    preloadedImages
+    preloadedImages,
+    preloadImage
   };
 };

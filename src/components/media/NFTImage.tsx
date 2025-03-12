@@ -4,7 +4,10 @@ import Image from 'next/image';
 import type { SyntheticEvent } from 'react';
 import type { NFT } from '../../types/user';
 import { useNFTPreloader } from '../../hooks/useNFTPreloader';
+import { logger } from '../../utils/logger';
 
+// Create a dedicated logger for NFT images
+const imageLogger = logger.getModuleLogger('nftImage');
 
 interface NFTImageProps {
   src: string;
@@ -48,7 +51,7 @@ const getNextIPFSUrl = (url: string, currentIndex: number): { url: string; nextI
   
   // If we've already tried all gateways, return null
   if (currentIndex >= IPFS_GATEWAYS.length - 1) {
-    console.warn('All IPFS gateways have been tried', { url });
+    imageLogger.warn('All IPFS gateways have been tried', { url });
     return null;
   }
 
@@ -69,7 +72,7 @@ const getNextIPFSUrl = (url: string, currentIndex: number): { url: string; nextI
   }
   
   if (!cid) {
-    console.warn('Could not extract IPFS CID from URL', { url });
+    imageLogger.warn('Could not extract IPFS CID from URL', { url });
     return null;
   }
   
@@ -181,7 +184,7 @@ export const NFTImage: React.FC<NFTImageProps> = ({
       
       // Check if image URL matches any audio URL
       if (nft && isAudioUrlUsedAsImage(nft, thumbnailUrl)) {
-        console.warn('NFT using audio URL as image, using fallback:', {
+        imageLogger.warn('NFT using audio URL as image, using fallback:', {
           contract: nft.contract,
           tokenId: nft.tokenId
         });
@@ -199,7 +202,7 @@ export const NFTImage: React.FC<NFTImageProps> = ({
       if (nft && isAudioUrlUsedAsImage(nft, src)) {
         setIsVideo(false);
         setImgSrc(fallbackSrc);
-        console.warn('NFT using audio URL as image, using fallback:', {
+        imageLogger.warn('NFT using audio URL as image, using fallback:', {
           contract: nft.contract,
           tokenId: nft.tokenId
         });
@@ -224,7 +227,7 @@ export const NFTImage: React.FC<NFTImageProps> = ({
 
   const handleError = async (error: SyntheticEvent<HTMLVideoElement | HTMLImageElement>) => {
     // Log the error
-    console.warn('NFT Image load failed:', { 
+    imageLogger.warn('NFT Image load failed:', { 
       nftId: nft ? `${nft.contract}-${nft.tokenId}` : 'unknown',
       originalSrc: src,
       failedSrc: error.currentTarget.src || imgSrc,

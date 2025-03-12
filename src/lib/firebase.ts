@@ -28,6 +28,12 @@ import {
 import type { NFT, FarcasterUser, SearchedUser, NFTPlayData, FollowedUser } from '../types/user';
 import { fetchUserNFTsFromAlchemy } from './alchemy';
 import { getMediaKey } from '~/utils/media';
+import { logger } from '../utils/logger';
+
+// Create module-specific loggers
+const firebaseLogger = logger.getModuleLogger('firebase');
+const authLogger = logger.getModuleLogger('auth');
+const dataLogger = logger.getModuleLogger('data');
 
 // Initialize Firebase with your config
 const firebaseConfig = {
@@ -51,9 +57,9 @@ export const cacheUserWallet = async (fid: number, address: string): Promise<voi
       address,
       timestamp: serverTimestamp()
     });
-    console.log('Cached wallet address for FID:', fid, address);
+    firebaseLogger.info('Cached wallet address for FID:', fid, address);
   } catch (error) {
-    console.error('Error caching wallet:', error);
+    firebaseLogger.error('Error caching wallet:', error);
   }
 };
 
@@ -67,7 +73,7 @@ export const getCachedWallet = async (fid: number): Promise<string | null> => {
     }
     return null;
   } catch (error) {
-    console.error('Error getting cached wallet:', error);
+    firebaseLogger.error('Error getting cached wallet:', error);
     return null;
   }
 };
@@ -78,7 +84,7 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
     const neynarKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
     if (!neynarKey) throw new Error('Neynar API key not found');
 
-    console.log('Searching for user:', username);
+    firebaseLogger.info('Searching for user:', username);
     // First search for the user to get their FID
     const searchResponse = await fetchWithRetry(
       `https://api.neynar.com/v2/farcaster/user/search?q=${encodeURIComponent(username)}`,
@@ -91,11 +97,11 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
     );
 
     const searchData = await searchResponse.json();
-    console.log('Search response:', searchData);
+    firebaseLogger.info('Search response:', searchData);
     const searchedUser = searchData.result?.users[0];
     if (!searchedUser) throw new Error('User not found');
 
-    console.log('Found user, fetching full profile for FID:', searchedUser.fid);
+    firebaseLogger.info('Found user, fetching full profile for FID:', searchedUser.fid);
     // Then fetch their full profile data including verified addresses
     const profileResponse = await fetchWithRetry(
       `https://api.neynar.com/v2/farcaster/user/bulk?fids=${searchedUser.fid}`,
@@ -108,7 +114,7 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
     );
 
     const profileData = await profileResponse.json();
-    console.log('Profile response:', profileData);
+    firebaseLogger.info('Profile response:', profileData);
     const user = profileData.users?.[0];
     if (!user) throw new Error('User profile not found');
 
@@ -117,17 +123,17 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
     
     // Try to get custody address from user profile
     if (user.custody_address) {
-      console.log('Found custody address in profile:', user.custody_address);
+      firebaseLogger.info('Found custody address in profile:', user.custody_address);
       addresses.add(user.custody_address);
     }
     
     // Try to get verified addresses from user profile
     if (user.verified_addresses) {
       if (Array.isArray(user.verified_addresses)) {
-        console.log('Found verified addresses (array):', user.verified_addresses);
+        firebaseLogger.info('Found verified addresses (array):', user.verified_addresses);
         user.verified_addresses.forEach((addr: string) => addresses.add(addr));
       } else if (user.verified_addresses.eth_addresses) {
-        console.log('Found verified addresses (object):', user.verified_addresses.eth_addresses);
+        firebaseLogger.info('Found verified addresses (object):', user.verified_addresses.eth_addresses);
         user.verified_addresses.eth_addresses.forEach((addr: string) => addresses.add(addr));
       }
     }
@@ -148,11 +154,11 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
 
         const custodyData = await custodyResponse.json();
         if (custodyData.result?.custody_address) {
-          console.log('Found custody address from v2 API:', custodyData.result.custody_address);
+          firebaseLogger.info('Found custody address from v2 API:', custodyData.result.custody_address);
           addresses.add(custodyData.result.custody_address);
         }
       } catch (error) {
-        console.warn('Failed to fetch custody address:', error);
+        firebaseLogger.warn('Failed to fetch custody address:', error);
       }
 
       try {
@@ -170,17 +176,17 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
         const verifiedData = await verifiedResponse.json();
         const verifiedAddresses = verifiedData.result?.verified_addresses || [];
         if (verifiedAddresses.length > 0) {
-          console.log('Found verified addresses from v2 API:', verifiedAddresses);
+          firebaseLogger.info('Found verified addresses from v2 API:', verifiedAddresses);
           verifiedAddresses.forEach((addr: string) => addresses.add(addr));
         }
       } catch (error) {
-        console.warn('Failed to fetch verified addresses:', error);
+        firebaseLogger.warn('Failed to fetch verified addresses:', error);
       }
     }
 
     // Convert to array
     const finalAddresses = Array.from(addresses);
-    console.log('Final addresses:', finalAddresses);
+    firebaseLogger.info('Final addresses:', finalAddresses);
 
     // Update searchedusers collection with user data and search info
     const now = new Date().getTime();
@@ -205,13 +211,13 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
     }
     
     // Also track in user_searches for history
-    console.log('=== TRACKING USER SEARCH ===');
-    console.log('FID:', fid);
-    console.log('Searched User:', user);
+    firebaseLogger.info('=== TRACKING USER SEARCH ===');
+    firebaseLogger.info('FID:', fid);
+    firebaseLogger.info('Searched User:', user);
     
     const searchRef = collection(db, 'user_searches');
     const timestamp = Date.now();
-    console.log('Using timestamp:', new Date(timestamp));
+    firebaseLogger.info('Using timestamp:', new Date(timestamp));
     
     // Create the search record using unified index pattern
     const searchRecord = {
@@ -226,9 +232,9 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
       serverTimestamp: serverTimestamp() // Keep server timestamp for consistency
     };
     
-    console.log('Adding search with data:', searchRecord);
+    firebaseLogger.info('Adding search with data:', searchRecord);
     await addDoc(searchRef, searchRecord);
-    console.log('Search tracked successfully');
+    firebaseLogger.info('Search tracked successfully');
 
     return {
       ...user,
@@ -236,7 +242,7 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
       verifiedAddresses: finalAddresses
     };
   } catch (error) {
-    console.error('Error tracking user search:', error);
+    firebaseLogger.error('Error tracking user search:', error);
     throw error;
   }
 };
@@ -253,10 +259,10 @@ export const subscribeToRecentSearches = (fid: number, callback: (searches: Sear
     limit(20)
   );
 
-  console.log('=== SUBSCRIBING TO RECENT SEARCHES ===');
-  console.log('FID:', fid);
+  firebaseLogger.info('=== SUBSCRIBING TO RECENT SEARCHES ===');
+  firebaseLogger.info('FID:', fid);
   
-  console.log('Setting up snapshot listener with query:', {
+  firebaseLogger.info('Setting up snapshot listener with query:', {
     fid,
     orderBy: 'timestamp',
     direction: 'desc',
@@ -264,18 +270,18 @@ export const subscribeToRecentSearches = (fid: number, callback: (searches: Sear
   });
 
   return onSnapshot(q, (snapshot) => {
-    console.log('=== RECEIVED SEARCH UPDATE ===');
-    console.log('Number of docs:', snapshot.docs.length);
+    firebaseLogger.info('=== RECEIVED SEARCH UPDATE ===');
+    firebaseLogger.info('Number of docs:', snapshot.docs.length);
     
     // Check if there are any changes
     if (snapshot.empty) {
-      console.log('No documents found');
+      firebaseLogger.info('No documents found');
       callback([]);
       return;
     }
 
     if (!snapshot.metadata.hasPendingWrites) {
-      console.log('Update is from server, not local');
+      firebaseLogger.info('Update is from server, not local');
     }
     
     // Use a Map to keep only the most recent search for each searchedFid
@@ -319,14 +325,14 @@ export const subscribeToRecentSearches = (fid: number, callback: (searches: Sear
           // ISO string timestamp
           timestamp = new Date(data.timestamp).getTime();
         } else {
-          console.warn('Unknown timestamp format:', data.timestamp);
+          firebaseLogger.warn('Unknown timestamp format:', data.timestamp);
           timestamp = Date.now();
         }
       } else {
         timestamp = Date.now();
       }
       
-      console.log('Processing search for FID:', searchedFid, 'with timestamp:', new Date(timestamp));
+      firebaseLogger.info('Processing search for FID:', searchedFid, 'with timestamp:', new Date(timestamp));
       const searchedUser = {
         fid: searchedFid,
         username: data.searchedUsername,
@@ -347,7 +353,7 @@ export const subscribeToRecentSearches = (fid: number, callback: (searches: Sear
     // Sort by timestamp descending (most recent first)
     const sortedSearches = updatedSearches.sort((a, b) => b.timestamp - a.timestamp);
     
-    console.log('Final recent searches:', sortedSearches);
+    firebaseLogger.info('Final recent searches:', sortedSearches);
     // Take first 8 unique users
     callback(sortedSearches.slice(0, 8));
   });
@@ -411,7 +417,7 @@ export const getRecentSearches = async (fid?: number): Promise<SearchedUser[]> =
     // Take first 8 unique users
     return recentSearches.slice(0, 8);
   } catch (error) {
-    console.error('Error getting recent searches:', error);
+    firebaseLogger.error('Error getting recent searches:', error);
     return [];
   }
 };
@@ -420,13 +426,13 @@ export const getRecentSearches = async (fid?: number): Promise<SearchedUser[]> =
 export const trackNFTPlay = async (nft: NFT, fid: number) => {
   try {
     if (!nft || !fid) {
-      console.error('Invalid NFT or FID provided to trackNFTPlay');
+      firebaseLogger.error('Invalid NFT or FID provided to trackNFTPlay');
       return;
     }
 
     // Validate required NFT fields
     if (!nft.contract || !nft.tokenId) {
-      console.error('NFT missing required fields:', { 
+      firebaseLogger.error('NFT missing required fields:', { 
         contract: nft?.contract, 
         tokenId: nft?.tokenId,
         name: nft?.name,
@@ -443,7 +449,7 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
     // Get audio URL with fallbacks
     const audioUrl = nft.metadata?.animation_url || nft.audio || nft.metadata?.audio || nft.metadata?.audio_url;
     if (!audioUrl) {
-      console.error('No audio URL found for NFT:', {
+      firebaseLogger.error('No audio URL found for NFT:', {
         contract: nft.contract,
         tokenId: nft.tokenId,
         name: nft.name,
@@ -460,7 +466,7 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
     // Get mediaKey for consistent NFT content identification
     const mediaKey = getMediaKey(nft);
     if (!mediaKey) {
-      console.error('Could not generate mediaKey for NFT:', nft);
+      firebaseLogger.error('Could not generate mediaKey for NFT:', nft);
       return;
     }
 
@@ -507,7 +513,7 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
       // Validate all fields before setting
       Object.entries(nftData).forEach(([key, value]) => {
         if (value === undefined) {
-          console.error(`Required field ${key} is undefined in NFT data`);
+          firebaseLogger.error(`Required field ${key} is undefined in NFT data`);
           throw new Error(`Required field ${key} is undefined`);
         }
       });
@@ -592,7 +598,7 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
     // Commit the batch
     await batch.commit();
   } catch (error) {
-    console.error('Error tracking NFT play:', error instanceof Error ? error.message : 'Unknown error');
+    firebaseLogger.error('Error tracking NFT play:', error instanceof Error ? error.message : 'Unknown error');
     throw error; // Re-throw to allow handling by the caller
   }
 };
@@ -661,7 +667,7 @@ export async function getTopPlayedNFTs(): Promise<{ nft: NFT; count: number }[]>
       .sort((a, b) => b.count - a.count)
       .slice(0, 3);
 
-    console.log('Unique top played NFTs:', uniqueTopPlayed);
+    firebaseLogger.info('Unique top played NFTs:', uniqueTopPlayed);
 
     // Update top_played collection
     const batch = writeBatch(db);
@@ -696,7 +702,7 @@ export async function getTopPlayedNFTs(): Promise<{ nft: NFT; count: number }[]>
     await batch.commit();
     return uniqueTopPlayed;
   } catch (error) {
-    console.error('Error getting top played NFTs:', error instanceof Error ? error.message : 'Unknown error');
+    firebaseLogger.error('Error getting top played NFTs:', error instanceof Error ? error.message : 'Unknown error');
     return [];
   }
 }
@@ -730,7 +736,7 @@ export async function hasBeenTopPlayed(nft: NFT | null): Promise<boolean> {
     
     return isCurrentlyTopPlayed;
   } catch (error) {
-    console.error('Error checking top played status:', error);
+    firebaseLogger.error('Error checking top played status:', error);
     return false;
   }
 }
@@ -738,7 +744,7 @@ export async function hasBeenTopPlayed(nft: NFT | null): Promise<boolean> {
 // Clean up old likes and migrate to new format
 export const cleanupLikes = async (fid: number) => {
   try {
-    console.log('Starting likes cleanup for FID:', fid);
+    firebaseLogger.info('Starting likes cleanup for FID:', fid);
     const userLikesRef = collection(db, 'user_likes');
     const q = query(userLikesRef, where('fid', '==', fid));
     const querySnapshot = await getDocs(q);
@@ -818,9 +824,9 @@ export const cleanupLikes = async (fid: number) => {
     }
     
     await batch.commit();
-    console.log(`Cleanup complete. Migrated ${migrateCount} likes, deleted ${deleteCount} old documents.`);
+    firebaseLogger.info(`Cleanup complete. Migrated ${migrateCount} likes, deleted ${deleteCount} old documents.`);
   } catch (error) {
-    console.error('Error during likes cleanup:', error);
+    firebaseLogger.error('Error during likes cleanup:', error);
   }
 };
 
@@ -828,14 +834,14 @@ export const cleanupLikes = async (fid: number) => {
 export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
   // First check if user ID is valid
   if (!fid || fid <= 0) {
-    console.error('Invalid fid provided to getLikedNFTs:', fid);
+    firebaseLogger.error('Invalid fid provided to getLikedNFTs:', fid);
     return [];
   }
   try {
-    console.log('Getting liked NFTs for FID:', fid);
+    firebaseLogger.info('Getting liked NFTs for FID:', fid);
     
     // First get all permanently removed NFTs for this user
-    console.log('Fetching permanently removed NFTs for FID:', fid);
+    firebaseLogger.info('Fetching permanently removed NFTs for FID:', fid);
     const removedLikesRef = collection(db, 'users', fid.toString(), 'removed_likes');
     const removedSnapshot = await getDocs(removedLikesRef);
     
@@ -843,9 +849,9 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
     const permanentlyRemovedKeys = new Set<string>();
     removedSnapshot.docs.forEach(doc => {
       permanentlyRemovedKeys.add(doc.id); // The document ID is the mediaKey
-      console.log(`Found permanently removed mediaKey: ${doc.id}`);
+      firebaseLogger.info(`Found permanently removed mediaKey: ${doc.id}`);
     });
-    console.log(`Total permanently removed NFTs: ${permanentlyRemovedKeys.size}`);
+    firebaseLogger.info(`Total permanently removed NFTs: ${permanentlyRemovedKeys.size}`);
     
     // Now get the user's likes, but filter out permanently removed ones
     const userLikesRef = collection(db, 'users', fid.toString(), 'likes');
@@ -853,7 +859,7 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
     const querySnapshot = await getDocs(q);
     
     if (querySnapshot.empty) {
-      console.log('No liked NFTs found for user:', fid);
+      firebaseLogger.info('No liked NFTs found for user:', fid);
       return [];
     }
 
@@ -870,7 +876,7 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
         data: doc.data()
       }));
     
-    console.log(`Found ${querySnapshot.docs.length} liked NFTs, ${mediaKeysWithData.length} after filtering out removed ones`);
+    firebaseLogger.info(`Found ${querySnapshot.docs.length} liked NFTs, ${mediaKeysWithData.length} after filtering out removed ones`);
     
     // Batch get all global likes to reduce number of requests
     const batchSize = 10;
@@ -878,7 +884,7 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
       const batch = mediaKeysWithData.slice(i, i + batchSize);
       const promises = batch.map(({ mediaKey, data: userLikeData }) => {
         if (seenMediaKeys.has(mediaKey)) {
-          console.log(`Skipping duplicate mediaKey: ${mediaKey}`);
+          firebaseLogger.info(`Skipping duplicate mediaKey: ${mediaKey}`);
           return null;
         }
         seenMediaKeys.add(mediaKey);
@@ -910,7 +916,7 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
             // Skip if we've already seen this NFT (by contract-tokenId)
             const nftKey = `${globalData.nftContract}-${globalData.tokenId}`.toLowerCase();
             if (seenNFTKeys.has(nftKey)) {
-              console.log(`Skipping duplicate NFT: ${globalData.name} (${nftKey})`);
+              firebaseLogger.info(`Skipping duplicate NFT: ${globalData.name} (${nftKey})`);
               return null;
             }
             seenNFTKeys.add(nftKey);
@@ -938,7 +944,7 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
             return nft;
           })
           .catch(err => {
-            console.warn(`Error fetching global like for ${mediaKey}:`, err);
+            firebaseLogger.warn(`Error fetching global like for ${mediaKey}:`, err);
             return null;
           });
       });
@@ -949,7 +955,7 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
     
     // Fix missing global likes
     if (missingGlobalLikes.size > 0) {
-      console.warn(`Found ${missingGlobalLikes.size} missing global like documents. Fixing...`);
+      firebaseLogger.warn(`Found ${missingGlobalLikes.size} missing global like documents. Fixing...`);
       
       // Create a batch to update all missing global likes
       const batch = writeBatch(db);
@@ -959,7 +965,7 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
       
       for (const [mediaKey, userLikeData] of missingGlobalLikes.entries()) {
         if (!userLikeData.nft) {
-          console.warn(`No NFT data found in user like document for mediaKey: ${mediaKey}`);
+          firebaseLogger.warn(`No NFT data found in user like document for mediaKey: ${mediaKey}`);
           continue;
         }
         
@@ -993,7 +999,7 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
       if (missingGlobalLikes.size > 0) {
         try {
           await batch.commit();
-          console.log(`Fixed ${missingGlobalLikes.size} missing global like documents`);
+          firebaseLogger.info(`Fixed ${missingGlobalLikes.size} missing global like documents`);
           
           // Filter out any permanently removed NFTs before adding to the list
           const filteredNFTsToAdd = nftsToAdd.filter(nft => {
@@ -1002,62 +1008,62 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
             
             // Check if this NFT is in the permanent removal list
             if (permanentlyRemovedKeys.has(mediaKey)) {
-              console.log(`Skipping permanently removed NFT from being added: ${nft.name} (${mediaKey})`);
+              firebaseLogger.info(`Skipping permanently removed NFT from being added: ${nft.name} (${mediaKey})`);
               return false;
             }
             return true;
           });
           
-          console.log(`Adding ${filteredNFTsToAdd.length} fixed NFTs to the list (filtered from ${nftsToAdd.length})`);
+          firebaseLogger.info(`Adding ${filteredNFTsToAdd.length} fixed NFTs to the list (filtered from ${nftsToAdd.length})`);
           likedNFTs.push(...filteredNFTsToAdd);
         } catch (error) {
-          console.error('Error fixing missing global likes:', error);
+          firebaseLogger.error('Error fixing missing global likes:', error);
         }
       }
     }
 
-    console.log(`Processed ${likedNFTs.length} liked NFTs after deduplication`);
+    firebaseLogger.info(`Processed ${likedNFTs.length} liked NFTs after deduplication`);
     return likedNFTs;
   } catch (error) {
-    console.error('Error getting liked NFTs:', error);
+    firebaseLogger.error('Error getting liked NFTs:', error);
     return [];
   }
 };
 
 // Toggle NFT like status globally
 export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => {
-  console.log('Starting toggleLikeNFT with NFT:', nft.name, 'and fid:', fid);
+  firebaseLogger.info('Starting toggleLikeNFT with NFT:', nft.name, 'and fid:', fid);
   
   if (!fid || fid <= 0) {
-    console.error('Invalid fid provided to toggleLikeNFT:', fid);
+    firebaseLogger.error('Invalid fid provided to toggleLikeNFT:', fid);
     return false; // Return false instead of throwing to avoid breaking the UI
   }
   
   if (!nft || !nft.contract || !nft.tokenId) {
-    console.error('Invalid NFT data provided to toggleLikeNFT:', nft);
+    firebaseLogger.error('Invalid NFT data provided to toggleLikeNFT:', nft);
     return false; // Return false instead of throwing to avoid breaking the UI
   }
   
   try {
     const mediaKey = getMediaKey(nft);
     if (!mediaKey) {
-      console.error('Invalid mediaKey for NFT:', nft);
+      firebaseLogger.error('Invalid mediaKey for NFT:', nft);
       return false;
     }
     
-    console.log('Using mediaKey for like operation:', mediaKey);
+    firebaseLogger.info('Using mediaKey for like operation:', mediaKey);
     
     // Reference to global likes document
     const globalLikeRef = doc(db, 'global_likes', mediaKey);
     const userLikeRef = doc(db, 'users', fid.toString(), 'likes', mediaKey);
     
-    console.log('Document references created:', {
+    firebaseLogger.info('Document references created:', {
       globalLikeRef: globalLikeRef.path,
       userLikeRef: userLikeRef.path
     });
     
     // Get both documents in parallel for efficiency
-    console.log('Fetching existing documents...');
+    firebaseLogger.info('Fetching existing documents...');
     let userLikeDoc, globalLikeDoc;
     try {
       [userLikeDoc, globalLikeDoc] = await Promise.all([
@@ -1065,17 +1071,17 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
         getDoc(globalLikeRef)
       ]);
     } catch (error) {
-      console.error('Error fetching documents:', error);
+      firebaseLogger.error('Error fetching documents:', error);
       return false; // Return false instead of throwing to avoid breaking the UI
     }
     
-    console.log('Document fetch complete. User like exists:', userLikeDoc.exists(), 'Global like exists:', globalLikeDoc.exists());
+    firebaseLogger.info('Document fetch complete. User like exists:', userLikeDoc.exists(), 'Global like exists:', globalLikeDoc.exists());
     
     const batch = writeBatch(db);
     
     if (userLikeDoc.exists()) {
       // UNLIKE FLOW - Remove like from user's likes
-      console.log('User like exists - removing like');
+      firebaseLogger.info('User like exists - removing like');
       batch.delete(userLikeRef);
       
       // Add to permanent removal list for this user
@@ -1086,12 +1092,12 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
         tokenId: nft.tokenId,
         removedAt: serverTimestamp()
       });
-      console.log(`Added ${nft.name} (${mediaKey}) to permanent removal list for user ${fid}`);
+      firebaseLogger.info(`Added ${nft.name} (${mediaKey}) to permanent removal list for user ${fid}`);
       
       if (globalLikeDoc.exists()) {
         try {
           // Get accurate count of users who currently like this NFT without using collection group query
-          console.log('Finding other users who like this NFT...');
+          firebaseLogger.info('Finding other users who like this NFT...');
           let actualLikeCount = 0;
           
           // Query all users collections to check who has this mediaKey in their likes
@@ -1113,7 +1119,7 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
                 }
                 return false;
               } catch (e) {
-                console.error(`Error checking like for user ${userDoc.id}:`, e);
+                firebaseLogger.error(`Error checking like for user ${userDoc.id}:`, e);
                 return false;
               }
             })();
@@ -1125,21 +1131,21 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
           const userLikeResults = await Promise.all(checkLikePromises);
           actualLikeCount = userLikeResults.filter(Boolean).length;
           
-          console.log(`Actual users liking this NFT (excluding current user): ${actualLikeCount}`);
+          firebaseLogger.info(`Actual users liking this NFT (excluding current user): ${actualLikeCount}`);
           if (actualLikeCount <= 0) {
             // If no other users like this NFT, delete the global document
-            console.log('No other users like this NFT, deleting global document');
+            firebaseLogger.info('No other users like this NFT, deleting global document');
             batch.delete(globalLikeRef);
           } else {
             // Otherwise update with the accurate count
-            console.log('Updating global like count to:', actualLikeCount);
+            firebaseLogger.info('Updating global like count to:', actualLikeCount);
             batch.update(globalLikeRef, {
               likeCount: actualLikeCount,
               lastUnliked: serverTimestamp()
             });
           }
         } catch (error) {
-          console.error('Error counting other user likes:', error);
+          firebaseLogger.error('Error counting other user likes:', error);
           // Safer fallback: decrement count by 1
           const globalData = globalLikeDoc.data();
           const currentCount = globalData?.likeCount || 1;
@@ -1165,22 +1171,22 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
           });
         }
       } catch (error) {
-        console.error('Error updating nft document, continuing anyway:', error);
+        firebaseLogger.error('Error updating nft document, continuing anyway:', error);
         // Non-critical, can continue without this update
       }
       
       // Commit the batch operations
       try {
         await batch.commit();
-        console.log('Successfully removed like for:', mediaKey);
+        firebaseLogger.info('Successfully removed like for:', mediaKey);
         return false; // Return false to indicate NFT is not liked
       } catch (error) {
-        console.error('Error committing unlike operation:', error);
+        firebaseLogger.error('Error committing unlike operation:', error);
         return userLikeDoc.exists(); // Return previous state on error
       }
     } else {
       // LIKE FLOW - Add NFT to user's likes
-      console.log('User like does not exist - adding like');
+      firebaseLogger.info('User like does not exist - adding like');
       
       try {
         // Store NFT data in the user like document
@@ -1254,24 +1260,24 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
             });
           }
         } catch (error) {
-          console.error('Error updating nft document, continuing anyway:', error);
+          firebaseLogger.error('Error updating nft document, continuing anyway:', error);
           // Non-critical, can continue without this update
         }
         
         // Commit the batch operations
         await batch.commit();
-        console.log('Successfully added like for:', mediaKey);
+        firebaseLogger.info('Successfully added like for:', mediaKey);
         return true; // Return true to indicate NFT is liked
       } catch (error) {
-        console.error('Error adding like:', error);
+        firebaseLogger.error('Error adding like:', error);
         return false; // Return false to indicate operation failed
       }
     }
   } catch (error) {
     // This is the outermost error handler to ensure we never throw unhandled errors
-    console.error('Unhandled error in toggleLikeNFT:', error);
+    firebaseLogger.error('Unhandled error in toggleLikeNFT:', error);
     if (error instanceof Error) {
-      console.error('Error details:', {
+      firebaseLogger.error('Error details:', {
         message: error.message,
         stack: error.stack
       });
@@ -1415,7 +1421,7 @@ export const fetchNFTDetails = async (contractAddress: string, tokenId: string):
 
     return nft;
   } catch (error) {
-    console.error('Error fetching NFT details:', error);
+    firebaseLogger.error('Error fetching NFT details:', error);
     return null;
   }
 };
@@ -1426,7 +1432,7 @@ export const addLikedNFT = async (fid: number, nft: NFT): Promise<void> => {
     const docId = `${fid}-${nft.contract}-${nft.tokenId}`;
     const userLikesRef = doc(db, 'user_likes', docId);
     
-    console.log('Adding NFT to likes:', { fid, docId });
+    firebaseLogger.info('Adding NFT to likes:', { fid, docId });
     
     await setDoc(userLikesRef, {
       name: nft.name || 'Untitled',
@@ -1438,7 +1444,7 @@ export const addLikedNFT = async (fid: number, nft: NFT): Promise<void> => {
       timestamp: serverTimestamp()
     });
   } catch (error) {
-    console.error('Error adding liked NFT:', error);
+    firebaseLogger.error('Error adding liked NFT:', error);
     throw error;
   }
 };
@@ -1452,42 +1458,42 @@ export const removeLikedNFT = async (fid: number, nft: NFT): Promise<void> => {
     // Delete the document for this liked NFT
     await deleteDoc(userLikesRef);
     
-    console.log('Removed NFT from likes:', { fid, docId });
+    firebaseLogger.info('Removed NFT from likes:', { fid, docId });
   } catch (error) {
-    console.error('Error removing liked NFT:', error);
+    firebaseLogger.error('Error removing liked NFT:', error);
   }
 };
 
 // Fetch NFTs for a specific user by their fid
 export const fetchUserNFTs = async (fid: number): Promise<NFT[]> => {
   try {
-    console.log('=== START NFT FETCH for FID:', fid, ' ===');
+    firebaseLogger.info('=== START NFT FETCH for FID:', fid, ' ===');
     
     // First check for cached wallet
     const cachedAddress = await getCachedWallet(fid);
     let addresses = new Set<string>();
     
     if (cachedAddress) {
-      console.log('Found cached wallet address:', cachedAddress);
+      firebaseLogger.info('Found cached wallet address:', cachedAddress);
       addresses.add(cachedAddress);
     }
 
     // If no cached wallet, get the user's addresses from searchedusers collection
-    console.log('No cached wallet, fetching user data from searchedusers collection...');
+    firebaseLogger.info('No cached wallet, fetching user data from searchedusers collection...');
     const userDoc = await getDoc(doc(db, 'searchedusers', fid.toString()));
     if (!userDoc.exists()) {
-      console.error('User not found in searchedusers collection');
+      firebaseLogger.error('User not found in searchedusers collection');
       return [];
     }
 
     const userData = userDoc.data();
-    console.log('User data from searchedusers:', userData);
+    firebaseLogger.info('User data from searchedusers:', userData);
     
     // Add addresses from user data
     
     // Add custody address if it exists
     if (userData.custody_address) {
-      console.log('Found custody address:', userData.custody_address);
+      firebaseLogger.info('Found custody address:', userData.custody_address);
       addresses.add(userData.custody_address);
       // Cache this address for future use
       await cacheUserWallet(fid, userData.custody_address);
@@ -1497,14 +1503,14 @@ export const fetchUserNFTs = async (fid: number): Promise<NFT[]> => {
     if (userData.verifiedAddresses) {
       if (Array.isArray(userData.verifiedAddresses)) {
         // New structure - flat array
-        console.log('Found verified addresses (new format):', userData.verifiedAddresses);
+        firebaseLogger.info('Found verified addresses (new format):', userData.verifiedAddresses);
         userData.verifiedAddresses.forEach((addr: string) => addresses.add(addr));
       } else if (typeof userData.verifiedAddresses === 'object' && 
                  userData.verifiedAddresses !== null && 
                  'eth_addresses' in userData.verifiedAddresses && 
                  Array.isArray(userData.verifiedAddresses.eth_addresses)) {
         // Old structure - nested eth_addresses
-        console.log('Found verified addresses (old format):', userData.verifiedAddresses.eth_addresses);
+        firebaseLogger.info('Found verified addresses (old format):', userData.verifiedAddresses.eth_addresses);
         userData.verifiedAddresses.eth_addresses.forEach((addr: string) => addresses.add(addr));
       }
     }
@@ -1513,7 +1519,7 @@ export const fetchUserNFTs = async (fid: number): Promise<NFT[]> => {
     const uniqueAddresses = Array.from(addresses);
 
     if (uniqueAddresses.length === 0) {
-      console.log('No addresses found for user');
+      firebaseLogger.info('No addresses found for user');
       return [];
     }
 
@@ -1522,12 +1528,12 @@ export const fetchUserNFTs = async (fid: number): Promise<NFT[]> => {
       await cacheUserWallet(fid, uniqueAddresses[0]);
     }
 
-    console.log('Total unique addresses to check:', uniqueAddresses.length);
-    console.log('Addresses:', uniqueAddresses);
+    firebaseLogger.info('Total unique addresses to check:', uniqueAddresses.length);
+    firebaseLogger.info('Addresses:', uniqueAddresses);
 
     // If we found no addresses in searchedusers, try getting them from Neynar
     if (uniqueAddresses.length === 0) {
-      console.log('No addresses found in searchedusers, fetching from Neynar...');
+      firebaseLogger.info('No addresses found in searchedusers, fetching from Neynar...');
       const neynarKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
       if (!neynarKey) throw new Error('Neynar API key not found');
 
@@ -1542,37 +1548,37 @@ export const fetchUserNFTs = async (fid: number): Promise<NFT[]> => {
       );
 
       const profileData = await profileResponse.json();
-      console.log('Neynar profile response:', profileData);
+      firebaseLogger.info('Neynar profile response:', profileData);
 
       if (profileData.users?.[0]) {
         const user = profileData.users[0];
         if (user.custody_address) {
-          console.log('Found custody address from Neynar:', user.custody_address);
+          firebaseLogger.info('Found custody address from Neynar:', user.custody_address);
           uniqueAddresses.push(user.custody_address);
           await cacheUserWallet(fid, user.custody_address);
         }
         if (user.verified_addresses?.eth_addresses) {
-          console.log('Found verified addresses from Neynar:', user.verified_addresses.eth_addresses);
+          firebaseLogger.info('Found verified addresses from Neynar:', user.verified_addresses.eth_addresses);
           user.verified_addresses.eth_addresses.forEach((addr: string) => uniqueAddresses.push(addr));
         }
       }
     }
 
     if (uniqueAddresses.length === 0) {
-      console.log('No addresses found for user after all attempts');
+      firebaseLogger.info('No addresses found for user after all attempts');
       return [];
     }
 
     // Fetch NFTs from Alchemy for all addresses
-    console.log('Fetching NFTs from Alchemy...');
+    firebaseLogger.info('Fetching NFTs from Alchemy...');
     const { fetchUserNFTsFromAlchemy } = await import('./alchemy');
     const alchemyPromises = uniqueAddresses.map(address => {
-      console.log('Fetching NFTs for address:', address);
+      firebaseLogger.info('Fetching NFTs for address:', address);
       return fetchUserNFTsFromAlchemy(address);
     });
     
     const alchemyResults = await Promise.all(alchemyPromises);
-    console.log('Alchemy results by address:', alchemyResults.map((nfts, i) => ({
+    firebaseLogger.info('Alchemy results by address:', alchemyResults.map((nfts, i) => ({
       address: uniqueAddresses[i],
       nftCount: nfts.length
     })));
@@ -1587,11 +1593,11 @@ export const fetchUserNFTs = async (fid: number): Promise<NFT[]> => {
     });
 
     const uniqueNFTs = Array.from(nftMap.values());
-    console.log('=== NFT FETCH COMPLETE ===');
-    console.log('Total unique NFTs found:', uniqueNFTs.length);
+    firebaseLogger.info('=== NFT FETCH COMPLETE ===');
+    firebaseLogger.info('Total unique NFTs found:', uniqueNFTs.length);
     return uniqueNFTs;
   } catch (error) {
-    console.error('Error fetching user NFTs:', error);
+    firebaseLogger.error('Error fetching user NFTs:', error);
     return [];
   }
 };
@@ -1604,14 +1610,14 @@ const fetchWithRetry = async (url: string, options: RequestInit, maxRetries = 3)
       const response = await fetch(url, options);
       if (response.status === 429) { // Rate limit
         const waitTime = Math.pow(2, i) * 1000; // Exponential backoff
-        console.log(`Rate limited, waiting ${waitTime}ms before retry ${i + 1}/${maxRetries}`);
+        firebaseLogger.info(`Rate limited, waiting ${waitTime}ms before retry ${i + 1}/${maxRetries}`);
         await delay(waitTime);
         continue;
       }
       return response;
     } catch (error) {
       if (i === maxRetries - 1) throw error;
-      console.error(`Fetch attempt ${i + 1} failed:`, error);
+      firebaseLogger.error(`Fetch attempt ${i + 1} failed:`, error);
       await delay(1000); // Wait 1s between retries
     }
   }
@@ -1638,9 +1644,9 @@ export const ensureFeaturedNFTsExist = async (nfts: NFT[]): Promise<void> => {
     }
     
     await batch.commit();
-    console.log('Featured NFTs stored in Firebase');
+    firebaseLogger.info('Featured NFTs stored in Firebase');
   } catch (error) {
-    console.error('Error storing featured NFTs:', error);
+    firebaseLogger.error('Error storing featured NFTs:', error);
   }
 };
 
@@ -1661,11 +1667,11 @@ export const PODPLAYR_ACCOUNT = {
 export const followUser = async (currentUserFid: number, userToFollow: FarcasterUser): Promise<void> => {
   try {
     if (!currentUserFid || !userToFollow.fid) {
-      console.error('Invalid FIDs for follow operation', { currentUserFid, userToFollowFid: userToFollow.fid });
+      firebaseLogger.error('Invalid FIDs for follow operation', { currentUserFid, userToFollowFid: userToFollow.fid });
       return;
     }
 
-    console.log(`User ${currentUserFid} is following user ${userToFollow.fid}`);
+    firebaseLogger.info(`User ${currentUserFid} is following user ${userToFollow.fid}`);
     
     // Create a document in the following collection
     const followingRef = doc(db, 'users', currentUserFid.toString(), 'following', userToFollow.fid.toString());
@@ -1682,7 +1688,7 @@ export const followUser = async (currentUserFid: number, userToFollow: Farcaster
     
     // Special handling for PODPlayr account to ensure correct profile image
     if (userToFollow.fid === PODPLAYR_ACCOUNT.fid) {
-      console.log('Following PODPlayr account - using official profile image');
+      firebaseLogger.info('Following PODPlayr account - using official profile image');
       pfpUrl = PODPLAYR_ACCOUNT.pfp_url;
     }
     
@@ -1724,9 +1730,9 @@ export const followUser = async (currentUserFid: number, userToFollow: Farcaster
     
     // Commit the batch
     await batch.commit();
-    console.log(`Successfully followed user ${userToFollow.username}`);
+    firebaseLogger.info(`Successfully followed user ${userToFollow.username}`);
   } catch (error) {
-    console.error('Error following user:', error);
+    firebaseLogger.error('Error following user:', error);
     throw error;
   }
 };
