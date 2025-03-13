@@ -2,6 +2,10 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { NFT } from '../../types/user';
+import { preloadNftMedia } from '../../utils/cdn';
+import { getMediaKey, processMediaUrl } from '../../utils/media';
+import { logger } from '../../utils/logger';
+import { optimizeVideoForConnection } from '../../utils/adaptiveStreaming';
 
 interface DirectVideoPlayerProps {
   nft: NFT;
@@ -9,11 +13,15 @@ interface DirectVideoPlayerProps {
   onError?: (error: Error) => void;
 }
 
+// Create a dedicated logger for video player
+const videoLogger = logger.getModuleLogger('videoPlayer');
+
+// Define the component with explicit return type to fix TypeScript error
 export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({ 
   nft, 
   onLoadComplete,
   onError 
-}) => {
+}): React.ReactElement => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [hasError, setHasError] = useState(false);
@@ -23,6 +31,9 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
   const [isVisible, setIsVisible] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const elementRef = useRef<HTMLDivElement>(null);
+  
+  // Get the mediaKey for consistent tracking
+  const mediaKey = getMediaKey(nft);
   
   // Get direct video URL without any processing
   const directUrl = nft.metadata?.animation_url || '';
@@ -43,41 +54,53 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
     'https://gateway.ipfs.io/ipfs/'
   ];
   
-  // Enhanced URL handling for a wide range of NFT storage providers
-  let videoUrl = directUrl;
+  // We'll use processVideoUrl function to get the URL when needed
+  // This ensures we always get the most up-to-date URL based on current gateway
   
-  // Handle IPFS URLs in various formats
-  if (directUrl.includes('ipfs://')) {
-    // Choose the best gateway for each platform, but also respect fallback state
-    const gateway = IPFS_GATEWAYS[currentGateway];
-    videoUrl = directUrl.replace('ipfs://', gateway);
-  } else if (directUrl.includes('ar://')) {
-    videoUrl = directUrl.replace('ar://', 'https://arweave.net/');
-  } else if (directUrl.includes('nftstorage.link')) {
-    // NFT.Storage URLs - already direct URLs, but can be optimized
-    videoUrl = directUrl;
-  } else if (directUrl.includes('ipfs.infura.io')) {
-    // Handle Infura IPFS URLs
-    const cid = directUrl.split('/ipfs/')[1];
-    if (cid) {
+  // Log that we're initializing the video player
+  videoLogger.info('Initializing video player for NFT:', { 
+    nft: nft.name || 'Unknown NFT',
+    mediaKey
+  });
+  
+  // Preload the media (safe even with CDN disabled)
+  useEffect(() => {
+    preloadNftMedia(nft);
+  }, [nft]);
+  
+  // Handle URL processing for different protocols
+  const processVideoUrl = () => {
+    if (directUrl.includes('ipfs://')) {
+      // Choose the best gateway for each platform, but also respect fallback state
       const gateway = IPFS_GATEWAYS[currentGateway];
-      videoUrl = `${gateway}${cid}`;
-    }
-  } else if (directUrl.includes('cloudflare-ipfs.com') || 
-             directUrl.includes('ipfs.dweb.link') ||
-             directUrl.includes('gateway.pinata.cloud')) {
-    // If already using a gateway but it failed, try the next one
-    if (hasError) {
-      const cid = extractIPFSCID(directUrl);
+      return directUrl.replace('ipfs://', gateway);
+    } else if (directUrl.includes('ar://')) {
+      return directUrl.replace('ar://', 'https://arweave.net/');
+    } else if (directUrl.includes('nftstorage.link')) {
+      // NFT.Storage URLs - already direct URLs
+      return directUrl;
+    } else if (directUrl.includes('ipfs.infura.io')) {
+      // Handle Infura IPFS URLs
+      const cid = directUrl.split('/ipfs/')[1];
       if (cid) {
         const gateway = IPFS_GATEWAYS[currentGateway];
-        videoUrl = `${gateway}${cid}`;
-      } else {
-        videoUrl = directUrl; // Keep original if CID extraction fails
+        return `${gateway}${cid}`;
       }
-    } else {
-      videoUrl = directUrl; // Keep original for first attempt
+    } else if (directUrl.includes('cloudflare-ipfs.com') || 
+               directUrl.includes('ipfs.dweb.link') ||
+               directUrl.includes('gateway.pinata.cloud')) {
+      // If already using a gateway but it failed, try the next one
+      if (hasError) {
+        const cid = extractIPFSCID(directUrl);
+        if (cid) {
+          const gateway = IPFS_GATEWAYS[currentGateway];
+          return `${gateway}${cid}`;
+        }
+      }
     }
+    
+    // For all other cases, return the original URL or processed URL
+    return processMediaUrl(directUrl, '', 'audio');
   }
   
   // Extract IPFS CID from various gateway URLs
@@ -143,8 +166,20 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
       return; // Stop trying after reaching max retries
     }
     
-    // Set video URL after cleaning
-    video.src = videoUrl;
+    // Get the processed URL based on current gateway
+    const processedUrl = processVideoUrl();
+    
+    // Set video URL after processing
+    video.src = processedUrl;
+    
+    // Log the URL being used for debugging
+    videoLogger.info('Setting video source:', {
+      nft: nft.name || 'Unknown NFT',
+      mediaKey,
+      url: processedUrl,
+      retryCount,
+      gateway: currentGateway
+    });
     
     // Absolute minimal setup - just the essential attributes
     video.muted = true;
@@ -225,6 +260,9 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
     video.addEventListener('canplay', handleCanPlay);
     video.addEventListener('error', handleError);
     
+    // Apply adaptive streaming optimizations based on connection quality
+    optimizeVideoForConnection(video, mediaKey, isMobile);
+    
     // Simple one-time play attempt when video element is ready
     if (retryCount < MAX_RETRIES) {
       const playPromise = video.play();
@@ -249,14 +287,17 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
         video.load();
       }
     };
-  }, [isHostedPlayer, onLoadComplete, onError, videoUrl, directUrl, isMobile, isIOS, isAndroid, hasError, currentGateway, retryCount]);
+  }, [isHostedPlayer, onLoadComplete, onError, directUrl, isMobile, isIOS, isAndroid, hasError, currentGateway, retryCount, mediaKey, nft]);
   
   // Render an iframe for hosted players, or video for direct media
   if (isHostedPlayer) {
+    // Get the processed URL for the iframe
+    const iframeUrl = processVideoUrl();
+    
     return (
       <iframe
         ref={iframeRef}
-        src={videoUrl}
+        src={iframeUrl}
         className="w-full h-full border-0 rounded-md"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         allowFullScreen
@@ -300,7 +341,7 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
       />
       
       {/* Video - only loaded when needed */}
-      {shouldLoadVideo && (
+      {shouldLoadVideo && !hasError && (
         <video
           ref={videoRef}
           id={`video-${nft.contract}-${nft.tokenId}`}
@@ -321,4 +362,4 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
       )}
     </div>
   );
-}; 
+};

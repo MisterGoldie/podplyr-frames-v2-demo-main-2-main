@@ -1,9 +1,11 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { usePlayerState } from './hooks/usePlayerState';
 import { NFTImage } from '../media/NFTImage';
-import { processMediaUrl } from '../../utils/media';
+import { processMediaUrl, getMediaKey } from '../../utils/media';
 import type { NFT } from '../../types/user';
 import sdk from '@farcaster/frame-sdk';
+import { getNftCdnUrl, preloadNftMedia } from '../../utils/cdn';
+import { logger } from '../../utils/logger';
 
 // Fix the MaximizedPlayerProps interface to include isAnimating
 // export interface MaximizedPlayerProps {
@@ -143,14 +145,38 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
     return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
   };
 
-  // Keep the renderVideo function exactly as in the original
+  // Create a dedicated logger for player
+  const playerLogger = logger.getModuleLogger('player');
+  
+  // Preload the NFT media when component mounts (safe with CDN disabled)
+  useEffect(() => {
+    if (nft) {
+      playerLogger.info('Preloading NFT media for player:', {
+        nft: nft.name || 'Unknown NFT',
+        mediaKey: getMediaKey(nft)
+      });
+      // This is safe even with CDN disabled
+      preloadNftMedia(nft);
+    }
+  }, [nft]);
+  
+  // Render video with proper fallbacks
   const renderVideo = () => {
+    // Get the processed URL - this will use CDN if enabled or fall back to direct URL
+    const videoUrl = processMediaUrl(nft.metadata?.animation_url || '', '', 'audio');
+    
+    playerLogger.info('Video playback source:', {
+      nft: nft.name || 'Unknown NFT',
+      mediaKey: getMediaKey(nft),
+      url: videoUrl
+    });
+    
     return (
       <div className="relative w-full h-full flex items-center justify-center">
         <video
           ref={videoRef}
           id={`video-${nft.contract}-${nft.tokenId}`}
-          src={processMediaUrl(nft.metadata?.animation_url || '')}
+          src={videoUrl}
           playsInline
           loop
           muted={!nft.metadata?.animation_url?.match(/\.(mp4|webm|mov)$/i)}
@@ -164,12 +190,23 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
           }}
           onLoadedData={() => {
             setVideoLoading(false);
+            playerLogger.info('Video loaded successfully:', {
+              nft: nft.name || 'Unknown NFT',
+              mediaKey: getMediaKey(nft)
+            });
             
             // Set the video time to the saved position when loaded
             if (videoRef.current && lastPosition && lastPosition > 0) {
               videoRef.current.currentTime = lastPosition;
-              console.log("Restored position to:", lastPosition);
+              playerLogger.info("Restored position to:", lastPosition);
             }
+          }}
+          onError={(e) => {
+            playerLogger.warn('Error loading video:', {
+              nft: nft.name || 'Unknown NFT',
+              mediaKey: getMediaKey(nft),
+              error: e.currentTarget.error?.message || 'Unknown error'
+            });
           }}
         />
 

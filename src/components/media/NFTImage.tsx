@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { processMediaUrl, IPFS_GATEWAYS, isAudioUrlUsedAsImage, getCleanIPFSUrl, processArweaveUrl } from '../../utils/media';
+import { processMediaUrl, IPFS_GATEWAYS, isAudioUrlUsedAsImage, getCleanIPFSUrl, processArweaveUrl, getMediaKey } from '../../utils/media';
 import Image from 'next/image';
 import type { SyntheticEvent } from 'react';
 import type { NFT } from '../../types/user';
 import { useNFTPreloader } from '../../hooks/useNFTPreloader';
 import { logger } from '../../utils/logger';
+import { getNftCdnUrl, preloadNftMedia } from '../../utils/cdn';
 
 // Create a dedicated logger for NFT images
 const imageLogger = logger.getModuleLogger('nftImage');
@@ -121,9 +122,19 @@ export const NFTImage: React.FC<NFTImageProps> = ({
         });
         setImgSrc(processedSrc);
       } else {
-        // Process the URL to handle special protocols like ipfs://
-        const processedSrc = processMediaUrl(src);
-        setImgSrc(processedSrc);
+        // If we have an NFT object, use the CDN URL specifically for this NFT
+        if (nft) {
+          const cdnUrl = getNftCdnUrl(nft, 'image');
+          imageLogger.info('Using CDN URL for NFT image:', { 
+            nft: nft.name || 'Unknown', 
+            cdnUrl 
+          });
+          setImgSrc(cdnUrl);
+        } else {
+          // Process the URL to handle special protocols like ipfs://
+          const processedSrc = processMediaUrl(src, fallbackSrc, 'image');
+          setImgSrc(processedSrc);
+        }
       }
       
       setError(false);
@@ -203,7 +214,12 @@ export const NFTImage: React.FC<NFTImageProps> = ({
         return;
       }
       
-      setImgSrc(processMediaUrl(thumbnailUrl));
+      // Use CDN for NFT thumbnails if available
+      if (nft) {
+        setImgSrc(getNftCdnUrl(nft, 'image'));
+      } else {
+        setImgSrc(processMediaUrl(thumbnailUrl, fallbackSrc, 'image'));
+      }
       return;
     }
 
@@ -222,11 +238,15 @@ export const NFTImage: React.FC<NFTImageProps> = ({
       
       setIsVideo(false);
       // Clean and process the URL - handle all special URL types including ar://
-      if (src.includes('ipfs') || src.includes('nftstorage.link') || src.startsWith('ar://')) {
+      if (nft) {
+        // Use CDN for NFT images if we have the NFT object
+        setImgSrc(getNftCdnUrl(nft, 'image'));
+      } else if (src.includes('ipfs') || src.includes('nftstorage.link') || src.startsWith('ar://')) {
         const cleanedUrl = src.startsWith('ar://') ? src : getCleanIPFSUrl(src);
-        setImgSrc(processMediaUrl(cleanedUrl));
+        setImgSrc(processMediaUrl(cleanedUrl, fallbackSrc, 'image'));
       } else {
-        setImgSrc(src);
+        // Use CDN for direct URLs too
+        setImgSrc(processMediaUrl(src, fallbackSrc, 'image'));
       }
     }
     // Fallback
@@ -240,11 +260,17 @@ export const NFTImage: React.FC<NFTImageProps> = ({
     // Log the error
     imageLogger.warn('NFT Image load failed:', { 
       nftId: nft ? `${nft.contract}-${nft.tokenId}` : 'unknown',
+      mediaKey: nft ? getMediaKey(nft) : 'unknown',
       originalSrc: src,
       failedSrc: error.currentTarget.src || imgSrc,
       isVideo,
       retryCount
     });
+    
+    // If we have an NFT, try to preload its media into the CDN cache for future requests
+    if (nft) {
+      preloadNftMedia(nft);
+    }
     
     // Special handling for Arweave URLs
     if (src && src.includes('ar://')) {
