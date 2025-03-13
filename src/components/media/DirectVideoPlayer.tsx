@@ -79,23 +79,52 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
     } else if (directUrl.includes('nftstorage.link')) {
       // NFT.Storage URLs - already direct URLs
       return directUrl;
-    } else if (directUrl.includes('ipfs.infura.io')) {
-      // Handle Infura IPFS URLs
-      const cid = directUrl.split('/ipfs/')[1];
-      if (cid) {
-        const gateway = IPFS_GATEWAYS[currentGateway];
-        return `${gateway}${cid}`;
-      }
-    } else if (directUrl.includes('cloudflare-ipfs.com') || 
-               directUrl.includes('ipfs.dweb.link') ||
-               directUrl.includes('gateway.pinata.cloud')) {
-      // If already using a gateway but it failed, try the next one
-      if (hasError) {
-        const cid = extractIPFSCID(directUrl);
-        if (cid) {
-          const gateway = IPFS_GATEWAYS[currentGateway];
-          return `${gateway}${cid}`;
+    } else if (directUrl.startsWith('http')) {
+      try {
+        // Properly parse the URL to check hostname
+        const url = new URL(directUrl);
+        if (url.hostname === 'ipfs.infura.io' || url.hostname.endsWith('.ipfs.infura.io')) {
+          // Handle Infura IPFS URLs
+          const cid = directUrl.split('/ipfs/')[1];
+          if (cid) {
+            const gateway = IPFS_GATEWAYS[currentGateway];
+            return `${gateway}${cid}`;
+          }
         }
+      } catch (e) {
+        // If URL parsing fails, continue with other checks
+        videoLogger.warn('URL parsing failed', { directUrl });
+      }
+    } else if (directUrl.startsWith('http')) {
+      try {
+        // Check if already using a gateway but it failed
+        const url = new URL(directUrl);
+        const knownGateways = [
+          'cloudflare-ipfs.com',
+          'ipfs.dweb.link',
+          'gateway.pinata.cloud',
+          'ipfs.io',
+          'dweb.link',
+          'ipfs.4everland.io',
+          'gateway.ipfs.io'
+        ];
+        
+        // Check if hostname is a known IPFS gateway
+        const isKnownGateway = knownGateways.some(gateway => 
+          url.hostname === gateway || url.hostname.endsWith(`.${gateway}`)
+        );
+        
+        if (isKnownGateway && hasError) {
+          // If already using a gateway but it failed, try the next one
+          const cid = extractIPFSCID(directUrl);
+          if (cid) {
+            const gateway = IPFS_GATEWAYS[currentGateway];
+            return `${gateway}${cid}`;
+          }
+        }
+      } catch (e) {
+        // If URL parsing fails, continue with other checks
+        videoLogger.warn('URL parsing failed for gateway check', { directUrl });
       }
     }
     
