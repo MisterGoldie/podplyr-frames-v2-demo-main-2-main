@@ -11,6 +11,7 @@ import { UltraDirectPlayer } from '../media/UltraDirectPlayer';
 import { NFTGifImage } from '../media/NFTGifImage';
 import { useSessionImageCache } from '../../hooks/useSessionImageCache';
 import { useNFTNotification } from '../../context/NFTNotificationContext';
+import { logger } from '../../utils/logger';
 // Removed the import for 'react-intersection-observer' due to the error
 
 interface NFTCardProps {
@@ -48,6 +49,9 @@ const animationKeyframes = `
     }
   }
 `;
+
+// Create a dedicated logger for NFT cards
+const nftCardLogger = logger.getModuleLogger('nftCard');
 
 export const NFTCard: React.FC<NFTCardProps> = ({ 
   nft, 
@@ -166,9 +170,9 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   // Log to debug like status
   useEffect(() => {
     if (isNFTLiked) {
-      console.log(`NFT "${nft.name}" liked status from prop:`, isNFTLiked(nft));
+      nftCardLogger.debug(`NFT "${nft.name}" liked status from prop:`, isNFTLiked(nft));
     } else {
-      console.log(`NFT "${nft.name}" liked status from hook:`, likeStateFromHook);
+      nftCardLogger.debug(`NFT "${nft.name}" liked status from hook:`, likeStateFromHook);
     }
   }, [nft, isNFTLiked, likeStateFromHook]);
   
@@ -259,7 +263,11 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   }, [isCurrentTrack]);
 
   const handlePlay = async (e: React.MouseEvent | React.TouchEvent) => {
-    console.log('Play button clicked for NFT:', {
+    // Stop event propagation to prevent parent elements from capturing the event
+    e.stopPropagation();
+    e.preventDefault();
+    
+    nftCardLogger.debug('Play button clicked for NFT:', {
       contract: nft.contract,
       tokenId: nft.tokenId,
       name: nft.name,
@@ -268,12 +276,16 @@ export const NFTCard: React.FC<NFTCardProps> = ({
     });
 
     if (isCurrentTrack) {
-      console.log('Current track, toggling play/pause');
+      nftCardLogger.debug('Current track, toggling play/pause');
       handlePlayPause();
     } else {
-      console.log('New track, calling onPlay');
-      await onPlay(nft);
-      if (e) startOverlayTimer(e);
+      nftCardLogger.debug('New track, calling onPlay');
+      try {
+        await onPlay(nft);
+        if (e) startOverlayTimer(e);
+      } catch (error) {
+        nftCardLogger.error('Error playing NFT:', error);
+      }
     }
   };
 
@@ -421,7 +433,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
               nft={nft}
               onLoadComplete={() => {}}
               onError={(err) => {
-                console.warn('Video player error for NFT:', nft.name, err);
+                nftCardLogger.warn('Video player error for NFT:', nft.name, err);
                 // Show fallback on video error
                 const fallbackEl = cardRef.current?.querySelector('img[src="/default-nft.png"]');
                 if (fallbackEl) (fallbackEl as HTMLImageElement).style.opacity = '1';
@@ -456,21 +468,22 @@ export const NFTCard: React.FC<NFTCardProps> = ({
             `absolute inset-0 bg-black/20 transition-all duration-1000 ease-in-out ${showOverlay ? 'opacity-100' : 'opacity-0'}` : 
             'absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200'
           } />
-          {/* Add extremely aggressive logging to detect any issues */}
-          <div 
-            className={`absolute z-30 ${smallCard ? 'top-1 right-1' : 'top-2 right-2'}`}
-            onClick={(e) => {
-              console.log('⚠️ PARENT DIV CLICKED');
-              e.stopPropagation();
-            }}
-            style={{ touchAction: 'manipulation' }}
-          >
+          {/* Add like button with improved event handling */}
+          {/* Only show like button if we have a valid userFid or we're in library view */}
+          {(userFid > 0 || isLibraryView) && (
+            <div 
+              className={`absolute z-30 ${smallCard ? 'top-1 right-1' : 'top-2 right-2'}`}
+              onClick={(e) => {
+                nftCardLogger.debug('Like button parent div clicked');
+                e.stopPropagation();
+              }}
+              style={{ touchAction: 'manipulation' }}
+            >
             {onLikeToggle ? (
               <button 
                 onClick={async (e) => {
-                  console.log('🔴🔴🔴 BUTTON CLICKED DIRECTLY 🔴🔴🔴', { 
+                  nftCardLogger.debug('Like button clicked directly', { 
                     nftName: nft?.name,
-                    buttonElement: e.currentTarget,
                     hasOnLikeToggle: !!onLikeToggle,
                     userFid,
                     eventType: e.type,
@@ -490,10 +503,8 @@ export const NFTCard: React.FC<NFTCardProps> = ({
                   // In demo mode, don't block like functionality even without userFid
                   // This allows testing the like feature in the demo without login
                   if (!userFid) {
-                    console.warn('No userFid provided, but proceeding with like operation in demo mode');
+                    nftCardLogger.warn('No userFid provided, but proceeding with like operation in demo mode');
                   }
-                  
-                  // Removed alert for cleaner UX
                   
                   try {
                     // Determine current like state before toggle
@@ -504,7 +515,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
                     try {
                       // Determine the notification type based on the current state
                       const notificationType = wasLiked ? 'unlike' : 'like';
-                      console.log('🔔 Triggering IMMEDIATE notification for:', nft.name, 'Type:', notificationType);
+                      nftCardLogger.debug('Triggering notification for:', nft.name, 'Type:', notificationType);
                       
                       // Add a small delay to sync with the heart icon animation (150ms)
                       // This ensures the notification appears after the heart turns red
@@ -512,32 +523,32 @@ export const NFTCard: React.FC<NFTCardProps> = ({
                         // Make sure nftNotification is available and show the notification
                         if (nftNotification && typeof nftNotification.showNotification === 'function') {
                           nftNotification.showNotification(notificationType, nft);
-                          console.log('🔔 Notification triggered with type:', notificationType, 'for NFT:', nft.name);
+                          nftCardLogger.debug('Notification triggered with type:', notificationType, 'for NFT:', nft.name);
                         } else {
-                          console.error('❌ nftNotification is not available or showNotification is not a function');
+                          nftCardLogger.error('nftNotification is not available or showNotification is not a function');
                         }
                       }, 150); // Timing synchronized with heart icon animation
                     } catch (error) {
-                      console.error('Error showing notification:', error);
+                      nftCardLogger.error('Error showing notification:', error);
                     }
                     
                     // Perform the like toggle operation in the background
                     // Don't block the UI or notification on this
                     if (onLikeToggle) {
                       onLikeToggle(nft).then(() => {
-                        console.log('✅ Like toggle successfully processed for:', nft.name);
+                        nftCardLogger.debug('Like toggle successfully processed for:', nft.name);
                       }).catch(error => {
-                        console.error('Error toggling like status:', error);
+                        nftCardLogger.error('Error toggling like status:', error);
                       });
                     } else {
-                      console.error('❌ onLikeToggle function is not available');
+                      nftCardLogger.error('onLikeToggle function is not available');
                       // Provide visual feedback that something went wrong
                       const button = e.currentTarget as HTMLElement;
                       button.classList.add('animate-shake');
                       setTimeout(() => button.classList.remove('animate-shake'), 500);
                     }
                   } catch (error) {
-                    console.error('❌ Error in like toggle operation:', error);
+                    nftCardLogger.error('Error in like toggle operation:', error);
                     // Provide visual feedback on error
                     const button = e.currentTarget as HTMLElement;
                     button.classList.add('animate-shake');
@@ -576,7 +587,10 @@ export const NFTCard: React.FC<NFTCardProps> = ({
             </button>
             ) : (
               <button 
-                onClick={() => console.log('❌ Like button clicked but NO onLikeToggle function available')}
+                onClick={(e) => {
+                  nftCardLogger.debug('Like button clicked but NO onLikeToggle function available');
+                  e.stopPropagation();
+                }}
                 className="w-8 h-8 flex items-center justify-center opacity-50 cursor-not-allowed"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="gray">
@@ -585,15 +599,18 @@ export const NFTCard: React.FC<NFTCardProps> = ({
               </button>
             )}
           </div>
+          )}
           {useCenteredPlay ? (
             <div className={`absolute inset-0 flex flex-col items-center justify-center transition-all duration-1000 ease-in-out delay-75 z-20 ${showOverlay ? 'opacity-100' : 'opacity-0'}`}>
               <button 
                 onClick={async (e) => {
                   e.stopPropagation();
+                  e.preventDefault();
+                  nftCardLogger.debug('Centered play button clicked for:', nft.name);
                   await handlePlay(e);
-                  if (e) startOverlayTimer(e);
                 }}
                 className="w-16 h-16 rounded-full bg-purple-500 text-black flex items-center justify-center mb-3 hover:scale-105 transform transition-all duration-300 ease-out active:scale-95 touch-manipulation"
+                aria-label={isCurrentTrack && isPlaying ? "Pause" : "Play"}
               >
                 {isCurrentTrack && isPlaying ? (
                   <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px" fill="currentColor">
@@ -613,10 +630,12 @@ export const NFTCard: React.FC<NFTCardProps> = ({
             <button 
               onClick={async (e) => {
                 e.stopPropagation();
+                e.preventDefault();
+                nftCardLogger.debug('Corner play button clicked for:', nft.name);
                 await handlePlay(e);
-                if (e) startOverlayTimer(e);
               }}
               className={`absolute bottom-2 right-2 w-10 h-10 rounded-full bg-purple-500 text-black flex items-center justify-center ${isCurrentTrack ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity duration-200 hover:scale-105 transform touch-manipulation`}
+              aria-label={isCurrentTrack && isPlaying ? "Pause" : "Play"}
             >
               {isCurrentTrack && isPlaying ? (
                 <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">

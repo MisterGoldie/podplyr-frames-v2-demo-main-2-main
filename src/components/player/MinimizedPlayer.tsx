@@ -2,6 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import { NFTImage } from '../media/NFTImage';
 import type { NFT } from '../../types/user';
 import InfoPanel from './InfoPanel';
+import { logger } from '../../utils/logger';
+
+// Create a dedicated logger for the MinimizedPlayer
+const playerLogger = logger.getModuleLogger('minimizedPlayer');
 
 // Props interface
 interface MinimizedPlayerProps {
@@ -63,7 +67,7 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
       // Simple play/pause control
       if (isPlaying) {
         videoElement.play().catch(e => {
-          console.error("Minimized player video error:", e);
+          playerLogger.error("Minimized player video error:", e);
         });
       } else {
         videoElement.pause();
@@ -80,12 +84,12 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
       const videoElement = document.getElementById(videoId) as HTMLVideoElement;
       
       if (videoElement) {
-        console.log("MinimizedPlayer: Animation detected, syncing video position to:", lastPosition);
+        playerLogger.debug("Animation detected, syncing video position to:", lastPosition);
         videoElement.currentTime = lastPosition;
         
         if (isPlaying) {
           videoElement.play().catch(e => {
-            console.error("MinimizedPlayer: Failed to play video during animation:", e);
+            playerLogger.error("Failed to play video during animation:", e);
           });
         }
       }

@@ -11,6 +11,10 @@ import { FarcasterContext } from '../../app/providers';
 import NotificationHeader from '../NotificationHeader';
 import NFTNotification from '../NFTNotification';
 import { useNFTNotification } from '../../context/NFTNotificationContext';
+import { logger } from '../../utils/logger';
+
+// Create a dedicated logger for the HomeView
+const homeLogger = logger.getModuleLogger('homeView');
 
 interface HomeViewProps {
   recentlyPlayedNFTs: NFT[];
@@ -128,7 +132,7 @@ const HomeView: React.FC<HomeViewProps> = ({
       
       // Log invalid NFTs
       if (!hasDisplayInfo || !hasMedia) {
-        console.warn('Filtering invalid NFT from recently played:', {
+        homeLogger.warn('Filtering invalid NFT from recently played:', {
           nft,
           reason: !hasDisplayInfo ? 'missing display info' : 'missing media'
         });
@@ -225,7 +229,16 @@ const HomeView: React.FC<HomeViewProps> = ({
                           <NFTCard
                             nft={nft}
                             onPlay={async (nft) => {
-                              await onPlayNFT(nft);
+                              homeLogger.debug(`Play button clicked for NFT in Recently Played: ${nft.name}`);
+                              try {
+                                // Directly call onPlayNFT with the NFT and context
+                                await onPlayNFT(nft, {
+                                  queue: validRecentlyPlayedNFTs,
+                                  queueType: 'recentlyPlayed'
+                                });
+                              } catch (error) {
+                                homeLogger.error('Error playing NFT from Recently Played:', error);
+                              }
                             }}
                             isPlaying={isPlaying && currentlyPlaying === getMediaKey(nft)}
                             currentlyPlaying={currentlyPlaying}
@@ -266,7 +279,16 @@ const HomeView: React.FC<HomeViewProps> = ({
                           <NFTCard
                             nft={nft}
                             onPlay={async (nft) => {
-                              await onPlayNFT(nft);
+                              homeLogger.debug(`Play button clicked for NFT in Top Played: ${nft.name}`);
+                              try {
+                                // Pass all top played NFTs as the queue context
+                                await onPlayNFT(nft, {
+                                  queue: topPlayedNFTs.map(item => item.nft),
+                                  queueType: 'topPlayed'
+                                });
+                              } catch (error) {
+                                homeLogger.error('Error playing NFT from Top Played:', error);
+                              }
                             }}
                             isPlaying={isPlaying && currentlyPlaying === getMediaKey(nft)}
                             currentlyPlaying={currentlyPlaying}

@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
-import { processMediaUrl, IPFS_GATEWAYS, isAudioUrlUsedAsImage, getCleanIPFSUrl } from '../../utils/media';
+import { processMediaUrl, IPFS_GATEWAYS, isAudioUrlUsedAsImage, getCleanIPFSUrl, processArweaveUrl } from '../../utils/media';
 import Image from 'next/image';
 import type { SyntheticEvent } from 'react';
 import type { NFT } from '../../types/user';
 import { useNFTPreloader } from '../../hooks/useNFTPreloader';
+import { logger } from '../../utils/logger';
 
+// Create a dedicated logger for NFT images
+const imageLogger = logger.getModuleLogger('nftImage');
 
 interface NFTImageProps {
   src: string;
@@ -48,7 +51,7 @@ const getNextIPFSUrl = (url: string, currentIndex: number): { url: string; nextI
   
   // If we've already tried all gateways, return null
   if (currentIndex >= IPFS_GATEWAYS.length - 1) {
-    console.warn('All IPFS gateways have been tried', { url });
+    imageLogger.warn('All IPFS gateways have been tried', { url });
     return null;
   }
 
@@ -69,7 +72,7 @@ const getNextIPFSUrl = (url: string, currentIndex: number): { url: string; nextI
   }
   
   if (!cid) {
-    console.warn('Could not extract IPFS CID from URL', { url });
+    imageLogger.warn('Could not extract IPFS CID from URL', { url });
     return null;
   }
   
@@ -109,9 +112,20 @@ export const NFTImage: React.FC<NFTImageProps> = ({
     const isValidSrc = src && src !== '' && src !== 'undefined' && src !== 'null';
     
     if (isValidSrc) {
-      // Process the URL to handle special protocols like ar:// and ipfs://
-      const processedSrc = processMediaUrl(src);
-      setImgSrc(processedSrc);
+      // Special handling for Arweave URLs
+      if (src.includes('ar://')) {
+        const processedSrc = processArweaveUrl(src);
+        imageLogger.info('Processing Arweave URL:', { 
+          original: src, 
+          processed: processedSrc 
+        });
+        setImgSrc(processedSrc);
+      } else {
+        // Process the URL to handle special protocols like ipfs://
+        const processedSrc = processMediaUrl(src);
+        setImgSrc(processedSrc);
+      }
+      
       setError(false);
       setRetryCount(0);
       setCurrentGatewayIndex(0);
@@ -181,7 +195,7 @@ export const NFTImage: React.FC<NFTImageProps> = ({
       
       // Check if image URL matches any audio URL
       if (nft && isAudioUrlUsedAsImage(nft, thumbnailUrl)) {
-        console.warn('NFT using audio URL as image, using fallback:', {
+        imageLogger.warn('NFT using audio URL as image, using fallback:', {
           contract: nft.contract,
           tokenId: nft.tokenId
         });
@@ -199,7 +213,7 @@ export const NFTImage: React.FC<NFTImageProps> = ({
       if (nft && isAudioUrlUsedAsImage(nft, src)) {
         setIsVideo(false);
         setImgSrc(fallbackSrc);
-        console.warn('NFT using audio URL as image, using fallback:', {
+        imageLogger.warn('NFT using audio URL as image, using fallback:', {
           contract: nft.contract,
           tokenId: nft.tokenId
         });
@@ -224,13 +238,30 @@ export const NFTImage: React.FC<NFTImageProps> = ({
 
   const handleError = async (error: SyntheticEvent<HTMLVideoElement | HTMLImageElement>) => {
     // Log the error
-    console.warn('NFT Image load failed:', { 
+    imageLogger.warn('NFT Image load failed:', { 
       nftId: nft ? `${nft.contract}-${nft.tokenId}` : 'unknown',
       originalSrc: src,
       failedSrc: error.currentTarget.src || imgSrc,
       isVideo,
       retryCount
     });
+    
+    // Special handling for Arweave URLs
+    if (src && src.includes('ar://')) {
+      try {
+        // Try a different approach for Arweave URLs
+        const arweaveTxId = src.split('/').pop()?.split('.')[0];
+        if (arweaveTxId) {
+          const directArweaveUrl = `https://arweave.net/${arweaveTxId}`;
+          imageLogger.info('Trying direct Arweave URL:', directArweaveUrl);
+          setImgSrc(directArweaveUrl);
+          setRetryCount(retryCount + 1);
+          return;
+        }
+      } catch (err) {
+        imageLogger.error('Error processing Arweave URL:', err);
+      }
+    }
     
     // CRITICAL: Immediately switch to fallback image and force re-render
     setTimeout(() => {
@@ -246,8 +277,6 @@ export const NFTImage: React.FC<NFTImageProps> = ({
       }
     }, 0);
     
-    return;
-
     // Disabled gateway cycling for now to ensure fallback image works reliably
     /* 
     // Try next IPFS gateway (disabled)
@@ -287,7 +316,7 @@ export const NFTImage: React.FC<NFTImageProps> = ({
   if (isArweave) {
     // Convert ar:// to https://arweave.net/ if needed
     const arweaveUrl = finalSrc.startsWith('ar://') 
-      ? finalSrc.replace('ar://', 'https://arweave.net/') 
+      ? processArweaveUrl(finalSrc)
       : finalSrc;
       
     return (
@@ -301,6 +330,7 @@ export const NFTImage: React.FC<NFTImageProps> = ({
         // Add a data attribute to help with debugging
         data-nft-image-status={error ? 'error' : 'loaded'}
         data-nft-id={nft ? `${nft.contract}-${nft.tokenId}` : 'unknown'}
+        data-original-src={src}
         // Force re-render when source changes to ensure fallback works
         key={`nft-img-${error ? 'fallback' : 'original'}-${nft?.contract || ''}-${nft?.tokenId || ''}-${isLoadingFallback ? 'fallback' : 'normal'}`}
       />

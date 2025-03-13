@@ -63,6 +63,80 @@ export const isAudioUrlUsedAsImage = (nft: NFT, imageUrl: string): boolean => {
   return audioUrls.includes(imageUrl);
 };
 
+// Function to process Arweave URLs into valid HTTP URLs
+export const processArweaveUrl = (url: string): string => {
+  if (!url) return url;
+  
+  try {
+    // If it's already an https://arweave.net URL, return it as is
+    if (url.startsWith('https://arweave.net/')) {
+      return url;
+    }
+    
+    // Simple ar:// format
+    if (url.startsWith('ar://') && !url.includes('/')) {
+      return url.replace('ar://', 'https://arweave.net/');
+    }
+    
+    // Complex ar:// format with path segments
+    if (url.includes('ar://')) {
+      // Extract the path after ar://
+      const arPath = url.split('ar://')[1];
+      if (arPath) {
+        // For complex paths with multiple segments, use the last segment as the transaction ID
+        const segments = arPath.split('/');
+        
+        // If there's only one segment, use it directly
+        if (segments.length === 1) {
+          const cleanId = segments[0].split('?')[0].split('#')[0].split('.')[0];
+          return `https://arweave.net/${cleanId}`;
+        }
+        
+        // For the specific format ar://0xcuaDtgYmzvypeji38byrjvgdWpylfJYQd4pjd5GAk/FawYfxmBQBEMWj-0iB-ttUlJgXS3JmYSGxU0WQGrSvU.png
+        // We want to extract just the transaction ID (the last part)
+        const transactionId = segments[segments.length - 1];
+        
+        // Remove any query parameters, hash fragments, or file extensions
+        // But keep the extension for image files
+        let cleanId = transactionId;
+        const hasExtension = /\.(png|jpg|jpeg|gif|webp|svg)$/i.test(transactionId);
+        
+        if (hasExtension) {
+          // For image files, keep the extension but remove query params and hash fragments
+          cleanId = transactionId.split('?')[0].split('#')[0];
+        } else {
+          // For other files, remove extension, query params, and hash fragments
+          cleanId = transactionId.split('?')[0].split('#')[0].split('.')[0];
+        }
+        
+        console.log('Arweave URL transformation:', {
+          original: url,
+          segments,
+          transactionId,
+          cleanId,
+          result: `https://arweave.net/${cleanId}`
+        });
+        
+        return `https://arweave.net/${cleanId}`;
+      }
+    }
+    
+    return url;
+  } catch (error) {
+    console.error('Error processing Arweave URL:', error);
+    // Return a direct HTTPS URL as a fallback
+    if (url.includes('ar://')) {
+      // Try to extract just the transaction ID
+      const parts = url.split('/');
+      const lastPart = parts[parts.length - 1];
+      if (lastPart && lastPart.length > 10) {
+        return `https://arweave.net/${lastPart.split('.')[0]}`;
+      }
+    }
+    return url;
+  }
+};
+
 // Function to process media URLs to ensure they're properly formatted
 export const processMediaUrl = (url: string, fallbackUrl: string = '/default-nft.png'): string => {
   if (!url) return fallbackUrl;
@@ -118,9 +192,9 @@ export const processMediaUrl = (url: string, fallbackUrl: string = '/default-nft
     return `${IPFS_GATEWAYS[0]}${cleanHash}`;
   }
 
-  // Handle Arweave URLs
-  if (url.startsWith('ar://')) {
-    return url.replace('ar://', 'https://arweave.net/');
+  // Handle Arweave URLs using the dedicated function
+  if (url.includes('ar://')) {
+    return processArweaveUrl(url);
   }
 
   return url || fallbackUrl;
@@ -248,9 +322,9 @@ export function getDirectMediaUrl(url: string): string {
     // return `https://gateway.pinata.cloud/ipfs/${ipfsHash}`;
   }
   
-  // Handle Arweave URLs
+  // Handle Arweave URLs using our dedicated function
   if (url.includes('ar://')) {
-    return url.replace('ar://', 'https://arweave.net/');
+    return processArweaveUrl(url);
   }
   
   // Return the URL directly without any processing

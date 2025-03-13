@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import type { NFT } from '../types/user';
-import { processMediaUrl, getMediaKey } from '../utils/media';
+import { getMediaKey, processMediaUrl, processArweaveUrl } from '../utils/media';
 
 // Network speed detection
 const detectNetworkSpeed = () => {
@@ -14,8 +14,19 @@ const detectNetworkSpeed = () => {
 };
 
 const preloadSingleImage = async (nft: NFT, imageMap: Map<string, HTMLImageElement>) => {
-  const imageUrl = processMediaUrl(nft.metadata?.image || nft.image || '');
+  // Get the image URL
+  let imageUrl = nft.metadata?.image || nft.image || '';
   if (!imageUrl) return;
+
+  // Process the URL to handle special protocols
+  if (imageUrl.includes('ar://')) {
+    // Special handling for Arweave URLs
+    imageUrl = processArweaveUrl(imageUrl);
+    console.log('Processed Arweave URL for preloading:', imageUrl);
+  } else {
+    // Process other URL types
+    imageUrl = processMediaUrl(imageUrl);
+  }
 
   const key = getMediaKey(nft);
   
@@ -25,8 +36,25 @@ const preloadSingleImage = async (nft: NFT, imageMap: Map<string, HTMLImageEleme
       imageMap.set(key, img);
       resolve();
     };
-    img.onerror = () => {
-      resolve(); // Resolve even on error to not block other images
+    img.onerror = (error) => {
+      console.warn('Failed to preload image for NFT:', nft.name, error);
+      // Try a fallback for Arweave URLs
+      if (imageUrl.includes('arweave.net') && nft.metadata?.image?.includes('ar://')) {
+        const fallbackUrl = `/default-nft.png`;
+        console.log('Using fallback for failed Arweave image:', fallbackUrl);
+        const fallbackImg = new Image();
+        fallbackImg.onload = () => {
+          imageMap.set(key, fallbackImg);
+          resolve();
+        };
+        fallbackImg.onerror = () => {
+          console.error('Even fallback image failed to load');
+          resolve(); // Resolve anyway to not block other images
+        };
+        fallbackImg.src = fallbackUrl;
+      } else {
+        resolve(); // Resolve even on error to not block other images
+      }
     };
     img.src = imageUrl;
   });
@@ -121,9 +149,65 @@ export const useNFTPreloader = (nfts: NFT[]) => {
     return preloadedImages.get(key);
   };
 
+  const preloadImage = useCallback((nft: NFT) => {
+    // Get the image URL
+    let nftImageUrl = nft.image || nft.metadata?.image;
+    if (!nftImageUrl) return;
+    
+    // Process the URL to handle special protocols
+    if (nftImageUrl.includes('ar://')) {
+      // Special handling for Arweave URLs
+      nftImageUrl = processArweaveUrl(nftImageUrl);
+      console.log('Processed Arweave URL for preloading in preloadImage:', nftImageUrl);
+    } else {
+      // Process other URL types
+      nftImageUrl = processMediaUrl(nftImageUrl);
+    }
+    
+    // Create a key for this NFT
+    const key = `${nft.contract}-${nft.tokenId}`;
+    
+    // Skip if already preloaded
+    if (preloadedImages.has(key)) return;
+    
+    // Create a new image element
+    const img = new Image();
+    
+    // Set the source to preload
+    img.src = nftImageUrl;
+    
+    // Store the preloaded image
+    img.onload = () => {
+      setPreloadedImages(prev => {
+        const newMap = new Map(prev);
+        newMap.set(key, img);
+        return newMap;
+      });
+    };
+    
+    img.onerror = (error) => {
+      console.warn('Failed to preload image in preloadImage for NFT:', nft.name, error);
+      // Try a fallback for Arweave URLs
+      if (nftImageUrl.includes('arweave.net') && nft.metadata?.image?.includes('ar://')) {
+        const fallbackUrl = `/default-nft.png`;
+        console.log('Using fallback for failed Arweave image in preloadImage:', fallbackUrl);
+        const fallbackImg = new Image();
+        fallbackImg.onload = () => {
+          setPreloadedImages(prev => {
+            const newMap = new Map(prev);
+            newMap.set(key, fallbackImg);
+            return newMap;
+          });
+        };
+        fallbackImg.src = fallbackUrl;
+      }
+    };
+  }, [preloadedImages]);
+
   return {
     isLoading,
     getPreloadedImage,
-    preloadedImages
+    preloadedImages,
+    preloadImage
   };
 };

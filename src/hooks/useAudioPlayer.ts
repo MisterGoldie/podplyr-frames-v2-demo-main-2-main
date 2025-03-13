@@ -2,6 +2,10 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { NFT } from '../types/user';
 import { trackNFTPlay } from '../lib/firebase';
 import { processMediaUrl, getMediaKey } from '../utils/media';
+import { logger } from '../utils/logger';
+
+// Create a dedicated logger for this module
+const audioLogger = logger.getModuleLogger('audioPlayer');
 
 // Extend Window interface to include our custom property
 declare global {
@@ -59,7 +63,7 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
     };
 
     const handleLoadedMetadata = () => {
-      console.log('Audio metadata loaded:', {
+      audioLogger.info('Audio metadata loaded:', {
         duration: audio.duration,
         currentTime: audio.currentTime
       });
@@ -105,14 +109,14 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
       }
     } else {
       audioRef.current.play().catch(error => {
-        console.error("Error in handlePlayPause:", error);
+        audioLogger.error("Error in handlePlayPause:", error);
         setIsPlaying(false);
       }).then(() => {
         // Play video if it exists
         const video = document.querySelector('video');
         if (video) {
           video.play().catch(error => {
-            console.error("Error playing video:", error);
+            audioLogger.error("Error playing video:", error);
           });
         }
       });
@@ -133,24 +137,24 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
       setCurrentQueue([nft]);
       setQueueType('single');
     }
-    console.log('handlePlayAudio called with NFT:', nft);
+    audioLogger.info('handlePlayAudio called with NFT:', nft);
 
     const audioUrl = nft.metadata?.animation_url || nft.audio;
     if (!audioUrl) {
-      console.error('No audio URL found for NFT');
+      audioLogger.error('No audio URL found for NFT');
       return;
     }
 
     // If same NFT is clicked, toggle play/pause
     if (currentlyPlaying === `${nft.contract}-${nft.tokenId}`) {
-      console.log('Same NFT clicked, toggling play/pause');
+      audioLogger.info('Same NFT clicked, toggling play/pause');
       handlePlayPause();
       return;
     }
 
     // Stop current audio and video if playing
     if (audioRef.current) {
-      console.log('Stopping current audio');
+      audioLogger.info('Stopping current audio');
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
       setAudioProgress(0);
@@ -178,7 +182,7 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
           // Get mediaKey for the new NFT
           const newMediaKey = getMediaKey(nft);
           if (!newMediaKey) {
-            console.error('Could not generate mediaKey for NFT:', nft);
+            audioLogger.error('Could not generate mediaKey for NFT:', nft);
             return prevNFTs;
           }
           
@@ -189,9 +193,9 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
             return itemKey !== nftKey;
           });
           
-          console.log('Adding NFT to Recently Played:', nft.name);
-          console.log('NFT Key for deduplication:', nftKey);
-          console.log('Filtered out duplicates, previous count:', prevNFTs.length, 'new count:', filteredNFTs.length);
+          audioLogger.info('Adding NFT to Recently Played:', nft.name);
+          audioLogger.info('NFT Key for deduplication:', nftKey);
+          audioLogger.info('Filtered out duplicates, previous count:', prevNFTs.length, 'new count:', filteredNFTs.length);
           
           // Track this NFT as recently added to prevent duplicates from subscription
           if (recentlyAddedNFT) {
@@ -210,7 +214,7 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
         });
       }
     } catch (error) {
-      console.error('Error tracking NFT play:', error);
+      audioLogger.error('Error tracking NFT play:', error);
     }
 
     // NEW CODE: Check if this is a video with embedded audio
@@ -218,7 +222,7 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
       (nft.metadata?.animation_url?.match(/\.(mp4|webm|mov)$/i));
 
     if (isVideoWithEmbeddedAudio) {
-      console.log('Playing video with embedded audio');
+      audioLogger.info('Playing video with embedded audio');
       
       // Find the video element
       const videoElement = document.querySelector(`#video-${nft.contract}-${nft.tokenId}`) as HTMLVideoElement;
@@ -248,7 +252,7 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
           await videoElement.play();
           setIsPlaying(true);
         } catch (error) {
-          console.error("Error playing video with audio:", error);
+          audioLogger.error("Error playing video with audio:", error);
           setIsPlaying(false);
         }
         
@@ -264,7 +268,7 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
       
       // Set up event listeners before loading
       audio.addEventListener('loadedmetadata', () => {
-        console.log('Audio metadata loaded:', {
+        audioLogger.info('Audio metadata loaded:', {
           duration: audio.duration,
           currentTime: audio.currentTime
         });
@@ -313,7 +317,7 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
             setIsPlaying(true);
           } catch (mobileError) {
             // If normal play fails, try the muted approach as fallback
-            console.log('First play attempt failed on mobile, trying muted approach');
+            audioLogger.debug('First play attempt failed on mobile, trying muted approach');
             audio.muted = true; // Start muted to bypass autoplay restrictions
             
             try {
@@ -325,7 +329,7 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
               setIsPlaying(true);
             } catch (mutedError) {
               // Both approaches failed
-              console.warn("Mobile audio playback failed even with muting:", mutedError);
+              audioLogger.warn("Mobile audio playback failed even with muting:", mutedError);
               setIsPlaying(false);
               throw mutedError; // Re-throw to be caught by the outer catch
             }
@@ -342,21 +346,21 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
           newVideo.play().catch(error => {
             // Only log video errors if they're not abort errors
             if (!(error instanceof DOMException && error.name === 'AbortError')) {
-              console.error("Error playing video:", error);
+              audioLogger.error("Error playing video:", error);
             }
           });
         }
       } catch (error) {
         // Don't treat AbortError as an error - it's normal when ads trigger
         if (error instanceof DOMException && error.name === 'AbortError') {
-          console.log('Audio playback interrupted by ad system', {
+          audioLogger.debug('Audio playback interrupted by ad system', {
             nftId: `${nft.contract}-${nft.tokenId}`,
             audioUrl: audioUrl,
             timestamp: new Date().toISOString()
           });
           // Don't set isPlaying to false for AbortError as the ad system will handle playback state
         } else {
-          console.error("Error playing audio:", {
+          audioLogger.error("Error playing audio:", {
             error,
             nftId: `${nft.contract}-${nft.tokenId}`,
             audioUrl: audioUrl
@@ -408,22 +412,22 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
     // Use the current queue that was set when the NFT was played
     // instead of relying on window.nftList
     if (currentQueue.length === 0) {
-      console.log('No queue available for next track');
+      audioLogger.debug('No queue available for next track');
       return;
     }
 
-    console.log('Next button pressed. Current queue length:', currentQueue.length);
-    console.log('Current queue type:', queueType);
+    audioLogger.info('Next button pressed. Current queue length:', currentQueue.length);
+    audioLogger.info('Current queue type:', queueType);
     
     // Find current index in the queue
     const currentIndex = currentQueue.findIndex(
       (nft: NFT) => nft.contract === currentPlayingNFT.contract && nft.tokenId === currentPlayingNFT.tokenId
     );
 
-    console.log('Current index in queue:', currentIndex);
+    audioLogger.info('Current index in queue:', currentIndex);
 
     if (currentIndex === -1) {
-      console.log('Current NFT not found in queue');
+      audioLogger.debug('Current NFT not found in queue');
       return;
     }
 
@@ -431,7 +435,7 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
     const nextIndex = (currentIndex + 1) % currentQueue.length;
     const nextNFT = currentQueue[nextIndex];
 
-    console.log('Playing next NFT:', nextNFT.name, 'at index:', nextIndex);
+    audioLogger.info('Playing next NFT:', nextNFT.name, 'at index:', nextIndex);
     
     if (nextNFT) {
       // Pass the same queue context to maintain consistency
@@ -447,21 +451,21 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
     const currentPageQueue = window.nftList || [];
     
     if (!currentPageQueue.length) {
-      console.log('No queue available for previous track');
+      audioLogger.debug('No queue available for previous track');
       return;
     }
 
-    console.log('Previous button pressed. Current queue length:', currentPageQueue.length);
+    audioLogger.info('Previous button pressed. Current queue length:', currentPageQueue.length);
     
     // Find current index in the current page queue
     const currentIndex = currentPageQueue.findIndex(
       (nft: NFT) => nft.contract === currentPlayingNFT.contract && nft.tokenId === currentPlayingNFT.tokenId
     );
 
-    console.log('Current index in queue:', currentIndex);
+    audioLogger.info('Current index in queue:', currentIndex);
 
     if (currentIndex === -1) {
-      console.log('Current NFT not found in queue');
+      audioLogger.debug('Current NFT not found in queue');
       return;
     }
 
@@ -469,7 +473,7 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
     const prevIndex = (currentIndex - 1 + currentPageQueue.length) % currentPageQueue.length;
     const prevNFT = currentPageQueue[prevIndex];
 
-    console.log('Playing previous NFT:', prevNFT.name, 'at index:', prevIndex);
+    audioLogger.info('Playing previous NFT:', prevNFT.name, 'at index:', prevIndex);
     
     if (prevNFT) {
       // Update our internal queue to match the page queue
