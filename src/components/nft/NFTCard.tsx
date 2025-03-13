@@ -469,14 +469,16 @@ export const NFTCard: React.FC<NFTCardProps> = ({
             'absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200'
           } />
           {/* Add like button with improved event handling */}
-          <div 
-            className={`absolute z-30 ${smallCard ? 'top-1 right-1' : 'top-2 right-2'}`}
-            onClick={(e) => {
-              nftCardLogger.debug('Like button parent div clicked');
-              e.stopPropagation();
-            }}
-            style={{ touchAction: 'manipulation' }}
-          >
+          {/* Only show like button if we have a valid userFid or we're in library view */}
+          {(userFid > 0 || isLibraryView) && (
+            <div 
+              className={`absolute z-30 ${smallCard ? 'top-1 right-1' : 'top-2 right-2'}`}
+              onClick={(e) => {
+                nftCardLogger.debug('Like button parent div clicked');
+                e.stopPropagation();
+              }}
+              style={{ touchAction: 'manipulation' }}
+            >
             {onLikeToggle ? (
               <button 
                 onClick={async (e) => {
@@ -597,6 +599,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
               </button>
             )}
           </div>
+          )}
           {useCenteredPlay ? (
             <div className={`absolute inset-0 flex flex-col items-center justify-center transition-all duration-1000 ease-in-out delay-75 z-20 ${showOverlay ? 'opacity-100' : 'opacity-0'}`}>
               <button 

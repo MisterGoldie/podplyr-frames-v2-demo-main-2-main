@@ -45,3 +45,18 @@ export {
   ensurePodplayrFollow,
   updatePodplayrFollowerCount
 } from './social';
+
+// Export from storage module
+export {
+  uploadFile,
+  uploadDataUrl,
+  deleteFile,
+  getFileUrl,
+  generateBackgroundImagePath,
+  generateProfileImagePath,
+  uploadBackgroundImage,
+  uploadProfileImage,
+  getFileExtension,
+  uploadBackgroundImageFromDataUrl,
+  uploadProfileImageFromDataUrl
+} from './storage';
