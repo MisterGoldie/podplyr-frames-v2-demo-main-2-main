@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { NFT } from '../types/user';
+import { getCdnUrl, CDN_CONFIG } from './cdn';
 
 // List of reliable IPFS gateways in order of preference
 // Helper function to clean IPFS URLs
@@ -138,14 +139,23 @@ export const processArweaveUrl = (url: string): string => {
 };
 
 // Function to process media URLs to ensure they're properly formatted
-export const processMediaUrl = (url: string, fallbackUrl: string = '/default-nft.png'): string => {
+export const processMediaUrl = (url: string, fallbackUrl: string = '/default-nft.png', mediaType: 'image' | 'audio' | 'metadata' = 'image'): string => {
   if (!url) return fallbackUrl;
 
-  // If it's already a working HTTP(S) URL and not an IPFS gateway URL, return it as is
-  if ((url.startsWith('http://') || url.startsWith('https://')) && 
-      !url.includes('/ipfs/') && 
-      !url.includes('nftstorage.link')) {
-    return url;
+  // First, try to use our CDN if enabled
+  if (CDN_CONFIG.baseUrl) {
+    // Don't double-process URLs that are already using our CDN
+    if (url.includes(CDN_CONFIG.baseUrl)) {
+      return url;
+    }
+    
+    // Use CDN for HTTP(S) URLs that aren't already using a CDN
+    if ((url.startsWith('http://') || url.startsWith('https://')) && 
+        !url.includes('cloudflare-ipfs.com') && 
+        !url.includes('cdn.') && 
+        !url.includes('.cdn.')) {
+      return getCdnUrl(url, mediaType);
+    }
   }
 
   // Remove any duplicate 'ipfs' in the path
@@ -158,6 +168,12 @@ export const processMediaUrl = (url: string, fallbackUrl: string = '/default-nft
   if (url.startsWith('ipfs://')) {
     // Remove ipfs:// prefix and any trailing slashes
     const hash = url.replace('ipfs://', '').replace(/\/*$/, '');
+    
+    // Process through our CDN if available
+    if (CDN_CONFIG.baseUrl) {
+      const ipfsUrl = `${IPFS_GATEWAYS[0]}${hash}`;
+      return getCdnUrl(ipfsUrl, mediaType);
+    }
     
     // For mobile devices, prioritize more reliable gateways
     // Use cloudflare gateway for better global CDN coverage
@@ -179,6 +195,12 @@ export const processMediaUrl = (url: string, fallbackUrl: string = '/default-nft
     // Remove any trailing slashes from the hash
     const cleanHash = ipfsHash.replace(/\/*$/, '');
     
+    // Process through our CDN if available
+    if (CDN_CONFIG.baseUrl) {
+      const ipfsUrl = `${IPFS_GATEWAYS[0]}${cleanHash}`;
+      return getCdnUrl(ipfsUrl, mediaType);
+    }
+    
     // For mobile devices, prioritize more reliable gateways
     const isMobile = typeof window !== 'undefined' && 
                     (navigator.userAgent.match(/Android/i) ||
@@ -194,7 +216,17 @@ export const processMediaUrl = (url: string, fallbackUrl: string = '/default-nft
 
   // Handle Arweave URLs using the dedicated function
   if (url.includes('ar://')) {
-    return processArweaveUrl(url);
+    const arweaveUrl = processArweaveUrl(url);
+    // Process through our CDN if available
+    if (CDN_CONFIG.baseUrl) {
+      return getCdnUrl(arweaveUrl, mediaType);
+    }
+    return arweaveUrl;
+  }
+
+  // For any other URLs, try to use CDN if available
+  if (CDN_CONFIG.baseUrl && (url.startsWith('http://') || url.startsWith('https://'))) {
+    return getCdnUrl(url, mediaType);
   }
 
   return url || fallbackUrl;
