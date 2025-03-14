@@ -14,11 +14,13 @@ export const UltraDirectPlayer: React.FC<UltraDirectPlayerProps> = ({ nft }) => 
   let directUrl = url;
   
   // Choose fastest gateway based on IPFS URL type
-  if (url.includes('ipfs://')) {
-    // Cloudflare's IPFS gateway is consistently the fastest
-    directUrl = url.replace('ipfs://', 'https://cloudflare-ipfs.com/ipfs/');
-  } else if (url.includes('ar://')) {
-    directUrl = url.replace('ar://', 'https://arweave.net/');
+  if (typeof url === 'string') {
+    if (url.includes('ipfs://')) {
+      // Cloudflare's IPFS gateway is consistently the fastest
+      directUrl = url.replace('ipfs://', 'https://cloudflare-ipfs.com/ipfs/');
+    } else if (url.includes('ar://')) {
+      directUrl = url.replace('ar://', 'https://arweave.net/');
+    }
   }
   
   // Minimal setup with NO management code
