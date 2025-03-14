@@ -36,9 +36,16 @@ const ConnectionHeader: React.FC<ConnectionHeaderProps> = () => {
     ? `${connectionUsername} (×${connectionLikedCount})` 
     : connectionUsername;
     
+  // STRICT VALIDATION: Don't render if ANY condition isn't met
+  // This is the critical check that prevents phantom notifications
   if (!showConnectionHeader || !connectionUsername || connectionLikedCount <= 0) {
+    // If any of our state is inconsistent, don't show anything
+    console.log('🛑 Connection validation failed - not rendering notification');
     return null;
   }
+  
+  // Extra debug logging to help track the notification state
+  console.log(`✅ Rendering connection for ${connectionUsername} with ${connectionLikedCount} likes`);
   
   return (
     <header className={`fixed top-0 left-0 right-0 h-16 flex items-center justify-center z-50 transition-all duration-700 ease-out ${

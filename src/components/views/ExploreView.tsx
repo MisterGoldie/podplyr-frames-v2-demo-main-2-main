@@ -403,21 +403,35 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
   // Track previous selected user to prevent infinite loops
   const prevSelectedUserRef = useRef<number | null>(null);
   
-  // Replace the aggressive reset with this more careful approach
+  // Reset connection state when search starts or user changes
   useEffect(() => {
-    if (!selectedUser) {
-      // Only reset when there's no selected user
-      console.log('🔄 Reset connection header - no user selected');
-      setShowConnectionHeader(false);
-      setConnectionUsername('');
-      setConnectionLikedCount(0);
+    // Always reset when search starts or user changes
+    console.log('🔄 Reset connection header - search state or user changed');
+    setShowConnectionHeader(false);
+    setConnectionUsername('');
+    setConnectionLikedCount(0);
+    
+    // Also clean up any global window variables
+    if (typeof window !== 'undefined') {
+      // These might be causing persistence issues
+      if ((window as any).__hideConnectionNotification) {
+        console.log('🧹 Cleaning up global notification handler');
+        (window as any).__hideConnectionNotification();
+      }
     }
-  }, [selectedUser]);
+  }, [selectedUser, isSearching]);
   
   // Add this effect to detect connections
   useEffect(() => {
+    // CRITICAL: Reset connection state FIRST to prevent stale notifications
+    setShowConnectionHeader(false);
+    setConnectionUsername('');
+    setConnectionLikedCount(0);
+    
     // Only run this effect when we have a user and NFTs are loaded
     if (selectedUser && !isLoadingNFTs && nfts.length > 0 && isNFTLiked) {
+      console.log(`🔍 Checking for connections with ${selectedUser.username}`);
+      
       // Count liked NFTs
       let count = 0;
       for (const nft of nfts) {
@@ -426,25 +440,39 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
         }
       }
       
-      // Show connection if we have liked NFTs
+      // Show connection ONLY if we have liked NFTs
       if (count > 0) {
-        console.log(`Found ${count} liked NFTs for ${selectedUser.username}`);
+        console.log(`✅ Found ${count} liked NFTs for ${selectedUser.username}`);
         setConnectionUsername(selectedUser.username);
         setConnectionLikedCount(count);
         setShowConnectionHeader(true);
+      } else {
+        console.log(`❌ No connections found for ${selectedUser.username}`);
       }
     }
-  }, [selectedUser, isLoadingNFTs, nfts, isNFTLiked]);
+  }, [selectedUser, isLoadingNFTs, nfts, isNFTLiked, setShowConnectionHeader, setConnectionUsername, setConnectionLikedCount]);
 
-  // Add a cleanup effect that runs when component unmounts or page changes
+  // Add a comprehensive cleanup effect that runs when component unmounts or page changes
   useEffect(() => {
     // Return cleanup function
     return () => {
-      console.log('ExploreView unmounting - cleaning up all state');
-      // Hide any active notifications
+      console.log('🚮 ExploreView unmounting - cleaning up ALL state');
+      // Hide any active NFT notifications
       hideNotification();
+      
+      // Reset connection state completely
+      setShowConnectionHeader(false);
+      setConnectionUsername('');
+      setConnectionLikedCount(0);
+      
+      // Clean up global window variables
+      if (typeof window !== 'undefined') {
+        if ((window as any).__hideConnectionNotification) {
+          (window as any).__hideConnectionNotification();
+        }
+      }
     };
-  }, []);
+  }, [hideNotification]);
 
   return (
     <>
