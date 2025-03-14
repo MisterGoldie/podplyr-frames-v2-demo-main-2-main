@@ -175,13 +175,50 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
       // Determine if this is a video NFT
       if (nft.metadata?.animation_url && typeof nft.metadata.animation_url === 'string') {
         const animUrl = nft.metadata.animation_url.toLowerCase();
-        if (
-          animUrl.endsWith('.mp4') || 
-          animUrl.endsWith('.webm') || 
-          animUrl.endsWith('.mov') ||
-          animUrl.includes('/ipfs/') && !animUrl.includes('.mp3') && !animUrl.includes('.wav')
-        ) {
+        
+        // First check file extensions - safe and doesn't need URL parsing
+        if (animUrl.endsWith('.mp4') || 
+            animUrl.endsWith('.webm') || 
+            animUrl.endsWith('.mov')) {
           nft.isVideo = true;
+        } else {
+          // For IPFS detection, properly parse the URL
+          try {
+            const url = new URL(animUrl);
+            
+            // Check if this is an IPFS URL (either hostname or path indicates IPFS content)
+            const isIpfsUrl = 
+              url.hostname === 'ipfs.io' || 
+              url.hostname.endsWith('.ipfs.io') ||
+              url.hostname === 'cloudflare-ipfs.com' ||
+              url.hostname === 'ipfs.infura.io' ||
+              url.pathname.startsWith('/ipfs/');
+              
+            // Check if this might be an audio file by extension
+            const isPossiblyAudio = 
+              url.pathname.endsWith('.mp3') || 
+              url.pathname.endsWith('.wav') || 
+              url.pathname.endsWith('.ogg') || 
+              url.pathname.endsWith('.flac');
+              
+            // Mark as video if it's IPFS but not audio
+            if (isIpfsUrl && !isPossiblyAudio) {
+              nft.isVideo = true;
+            }
+          } catch (error) {
+            // If URL parsing fails, fall back to a more conservative check
+            // Still safer than the previous approach
+            if (animUrl.includes('://ipfs.io/') || 
+                animUrl.includes('://cloudflare-ipfs.com/') || 
+                animUrl.includes('://ipfs.infura.io/')) {
+              
+              // Only consider it a video if it doesn't have an audio extension
+              if (!animUrl.endsWith('.mp3') && !animUrl.endsWith('.wav') && 
+                  !animUrl.endsWith('.ogg') && !animUrl.endsWith('.flac')) {
+                nft.isVideo = true;
+              }
+            }
+          }
         }
       }
       
@@ -189,9 +226,30 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
       // Check for YouTube links in metadata properties
       const externalUrl = nft.metadata?.properties?.['external_url'] || '';
       if (typeof externalUrl === 'string' && externalUrl) {
-        const externalUrlLower = externalUrl.toLowerCase();
-        if (externalUrlLower.includes('youtube.com') || externalUrlLower.includes('youtu.be')) {
-          nft.isVideo = true;
+        try {
+          // Parse the URL properly to extract the hostname
+          const url = new URL(externalUrl);
+          const hostname = url.hostname.toLowerCase();
+          
+          // Check if hostname is youtube.com or a subdomain, or youtu.be
+          if (hostname === 'youtube.com' || 
+              hostname.endsWith('.youtube.com') || 
+              hostname === 'youtu.be') {
+            nft.isVideo = true;
+          }
+        } catch (error) {
+          // If URL parsing fails, fall back to a more conservative check
+          // This is safer than the previous approach but still not ideal
+          console.error('Error parsing external URL:', error);
+          
+          // Even in fallback mode, make a more strict check with protocol
+          const externalUrlLower = externalUrl.toLowerCase();
+          if ((externalUrlLower.startsWith('http://') || externalUrlLower.startsWith('https://')) && 
+              (externalUrlLower.includes('://youtube.com/') || 
+               externalUrlLower.includes('://www.youtube.com/') || 
+               externalUrlLower.includes('://youtu.be/'))) {
+            nft.isVideo = true;
+          }
         }
       }
       

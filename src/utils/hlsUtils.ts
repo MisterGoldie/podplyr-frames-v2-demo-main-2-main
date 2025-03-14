@@ -17,7 +17,24 @@ const hlsInstances: Record<string, HlsModule.default> = {};
  */
 export function isHlsUrl(url: string): boolean {
   if (typeof url !== 'string') return false;
-  return url.includes('.m3u8');
+  
+  try {
+    // Properly parse the URL
+    const parsedUrl = new URL(url);
+    
+    // Check if the pathname ends with .m3u8 extension
+    // This is more secure than checking if .m3u8 appears anywhere in the URL
+    return parsedUrl.pathname.toLowerCase().endsWith('.m3u8');
+  } catch (error) {
+    // Handle special case for relative URLs
+    if (url.startsWith('/')) {
+      return url.toLowerCase().endsWith('.m3u8');
+    }
+    
+    // If URL parsing fails and it's not a relative path, log and return false
+    console.warn('Invalid URL in isHlsUrl:', url);
+    return false;
+  }
 }
 
 /**
@@ -33,10 +50,35 @@ export function getHlsUrl(url: string): string {
   }
   
   // Otherwise, try to convert it to an HLS URL
-  // This is just an example - adjust based on your actual URL patterns
-  if (url.includes('ipfs.io')) {
-    // For IPFS URLs, you might have a different HLS endpoint
-    return url.replace('/ipfs/', '/ipfs-hls/');
+  // SECURITY: Properly parse URL to prevent URL substring bypass attacks
+  try {
+    const parsedUrl = new URL(url);
+    
+    // Define allowed IPFS hostnames
+    const allowedIpfsHosts = [
+      'ipfs.io',
+      'dweb.link',
+      'cloudflare-ipfs.com',
+      'gateway.ipfs.io'
+    ];
+    
+    // Check if hostname exactly matches one of our allowed hosts
+    // or is a direct subdomain of an allowed host
+    if (allowedIpfsHosts.some(host => 
+      parsedUrl.hostname === host || 
+      parsedUrl.hostname.endsWith(`.${host}`))) {
+      
+      // For IPFS URLs, use the appropriate HLS endpoint
+      if (parsedUrl.pathname.startsWith('/ipfs/')) {
+        // Clone the URL to avoid modifying the original
+        const hlsUrl = new URL(url);
+        hlsUrl.pathname = hlsUrl.pathname.replace('/ipfs/', '/ipfs-hls/');
+        return hlsUrl.toString();
+      }
+    }
+  } catch (error) {
+    // If URL parsing fails, log and return original URL
+    console.warn('Invalid URL in getHlsUrl:', url);
   }
   
   return url;

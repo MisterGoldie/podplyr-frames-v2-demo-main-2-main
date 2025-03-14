@@ -75,7 +75,15 @@ export const optimizeImage = async (file: File, maxWidth = 680, maxHeight = 560,
 
     // Load image from file - create object URL with proper cleanup
     const objectUrl = URL.createObjectURL(file);
-    img.src = objectUrl;
+    
+    // SECURITY: Validate object URL before assigning to prevent XSS
+    if (objectUrl.startsWith('blob:') || objectUrl.startsWith('data:image/')) {
+      img.src = objectUrl;
+    } else {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('Invalid image source'));
+      return;
+    }
     
     // Add onload handler to revoke the URL after image is loaded
     const originalOnload = img.onload;

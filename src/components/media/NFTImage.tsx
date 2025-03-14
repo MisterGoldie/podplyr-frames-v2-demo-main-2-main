@@ -24,28 +24,120 @@ interface NFTImageProps {
   placeholder?: 'empty';
 }
 
-const extractIPFSHash = (url: string): string | null => {
-  if (!url) return null;
+/**
+ * Safely checks if a URL is an Arweave URL by properly parsing it
+ * SECURITY: This function uses URL parsing instead of string inclusion for validation
+ */
+const isArweaveUrl = (url: string): boolean => {
+  if (!url || typeof url !== 'string') return false;
   
-  // Handle ipfs:// protocol
+  // Protocol check is safe - only if it's the exact protocol
+  if (url.startsWith('ar://')) return true;
+  
+  try {
+    const parsedUrl = new URL(url);
+    // Only check hostname - not paths or query parameters
+    return parsedUrl.hostname === 'arweave.net' || 
+           parsedUrl.hostname.endsWith('.arweave.net');
+  } catch (error) {
+    // If URL parsing fails, don't attempt substring matching
+    imageLogger.warn('Invalid URL in Arweave check', { url });
+    return false;
+  }
+};
+
+/**
+ * Safely checks if a URL is an IPFS URL by properly parsing it
+ * SECURITY: This function uses URL parsing instead of string inclusion for validation
+ */
+const isIpfsUrl = (url: string): boolean => {
+  if (!url || typeof url !== 'string') return false;
+  
+  // Protocol check is safe - only if it's the exact protocol
+  if (url.startsWith('ipfs://')) return true;
+  
+  try {
+    const parsedUrl = new URL(url);
+    
+    // Known IPFS gateway hostnames - exact matches required
+    const knownIpfsHosts = [
+      'ipfs.io',
+      'dweb.link',
+      'cloudflare-ipfs.com',
+      'nftstorage.link',
+      'ipfs.infura.io'
+    ];
+    
+    // Check hostname (not full URL) against allowed list
+    const isKnownHost = knownIpfsHosts.some(host => 
+      parsedUrl.hostname === host || 
+      parsedUrl.hostname.endsWith(`.${host}`)
+    );
+    
+    // Check if path starts with /ipfs/ exactly (not substring)
+    const hasIpfsPath = parsedUrl.pathname.startsWith('/ipfs/');
+    
+    return isKnownHost || hasIpfsPath;
+  } catch (error) {
+    // If URL parsing fails, don't attempt substring matching
+    imageLogger.warn('Invalid URL in IPFS check', { url });
+    return false;
+  }
+};
+
+/**
+ * Extract IPFS hash from a URL with secure parsing
+ * SECURITY: This function properly parses URLs and uses path-based extraction
+ */
+const extractIPFSHash = (url: string): string | null => {
+  if (!url || typeof url !== 'string') return null;
+  
+  // Handle ipfs:// protocol - exact protocol match is safe
   if (url.startsWith('ipfs://')) {
     return url.replace('ipfs://', '');
   }
 
-  // Match IPFS hash patterns - support both v0 and v1 CIDs
-  const ipfsRegex = /(?:ipfs\/|\/ipfs\/|ipfs:)([a-zA-Z0-9]{46,}|Qm[1-9A-HJ-NP-Za-km-z]{44}|bafy[a-zA-Z0-9]{55})/i;
-  const match = url.match(ipfsRegex);
-  
-  if (match) return match[1];
-  
-  // Handle direct CID
-  if (/^(Qm[1-9A-HJ-NP-Za-km-z]{44}|bafy[a-zA-Z0-9]{55}|[a-zA-Z0-9]{46,})$/.test(url)) {
-    return url;
+  try {
+    // Properly parse the URL to safely extract components
+    const parsedUrl = new URL(url);
+    
+    // Extract hash from path component if it contains /ipfs/ segment
+    if (parsedUrl.pathname.includes('/ipfs/')) {
+      const parts = parsedUrl.pathname.split('/ipfs/');
+      if (parts.length > 1) {
+        // Take only the next segment after /ipfs/
+        return parts[1].split('/')[0];
+      }
+    }
+    
+    // Use regex only on the pathname, not the full URL
+    const ipfsRegex = /(?:ipfs\/|\/ipfs\/|ipfs:)([a-zA-Z0-9]{46,}|Qm[1-9A-HJ-NP-Za-km-z]{44}|bafy[a-zA-Z0-9]{55})/i;
+    const match = parsedUrl.pathname.match(ipfsRegex);
+    
+    if (match) return match[1];
+  } catch (error) {
+    // Fall back to regex on the full URL only if URL parsing fails
+    imageLogger.warn('URL parsing failed in extractIPFSHash', { url, error: String(error) });
+    
+    // Match IPFS hash patterns - support both v0 and v1 CIDs
+    const ipfsRegex = /(?:ipfs\/|\/ipfs\/|ipfs:)([a-zA-Z0-9]{46,}|Qm[1-9A-HJ-NP-Za-km-z]{44}|bafy[a-zA-Z0-9]{55})/i;
+    const match = url.match(ipfsRegex);
+    
+    if (match) return match[1];
+    
+    // Handle direct CID
+    if (/^(Qm[1-9A-HJ-NP-Za-km-z]{44}|bafy[a-zA-Z0-9]{55}|[a-zA-Z0-9]{46,})$/.test(url)) {
+      return url;
+    }
   }
   
   return null;
 };
 
+/**
+ * Get the next IPFS gateway URL for retry attempts
+ * SECURITY: This function properly parses URLs to avoid substring vulnerabilities
+ */
 const getNextIPFSUrl = (url: string, currentIndex: number): { url: string; nextIndex: number } | null => {
   // Clean the URL first
   url = getCleanIPFSUrl(url);
@@ -59,16 +151,34 @@ const getNextIPFSUrl = (url: string, currentIndex: number): { url: string; nextI
   // Extract IPFS hash/CID from the URL
   let cid = null;
   
-  // Try to find which gateway we're currently using
-  const currentGateway = IPFS_GATEWAYS.find(gateway => url.includes(gateway));
-  if (currentGateway) {
-    // Get the path after the gateway
-    const path = url.split(currentGateway)[1];
-    if (path) {
-      cid = path;
+  // Try to find which gateway we're currently using with proper URL parsing
+  let currentGateway = null;
+  try {
+    // Parse the URL to safely extract hostname
+    const parsedUrl = new URL(url);
+    
+    // Match gateway based on hostname comparison (not substring)
+    currentGateway = IPFS_GATEWAYS.find(gateway => {
+      try {
+        // Parse each gateway URL to get its hostname
+        const gatewayUrl = new URL(gateway);
+        return parsedUrl.hostname === gatewayUrl.hostname;
+      } catch {
+        return false;
+      }
+    });
+    
+    // If we found a gateway and have a path, extract the CID
+    if (currentGateway) {
+      // Extract CID from pathname safely
+      cid = extractIPFSHash(url);
+    } else {
+      // If not a gateway URL, try extracting hash directly
+      cid = extractIPFSHash(url);
     }
-  } else {
-    // Try to extract hash directly from URL
+  } catch (error) {
+    // If URL parsing fails, fall back to extractIPFSHash function
+    imageLogger.warn('URL parsing failed in getNextIPFSUrl', { url });
     cid = extractIPFSHash(url);
   }
   
@@ -82,6 +192,85 @@ const getNextIPFSUrl = (url: string, currentIndex: number): { url: string; nextI
     url: `${IPFS_GATEWAYS[nextIndex]}${cid}`,
     nextIndex
   };
+};
+
+/**
+ * Validate a URL string properly
+ * SECURITY: This function uses URL parsing to validate URLs safely
+ */
+const validateUrl = (url: string): boolean => {
+  if (!url || typeof url !== 'string') return false;
+  
+  // Check for empty or placeholder strings
+  if (url === '' || url === 'undefined' || url === 'null') return false;
+  
+  try {
+    // Attempt to parse as a URL - this will catch malformed URLs
+    new URL(url);
+    return true;
+  } catch (error) {
+    // Special case: ipfs:// protocol is valid but not a standard URL
+    if (url.startsWith('ipfs://') || url.startsWith('ar://')) {
+      return true;
+    }
+    return false;
+  }
+};
+
+/**
+ * Safely check if a URL is for audio or video by properly parsing URL
+ * SECURITY: This function avoids substring checks for security
+ */
+const isMediaUrl = (url: string): { isAudio: boolean; isVideo: boolean } => {
+  if (!validateUrl(url)) return { isAudio: false, isVideo: false };
+  
+  try {
+    // Parse the URL to safely check path extension
+    const parsedUrl = new URL(url);
+    const path = parsedUrl.pathname.toLowerCase();
+    
+    // Check file extensions - exact match at end of pathname
+    const isAudio = path.endsWith('.mp3') || 
+                   path.endsWith('.wav') || 
+                   path.endsWith('.ogg') || 
+                   path.endsWith('.flac') || 
+                   path.endsWith('.m4a');
+                   
+    const isVideo = path.endsWith('.mp4') || 
+                   path.endsWith('.webm') || 
+                   path.endsWith('.mov') || 
+                   path.endsWith('.m4v') || 
+                   path.endsWith('.avi');
+    
+    // Check for audio/video in path but only with path segment boundary
+    // This avoids matching things like /audio-files/image.png or /video-thumbnails/pic.jpg
+    const pathParts = parsedUrl.pathname.split('/');
+    const hasAudioPath = pathParts.includes('audio');
+    const hasVideoPath = pathParts.includes('video');
+                   
+    return { 
+      isAudio: isAudio || hasAudioPath, 
+      isVideo: isVideo || hasVideoPath 
+    };
+  } catch (error) {
+    // Fallback for non-standard URLs (ipfs://, ar://)
+    if (url.startsWith('ipfs://') || url.startsWith('ar://')) {
+      const lowerUrl = url.toLowerCase();
+      const isAudio = lowerUrl.endsWith('.mp3') || 
+                     lowerUrl.endsWith('.wav') || 
+                     lowerUrl.endsWith('.ogg') || 
+                     lowerUrl.endsWith('.flac');
+                     
+      const isVideo = lowerUrl.endsWith('.mp4') || 
+                     lowerUrl.endsWith('.webm') || 
+                     lowerUrl.endsWith('.mov') || 
+                     lowerUrl.endsWith('.avi');
+                     
+      return { isAudio, isVideo };
+    }
+    
+    return { isAudio: false, isVideo: false };
+  }
 };
 
 export const NFTImage: React.FC<NFTImageProps> = ({ 
@@ -100,13 +289,13 @@ export const NFTImage: React.FC<NFTImageProps> = ({
   const fallbackSrc = '/default-nft.png';
   const [isVideo, setIsVideo] = useState(false);
   
-  // Check if src is valid, if not use fallback immediately
-  const initialSrc = !src || src === '' || src === 'undefined' || src === 'null' ? fallbackSrc : src;
+  // Check if src is valid using proper URL validation
+  const initialSrc = !validateUrl(src) ? fallbackSrc : src;
   const [imgSrc, setImgSrc] = useState<string>(initialSrc);
-  const [error, setError] = useState(!src || src === '' || src === 'undefined' || src === 'null');
+  const [error, setError] = useState(!validateUrl(src));
   const [retryCount, setRetryCount] = useState(0);
   const [currentGatewayIndex, setCurrentGatewayIndex] = useState(0);
-  const [isLoadingFallback, setIsLoadingFallback] = useState(!src || src === '' || src === 'undefined' || src === 'null');
+  const [isLoadingFallback, setIsLoadingFallback] = useState(!validateUrl(src));
 
   useEffect(() => {
     // Reset states when src changes, but only if src is valid
@@ -148,53 +337,13 @@ export const NFTImage: React.FC<NFTImageProps> = ({
       setIsLoadingFallback(true);
     }
     
-    const isAudioUrl = (url: string): boolean => {
-      if (!url) return false;
-      
-      // Check for common audio extensions
-      const audioExtensions = /\.(mp3|wav|ogg|m4a|aac)$/i;
-      
-      // Check for audio MIME types
-      const audioMimeTypes = /(audio\/|application\/ogg)/i;
-      
-      return (
-        audioExtensions.test(url) || 
-        audioMimeTypes.test(url) || 
-        url.includes('/audio/')
-      );
-    };
-
-    const detectMediaContent = (url: string) => {
-      if (!url) return false;
-      
-      // Check metadata mime types first
-      if (nft?.metadata?.mimeType) {
-        if (nft.metadata.mimeType.startsWith('audio/') || 
-            nft.metadata.mimeType.startsWith('video/')) {
-          return true;
-        }
-      }
-
-      if (nft?.metadata?.properties?.mimeType) {
-        if (nft.metadata.properties.mimeType.startsWith('audio/') || 
-            nft.metadata.properties.mimeType.startsWith('video/')) {
-          return true;
-        }
-      }
-      
-      // Check for common video extensions
-      const videoExtensions = /\.(mp4|webm|ogg|mov|m4v)$/i;
-      
-      // Check for video MIME types in the URL
-      const videoMimeTypes = /(video\/|application\/x-mpegURL|application\/vnd\.apple\.mpegurl)/i;
-      
-      return (
-        videoExtensions.test(url) || 
-        videoMimeTypes.test(url) || 
-        url.includes('/video/') ||
-        isAudioUrl(url)
-      );
-    };
+    // Use our secure isMediaUrl function for all media detection
+    const { isAudio, isVideo } = isMediaUrl(src);
+    
+    // If this is a video URL, set the video flag
+    if (isVideo) {
+      setIsVideo(true);
+    }
 
     setError(false);
     setRetryCount(0);
@@ -237,12 +386,13 @@ export const NFTImage: React.FC<NFTImageProps> = ({
       }
       
       setIsVideo(false);
-      // Clean and process the URL - handle all special URL types including ar://
+      // Clean and process the URL - handle all special URL types including ar:// and ipfs://
       if (nft) {
         // Use CDN for NFT images if we have the NFT object
         setImgSrc(getNftCdnUrl(nft, 'image'));
-      } else if (src.includes('ipfs') || src.includes('nftstorage.link') || src.startsWith('ar://')) {
-        const cleanedUrl = src.startsWith('ar://') ? src : getCleanIPFSUrl(src);
+      } else if (isArweaveUrl(src) || isIpfsUrl(src)) {
+        // Safely process special URL protocols
+        const cleanedUrl = isArweaveUrl(src) ? processArweaveUrl(src) : getCleanIPFSUrl(src);
         setImgSrc(processMediaUrl(cleanedUrl, fallbackSrc, 'image'));
       } else {
         // Use CDN for direct URLs too
@@ -272,11 +422,14 @@ export const NFTImage: React.FC<NFTImageProps> = ({
       preloadNftMedia(nft);
     }
     
-    // Special handling for Arweave URLs
-    if (src && src.includes('ar://')) {
+    // Special handling for Arweave URLs - using proper URL validation
+    if (src && isArweaveUrl(src)) {
       try {
-        // Try a different approach for Arweave URLs
-        const arweaveTxId = src.split('/').pop()?.split('.')[0];
+        // Safe extraction of transaction ID
+        const arweaveTxId = src.startsWith('ar://') 
+          ? src.substring(5).split('/')[0].split('.')[0]  // Safe string operations on protocol
+          : new URL(src).pathname.substring(1).split('/')[0]; // Safe URL parsing
+        
         if (arweaveTxId) {
           const directArweaveUrl = `https://arweave.net/${arweaveTxId}`;
           imageLogger.info('Trying direct Arweave URL:', directArweaveUrl);
@@ -315,19 +468,44 @@ export const NFTImage: React.FC<NFTImageProps> = ({
     */
   };
 
-  // Use regular img tag for IPFS content to bypass Next.js image optimization
-  const isIPFS = imgSrc.includes('ipfs') || imgSrc.includes('nftstorage.link') || imgSrc.includes('arweave.net');
+  // SECURITY: Use proper URL validation for determining render method
+  // Use regular img tag for IPFS/Arweave content to bypass Next.js image optimization
+  const isSpecialProtocol = isIpfsUrl(imgSrc) || isArweaveUrl(imgSrc);
   
   // CRITICAL: Additional validation before finalizing source
   // This ensures we NEVER show a blank card, even for malformed NFT data
   const validateSrc = (source: string): boolean => {
-    return Boolean(source) && 
-           source !== 'undefined' && 
-           source !== 'null' && 
-           source !== '' &&
-           source !== 'https://undefined' &&
-           source !== 'https://null' &&
-           !source.includes('undefined');
+    if (!source || typeof source !== 'string') return false;
+    
+    // Basic string validation
+    if (source === 'undefined' || 
+        source === 'null' || 
+        source === '') {
+      return false;
+    }
+    
+    try {
+      // Try to parse as URL to catch malformed URLs
+      // Special case for ipfs:// and ar:// protocols
+      if (source.startsWith('ipfs://') || source.startsWith('ar://')) {
+        return true;
+      }
+      
+      // Parse URL to validate
+      const parsedUrl = new URL(source);
+      
+      // Check for invalid/empty hostname
+      if (!parsedUrl.hostname || 
+          parsedUrl.hostname === 'undefined' || 
+          parsedUrl.hostname === 'null') {
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      // URL parsing failed
+      return false;
+    }
   };
   
   // CRITICAL: Always display fallback image when there's an error or invalid source - NO EXCEPTIONS
@@ -335,8 +513,8 @@ export const NFTImage: React.FC<NFTImageProps> = ({
   const absoluteFallbackSrc = fallbackSrc.startsWith('/') ? fallbackSrc : `/${fallbackSrc}`;
   const finalSrc = (error || isLoadingFallback || !validateSrc(imgSrc)) ? absoluteFallbackSrc : imgSrc;
   
-  // Check if this is an Arweave URL (either original ar:// or converted arweave.net)
-  const isArweave = finalSrc.includes('arweave.net') || finalSrc.startsWith('ar://');
+  // Check if this is an Arweave URL using proper validation
+  const isArweave = isArweaveUrl(finalSrc);
   
   // For Arweave URLs, use regular img tag to bypass Next.js image restrictions
   if (isArweave) {
@@ -363,8 +541,8 @@ export const NFTImage: React.FC<NFTImageProps> = ({
     );
   }
   
-  // For other content types, use Next.js Image or regular img based on IPFS status
-  if (isVideo || !isIPFS) {
+  // For other content types, use Next.js Image or regular img based on protocol type
+  if (isVideo || !isSpecialProtocol) {
     return (
       <Image
         src={finalSrc}

@@ -268,7 +268,7 @@ async function manageCacheSize(cacheName: string, maxSize: number): Promise<void
   
   // If cache is too large, remove oldest entries first
   if (cacheSize > maxSize) {
-    console.log(`Cache ${cacheName} size (${(cacheSize / 1024 / 1024).toFixed(2)}MB) exceeds limit (${(maxSize / 1024 / 1024).toFixed(2)}MB)`);
+    console.log('Cache %s size (%sMB) exceeds limit (%sMB)', cacheName, (cacheSize / 1024 / 1024).toFixed(2), (maxSize / 1024 / 1024).toFixed(2));
     
     // Sort by timestamp (oldest first)
     cacheEntries.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
@@ -281,10 +281,10 @@ async function manageCacheSize(cacheName: string, maxSize: number): Promise<void
       
       await cache.delete(entry.request);
       removedSize += entry.size;
-      console.log(`Removed ${entry.request.url} from cache (${(entry.size / 1024 / 1024).toFixed(2)}MB)`);
+      console.log('Removed %s from cache (%sMB)', entry.request.url, (entry.size / 1024 / 1024).toFixed(2));
     }
     
-    console.log(`Removed ${(removedSize / 1024 / 1024).toFixed(2)}MB from cache ${cacheName}`);
+    console.log('Removed %sMB from cache %s', (removedSize / 1024 / 1024).toFixed(2), cacheName);
   }
 }
 
@@ -316,7 +316,7 @@ self.addEventListener('activate', (event: ExtendableEvent) => {
                    !cacheName.startsWith('podplayr-api-v');
           })
           .map(cacheName => {
-            console.log('Deleting old cache:', cacheName);
+            console.log('Deleting old cache: %s', cacheName);
             return caches.delete(cacheName);
           })
       );
@@ -366,12 +366,12 @@ self.addEventListener('message', (event: ExtendableMessageEvent) => {
               return Promise.resolve();
             })
             .catch(error => {
-              console.warn(`Failed to prefetch ${url}:`, error);
+              console.warn('Failed to prefetch %s:', url, error);
               return Promise.resolve(); // Don't fail the entire operation
             });
         })
       ).then(() => {
-        console.log(`Prefetched ${urls.length} resources`);
+        console.log('Prefetched %d resources', urls.length);
         // Send confirmation
         if (event.source && 'postMessage' in event.source) {
           event.source.postMessage({ type: 'PREFETCH_COMPLETE', count: urls.length });
