@@ -2,24 +2,7 @@ import React from 'react';
 import { NFTImage } from './media/NFTImage';
 import { processMediaUrl } from '../utils/media';
 
-interface NFT {
-  name: string;
-  image: string;
-  audio?: string;
-  animation_url?: string;
-  contract: string;
-  tokenId: string;
-  description?: string;
-  metadata?: {
-    name?: string;
-    image?: string;
-    animation_url?: string;
-    description?: string;
-  };
-  isVideo?: boolean;
-}
-
-// Add the import for NFT type
+// Import the NFT type
 import { NFT } from '../types/user';
 
 interface NFTCardProps {
@@ -56,7 +39,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
       <div className="aspect-w-1 aspect-h-1 w-full">
         <NFTImage
           nft={nft}
-          src={processMediaUrl(nft.image || nft.metadata?.image || '')}
+          src={processMediaUrl(typeof nft.image === 'string' ? nft.image : (nft.metadata?.image || ''))}
           alt={nft.name || 'NFT'}
           width={500}
           height={500}

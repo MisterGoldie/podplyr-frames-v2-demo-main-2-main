@@ -69,7 +69,7 @@ const IPFS_GATEWAYS = [
 
 // Helper to extract IPFS hash from URL
 const extractIPFSHash = (url) => {
-  if (!url) return null;
+  if (!url || typeof url !== 'string') return null;
   
   // Remove any duplicate 'ipfs' in the path
   url = url.replace(/\/ipfs\/ipfs\//, '/ipfs/');
@@ -101,7 +101,7 @@ const tryIPFSGateways = async (ipfsHash) => {
 // Fetch event - network-first strategy with fallback to cache
 self.addEventListener('fetch', event => {
   // Handle IPFS requests
-  if (event.request.url.includes('/ipfs/')) {
+  if (event.request.url && typeof event.request.url === 'string' && event.request.url.includes('/ipfs/')) {
     const ipfsHash = extractIPFSHash(event.request.url);
     if (ipfsHash) {
       event.respondWith(
@@ -143,17 +143,17 @@ self.addEventListener('fetch', event => {
   }
   
   // Skip other cross-origin requests
-  if (!event.request.url.startsWith(self.location.origin)) {
+  if (!event.request.url || typeof event.request.url !== 'string' || !event.request.url.startsWith(self.location.origin)) {
     return;
   }
   
   // Skip Mux requests (we don't want to cache video streams)
-  if (event.request.url.includes('mux.com')) {
+  if (typeof event.request.url === 'string' && event.request.url.includes('mux.com')) {
     return;
   }
 
   // For API requests, use network-first strategy
-  if (event.request.url.includes('/api/')) {
+  if (typeof event.request.url === 'string' && event.request.url.includes('/api/')) {
     event.respondWith(
       fetch(event.request)
         .catch(error => {

@@ -114,7 +114,7 @@ export const NFTImage: React.FC<NFTImageProps> = ({
     
     if (isValidSrc) {
       // Special handling for Arweave URLs
-      if (src.includes('ar://')) {
+      if (typeof src === 'string' && src.startsWith('ar://')) {
         const processedSrc = processArweaveUrl(src);
         imageLogger.info('Processing Arweave URL:', { 
           original: src, 

@@ -42,7 +42,8 @@ self.addEventListener('fetch', (event: FetchEvent) => {
   const url = new URL(event.request.url);
   
   // Don't intercept requests to other domains
-  if (url.origin !== self.location.origin && !url.hostname.includes('ipfs.io')) {
+  const allowedExternalHosts = ['ipfs.io'];
+  if (url.origin !== self.location.origin && !allowedExternalHosts.includes(url.hostname)) {
     return;
   }
   

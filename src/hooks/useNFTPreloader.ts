@@ -19,13 +19,19 @@ const preloadSingleImage = async (nft: NFT, imageMap: Map<string, HTMLImageEleme
   if (!imageUrl) return;
 
   // Process the URL to handle special protocols
-  if (imageUrl.includes('ar://')) {
-    // Special handling for Arweave URLs
-    imageUrl = processArweaveUrl(imageUrl);
-    console.log('Processed Arweave URL for preloading:', imageUrl);
-  } else {
-    // Process other URL types
-    imageUrl = processMediaUrl(imageUrl);
+  try {
+    // Safely check if this is an Arweave URL
+    if (typeof imageUrl === 'string' && imageUrl.startsWith('ar://')) {
+      // Special handling for Arweave URLs
+      imageUrl = processArweaveUrl(imageUrl);
+      console.log('Processed Arweave URL for preloading:', imageUrl);
+    } else {
+      // Process other URL types
+      imageUrl = processMediaUrl(imageUrl);
+    }
+  } catch (error) {
+    console.error('Error processing image URL:', error);
+    imageUrl = '/default-nft.png';
   }
 
   const key = getMediaKey(nft);
@@ -39,20 +45,28 @@ const preloadSingleImage = async (nft: NFT, imageMap: Map<string, HTMLImageEleme
     img.onerror = (error) => {
       console.warn('Failed to preload image for NFT:', nft.name, error);
       // Try a fallback for Arweave URLs
-      if (imageUrl.includes('arweave.net') && nft.metadata?.image?.includes('ar://')) {
-        const fallbackUrl = `/default-nft.png`;
-        console.log('Using fallback for failed Arweave image:', fallbackUrl);
-        const fallbackImg = new Image();
-        fallbackImg.onload = () => {
-          imageMap.set(key, fallbackImg);
-          resolve();
-        };
-        fallbackImg.onerror = () => {
-          console.error('Even fallback image failed to load');
-          resolve(); // Resolve anyway to not block other images
-        };
-        fallbackImg.src = fallbackUrl;
-      } else {
+      try {
+        const isArweaveNet = typeof imageUrl === 'string' && new URL(imageUrl).hostname === 'arweave.net';
+        const hasArProtocol = typeof nft.metadata?.image === 'string' && nft.metadata.image.startsWith('ar://');
+        
+        if (isArweaveNet && hasArProtocol) {
+          const fallbackUrl = `/default-nft.png`;
+          console.log('Using fallback for failed Arweave image:', fallbackUrl);
+          const fallbackImg = new Image();
+          fallbackImg.onload = () => {
+            imageMap.set(key, fallbackImg);
+            resolve();
+          };
+          fallbackImg.onerror = () => {
+            console.error('Even fallback image failed to load');
+            resolve(); // Resolve anyway to not block other images
+          };
+          fallbackImg.src = fallbackUrl;
+        } else {
+          resolve(); // Resolve even on error to not block other images
+        }
+      } catch (error) {
+        console.error('Error checking Arweave URL in preloadSingleImage:', error);
         resolve(); // Resolve even on error to not block other images
       }
     };
@@ -155,13 +169,19 @@ export const useNFTPreloader = (nfts: NFT[]) => {
     if (!nftImageUrl) return;
     
     // Process the URL to handle special protocols
-    if (nftImageUrl.includes('ar://')) {
-      // Special handling for Arweave URLs
-      nftImageUrl = processArweaveUrl(nftImageUrl);
-      console.log('Processed Arweave URL for preloading in preloadImage:', nftImageUrl);
-    } else {
-      // Process other URL types
-      nftImageUrl = processMediaUrl(nftImageUrl);
+    try {
+      // Safely check if this is an Arweave URL
+      if (typeof nftImageUrl === 'string' && nftImageUrl.startsWith('ar://')) {
+        // Special handling for Arweave URLs
+        nftImageUrl = processArweaveUrl(nftImageUrl);
+        console.log('Processed Arweave URL for preloading in preloadImage:', nftImageUrl);
+      } else {
+        // Process other URL types
+        nftImageUrl = processMediaUrl(nftImageUrl);
+      }
+    } catch (error) {
+      console.error('Error processing image URL in preloadImage:', error);
+      nftImageUrl = '/default-nft.png';
     }
     
     // Create a key for this NFT
@@ -188,18 +208,25 @@ export const useNFTPreloader = (nfts: NFT[]) => {
     img.onerror = (error) => {
       console.warn('Failed to preload image in preloadImage for NFT:', nft.name, error);
       // Try a fallback for Arweave URLs
-      if (nftImageUrl.includes('arweave.net') && nft.metadata?.image?.includes('ar://')) {
-        const fallbackUrl = `/default-nft.png`;
-        console.log('Using fallback for failed Arweave image in preloadImage:', fallbackUrl);
-        const fallbackImg = new Image();
-        fallbackImg.onload = () => {
-          setPreloadedImages(prev => {
-            const newMap = new Map(prev);
-            newMap.set(key, fallbackImg);
-            return newMap;
-          });
-        };
-        fallbackImg.src = fallbackUrl;
+      try {
+        const isArweaveNet = typeof nftImageUrl === 'string' && new URL(nftImageUrl).hostname === 'arweave.net';
+        const hasArProtocol = typeof nft.metadata?.image === 'string' && nft.metadata.image.startsWith('ar://');
+        
+        if (isArweaveNet && hasArProtocol) {
+          const fallbackUrl = `/default-nft.png`;
+          console.log('Using fallback for failed Arweave image in preloadImage:', fallbackUrl);
+          const fallbackImg = new Image();
+          fallbackImg.onload = () => {
+            setPreloadedImages(prev => {
+              const newMap = new Map(prev);
+              newMap.set(key, fallbackImg);
+              return newMap;
+            });
+          };
+          fallbackImg.src = fallbackUrl;
+        }
+      } catch (error) {
+        console.error('Error checking Arweave URL in preloadImage:', error);
       }
     };
   }, [preloadedImages]);

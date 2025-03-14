@@ -69,62 +69,66 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
   }, [nft]);
   
   // Handle URL processing for different protocols
-  const processVideoUrl = () => {
-    if (directUrl.includes('ipfs://')) {
-      // Choose the best gateway for each platform, but also respect fallback state
-      const gateway = IPFS_GATEWAYS[currentGateway];
-      return directUrl.replace('ipfs://', gateway);
-    } else if (directUrl.includes('ar://')) {
-      return directUrl.replace('ar://', 'https://arweave.net/');
-    } else if (directUrl.includes('nftstorage.link')) {
-      // NFT.Storage URLs - already direct URLs
-      return directUrl;
-    } else if (directUrl.startsWith('http')) {
-      try {
-        // Properly parse the URL to check hostname
-        const url = new URL(directUrl);
-        if (url.hostname === 'ipfs.infura.io' || url.hostname.endsWith('.ipfs.infura.io')) {
-          // Handle Infura IPFS URLs
-          const cid = directUrl.split('/ipfs/')[1];
-          if (cid) {
-            const gateway = IPFS_GATEWAYS[currentGateway];
-            return `${gateway}${cid}`;
+  const processVideoUrl = (): string => {
+    if (typeof directUrl === 'string') {
+      if (directUrl.startsWith('ipfs://')) {
+        // Choose the best gateway for each platform, but also respect fallback state
+        const gateway = IPFS_GATEWAYS[currentGateway];
+        return directUrl.replace('ipfs://', gateway);
+      } else if (directUrl.startsWith('ar://')) {
+        return directUrl.replace('ar://', 'https://arweave.net/');
+      } else if (directUrl.includes('nftstorage.link')) {
+        // Use URL parsing to properly check the hostname
+        try {
+          const url = new URL(directUrl);
+          if (url.hostname === 'nftstorage.link') {
+            // NFT.Storage URLs - already direct URLs
+            return directUrl;
           }
+        } catch (e) {
+          videoLogger.warn('URL parsing failed for nftstorage.link check', { directUrl });
         }
-      } catch (e) {
-        // If URL parsing fails, continue with other checks
-        videoLogger.warn('URL parsing failed', { directUrl });
-      }
-    } else if (directUrl.startsWith('http')) {
-      try {
-        // Check if already using a gateway but it failed
-        const url = new URL(directUrl);
-        const knownGateways = [
-          'cloudflare-ipfs.com',
-          'ipfs.dweb.link',
-          'gateway.pinata.cloud',
-          'ipfs.io',
-          'dweb.link',
-          'ipfs.4everland.io',
-          'gateway.ipfs.io'
-        ];
-        
-        // Check if hostname is a known IPFS gateway
-        const isKnownGateway = knownGateways.some(gateway => 
-          url.hostname === gateway || url.hostname.endsWith(`.${gateway}`)
-        );
-        
-        if (isKnownGateway && hasError) {
-          // If already using a gateway but it failed, try the next one
-          const cid = extractIPFSCID(directUrl);
-          if (cid) {
-            const gateway = IPFS_GATEWAYS[currentGateway];
-            return `${gateway}${cid}`;
+      } else if (directUrl.startsWith('http')) {
+        try {
+          // Properly parse the URL to check hostname
+          const url = new URL(directUrl);
+          if (url.hostname === 'ipfs.infura.io' || url.hostname.endsWith('.ipfs.infura.io')) {
+            // Handle Infura IPFS URLs
+            const parts = directUrl.split('/ipfs/');
+            if (parts.length > 1) {
+              const cid = parts[1];
+              const gateway = IPFS_GATEWAYS[currentGateway];
+              return `${gateway}${cid}`;
+            }
           }
+          
+          const knownGateways = [
+            'cloudflare-ipfs.com',
+            'ipfs.dweb.link',
+            'gateway.pinata.cloud',
+            'ipfs.io',
+            'dweb.link',
+            'ipfs.4everland.io',
+            'gateway.ipfs.io'
+          ];
+          
+          // Check if hostname is a known IPFS gateway
+          const isKnownGateway = knownGateways.some(gateway => 
+            url.hostname === gateway || url.hostname.endsWith(`.${gateway}`)
+          );
+          
+          if (isKnownGateway && hasError) {
+            // If already using a gateway but it failed, try the next one
+            const cid = extractIPFSCID(directUrl);
+            if (cid) {
+              const gateway = IPFS_GATEWAYS[currentGateway];
+              return `${gateway}${cid}`;
+            }
+          }
+        } catch (e) {
+          // If URL parsing fails, continue with other checks
+          videoLogger.warn('URL parsing failed for gateway check', { directUrl });
         }
-      } catch (e) {
-        // If URL parsing fails, continue with other checks
-        videoLogger.warn('URL parsing failed for gateway check', { directUrl });
       }
     }
     
@@ -133,7 +137,8 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
   }
   
   // Extract IPFS CID from various gateway URLs
-  function extractIPFSCID(url: string): string | null {
+  function extractIPFSCID(urlString: string): string | null {
+    if (typeof urlString !== 'string') return null;
     // Common patterns for IPFS URLs
     const patterns = [
       /ipfs\/([a-zA-Z0-9]+)/,
@@ -146,7 +151,7 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
     ];
     
     for (const pattern of patterns) {
-      const match = url.match(pattern);
+      const match = urlString.match(pattern);
       if (match && match[1]) {
         return match[1];
       }
@@ -156,10 +161,11 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
   }
   
   // Check if this is a hosted video player URL rather than a direct video file
-  const isHostedPlayer = 
+  const isHostedPlayer = typeof directUrl === 'string' && (
     directUrl.includes('player.vimeo.com') || 
     directUrl.includes('youtube.com/embed') || 
-    directUrl.includes('opensea.io/assets');
+    directUrl.includes('opensea.io/assets')
+  );
   
   // Use Intersection Observer for visibility
   useEffect(() => {
@@ -237,21 +243,22 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
       video.preload = 'auto';
     }
     
-    const handleCanPlay = () => {
+    const handleCanPlay = (): void => {
       setHasError(false); // Reset error state on successful load
       if (onLoadComplete) onLoadComplete();
     };
     
-    const handleError = (e: Event) => {
+    const handleError = (e: Event): void => {
       // Only log the first error for each video
       if (!hasError) {
         console.error('Video playback error:', e);
       }
       
       // Try the next gateway if this is an IPFS URL
-      if (directUrl.includes('ipfs://') || 
+      if (typeof directUrl === 'string' && (
+          directUrl.includes('ipfs://') || 
           directUrl.includes('ipfs.') || 
-          directUrl.includes('/ipfs/')) {
+          directUrl.includes('/ipfs/'))) {
         
         const nextGateway = (currentGateway + 1) % IPFS_GATEWAYS.length;
         
@@ -280,7 +287,7 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
       }
       
       // For non-IPFS URLs, fail gracefully after first attempt
-      if (!hasError) {
+      if (!hasError && typeof directUrl === 'string') {
         setHasError(true);
         if (onError) onError(new Error('Video failed to load'));
       }
@@ -316,7 +323,7 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
         video.load();
       }
     };
-  }, [isHostedPlayer, onLoadComplete, onError, directUrl, isMobile, isIOS, isAndroid, hasError, currentGateway, retryCount, mediaKey, nft]);
+  }, [isHostedPlayer, onLoadComplete, onError, directUrl, isMobile, isIOS, isAndroid, hasError, currentGateway, retryCount, mediaKey, nft, MAX_RETRIES]);
   
   // Render an iframe for hosted players, or video for direct media
   if (isHostedPlayer) {
@@ -360,7 +367,7 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
     >
       {/* Static thumbnail */}
       <img
-        src={nft.image || nft.metadata?.image}
+        src={nft.image || nft.metadata?.image || '/default-nft.png'}
         alt={nft.name || 'NFT'}
         className={`w-full h-full object-cover ${shouldLoadVideo ? 'opacity-0' : 'opacity-100'}`}
         style={{
