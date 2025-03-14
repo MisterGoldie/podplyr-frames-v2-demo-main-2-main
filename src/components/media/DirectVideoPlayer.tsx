@@ -161,11 +161,48 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
   }
   
   // Check if this is a hosted video player URL rather than a direct video file
-  const isHostedPlayer = typeof directUrl === 'string' && (
-    directUrl.includes('player.vimeo.com') || 
-    directUrl.includes('youtube.com/embed') || 
-    directUrl.includes('opensea.io/assets')
-  );
+  // SECURITY: Properly parse URL to prevent URL substring bypass attacks
+  const isHostedPlayer = typeof directUrl === 'string' && (() => {
+    try {
+      // Safely parse the URL
+      const parsedUrl = new URL(directUrl);
+      
+      // Define allowed hosted player domains
+      const allowedHostedPlayerDomains = [
+        // Video platforms
+        { domain: 'player.vimeo.com', exact: true },
+        { domain: 'youtube.com', path: '/embed' },
+        
+        // NFT/Web3 platforms
+        { domain: 'opensea.io', path: '/assets' },
+        { domain: 'sound.xyz', path: '/embed' },
+        { domain: 'zora.co', path: '/collect' },
+        { domain: 'embed.zora.co', exact: true },
+        { domain: 'foundation.app', path: '/embed' },
+        { domain: 'audius.co', path: '/embed' },
+        { domain: 'catalog.works', path: '/embed' },
+        { domain: 'nina.market', path: '/embed' },
+        { domain: 'glass.xyz', path: '/embed' },
+        { domain: 'app.manifold.xyz', path: '/embed' },
+        { domain: 'embed.manifold.xyz', exact: true }
+      ];
+      
+      // Check if the hostname and path match our allowed hosted player domains
+      return allowedHostedPlayerDomains.some(({ domain, exact, path }) => {
+        const isHostMatch = exact 
+          ? parsedUrl.hostname === domain
+          : parsedUrl.hostname === domain || parsedUrl.hostname.endsWith(`.${domain}`);
+          
+        const isPathMatch = !path || parsedUrl.pathname.startsWith(path);
+        
+        return isHostMatch && isPathMatch;
+      });
+    } catch (error) {
+      // If URL parsing fails, log error and return false
+      videoLogger.warn('Invalid video URL:', directUrl);
+      return false;
+    }
+  })();
   
   // Use Intersection Observer for visibility
   useEffect(() => {
