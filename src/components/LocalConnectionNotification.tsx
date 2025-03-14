@@ -25,10 +25,16 @@ const LocalConnectionNotification: React.FC<LocalConnectionNotificationProps> = 
   const contentRef = useRef<HTMLDivElement>(null);
   const animationInProgress = useRef(false);
   
-  // Reset notification when user or loading state changes
+  // CRITICAL: Reset notification when user or loading state changes
   useEffect(() => {
-    console.log('🔴 USER OR LOADING CHANGED - resetting notification');
+    console.log('🔴 USER OR LOADING CHANGED - completely resetting notification');
+    // Complete reset of all state variables
     setShowNotification(false);
+    setUsername('');
+    setLikedCount(0);
+    setIsBackgroundVisible(false);
+    setIsContentVisible(false);
+    animationInProgress.current = false;
   }, [selectedUser, isLoadingNFTs]);
   
   // Check for connections only after everything is fully loaded
@@ -169,10 +175,14 @@ const LocalConnectionNotification: React.FC<LocalConnectionNotificationProps> = 
     };
   }, [hideWithAnimation, showNotification]);
 
-  // Don't render if conditions aren't met
-  if (!selectedUser || isLoadingNFTs || nfts.length === 0 || likedCount === 0) {
+  // STRICT VALIDATION: Don't render if ANY condition isn't met
+  if (!showNotification || !selectedUser || isLoadingNFTs || nfts.length === 0 || likedCount === 0) {
+    console.log(`🛑 Not rendering connection notification - validation failed`);
     return null;
   }
+  
+  // Extra debug logging to help track the notification state
+  console.log(`✅ Rendering connection notification for ${username} with ${likedCount} liked NFTs`);
 
   return (
     <header className={`fixed top-0 left-0 right-0 h-16 flex items-center justify-center z-50 transition-all duration-700 ease-out ${
