@@ -77,11 +77,24 @@ export const optimizeImage = async (file: File, maxWidth = 680, maxHeight = 560,
     const objectUrl = URL.createObjectURL(file);
     
     // SECURITY: Validate object URL before assigning to prevent XSS
-    if (objectUrl.startsWith('blob:') || objectUrl.startsWith('data:image/')) {
-      img.src = objectUrl;
-    } else {
+    try {
+      // Use URL constructor to validate - this prevents XSS by ensuring proper URL format
+      const url = new URL(objectUrl);
+      
+      // Only allow blob: URLs (for local files) and data: URLs for images
+      if (url.protocol === 'blob:' || (url.protocol === 'data:' && url.pathname.startsWith('image/'))) {
+        // Assign to src property using the validated URL string
+        // Use the string representation of the URL object to prevent XSS
+        img.src = url.href;
+      } else {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error('Invalid image source protocol'));
+        return;
+      }
+    } catch (error) {
+      // Invalid URL format
       URL.revokeObjectURL(objectUrl);
-      reject(new Error('Invalid image source'));
+      reject(new Error('Invalid image source format'));
       return;
     }
     

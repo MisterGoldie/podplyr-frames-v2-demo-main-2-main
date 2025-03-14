@@ -206,17 +206,40 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
               nft.isVideo = true;
             }
           } catch (error) {
-            // If URL parsing fails, fall back to a more conservative check
-            // Still safer than the previous approach
-            if (animUrl.includes('://ipfs.io/') || 
-                animUrl.includes('://cloudflare-ipfs.com/') || 
-                animUrl.includes('://ipfs.infura.io/')) {
+            // If URL parsing fails, try again with a more careful approach
+            try {
+              // SECURITY: Proper URL parsing with validation
+              const urlWithProtocol = animUrl.startsWith('http') ? animUrl : `https://${animUrl}`;
+              const parsedUrl = new URL(urlWithProtocol);
               
-              // Only consider it a video if it doesn't have an audio extension
-              if (!animUrl.endsWith('.mp3') && !animUrl.endsWith('.wav') && 
-                  !animUrl.endsWith('.ogg') && !animUrl.endsWith('.flac')) {
-                nft.isVideo = true;
+              // Define allowed IPFS hostnames
+              const allowedIpfsHosts = [
+                'ipfs.io',
+                'cloudflare-ipfs.com',
+                'ipfs.infura.io',
+                'dweb.link',
+                'gateway.pinata.cloud'
+              ];
+              
+              // Check if the hostname exactly matches or is a subdomain of an allowed host
+              const isIpfsHost = allowedIpfsHosts.some(host => 
+                parsedUrl.hostname === host || parsedUrl.hostname.endsWith(`.${host}`));
+              
+              // If it's a valid IPFS host
+              if (isIpfsHost) {
+                // Check file extension from the pathname
+                const path = parsedUrl.pathname.toLowerCase();
+                const isAudioFile = path.endsWith('.mp3') || path.endsWith('.wav') || 
+                                  path.endsWith('.ogg') || path.endsWith('.flac');
+                
+                // Mark as video if it's not an audio file
+                if (!isAudioFile) {
+                  nft.isVideo = true;
+                }
               }
+            } catch (secondError) {
+              // If both parsing attempts fail, log and continue
+              console.error('Error parsing animation URL after fallback:', secondError);
             }
           }
         }
@@ -238,17 +261,31 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
             nft.isVideo = true;
           }
         } catch (error) {
-          // If URL parsing fails, fall back to a more conservative check
-          // This is safer than the previous approach but still not ideal
-          console.error('Error parsing external URL:', error);
-          
-          // Even in fallback mode, make a more strict check with protocol
-          const externalUrlLower = externalUrl.toLowerCase();
-          if ((externalUrlLower.startsWith('http://') || externalUrlLower.startsWith('https://')) && 
-              (externalUrlLower.includes('://youtube.com/') || 
-               externalUrlLower.includes('://www.youtube.com/') || 
-               externalUrlLower.includes('://youtu.be/'))) {
-            nft.isVideo = true;
+          // If URL parsing fails, try again with a more careful approach
+          try {
+            // SECURITY: Proper URL parsing with validation - ensure URL has protocol
+            const urlWithProtocol = externalUrl.startsWith('http') ? externalUrl : `https://${externalUrl}`;
+            const parsedUrl = new URL(urlWithProtocol);
+            
+            // Define allowed YouTube hostnames
+            const youtubeHosts = [
+              'youtube.com',
+              'www.youtube.com',
+              'youtu.be'
+            ];
+            
+            // Check if the hostname exactly matches or is a subdomain of YouTube
+            const isYoutubeHost = youtubeHosts.some(host => 
+              parsedUrl.hostname === host || 
+              // This handles m.youtube.com, music.youtube.com, etc.
+              (host === 'youtube.com' && parsedUrl.hostname.endsWith('.youtube.com')));
+            
+            if (isYoutubeHost) {
+              nft.isVideo = true;
+            }
+          } catch (secondError) {
+            // If both parsing attempts fail, log the error and continue
+            console.error('Error parsing YouTube URL after fallback:', secondError);
           }
         }
       }
