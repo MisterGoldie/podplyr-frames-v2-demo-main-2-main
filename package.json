@@ -65,6 +65,7 @@
   },
   "packageManager": "yarn@4.1.1",
   "resolutions": {
-    "@next/swc-linux-arm64-gnu": "latest"
+    "@next/swc-linux-arm64-gnu": "latest",
+    "axios": "^1.8.2"
   }
 }
