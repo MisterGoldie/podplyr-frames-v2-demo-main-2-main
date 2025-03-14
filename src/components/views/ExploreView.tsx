@@ -688,7 +688,7 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                                   Official
                                 </span>
                               )}
-                              {[7472, 14871, 414859, 356115, 296462, 195864, 1020224].includes(user.fid) && (
+                              {[7472, 14871, 414859, 356115, 296462, 195864, 1020224, 1020659].includes(user.fid) && (
                                 <span className="text-xs font-mono px-2 py-0.5 rounded-full flex items-center font-semibold" 
                                       style={{ 
                                         background: 'linear-gradient(90deg, rgba(255,0,0,0.2) 0%, rgba(255,154,0,0.2) 25%, rgba(208,222,33,0.2) 50%, rgba(79,220,74,0.2) 75%, rgba(63,218,216,0.2) 100%)', 
@@ -821,7 +821,7 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                                   Official
                                 </span>
                               )}
-                              {[7472, 14871, 414859, 356115, 296462, 195864, 1020224].includes(user.fid) && (
+                              {[7472, 14871, 414859, 356115, 296462, 195864, 1020224, 1020659].includes(user.fid) && (
                                 <span className="text-xs font-mono px-2 py-0.5 rounded-full flex items-center font-semibold" 
                                       style={{ 
                                         background: 'linear-gradient(90deg, rgba(255,0,0,0.2) 0%, rgba(255,154,0,0.2) 25%, rgba(208,222,33,0.2) 50%, rgba(79,220,74,0.2) 75%, rgba(63,218,216,0.2) 100%)', 

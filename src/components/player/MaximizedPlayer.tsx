@@ -529,9 +529,9 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
               <div className="flex justify-center items-center gap-12 mb-8">
                 {/* Previous Track */}
                 <button
-                  onClick={onPrevious}
+                  onClick={onNext}
                   className="text-white hover:scale-110 transition-transform"
-                  disabled={!onPrevious}
+                  disabled={!onNext}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px" fill="currentColor">
                     <path d="M220-240v-480h80v480h-80Zm440 0v-480l-360 240 360 240Z"/>
@@ -556,8 +556,9 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
 
                 {/* Next Track */}
                 <button
-                  onClick={onNext}
+                  onClick={onPrevious}
                   className="text-white hover:scale-110 transition-transform"
+                  disabled={!onPrevious}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px" fill="currentColor">
                     <path d="M660-240v-480h80v480h-80ZM220-240v-480l360 240-360 240Z"/>
