@@ -41,6 +41,7 @@ export const MuxPlayer: React.FC<MuxPlayerProps> = ({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const mediaSourceRef = useRef<MediaSource | null>(null);
   const sourceBufferRef = useRef<SourceBuffer | null>(null);
+  const mediaUrlRef = useRef<string | null>(null);
   const { isCellular, generation } = isCellularConnection();
   
   // For MSE implementation
@@ -167,8 +168,19 @@ export const MuxPlayer: React.FC<MuxPlayerProps> = ({
         const mediaSource = new MediaSource();
         mediaSourceRef.current = mediaSource;
         
-        // Set video source to MediaSource object URL
-        videoRef.current.src = URL.createObjectURL(mediaSource);
+        // Set video source to MediaSource object URL - only use for MediaSource objects
+        // which are explicitly created in our code and not from external sources
+        const objectUrl = URL.createObjectURL(mediaSource);
+        videoRef.current.src = objectUrl;
+        
+        // Store the URL for later cleanup
+        const previousUrl = mediaUrlRef.current;
+        mediaUrlRef.current = objectUrl;
+        
+        // Clean up previous URL if it exists
+        if (previousUrl) {
+          URL.revokeObjectURL(previousUrl);
+        }
         
         // When MediaSource is ready
         mediaSource.addEventListener('sourceopen', async () => {

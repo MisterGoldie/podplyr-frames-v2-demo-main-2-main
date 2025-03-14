@@ -6,6 +6,7 @@ import { getCdnUrl, CDN_CONFIG } from './cdn';
 // Helper function to clean IPFS URLs
 export const getCleanIPFSUrl = (url: string): string => {
   if (!url) return url;
+  if (typeof url !== 'string') return '';
   // Remove any duplicate 'ipfs' in the path
   return url.replace(/\/ipfs\/ipfs\//g, '/ipfs/');
 };
@@ -20,6 +21,7 @@ export const IPFS_GATEWAYS = [
 // Helper function to extract CID from various IPFS URL formats
 export const extractIPFSHash = (url: string): string | null => {
   if (!url) return null;
+  if (typeof url !== 'string') return null;
 
   // Remove any duplicate 'ipfs' in the path
   url = url.replace(/\/ipfs\/ipfs\//, '/ipfs/');
@@ -36,9 +38,14 @@ export const extractIPFSHash = (url: string): string | null => {
   }
 
   // Handle nftstorage.link URLs
-  if (url.includes('nftstorage.link/ipfs/')) {
-    // Keep using the nftstorage.link gateway for these URLs
-    return url;
+  try {
+    const parsedUrl = new URL(url);
+    if (parsedUrl.hostname === 'nftstorage.link' && parsedUrl.pathname.includes('/ipfs/')) {
+      // Keep using the nftstorage.link gateway for these URLs
+      return url;
+    }
+  } catch (e) {
+    // If URL parsing fails, continue with other checks
   }
 
   // Handle direct CID - support both v0 and v1 CIDs
@@ -67,6 +74,7 @@ export const isAudioUrlUsedAsImage = (nft: NFT, imageUrl: string): boolean => {
 // Function to process Arweave URLs into valid HTTP URLs
 export const processArweaveUrl = (url: string): string => {
   if (!url) return url;
+  if (typeof url !== 'string') return '';
   
   try {
     // If it's already an https://arweave.net URL, return it as is
@@ -80,60 +88,46 @@ export const processArweaveUrl = (url: string): string => {
     }
     
     // Complex ar:// format with path segments
-    if (url.includes('ar://')) {
+    if (url.startsWith('ar://')) {
       // Extract the path after ar://
-      const arPath = url.split('ar://')[1];
-      if (arPath) {
-        // For complex paths with multiple segments, use the last segment as the transaction ID
-        const segments = arPath.split('/');
-        
-        // If there's only one segment, use it directly
-        if (segments.length === 1) {
-          const cleanId = segments[0].split('?')[0].split('#')[0].split('.')[0];
-          return `https://arweave.net/${cleanId}`;
+      const parts = url.split('ar://');
+      if (parts.length > 1) {
+        const arPath = parts[1];
+        if (arPath) {
+          // For complex paths with multiple segments, use the last segment as the transaction ID
+          const segments = arPath.split('/');
+          
+          // If there's only one segment, use it directly
+          if (segments.length === 1) {
+            const cleanId = segments[0].split('?')[0].split('#')[0].split('.')[0];
+            return `https://arweave.net/${cleanId}`;
+          }
+          
+          // For the specific format ar://0xcuaDtgYmzvypeji38byrjvgdWpylfJYQd4pjd5GAk/FawYfxmBQBEMWj-0iB-ttUlJgXS3JmYSGxU0WQGrSvU.png
+          // We want to extract just the transaction ID (the last part)
+          const transactionId = segments[segments.length - 1];
+          
+          // Remove any query parameters, hash fragments, or file extensions
+          // But keep the extension for image files
+          const cleanId = transactionId.split('?')[0].split('#')[0];
+          // Check if it's an image or other media file with extension
+          if (/\.(jpg|jpeg|png|gif|webp|mp4|mp3|wav)$/i.test(cleanId)) {
+            // For media files, keep the extension
+            return `https://arweave.net/${cleanId}`;
+          } else {
+            // For other files, strip the extension
+            const baseId = cleanId.split('.')[0];
+            return `https://arweave.net/${baseId}`;
+          }
         }
-        
-        // For the specific format ar://0xcuaDtgYmzvypeji38byrjvgdWpylfJYQd4pjd5GAk/FawYfxmBQBEMWj-0iB-ttUlJgXS3JmYSGxU0WQGrSvU.png
-        // We want to extract just the transaction ID (the last part)
-        const transactionId = segments[segments.length - 1];
-        
-        // Remove any query parameters, hash fragments, or file extensions
-        // But keep the extension for image files
-        let cleanId = transactionId;
-        const hasExtension = /\.(png|jpg|jpeg|gif|webp|svg)$/i.test(transactionId);
-        
-        if (hasExtension) {
-          // For image files, keep the extension but remove query params and hash fragments
-          cleanId = transactionId.split('?')[0].split('#')[0];
-        } else {
-          // For other files, remove extension, query params, and hash fragments
-          cleanId = transactionId.split('?')[0].split('#')[0].split('.')[0];
-        }
-        
-        console.log('Arweave URL transformation:', {
-          original: url,
-          segments,
-          transactionId,
-          cleanId,
-          result: `https://arweave.net/${cleanId}`
-        });
-        
-        return `https://arweave.net/${cleanId}`;
       }
     }
     
+    // If we couldn't process it as an Arweave URL, return the original
     return url;
   } catch (error) {
+    // If there was an error processing the URL, return the original
     console.error('Error processing Arweave URL:', error);
-    // Return a direct HTTPS URL as a fallback
-    if (url.includes('ar://')) {
-      // Try to extract just the transaction ID
-      const parts = url.split('/');
-      const lastPart = parts[parts.length - 1];
-      if (lastPart && lastPart.length > 10) {
-        return `https://arweave.net/${lastPart.split('.')[0]}`;
-      }
-    }
     return url;
   }
 };
@@ -150,11 +144,20 @@ export const processMediaUrl = (url: string, fallbackUrl: string = '/default-nft
     }
     
     // Use CDN for HTTP(S) URLs that aren't already using a CDN
-    if ((url.startsWith('http://') || url.startsWith('https://')) && 
-        !url.includes('cloudflare-ipfs.com') && 
-        !url.includes('cdn.') && 
-        !url.includes('.cdn.')) {
-      return getCdnUrl(url, mediaType);
+    if ((url.startsWith('http://') || url.startsWith('https://'))) {
+      try {
+        const parsedUrl = new URL(url);
+        const hostname = parsedUrl.hostname;
+        
+        // Check if URL is not already using a CDN based on hostname
+        if (hostname !== 'cloudflare-ipfs.com' && 
+            !hostname.startsWith('cdn.') && 
+            !hostname.includes('.cdn.')) {
+          return getCdnUrl(url, mediaType);
+        }
+      } catch (error) {
+        console.error('Failed to parse URL:', url, error);
+      }
     }
   }
 

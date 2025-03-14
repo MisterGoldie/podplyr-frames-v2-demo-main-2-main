@@ -6,6 +6,12 @@ interface OptimizedImage {
 }
 
 export const optimizeImage = async (file: File, maxWidth = 680, maxHeight = 560, quality = 0.85): Promise<OptimizedImage> => {
+  // Validate file type to ensure it's actually an image
+  const validImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+  if (!file || !validImageTypes.includes(file.type)) {
+    return Promise.reject(new Error('Invalid image file type'));
+  }
+  
   return new Promise((resolve, reject) => {
     const img = new Image();
     const canvas = document.createElement('canvas');
@@ -67,8 +73,22 @@ export const optimizeImage = async (file: File, maxWidth = 680, maxHeight = 560,
       reject(new Error('Failed to load image'));
     };
 
-    // Load image from file
-    img.src = URL.createObjectURL(file);
+    // Load image from file - create object URL with proper cleanup
+    const objectUrl = URL.createObjectURL(file);
+    img.src = objectUrl;
+    
+    // Add onload handler to revoke the URL after image is loaded
+    const originalOnload = img.onload;
+    img.onload = (event) => {
+      // Call the original onload handler first
+      if (originalOnload) {
+        // @ts-ignore - TypeScript doesn't like reassigning event handlers
+        originalOnload.call(img, event);
+      }
+      
+      // Clean up the object URL to prevent memory leaks
+      URL.revokeObjectURL(objectUrl);
+    };
   });
 };
 
@@ -95,13 +115,13 @@ export function getOptimizedImageUrl(url: string, options: {
   } = options;
 
   // For IPFS URLs: Use an IPFS gateway that supports image optimization
-  if (url.includes('ipfs://')) {
+  if (typeof url === 'string' && url.startsWith('ipfs://')) {
     const ipfsHash = url.replace('ipfs://', '');
     return `https://cloudflare-ipfs.com/ipfs/${ipfsHash}?img-width=${width}&img-height=${height}&img-format=${format}&img-quality=${quality}`;
   }
   
   // For Arweave URLs
-  if (url.includes('ar://')) {
+  if (typeof url === 'string' && url.startsWith('ar://')) {
     const arweaveHash = url.replace('ar://', '');
     return `https://arweave.net/${arweaveHash}`;
   }

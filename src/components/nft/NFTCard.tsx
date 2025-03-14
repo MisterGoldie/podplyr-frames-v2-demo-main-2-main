@@ -153,6 +153,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   // Validate image URL to prevent loading errors
   const validateImageUrl = (url: string | undefined): boolean => {
     if (!url) return false;
+    if (typeof url !== 'string') return false;
     return (
       url !== 'undefined' && 
       url !== 'null' && 

@@ -69,7 +69,7 @@ const IPFS_GATEWAYS = [
 
 // Helper to extract IPFS hash from URL
 const extractIPFSHash = (url) => {
-  if (!url) return null;
+  if (!url || typeof url !== 'string') return null;
   
   // Remove any duplicate 'ipfs' in the path
   url = url.replace(/\/ipfs\/ipfs\//, '/ipfs/');
@@ -101,7 +101,7 @@ const tryIPFSGateways = async (ipfsHash) => {
 // Fetch event - network-first strategy with fallback to cache
 self.addEventListener('fetch', event => {
   // Handle IPFS requests
-  if (event.request.url.includes('/ipfs/')) {
+  if (event.request.url && typeof event.request.url === 'string' && event.request.url.includes('/ipfs/')) {
     const ipfsHash = extractIPFSHash(event.request.url);
     if (ipfsHash) {
       event.respondWith(
@@ -143,41 +143,59 @@ self.addEventListener('fetch', event => {
   }
   
   // Skip other cross-origin requests
-  if (!event.request.url.startsWith(self.location.origin)) {
+  if (!event.request.url || typeof event.request.url !== 'string' || !event.request.url.startsWith(self.location.origin)) {
     return;
   }
   
   // Skip Mux requests (we don't want to cache video streams)
-  if (event.request.url.includes('mux.com')) {
-    return;
+  if (typeof event.request.url === 'string') {
+    try {
+      const url = new URL(event.request.url);
+      // Check if the hostname is mux.com or a subdomain of mux.com
+      if (url.hostname === 'mux.com' || url.hostname.endsWith('.mux.com')) {
+        return;
+      }
+    } catch (error) {
+      // If URL parsing fails, continue processing the request
+      console.error('Error parsing URL:', error);
+    }
   }
 
   // For API requests, use network-first strategy
-  if (event.request.url.includes('/api/')) {
-    event.respondWith(
-      fetch(event.request)
-        .catch(error => {
-          console.warn('API fetch failed:', error);
-          return caches.match(event.request);
-        })
-        .then(response => {
-          if (!response) {
-            console.warn('No response from network or cache');
-            return new Response('Service temporarily unavailable', {
-              status: 503,
-              statusText: 'Service Unavailable'
-            });
-          }
-          // Clone the response before caching
-          const responseToCache = response.clone();
-          caches.open(RUNTIME_CACHE)
-            .then(cache => cache.put(event.request, responseToCache))
-            .catch(error => console.warn('Failed to cache response:', error));
-          return response;
-        })
-        .catch(() => caches.match(event.request))
-    );
-    return;
+  if (typeof event.request.url === 'string') {
+    try {
+      const url = new URL(event.request.url);
+      // Check if path starts with /api/ - this ensures we're checking the actual path component
+      if (url.pathname.startsWith('/api/')) {
+        event.respondWith(
+          fetch(event.request)
+            .catch(error => {
+              console.warn('API fetch failed:', error);
+              return caches.match(event.request);
+            })
+            .then(response => {
+              if (!response) {
+                console.warn('No response from network or cache');
+                return new Response('Service temporarily unavailable', {
+                  status: 503,
+                  statusText: 'Service Unavailable'
+                });
+              }
+              // Clone the response before caching
+              const responseToCache = response.clone();
+              caches.open(RUNTIME_CACHE)
+                .then(cache => cache.put(event.request, responseToCache))
+                .catch(error => console.warn('Failed to cache response:', error));
+              return response;
+            })
+            .catch(() => caches.match(event.request))
+        );
+        return;
+      }
+    } catch (error) {
+      // If URL parsing fails, continue processing the request
+      console.error('Error parsing URL in API path check:', error);
+    }
   }
 
   // For other requests, use cache-first strategy

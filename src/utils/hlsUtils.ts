@@ -16,6 +16,7 @@ const hlsInstances: Record<string, HlsModule.default> = {};
  * Check if a URL is an HLS stream URL
  */
 export function isHlsUrl(url: string): boolean {
+  if (typeof url !== 'string') return false;
   return url.includes('.m3u8');
 }
 
@@ -23,6 +24,9 @@ export function isHlsUrl(url: string): boolean {
  * Get the HLS URL from a source URL
  */
 export function getHlsUrl(url: string): string {
+  // Validate input
+  if (typeof url !== 'string') return '';
+  
   // If it's already an HLS URL, return it
   if (isHlsUrl(url)) {
     return url;

@@ -173,7 +173,7 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
       }
       
       // Determine if this is a video NFT
-      if (nft.metadata?.animation_url) {
+      if (nft.metadata?.animation_url && typeof nft.metadata.animation_url === 'string') {
         const animUrl = nft.metadata.animation_url.toLowerCase();
         if (
           animUrl.endsWith('.mp4') || 
@@ -188,7 +188,7 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
       // Special case for YouTube links
       // Check for YouTube links in metadata properties
       const externalUrl = nft.metadata?.properties?.['external_url'] || '';
-      if (typeof externalUrl === 'string') {
+      if (typeof externalUrl === 'string' && externalUrl) {
         const externalUrlLower = externalUrl.toLowerCase();
         if (externalUrlLower.includes('youtube.com') || externalUrlLower.includes('youtu.be')) {
           nft.isVideo = true;
@@ -470,17 +470,17 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
             contract: nft.contract,
             tokenId: nft.tokenId,
             name: nft.name || 'Untitled',
-            description: nft.description || nft.metadata?.description || '',
-            image: nft.image || nft.metadata?.image || '',
-            audio: nft.audio || nft.metadata?.animation_url || '',
+            description: nft.description || (typeof nft.metadata?.description === 'string' ? nft.metadata.description : '') || '',
+            image: nft.image || (typeof nft.metadata?.image === 'string' ? nft.metadata.image : '') || '',
+            audio: nft.audio || (typeof nft.metadata?.animation_url === 'string' ? nft.metadata.animation_url : '') || '',
             metadata: nft.metadata || {}
           },
           nftContract: nft.contract,
           tokenId: nft.tokenId,
           name: nft.name || 'Untitled',
-          description: nft.description || nft.metadata?.description || '',
-          image: nft.image || nft.metadata?.image || '',
-          audioUrl: nft.audio || nft.metadata?.animation_url || '',
+          description: nft.description || (typeof nft.metadata?.description === 'string' ? nft.metadata.description : '') || '',
+          image: nft.image || (typeof nft.metadata?.image === 'string' ? nft.metadata.image : '') || '',
+          audioUrl: nft.audio || (typeof nft.metadata?.animation_url === 'string' ? nft.metadata.animation_url : '') || '',
           collection: nft.collection?.name || 'Unknown Collection',
           network: nft.network || 'ethereum',
           timestamp: serverTimestamp()
@@ -505,9 +505,9 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
             nftContract: nft.contract,
             tokenId: nft.tokenId,
             name: nft.name || 'Untitled',
-            description: nft.description || nft.metadata?.description || '',
-            imageUrl: nft.image || nft.metadata?.image || '',
-            audioUrl: nft.audio || nft.metadata?.animation_url || '',
+            description: nft.description || (typeof nft.metadata?.description === 'string' ? nft.metadata.description : '') || '',
+            imageUrl: nft.image || (typeof nft.metadata?.image === 'string' ? nft.metadata.image : '') || '',
+            audioUrl: nft.audio || (typeof nft.metadata?.animation_url === 'string' ? nft.metadata.animation_url : '') || '',
             metadata: nft.metadata || {},
             firstLiked: serverTimestamp(),
             lastLiked: serverTimestamp(),
@@ -522,9 +522,9 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
           contract: nft.contract,
           tokenId: nft.tokenId,
           name: nft.name || 'Untitled',
-          description: nft.description || nft.metadata?.description || '',
-          image: nft.image || nft.metadata?.image || '',
-          audioUrl: nft.audio || nft.metadata?.animation_url || '',
+          description: nft.description || (typeof nft.metadata?.description === 'string' ? nft.metadata.description : '') || '',
+          image: nft.image || (typeof nft.metadata?.image === 'string' ? nft.metadata.image : '') || '',
+          audioUrl: nft.audio || (typeof nft.metadata?.animation_url === 'string' ? nft.metadata.animation_url : '') || '',
           collection: nft.collection?.name || 'Unknown Collection',
           network: nft.network || 'ethereum',
           timestamp: serverTimestamp()
@@ -544,9 +544,9 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
               contract: nft.contract,
               tokenId: nft.tokenId,
               name: nft.name || 'Untitled',
-              description: nft.description || nft.metadata?.description || '',
-              image: nft.image || nft.metadata?.image || '',
-              audio: nft.audio || nft.metadata?.animation_url || '',
+              description: nft.description || (typeof nft.metadata?.description === 'string' ? nft.metadata.description : '') || '',
+              image: nft.image || (typeof nft.metadata?.image === 'string' ? nft.metadata.image : '') || '',
+              audio: nft.audio || (typeof nft.metadata?.animation_url === 'string' ? nft.metadata.animation_url : '') || '',
               metadata: nft.metadata || {},
               collection: nft.collection?.name || 'Unknown Collection',
               network: nft.network || 'ethereum',
@@ -599,9 +599,9 @@ export const addLikedNFT = async (fid: number, nft: NFT): Promise<void> => {
       contract: nft.contract,
       tokenId: nft.tokenId,
       name: nft.name || 'Untitled',
-      description: nft.description || nft.metadata?.description || '',
-      image: nft.image || nft.metadata?.image || '',
-      audioUrl: nft.audio || nft.metadata?.animation_url || '',
+      description: nft.description || (typeof nft.metadata?.description === 'string' ? nft.metadata.description : '') || '',
+      image: nft.image || (typeof nft.metadata?.image === 'string' ? nft.metadata.image : '') || '',
+      audioUrl: nft.audio || (typeof nft.metadata?.animation_url === 'string' ? nft.metadata.animation_url : '') || '',
       collection: nft.collection?.name || 'Unknown Collection',
       network: nft.network || 'ethereum',
       timestamp: serverTimestamp()
