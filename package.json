@@ -66,6 +66,7 @@
   "packageManager": "yarn@4.1.1",
   "resolutions": {
     "@next/swc-linux-arm64-gnu": "latest",
-    "axios": "^1.8.2"
+    "axios": "^1.8.2",
+    "@babel/runtime": "^7.26.10"
   }
 }
