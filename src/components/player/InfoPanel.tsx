@@ -3,6 +3,7 @@ import { useNFTPlayCount } from '../../hooks/useNFTPlayCount';
 import { useNFTLikeState } from '../../hooks/useNFTLikeState';
 import { useNFTTopPlayed } from '../../hooks/useNFTTopPlayed';
 import type { NFT } from '../../types/user';
+import { getMediaKey } from '../../utils/media';
 
 interface InfoPanelProps {
   nft: NFT;
@@ -61,11 +62,11 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ nft, onClose, userFid = 0 }) => {
               <div className="flex items-center gap-2">
                 <div className={`flex items-center gap-1.5 ${isLiked ? 'bg-purple-500/20' : 'bg-purple-500/10'} px-2 py-0.5 rounded-full`}>
                   {isLiked ? (
-                    <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="red" className="text-red-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="red" className="text-red-500" data-media-key={nft.mediaKey || getMediaKey(nft)} data-liked="true">
                       <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
                     </svg>
                   ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="currentColor" className="text-purple-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="currentColor" className="text-purple-400" data-media-key={nft.mediaKey || getMediaKey(nft)} data-liked="false">
                       <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Zm0-108q96-86 158-147.5t98-107q36-45.5 50-81t14-70.5q0-60-40-100t-100-40q-47 0-87 26.5T518-680h-76q-15-41-55-67.5T300-774q-60 0-100 40t-40 100q0 35 14 70.5t50 81q36 45.5 98 107T480-228Zm0-273Z"/>
                     </svg>
                   )}
