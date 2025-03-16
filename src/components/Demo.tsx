@@ -594,6 +594,17 @@ const Demo: React.FC = () => {
         const updatedLikedNFTs = [...prev];
         
         if (newLikeState) {
+          // CRITICAL FIX: Remove from permanentlyRemovedNFTs when liking
+          // This allows re-liking NFTs that were previously removed
+          setPermanentlyRemovedNFTs(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(mediaKey)) {
+              console.log('🔄 DEBUG - Demo: Removing NFT from permanentlyRemovedNFTs to allow re-liking', { mediaKey });
+              newSet.delete(mediaKey);
+            }
+            return newSet;
+          });
+          
           // LIKE: Add NFT if not already in collection by mediaKey
           const existingIndex = updatedLikedNFTs.findIndex(item => {
             const itemMediaKey = getMediaKey(item);
