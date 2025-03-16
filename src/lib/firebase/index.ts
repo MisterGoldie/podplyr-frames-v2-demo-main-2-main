@@ -27,7 +27,8 @@ export {
   getLikedNFTs,
   toggleLikeNFT,
   addLikedNFT,
-  removeLikedNFT
+  removeLikedNFT,
+  subscribeToLikedNFTs
 } from './likes';
 
 // Export from social module

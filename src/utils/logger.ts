@@ -24,15 +24,15 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 // Set this to true to enable logs in production (normally should be false)
 const FORCE_LOGS_IN_PRODUCTION = false;
 
-// Master switch to enable/disable all logging - default to FALSE to stop logs
-export let DEBUG_MODE = false; // Changed the default to false to stop all logs
+// Master switch to enable/disable all logging - FORCE ENABLE for debugging likes
+export let DEBUG_MODE = true; // FORCE ENABLED to debug the like functionality
 
 // Enable specific log levels (can be customized)
 const ENABLED_LEVELS = {
-  debug: DEBUG_MODE && !IS_PRODUCTION, // Debug logs only in development
-  info: DEBUG_MODE,                    // Info logs in development or if forced
-  warn: true,                          // Warnings always shown
-  error: true,                         // Errors always shown
+  debug: true, // FORCE ENABLED for debugging
+  info: true,  // FORCE ENABLED for debugging
+  warn: true,  // Warnings always shown
+  error: true, // Errors always shown
 };
 
 // Enable logs for specific modules (can be customized)
@@ -109,7 +109,8 @@ const log = (
 };
 
 /**
- * Function to completely disable all logs (including warnings and errors)
+ * Function to completely disable all logs - MODIFIED to preserve console methods for debugging
+ * CRITICAL: This now only changes the DEBUG_MODE flags but DOES NOT override console methods
  */
 const disableAllLogs = () => {
   DEBUG_MODE = false;
@@ -118,20 +119,9 @@ const disableAllLogs = () => {
   ENABLED_LEVELS.warn = false;
   ENABLED_LEVELS.error = false;
   
-  // Also monkey patch console methods
-  const noop = () => {};
-  const originalConsole = { ...console };
+  console.warn('⚠️⚠️⚠️ LOGGER: Logs were disabled via disableAllLogs, but console methods are preserved for debugging');
   
-  // Save original methods in case we need to restore them
-  // @ts-ignore - adding custom property to window
-  window._originalConsole = originalConsole;
-  
-  // Replace all console methods with no-op function
-  console.log = noop;
-  console.info = noop;
-  console.warn = noop;
-  console.error = noop;
-  console.debug = noop;
+  // NO LONGER overrides console methods to ensure direct console logs continue to work
 };
 
 /**

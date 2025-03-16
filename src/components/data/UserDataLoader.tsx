@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { searchUsers, getLikedNFTs } from '../../lib/firebase';
+import { subscribeToLikedNFTs } from '../../lib/firebase/likes';
 import { fetchUserNFTsFromAlchemy } from '../../lib/alchemy';
 import type { NFT, FarcasterUser } from '../../types/user';
 
@@ -115,11 +116,24 @@ export const UserDataLoader: React.FC<UserDataLoaderProps> = ({
 
         onNFTsLoaded(allNFTs);
 
-        // Load liked NFTs
-        console.log('Loading liked NFTs...');
+        // Initial load of liked NFTs (for backward compatibility)
+        console.log('Loading liked NFTs initially...');
         const likedNFTs = await getLikedNFTs(userFid);
-        console.log('Liked NFTs loaded:', likedNFTs.length);
+        console.log('Liked NFTs loaded initially:', likedNFTs.length);
         onLikedNFTsLoaded(likedNFTs);
+        
+        // Set up real-time subscription to liked NFTs
+        console.log('Setting up real-time subscription to liked NFTs...');
+        const unsubscribeLikes = subscribeToLikedNFTs(userFid, (updatedLikedNFTs: NFT[]) => {
+          console.log('Real-time liked NFTs update received:', updatedLikedNFTs.length);
+          onLikedNFTsLoaded(updatedLikedNFTs);
+        });
+        
+        // Return cleanup function
+        return () => {
+          console.log('Cleaning up liked NFTs subscription');
+          unsubscribeLikes();
+        };
 
       } catch (error) {
         console.error('Error loading user data:', error);
@@ -131,6 +145,9 @@ export const UserDataLoader: React.FC<UserDataLoaderProps> = ({
       loadUserData();
     }
   }, [userFid, onUserDataLoaded, onNFTsLoaded, onLikedNFTsLoaded, onError]);
+  
+  // This component doesn't render anything visible
+  // It just handles data loading and subscriptions
 
   return null;
 };
