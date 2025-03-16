@@ -65,7 +65,8 @@ export const cleanupLikes = async (fid: number) => {
               // Reference to user's likes subcollection document using mediaKey
               const userLikeRef = doc(db, 'users', fid.toString(), 'likes', mediaKey);
               
-              // Store essential NFT data
+              // Store essential NFT data with both timestamps
+              const now = Date.now();
               batch.set(userLikeRef, {
                 mediaKey,
                 contract: nft.contract,
@@ -75,7 +76,9 @@ export const cleanupLikes = async (fid: number) => {
                 image: nft.image || '',
                 audioUrl: nft.audio || nft.metadata?.animation_url || '',
                 metadata: nft.metadata || {},
-                timestamp: serverTimestamp()
+                serverTimestamp: serverTimestamp(),
+                timestamp: now,
+                timestampISO: new Date(now).toISOString()
               });
               
               migratedCount++;
@@ -124,10 +127,14 @@ export const cleanupLikes = async (fid: number) => {
               // Add to user's likes subcollection
               const userLikeRef = doc(db, 'users', fid.toString(), 'likes', mediaKey);
               
+              // Create numerical timestamp alongside serverTimestamp
+              const now = Date.now();
               batch.set(userLikeRef, {
                 mediaKey,
                 ...data,
-                timestamp: data.timestamp || serverTimestamp()
+                serverTimestamp: serverTimestamp(),
+                timestamp: data.timestamp || now,
+                timestampISO: new Date(now).toISOString()
               });
               
               // Delete from old collection

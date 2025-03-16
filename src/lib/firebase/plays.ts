@@ -11,8 +11,11 @@ import {
   onSnapshot,
   setDoc,
   getDoc,
+  addDoc,
   serverTimestamp,
-  documentId
+  documentId,
+  writeBatch,
+  Timestamp
 } from 'firebase/firestore';
 import type { NFT } from '../../types/user';
 import { db, firebaseLogger } from './config';
@@ -20,213 +23,150 @@ import { getMediaKey } from '../../utils/media';
 
 // Track NFT play and update play count globally
 export const trackNFTPlay = async (nft: NFT, fid: number) => {
+  firebaseLogger.info(`TRACKING PLAY FOR NFT BY FARCASTER USER ${fid} - USING ORIGINAL METHOD`);
   try {
-    if (!nft) {
-      firebaseLogger.error('Invalid NFT provided to trackNFTPlay');
-      return;
-    }
-
-    if (!fid) {
-      firebaseLogger.error('Invalid FID provided to trackNFTPlay');
-      return;
+    if (!nft || !fid) {
+      firebaseLogger.error('Invalid NFT or FID');
+      return { success: false, error: 'Invalid NFT or FID' };
     }
 
     const mediaKey = getMediaKey(nft);
     if (!mediaKey) {
-      firebaseLogger.error('Failed to generate mediaKey for NFT:', nft);
-      return;
+      firebaseLogger.error('Failed to get mediaKey');
+      return { success: false, error: 'Failed to get mediaKey' };
     }
-
-    firebaseLogger.info(`Tracking play for NFT: ${nft.name || 'Unknown'} with mediaKey: ${mediaKey}`);
-
-    // References to Firebase documents
-    const globalPlayRef = doc(db, 'global_plays', mediaKey);
-    const userPlayHistoryRef = doc(db, 'users', fid.toString(), 'play_history', mediaKey);
     
-    // Get current data for the NFT
+    firebaseLogger.info(`Generated mediaKey: ${mediaKey}`);
+
+    // STEP 1: Update global play count (this part always works)
+    // Create timestamps for consistency across collections
+    const now = Date.now(); // Current time in milliseconds
+    const nowISO = new Date(now).toISOString();
+    
+    const globalPlayRef = doc(db, 'global_plays', mediaKey);
     const globalPlayDoc = await getDoc(globalPlayRef);
     
-    // Update the global play count
     if (globalPlayDoc.exists()) {
-      // Update existing record
       await updateDoc(globalPlayRef, {
         playCount: increment(1),
-        lastPlayed: serverTimestamp()
+        lastPlayed: serverTimestamp(),
+        lastPlayedTimestamp: now,
+        lastPlayedISO: nowISO
       });
-      
-      firebaseLogger.info(`Updated existing global play record for ${mediaKey}`);
+      firebaseLogger.info(`Updated existing global play record`);
     } else {
-      // Create new record
       await setDoc(globalPlayRef, {
         playCount: 1,
         firstPlayed: serverTimestamp(),
+        firstPlayedTimestamp: now,
+        firstPlayedISO: nowISO,
         lastPlayed: serverTimestamp(),
+        lastPlayedTimestamp: now,
+        lastPlayedISO: nowISO,
+        nftContract: nft.contract,
+        tokenId: nft.tokenId,
+        name: nft.name || 'Untitled',
+        audioUrl: nft.audio || nft.metadata?.animation_url || '',
+        imageUrl: nft.image || nft.metadata?.image || '',
+        description: nft.description || nft.metadata?.description || '',
+        mediaKey
+      });
+      firebaseLogger.info(`Created new global play record`);
+    }
+    
+    // STEP 2: Create user document if needed
+    const userRef = doc(db, 'users', fid.toString());
+    const userDoc = await getDoc(userRef);
+    
+    if (!userDoc.exists()) {
+      // Create new user document
+      await setDoc(userRef, {
+        fid: fid,
+        createdAt: serverTimestamp(),
+        lastActive: serverTimestamp(),
+        hasPlayHistory: true
+      });
+      firebaseLogger.info(`Created new user document for FID ${fid}`);
+    } else {
+      // Update existing user
+      await updateDoc(userRef, {
+        lastActive: serverTimestamp(),
+        hasPlayHistory: true
+      });
+      firebaseLogger.info(`Updated existing user document for FID ${fid}`);
+    }
+    
+    // STEP 3: Create play history entry - THIS IS THE PART THAT WAS BROKEN
+    // THE CRITICAL DIFFERENCE: Use collection() and addDoc() instead of doc() and setDoc()
+    try {
+      // Get a reference to the playHistory collection (NOT a specific document)
+      const playHistoryRef = collection(db, 'users', fid.toString(), 'playHistory');
+      
+      firebaseLogger.info(`CREATING a new document in playHistory collection for user ${fid} with generated ID`);
+      
+      const playHistoryData = {
+        playCount: 1,
+        // Use both timestamps - one for server consistency, one for immediate display
+        serverTimestamp: serverTimestamp(), // Will be resolved on server
+        timestamp: now, // Actual numerical value for immediate display
+        timestampISO: nowISO, // Human-readable format
+        mediaKey: mediaKey,
         nftContract: nft.contract,
         tokenId: nft.tokenId,
         name: nft.name || 'Untitled',
         description: nft.description || nft.metadata?.description || '',
         audioUrl: nft.audio || nft.metadata?.animation_url || '',
-        imageUrl: nft.image || nft.metadata?.image || '',
-        metadata: nft.metadata || {},
-        mediaKey
-      });
+        image: nft.image || nft.metadata?.image || '',
+        collection: nft.collection?.name || 'Unknown Collection',
+        network: nft.network || 'ethereum',
+        fid: fid
+      };
       
-      firebaseLogger.info(`Created new global play record for ${mediaKey}`);
-    }
-    
-    // Update the user's play history
-    try {
-      const userPlayDoc = await getDoc(userPlayHistoryRef);
+      // Add a NEW document with an auto-generated ID
+      const newDoc = await addDoc(playHistoryRef, playHistoryData);
       
-      if (userPlayDoc.exists()) {
-        // Update existing record
-        await updateDoc(userPlayHistoryRef, {
-          playCount: increment(1),
-          lastPlayed: serverTimestamp()
-        });
-      } else {
-        // Create new record
-        await setDoc(userPlayHistoryRef, {
-          playCount: 1,
-          firstPlayed: serverTimestamp(),
-          lastPlayed: serverTimestamp(),
-          nftContract: nft.contract,
-          tokenId: nft.tokenId,
-          name: nft.name || 'Untitled',
-          description: nft.description || nft.metadata?.description || '',
-          audioUrl: nft.audio || nft.metadata?.animation_url || '',
-          imageUrl: nft.image || nft.metadata?.image || '',
-          metadata: nft.metadata || {},
-          mediaKey
-        });
-      }
+      firebaseLogger.info(`SUCCESS! Created playHistory document with ID: ${newDoc.id}`);
       
-      firebaseLogger.info(`Updated user play history for user ${fid}, NFT ${mediaKey}`);
-    } catch (error) {
-      firebaseLogger.error('Error updating user play history:', error);
-      // Continue since this is not critical
-    }
-    
-    // Update the top played collection
-    try {
-      const topPlayedRef = doc(db, 'top_played', mediaKey);
-      const topPlayedDoc = await getDoc(topPlayedRef);
-      
-      if (topPlayedDoc.exists()) {
-        // Update existing record
-        await updateDoc(topPlayedRef, {
-          playCount: increment(1),
-          lastPlayed: serverTimestamp()
-        });
-      } else {
-        // Check current count from global plays
-        const globalData = globalPlayDoc.exists() 
-          ? globalPlayDoc.data() 
-          : { playCount: 1 };
+      // STEP 4: Update recent plays collection
+      try {
+        // Get a reference to the recentPlays collection
+        const recentPlaysRef = collection(db, 'users', fid.toString(), 'recentPlays');
         
-        // Create new record
-        await setDoc(topPlayedRef, {
-          playCount: globalData.playCount || 1,
-          firstPlayed: serverTimestamp(),
-          lastPlayed: serverTimestamp(),
+        firebaseLogger.info(`Creating recentPlays document for user ${fid}`);
+        
+        // Create recent plays data with the same timestamp approach
+        const recentPlaysData = {
+          timestamp: now,
+          timestampISO: nowISO,
+          serverTimestamp: serverTimestamp(),
+          mediaKey: mediaKey,
           nftContract: nft.contract,
           tokenId: nft.tokenId,
           name: nft.name || 'Untitled',
           description: nft.description || nft.metadata?.description || '',
           audioUrl: nft.audio || nft.metadata?.animation_url || '',
-          imageUrl: nft.image || nft.metadata?.image || '',
-          metadata: nft.metadata || {},
-          mediaKey,
-          rank: 0  // Will be updated by background process
-        });
-      }
-      
-      firebaseLogger.info(`Updated top_played collection for ${mediaKey}`);
-    } catch (error) {
-      firebaseLogger.error('Error updating top played collection:', error);
-      // Continue since this is not critical
-    }
-    
-    // Also update the user's recent plays
-    try {
-      const recentPlaysRef = doc(db, 'users', fid.toString(), 'recent_plays', mediaKey);
-      
-      await setDoc(recentPlaysRef, {
-        nft: {
-          contract: nft.contract,
-          tokenId: nft.tokenId,
-          name: nft.name || 'Untitled',
-          description: nft.description || nft.metadata?.description || '',
           image: nft.image || nft.metadata?.image || '',
-          audio: nft.audio || nft.metadata?.animation_url || '',
-          metadata: nft.metadata || {},
-          collection: nft.collection || { name: 'Unknown Collection' },
-          network: nft.network || 'ethereum',
-          isVideo: !!nft.isVideo,
-          mediaKey
-        },
-        timestamp: serverTimestamp(),
-        mediaKey
-      });
-      
-      firebaseLogger.info(`Updated recent plays for user ${fid}, NFT ${mediaKey}`);
-    } catch (error) {
-      firebaseLogger.error('Error updating recent plays:', error);
-      // Continue since this is not critical
-    }
-    
-    // Also update or create NFT record in the nfts collection
-    try {
-      const nftRef = doc(db, 'nfts', `${nft.contract}-${nft.tokenId}`);
-      
-      // Check if it exists first
-      const nftDoc = await getDoc(nftRef);
-      
-      if (nftDoc.exists()) {
-        // Update existing record
-        await updateDoc(nftRef, {
-          plays: increment(1),
-          lastPlayed: serverTimestamp(),
-          mediaKey // Ensure mediaKey is set
-        });
-      } else {
-        // Create new record
-        await setDoc(nftRef, {
-          contract: nft.contract,
-          tokenId: nft.tokenId,
-          name: nft.name || 'Untitled',
-          description: nft.description || nft.metadata?.description || '',
-          image: nft.image || nft.metadata?.image || '',
-          audio: nft.audio || nft.metadata?.animation_url || '',
-          metadata: nft.metadata || {},
           collection: nft.collection?.name || 'Unknown Collection',
           network: nft.network || 'ethereum',
-          plays: 1,
-          likes: 0,
-          firstPlayed: serverTimestamp(),
-          lastPlayed: serverTimestamp(),
-          mediaKey,
-          isVideo: !!nft.isVideo
-        });
+          fid: fid
+        };
+        
+        // Add a NEW document with an auto-generated ID
+        const recentDoc = await addDoc(recentPlaysRef, recentPlaysData);
+        
+        firebaseLogger.info(`SUCCESS! Created recentPlays document with ID: ${recentDoc.id}`);
+      } catch (recentPlaysError) {
+        firebaseLogger.error(`Error creating recentPlays document: ${recentPlaysError}`);
+        // Continue since this isn't critical
       }
-      
-      firebaseLogger.info(`Updated nfts collection for ${nft.contract}-${nft.tokenId}`);
-    } catch (error) {
-      firebaseLogger.error('Error updating nfts collection:', error);
-      // Continue since this is not critical
+    } catch (playHistoryError) {
+      firebaseLogger.error(`CRITICAL: Play history creation failed: ${playHistoryError}`);
     }
     
-    // Return the updated play count
-    return {
-      success: true,
-      mediaKey
-    };
+    return { success: true, mediaKey };
   } catch (error) {
-    firebaseLogger.error('Error in trackNFTPlay:', error);
-    return {
-      success: false,
-      error
-    };
+    firebaseLogger.error(`CRITICAL ERROR: ${error}`);
+    return { success: false, error };
   }
 };
 

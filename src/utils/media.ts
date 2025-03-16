@@ -316,19 +316,13 @@ export const getMediaKey = (nft: NFT): string => {
     console.log('🔑 Using existing mediaKey:', nft.mediaKey.slice(0, 8));
     return nft.mediaKey;
   }
+  
+  // IMPORTANT: We must use URL-based approach to implement the content-first architecture.
+  // This ensures identical content = same mediaKey regardless of contract/tokenId.
+  // DO NOT prioritize contract-tokenId - that breaks the content-first approach.
 
-  // PRIORITIZE contract-tokenId format that's working correctly after migration
-  if (nft.contract && nft.tokenId) {
-    const contractTokenKey = `${nft.contract.toLowerCase()}_${nft.tokenId}`
-      .replace(/[^a-z0-9_]/g, '_')
-      .replace(/_+/g, '_');
-    
-    console.log('🔑 Using contract-tokenId key:', contractTokenKey.slice(0, 16));
-    return contractTokenKey;
-  }
-
-  // Fallback to URL-based approach only if contract/tokenId not available
-  // Get media URLs
+  // PRIMARY approach: Use URL-based keys to ensure content-first architecture
+  // Get media URLs that uniquely identify the content
   const videoUrl = nft.metadata?.animation_url || '';
   const imageUrl = nft.image || nft.metadata?.image || '';
   const audioUrl = nft.audio || '';
@@ -356,7 +350,7 @@ export const getMediaKey = (nft: NFT): string => {
     .replace(/_+/g, '_') // Clean up any remaining multiple underscores
     .replace(/^_+|_+$/g, ''); // Trim leading/trailing underscores
   
-  console.log('🔑 Fallback to URL-based key:', urlBasedKey.slice(0, 16));
+  console.log('🔑 Using content-based mediaKey:', urlBasedKey.slice(0, 16));
   return urlBasedKey;
 };
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { getFirestore, doc, onSnapshot, DocumentSnapshot } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, onSnapshot, DocumentSnapshot } from 'firebase/firestore';
 import type { NFT } from '../types/user';
 import { getMediaKey } from '../utils/media';
 
@@ -31,6 +31,9 @@ export const useNFTLikeState = (nft: NFT | null, fid: number) => {
       isSubscribedRef.current = false;
       return;
     }
+    
+    // Set loading true while we check
+    setIsLoading(true);
 
     const mediaKey = getMediaKey(nft);
     mediaKeyRef.current = mediaKey;
@@ -41,12 +44,41 @@ export const useNFTLikeState = (nft: NFT | null, fid: number) => {
       fid
     });
     
+    // FIRST: Do an immediate check instead of waiting for the listener
     const db = getFirestore();
     
-    // Listen to global likes count
+    // Define references once to avoid redeclaration
     const globalLikeRef = doc(db, 'global_likes', mediaKey);
-    // Listen to user's personal like status
     const userLikeRef = doc(db, 'users', fid.toString(), 'likes', mediaKey);
+    
+    // Get the initial state immediately with getDoc
+    getDoc(userLikeRef).then(docSnap => {
+      const initialLikedState = docSnap.exists();
+      setIsLiked(initialLikedState);
+      setIsLoading(false);
+      
+      likeStateLogger.info('Initial like state loaded:', { 
+        isLiked: initialLikedState, 
+        mediaKey,
+        nftName: nft.name,
+        fid,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Update DOM elements for consistency
+      try {
+        document.querySelectorAll(`[data-media-key="${mediaKey}"]`).forEach(element => {
+          element.setAttribute('data-liked', initialLikedState ? 'true' : 'false');
+        });
+      } catch (err) {
+        // Ignore DOM errors
+      }
+    }).catch(error => {
+      likeStateLogger.error('Error getting initial like state:', { error, mediaKey });
+      setIsLoading(false);
+    });
+    
+    // Now set up the real-time listeners
 
     // Set up real-time listeners
     const unsubscribeGlobal = onSnapshot(globalLikeRef,
