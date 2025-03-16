@@ -72,6 +72,15 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
         mediaKey
       });
       firebaseLogger.info(`Created new global play record`);
+      
+      // Randomly sync top_played collection (10% chance)
+      // This reduces database writes while still keeping top_played relatively fresh
+      if (Math.random() < 0.1) {
+        // Don't await this to avoid blocking the play tracking
+        syncTopPlayedCollection().catch(err => {
+          firebaseLogger.error('Failed to sync top_played collection during play:', err);
+        });
+      }
     }
     
     // STEP 2: Create user document if needed
@@ -166,6 +175,78 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
     return { success: true, mediaKey };
   } catch (error) {
     firebaseLogger.error(`CRITICAL ERROR: ${error}`);
+    return { success: false, error };
+  }
+};
+
+/**
+ * Maintains the top_played collection to contain ONLY the top 3 most-played NFTs
+ * This ensures we have a clean collection with just what we need for UI
+ */
+export const syncTopPlayedCollection = async (): Promise<{ success: boolean; error?: any }> => {
+  firebaseLogger.info('Syncing top_played collection to contain only top 3 NFTs');
+  
+  try {
+    // 1. Get the actual top 3 NFTs from global_plays collection
+    const globalPlaysRef = collection(db, 'global_plays');
+    const topNFTsQuery = query(
+      globalPlaysRef,
+      orderBy('playCount', 'desc'),
+      limit(3) // Only get top 3
+    );
+    
+    const topNFTsSnapshot = await getDocs(topNFTsQuery);
+    firebaseLogger.info(`Found ${topNFTsSnapshot.size} NFTs to include in top_played`);
+    
+    // 2. Get current contents of top_played collection
+    const topPlayedRef = collection(db, 'top_played');
+    const currentTopPlayedSnapshot = await getDocs(topPlayedRef);
+    firebaseLogger.info(`Current top_played collection has ${currentTopPlayedSnapshot.size} documents`);
+    
+    // 3. Use a batch for efficient updates
+    const batch = writeBatch(db);
+    
+    // Track which NFTs to keep
+    const keepMediaKeys = new Set<string>();
+    
+    // 4. Add or update the top 3 NFTs in top_played collection
+    topNFTsSnapshot.docs.forEach((docSnapshot, index) => {
+      const mediaKey = docSnapshot.id;
+      keepMediaKeys.add(mediaKey);
+      
+      const data = docSnapshot.data();
+      const now = Date.now();
+      
+      // Create a document reference correctly
+      const topPlayedDocRef = doc(db, 'top_played', mediaKey);
+      batch.set(topPlayedDocRef, {
+        ...data,
+        rank: index + 1,
+        lastUpdated: serverTimestamp(),
+        lastUpdatedTimestamp: now,
+        lastUpdatedISO: new Date(now).toISOString()
+      });
+      
+      firebaseLogger.info(`Adding/updating top played NFT: ${data.name || 'Untitled'} with rank ${index + 1}`);
+    });
+    
+    // 5. Remove any documents in top_played that aren't in our top 3
+    let removedCount = 0;
+    currentTopPlayedSnapshot.docs.forEach(docSnapshot => {
+      if (!keepMediaKeys.has(docSnapshot.id)) {
+        batch.delete(docSnapshot.ref);
+        removedCount++;
+        firebaseLogger.info(`Removing NFT from top_played: ${docSnapshot.data().name || 'Untitled'}`);
+      }
+    });
+    
+    // 6. Commit all changes in one batch
+    await batch.commit();
+    
+    firebaseLogger.info(`Successfully maintained top_played collection: kept ${keepMediaKeys.size} NFTs, removed ${removedCount} NFTs`);
+    return { success: true };
+  } catch (error) {
+    firebaseLogger.error('Error updating top_played collection:', error);
     return { success: false, error };
   }
 };
