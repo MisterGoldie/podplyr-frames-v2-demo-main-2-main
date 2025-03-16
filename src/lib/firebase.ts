@@ -840,20 +840,7 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
   try {
     firebaseLogger.info('Getting liked NFTs for FID:', fid);
     
-    // First get all permanently removed NFTs for this user
-    firebaseLogger.info('Fetching permanently removed NFTs for FID:', fid);
-    const removedLikesRef = collection(db, 'users', fid.toString(), 'removed_likes');
-    const removedSnapshot = await getDocs(removedLikesRef);
-    
-    // Create a set of permanently removed mediaKeys
-    const permanentlyRemovedKeys = new Set<string>();
-    removedSnapshot.docs.forEach(doc => {
-      permanentlyRemovedKeys.add(doc.id); // The document ID is the mediaKey
-      firebaseLogger.info(`Found permanently removed mediaKey: ${doc.id}`);
-    });
-    firebaseLogger.info(`Total permanently removed NFTs: ${permanentlyRemovedKeys.size}`);
-    
-    // Now get the user's likes, but filter out permanently removed ones
+    // Get the user's likes directly without filtering by removed_likes
     const userLikesRef = collection(db, 'users', fid.toString(), 'likes');
     const q = query(userLikesRef, orderBy('timestamp', 'asc'));
     const querySnapshot = await getDocs(q);
@@ -868,15 +855,14 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
     const seenNFTKeys = new Set<string>(); // Track NFTs by contract-tokenId
     const missingGlobalLikes = new Map<string, any>(); // Store mediaKey -> user like data
     
-    // First, collect all media keys and user like data, filtering out permanently removed ones
+    // Collect all media keys and user like data without filtering
     const mediaKeysWithData = querySnapshot.docs
-      .filter(doc => !permanentlyRemovedKeys.has(doc.id)) // Filter out permanently removed NFTs
       .map(doc => ({
         mediaKey: doc.id,
         data: doc.data()
       }));
     
-    firebaseLogger.info(`Found ${querySnapshot.docs.length} liked NFTs, ${mediaKeysWithData.length} after filtering out removed ones`);
+    firebaseLogger.info(`Found ${querySnapshot.docs.length} liked NFTs`);
     
     // Batch get all global likes to reduce number of requests
     const batchSize = 10;
@@ -1001,21 +987,9 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
           await batch.commit();
           firebaseLogger.info(`Fixed ${missingGlobalLikes.size} missing global like documents`);
           
-          // Filter out any permanently removed NFTs before adding to the list
-          const filteredNFTsToAdd = nftsToAdd.filter(nft => {
-            // Generate the mediaKey for this NFT
-            const mediaKey = getMediaKey(nft);
-            
-            // Check if this NFT is in the permanent removal list
-            if (permanentlyRemovedKeys.has(mediaKey)) {
-              firebaseLogger.info(`Skipping permanently removed NFT from being added: ${nft.name} (${mediaKey})`);
-              return false;
-            }
-            return true;
-          });
-          
-          firebaseLogger.info(`Adding ${filteredNFTsToAdd.length} fixed NFTs to the list (filtered from ${nftsToAdd.length})`);
-          likedNFTs.push(...filteredNFTsToAdd);
+          // Add all NFTs without filtering
+          firebaseLogger.info(`Adding ${nftsToAdd.length} fixed NFTs to the list`);
+          likedNFTs.push(...nftsToAdd);
         } catch (error) {
           firebaseLogger.error('Error fixing missing global likes:', error);
         }
@@ -1084,15 +1058,9 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
       firebaseLogger.info('User like exists - removing like');
       batch.delete(userLikeRef);
       
-      // Add to permanent removal list for this user
-      const permanentRemovalRef = doc(db, 'users', fid.toString(), 'removed_likes', mediaKey);
-      batch.set(permanentRemovalRef, {
-        mediaKey,
-        nftContract: nft.contract,
-        tokenId: nft.tokenId,
-        removedAt: serverTimestamp()
-      });
-      firebaseLogger.info(`Added ${nft.name} (${mediaKey}) to permanent removal list for user ${fid}`);
+      // We no longer add to permanent removal list
+      // This allows NFTs to be reliked and reappear in the library
+      firebaseLogger.info(`Removed ${nft.name} (${mediaKey}) from likes for user ${fid}`);
       
       if (globalLikeDoc.exists()) {
         try {

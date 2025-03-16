@@ -311,7 +311,18 @@ const createSafeId = (url: string): string => {
 export const getMediaKey = (nft: NFT): string => {
   if (!nft) return '';
 
-  // Get media URLs
+  // Check if the NFT already has a mediaKey property (from migration)
+  if (nft.mediaKey) {
+    console.log('🔑 Using existing mediaKey:', nft.mediaKey.slice(0, 8));
+    return nft.mediaKey;
+  }
+  
+  // IMPORTANT: We must use URL-based approach to implement the content-first architecture.
+  // This ensures identical content = same mediaKey regardless of contract/tokenId.
+  // DO NOT prioritize contract-tokenId - that breaks the content-first approach.
+
+  // PRIMARY approach: Use URL-based keys to ensure content-first architecture
+  // Get media URLs that uniquely identify the content
   const videoUrl = nft.metadata?.animation_url || '';
   const imageUrl = nft.image || nft.metadata?.image || '';
   const audioUrl = nft.audio || '';
@@ -328,18 +339,19 @@ export const getMediaKey = (nft: NFT): string => {
     .sort(); // Sort for consistency
 
   if (safeUrls.length === 0) {
-    // Fallback to contract and tokenId if no valid URLs
-    return `${nft.contract || ''}_${nft.tokenId || ''}`
-      .replace(/[^a-zA-Z0-9]/g, '_')
-      .replace(/_+/g, '_');
+    // Last resort fallback
+    return `unknown_nft_${Date.now()}`;
   }
 
   // Join with a delimiter and ensure it's Firestore-safe
-  return safeUrls.join('_')
+  const urlBasedKey = safeUrls.join('_')
     .toLowerCase() // Ensure consistent case
     .replace(/[^a-z0-9_]/g, '_') // Final safety check for Firestore-safe chars
     .replace(/_+/g, '_') // Clean up any remaining multiple underscores
     .replace(/^_+|_+$/g, ''); // Trim leading/trailing underscores
+  
+  console.log('🔑 Using content-based mediaKey:', urlBasedKey.slice(0, 16));
+  return urlBasedKey;
 };
 
 export function getDirectMediaUrl(url: string): string {

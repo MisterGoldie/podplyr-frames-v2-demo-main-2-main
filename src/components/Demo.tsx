@@ -85,9 +85,17 @@ const pageVariants = {
 };
 
 const Demo: React.FC = () => {
-  // NUCLEAR OPTION: Completely disable ALL logging including console
-  // WARNING: UNCOMMENT THIS LINE IF STILL SEEING LOGS AFTER OTHER FIXES
-  logger.disableAllLogs();
+  // CRITICAL: Force ENABLE all logs for debugging
+  // This overrides any previous disabling
+  logger.setDebugMode(true);
+  logger.enableLevel('debug', true);
+  logger.enableLevel('info', true);
+  logger.enableLevel('warn', true);
+  logger.enableLevel('error', true);
+  logger.enableModule('firebase', true);
+  
+  // Force direct console log to confirm logging is enabled
+  console.warn('📢📢📢 DEMO COMPONENT: Logging is ENABLED');
   
   // 1. Context Hooks
   const { fid } = useContext(FarcasterContext);
@@ -414,46 +422,99 @@ const Demo: React.FC = () => {
     }
   };
 
+  // Create a debug function with the same CUSTOM FILTER TAG as in likes.ts
+  const superDebug = (message: string, data: any = {}) => {
+    // Use consistent PODPLAYR-DEBUG tag that can be filtered in Chrome DevTools
+    // Just type "PODPLAYR-DEBUG" in the console filter box to see only these messages
+    console.log('PODPLAYR-DEBUG', `DEMO: ${message}`, data);
+    
+    // Also log as error to make it appear in the error console tab
+    console.error('PODPLAYR-DEBUG', `DEMO: ${message}`, data);
+  };
+
   const handleLikeToggle = async (nft: NFT) => {
+    // Use our custom filter tag for debugging
+    superDebug('LIKE BUTTON CLICKED', {
+      nft_name: nft.name,
+      nft_contract: nft.contract,
+      nft_tokenId: nft.tokenId,
+      timestamp: new Date().toISOString(),
+      mediaKey: nft.mediaKey || 'calculating...'
+    });
+    
     // FOR TESTING: Use a default test FID if none is provided
     // This allows us to test liking functionality in demo mode
     const effectiveUserFid = userFid || 1234; // Use dummy FID for testing
+    superDebug('USER FID', { fid: effectiveUserFid, isTestFid: !userFid });
     
     if (!effectiveUserFid || effectiveUserFid <= 0) {
+      superDebug('ERROR: INVALID USER FID', { fid: effectiveUserFid });
       logger.error('❌ Cannot toggle like: Invalid userFid', effectiveUserFid);
       setError('Login required to like NFTs');
       return;
     }
     
     try {
-      // Get the NFT key for tracking
-      const nftKey = `${nft.contract?.toLowerCase()}-${nft.tokenId}`;
+      // Get mediaKey for content-first approach - this is critical
+      const mediaKey = getMediaKey(nft);
+      superDebug('MEDIA KEY (CONTENT-FIRST ID)', { 
+        mediaKey, 
+        contract: nft.contract,
+        tokenId: nft.tokenId,
+        audio: nft.audio?.slice(0, 30) + '...' 
+      });
+      
+      if (!mediaKey) {
+        superDebug('ERROR: INVALID MEDIA KEY', { nft: nft.name });
+        logger.error('❌ Invalid mediaKey for NFT:', nft);
+        return;
+      }
+      
+      superDebug('TOGGLING LIKE FOR NFT', { 
+        nftName: nft.name, 
+        mediaKey: mediaKey,
+        timestamp: new Date().toISOString()
+      });
+      logger.info(`Toggling like for NFT: ${nft.name}, mediaKey: ${mediaKey}`);
+      
+      // Check current like status
       const isCurrentlyLiked = isNFTLiked(nft, true);
+      superDebug('CURRENT LIKE STATUS', { 
+        status: isCurrentlyLiked ? 'LIKED' : 'NOT LIKED',
+        nftName: nft.name,
+        mediaKey: mediaKey
+      });
       
       // In library view, we're ALWAYS unliking
       // In other views, check if the NFT is already liked
       const isUnliking = currentPage.isLibrary || isCurrentlyLiked;
+      superDebug('LIKE ACTION', { 
+        action: isUnliking ? 'UNLIKE' : 'LIKE',
+        inLibraryView: currentPage.isLibrary,
+        currentlyLiked: isCurrentlyLiked,
+        nftName: nft.name
+      });
       
-      // If we're unliking (in library or the NFT is already liked)
+      // IMMEDIATE UI UPDATE for better UX
       if (isUnliking) {
-        // PERMANENT REMOVAL: Add this NFT to our permanent blacklist
-        setPermanentlyRemovedNFTs(prev => {
-          const updated = new Set(prev);
-          updated.add(nftKey);
-          return updated;
+        // Remove all NFTs with the same mediaKey (content-first approach)
+        const filteredNFTs = likedNFTs.filter(item => {
+          const itemMediaKey = getMediaKey(item);
+          return itemMediaKey !== mediaKey;
         });
         
-        // IMMEDIATE UI UPDATE
-        const filteredNFTs = likedNFTs.filter(item => {
-          const itemKey = `${item.contract?.toLowerCase()}-${item.tokenId}`;
-          return itemKey !== nftKey;
+        // Add to permanently removed NFTs using mediaKey (content-first approach)
+        setPermanentlyRemovedNFTs(prev => {
+          const newSet = new Set(prev);
+          newSet.add(mediaKey); // Using mediaKey instead of contract-tokenId
+          return newSet;
         });
         
         // Update state immediately
         setLikedNFTs(filteredNFTs);
         setIsLiked(false);
         
-        // Show notification directly from here to ensure it appears
+        // Show notification in library view
         if (libraryViewRef.current) {
           libraryViewRef.current.setState({
             showUnlikeNotification: true,
@@ -469,136 +530,260 @@ const Demo: React.FC = () => {
         }
       }
       
-      // THEN call Firebase (in background)
-      let wasLiked = false;
+      // Enhanced console logging with styling
+      superDebug('PREPARING FIREBASE CALL', { 
+        nft: nft.name, 
+        mediaKey, 
+        userId: effectiveUserFid, 
+        action: isUnliking ? 'UNLIKE' : 'LIKE',
+        time: new Date().toISOString()
+      });
+      
+      // Call Firebase ONCE to toggle like status
+      let newLikeState = false;
       try {
-        // Use the effective userFid (real or test value)
-        wasLiked = await toggleLikeNFT(nft, effectiveUserFid);
-      } catch (error) {
+        superDebug('CALLING FIREBASE toggleLikeNFT', {
+          nftName: nft.name,
+          mediaKey: mediaKey,
+          fid: effectiveUserFid,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Use our custom filter tag for debugging
+        superDebug('ABOUT TO CALL FIREBASE toggleLikeNFT', {
+          nft_name: nft.name,
+          fid: effectiveUserFid,
+          mediaKey: mediaKey
+        });
+        
+        // Use the effective userFid (real or test value) - ONLY CALL ONCE
+        newLikeState = await toggleLikeNFT(nft, effectiveUserFid);
+        
+        // Use our custom filter tag for debugging
+        superDebug('FIREBASE LIKE RESULT', {
+          result: newLikeState ? 'LIKED' : 'UNLIKED',
+          nftName: nft.name,
+          mediaKey: mediaKey,
+          time: new Date().toISOString()
+        });
+      } catch (error: any) {
+        const errorMessage = error?.message || 'Unknown error';
+        
+        // Only log to console, not to screen
+        console.error('❌ LIKE ERROR', { 
+          error, 
+          errorMessage, 
+          mediaKey,
+          time: new Date().toISOString() 
+        });
+        
         logger.error('❌ Error in toggleLikeNFT:', error);
+        return; // Exit if there's an error
       }
       
-      // For likes (not unlikes), we need to update the UI immediately to show the NFT as liked
-      if (!isUnliking) {
-        // Add the NFT to the liked list if it's not already there
-        setLikedNFTs(prev => {
-          // Check if the NFT is already in the list
-          const nftExists = prev.some(item => {
-            if (!item.contract || !item.tokenId) return false;
-            const itemKey = `${item.contract.toLowerCase()}-${item.tokenId}`;
-            return itemKey === nftKey;
+      // Update UI based on the result from Firebase
+      console.log('🖼️ DEBUG - Demo: Updating UI with new like state', { newLikeState, mediaKey });
+      
+      // CRITICAL FIX: Update the local state to match Firebase result
+      // This ensures the heart icon reflects the correct state
+      setIsLiked(newLikeState);
+      
+      // Update the liked NFTs collection - CRITICAL for content-first approach
+      setLikedNFTs(prev => {
+        // Create a copy to avoid mutation issues
+        const updatedLikedNFTs = [...prev];
+        
+        if (newLikeState) {
+          // CRITICAL FIX: Remove from permanentlyRemovedNFTs when liking
+          // This allows re-liking NFTs that were previously removed
+          setPermanentlyRemovedNFTs(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(mediaKey)) {
+              console.log('🔄 DEBUG - Demo: Removing NFT from permanentlyRemovedNFTs to allow re-liking', { mediaKey });
+              newSet.delete(mediaKey);
+            }
+            return newSet;
           });
           
-          // If it's already in the list, don't add it again
-          if (nftExists) {
-            return prev;
+          // LIKE: Add NFT if not already in collection by mediaKey
+          const existingIndex = updatedLikedNFTs.findIndex(item => {
+            const itemMediaKey = getMediaKey(item);
+            return itemMediaKey === mediaKey;
+          });
+          
+          if (existingIndex >= 0) {
+            console.log('ℹ️ DEBUG - Demo: NFT already in liked collection', { mediaKey });
+            // Replace with the most up-to-date version of the NFT
+            updatedLikedNFTs[existingIndex] = { ...updatedLikedNFTs[existingIndex], ...nft, mediaKey };
+            return updatedLikedNFTs;
           }
           
-          // Otherwise add it to the list
-          return [...prev, nft];
-        });
-        
-        // Update the isLiked state
-        setIsLiked(true);
-      }
+          console.log('➕ DEBUG - Demo: Adding NFT to liked collection', { mediaKey });
+          // Add mediaKey directly to the NFT object for easier reference
+          return [...updatedLikedNFTs, { ...nft, mediaKey }];
+        } else {
+          // UNLIKE: Remove all NFTs with this mediaKey from collection
+          console.log('➖ DEBUG - Demo: Removing NFT from liked collection', { mediaKey });
+          
+          // Add to permanently removed NFTs using mediaKey (content-first approach)
+          setPermanentlyRemovedNFTs(prev => {
+            const newSet = new Set(prev);
+            newSet.add(mediaKey); // Using mediaKey instead of contract-tokenId
+            return newSet;
+          });
+          
+          return updatedLikedNFTs.filter(item => {
+            const itemMediaKey = getMediaKey(item);
+            return itemMediaKey !== mediaKey;
+          });
+        }
+      });
       
-      // For unlikes, we need to make sure the NFT stays removed
-      // For likes, we need to make sure the NFT is added
+      // Force update any NFT cards with the same mediaKey
+      // This ensures consistent like state across all instances of the same content
+      document.querySelectorAll('[data-media-key]').forEach(element => {
+        if (element.getAttribute('data-media-key') === mediaKey) {
+          element.setAttribute('data-liked', newLikeState ? 'true' : 'false');
+        }
+      });
+      
+      // Refresh the liked NFTs from Firebase to ensure everything is in sync
       try {
+        console.log('🔄 DEBUG - Demo: Refreshing liked NFTs from Firebase');
         const freshLikedNFTs = await getLikedNFTs(effectiveUserFid);
-        
-        // CRITICAL: Apply our permanent removal list to filter out any NFTs
-        // that should stay removed no matter what Firebase returns
-        const filteredNFTs = freshLikedNFTs.filter(item => {
-          if (!item.contract || !item.tokenId) return true;
-          const itemKey = `${item.contract.toLowerCase()}-${item.tokenId}`;
-          const isRemoved = permanentlyRemovedNFTs.has(itemKey);
-          return !isRemoved;
+        console.log('📋 DEBUG - Demo: Fetched liked NFTs', { 
+          count: freshLikedNFTs.length, 
+          mediaKeys: freshLikedNFTs.map(nft => getMediaKey(nft))
         });
+        logger.info(`Fetched ${freshLikedNFTs.length} liked NFTs from Firebase`);
         
-        // Ensure we don't have duplicates by using a Map with mediaKey as the primary key
+        // CRITICAL FIX: Properly merge the fresh data with our current state
+        // This ensures we maintain consistent like state across all views
         const uniqueNFTsMap = new Map();
         
-        // If we're unliking, make sure the current NFT is not in the final list
-        if (isUnliking) {
-          const unlikingMediaKey = getMediaKey(nft);
+        // First add all current liked NFTs to the map
+        likedNFTs.forEach(item => {
+          const itemMediaKey = getMediaKey(item);
+          if (!itemMediaKey) return;
+          uniqueNFTsMap.set(itemMediaKey, { ...item, mediaKey: itemMediaKey });
+        });
+        
+        // Then add all NFTs from Firebase, which will override any duplicates
+        freshLikedNFTs.forEach(item => {
+          const itemMediaKey = getMediaKey(item);
+          if (!itemMediaKey) return;
           
-          // Add all filtered NFTs except the one we're unliking (checking both mediaKey and contract-tokenId)
-          filteredNFTs.forEach(item => {
-            if (item.contract && item.tokenId) {
-              const itemMediaKey = getMediaKey(item);
-              const itemContractKey = `${item.contract.toLowerCase()}-${item.tokenId}`;
-              
-              // Skip if either the mediaKey or contract-tokenId matches the unliked NFT
-              if ((unlikingMediaKey && itemMediaKey === unlikingMediaKey) || itemContractKey === nftKey) {
-                return;
-              }
-              
-              // Use mediaKey as the primary key if available, fallback to contract-tokenId
-              const mapKey = itemMediaKey || itemContractKey;
-              uniqueNFTsMap.set(mapKey, item);
-            }
-          });
-        } else {
-          // For likes, add all filtered NFTs using mediaKey as the primary key
-          filteredNFTs.forEach(item => {
-            if (item.contract && item.tokenId) {
-              const itemMediaKey = getMediaKey(item);
-              const itemContractKey = `${item.contract.toLowerCase()}-${item.tokenId}`;
-              
-              // Use mediaKey as the primary key if available, fallback to contract-tokenId
-              const mapKey = itemMediaKey || itemContractKey;
-              
-              // If we already have this mediaKey, merge the NFT data to ensure we have the most complete information
-              if (uniqueNFTsMap.has(mapKey)) {
-                const existingNFT = uniqueNFTsMap.get(mapKey);
-                const mergedNFT = {
-                  ...existingNFT,
-                  ...item,
-                  // Ensure metadata is properly merged
-                  metadata: {
-                    ...(existingNFT.metadata || {}),
-                    ...(item.metadata || {})
-                  }
-                };
-                uniqueNFTsMap.set(mapKey, mergedNFT);
-              } else {
-                uniqueNFTsMap.set(mapKey, item);
-              }
-            }
-          });
+          // If we just unliked this NFT, don't add it back
+          if (isUnliking && itemMediaKey === mediaKey) {
+            console.log('🚫 DEBUG - Demo: Skipping unliked NFT', { mediaKey: itemMediaKey });
+            return;
+          }
           
-          // Make sure the NFT we just liked is in the list
-          if (nft.contract && nft.tokenId) {
-            const nftMediaKey = getMediaKey(nft);
-            const mapKey = nftMediaKey || nftKey;
-            
-            // If we already have this mediaKey, merge the NFT data
-            if (uniqueNFTsMap.has(mapKey)) {
-              const existingNFT = uniqueNFTsMap.get(mapKey);
-              const mergedNFT = {
-                ...existingNFT,
-                ...nft,
-                // Ensure metadata is properly merged
-                metadata: {
-                  ...(existingNFT.metadata || {}),
-                  ...(nft.metadata || {})
-                }
-              };
-              uniqueNFTsMap.set(mapKey, mergedNFT);
-            } else {
-              uniqueNFTsMap.set(mapKey, nft);
-            }
+          // For NFTs with the same mediaKey, merge the data to ensure completeness
+          if (uniqueNFTsMap.has(itemMediaKey)) {
+            const existingNFT = uniqueNFTsMap.get(itemMediaKey);
+            const mergedNFT = {
+              ...existingNFT,
+              ...item,
+              // Preserve the mediaKey for easier reference
+              mediaKey: itemMediaKey,
+              // Merge metadata to ensure we have complete information
+              metadata: {
+                ...(existingNFT.metadata || {}),
+                ...(item.metadata || {})
+              }
+            };
+            uniqueNFTsMap.set(itemMediaKey, mergedNFT);
+          } else {
+            uniqueNFTsMap.set(itemMediaKey, { ...item, mediaKey: itemMediaKey });
+          }
+        });
+        
+        // If we're liking, make sure the NFT is in the map with the correct state
+        if (!isUnliking && mediaKey) {
+          console.log('💖 DEBUG - Demo: Ensuring liked NFT is in map', { mediaKey, newLikeState });
+          // If this mediaKey exists, merge the NFT data
+          if (uniqueNFTsMap.has(mediaKey)) {
+            const existingNFT = uniqueNFTsMap.get(mediaKey);
+            uniqueNFTsMap.set(mediaKey, {
+              ...existingNFT,
+              ...nft,
+              // Explicitly mark as liked
+              isLiked: true,
+              mediaKey,
+              metadata: {
+                ...(existingNFT.metadata || {}),
+                ...(nft.metadata || {})
+              }
+            });
+          } else {
+            // Otherwise add the NFT
+            uniqueNFTsMap.set(mediaKey, { ...nft, isLiked: true, mediaKey });
           }
         }
         
-        // Convert Map back to array
+        // Convert Map back to array and update state
         const uniqueNFTs = Array.from(uniqueNFTsMap.values());
+        console.log('🔄 DEBUG - Demo: Updated liked NFTs', { 
+          count: uniqueNFTs.length, 
+          mediaKeys: uniqueNFTs.map(nft => getMediaKey(nft))
+        });
         
-        // Update the liked NFTs list
         setLikedNFTs(uniqueNFTs);
+        
+        // Improved: TRUST THE USER ACTION over Firebase verification
+        // This ensures the UI responds immediately to user input
+        if (mediaKey) {
+          // Check Firebase state for debugging purposes only
+          const isLikedInFirebase = freshLikedNFTs.some(item => {
+            const itemMediaKey = getMediaKey(item);
+            return itemMediaKey === mediaKey;
+          });
+          
+          console.warn('🛑🛑🛑 LIKE DEBUGGING - FIREBASE STATE CHECK', { 
+            mediaKey, 
+            isLikedInFirebase, 
+            currentUIState: isLiked,
+            isLikedMismatch: isLikedInFirebase !== isLiked,
+            action: isUnliking ? 'UNLIKE' : 'LIKE',
+            expectedNewState: newLikeState
+          });
+          
+          // IMPORTANT: TRUST THE USER ACTION
+          // We've already set isLiked based on the user's action
+          // Firebase will eventually catch up via the real-time listener
+          console.warn('🔄🔄🔄 USER ACTION PRIORITIZED OVER FIREBASE STATE', {
+            userAction: isUnliking ? 'UNLIKE' : 'LIKE',
+            newUIState: newLikeState,
+            timestamp: new Date().toISOString()
+          });
+          
+          // Force UI to match the user's action
+          // This prevents UI flicker if Firebase is slow to update
+          setIsLiked(newLikeState);
+          
+          // Also dispatch a custom event to ensure all components are in sync
+          // This helps with cross-component synchronization
+          const likeStateChangeEvent = new CustomEvent('nftLikeStateChange', {
+            detail: {
+              mediaKey,
+              contract: nft.contract,
+              tokenId: nft.tokenId,
+              isLiked: newLikeState,
+              timestamp: Date.now(),
+              source: 'demo-component'
+            }
+          });
+          document.dispatchEvent(likeStateChangeEvent);
+          console.warn('📣📣📣 DEMO COMPONENT DISPATCHED LIKE STATE EVENT', {
+            mediaKey,
+            newState: newLikeState,
+            action: isUnliking ? 'UNLIKE' : 'LIKE'
+          });
+        }
       } catch (error) {
-        logger.error('❌ Error refreshing liked NFTs:', error);
+        console.error('❌ DEBUG - Demo: Error refreshing liked NFTs', error);
+        logger.error('Error refreshing liked NFTs:', error);
       }
     } catch (error) {
       logger.error('❌ Error toggling like:', error);
@@ -620,6 +805,11 @@ const Demo: React.FC = () => {
     // Get the mediaKey for content-based tracking
     const nftMediaKey = getMediaKey(nft);
     
+    // IMPROVED: Check if the NFT has the isLiked property set directly
+    if (nft.isLiked === true) {
+      return true;
+    }
+    
     if (nftMediaKey) {
       // First try to match by mediaKey (content-based approach)
       const mediaKeyMatch = likedNFTs.some(item => {
@@ -628,6 +818,12 @@ const Demo: React.FC = () => {
       });
       
       if (mediaKeyMatch) {
+        return true;
+      }
+      
+      // If this is the currently playing NFT and isLiked is true, return true
+      // Check if the currently playing NFT has the same mediaKey and is liked
+      if (currentPlayingNFT && nftMediaKey === getMediaKey(currentPlayingNFT) && isLiked) {
         return true;
       }
     }
@@ -1302,11 +1498,10 @@ const Demo: React.FC = () => {
       if (userFid) {
         const liked = await getLikedNFTs(userFid);
         
-        // CRITICAL: Apply our permanent blacklist
+        // CRITICAL: Apply our permanent blacklist using mediaKey (content-first approach)
         const filteredLiked = liked.filter(item => {
-          if (!item.contract || !item.tokenId) return true;
-          const itemKey = `${item.contract.toLowerCase()}-${item.tokenId}`;
-          return !permanentlyRemovedNFTs.has(itemKey);
+          const mediaKey = getMediaKey(item);
+          return !permanentlyRemovedNFTs.has(mediaKey);
         });
         
         setLikedNFTs(filteredLiked);

@@ -1,7 +1,7 @@
 import { 
   collection, 
   addDoc, 
-  query, 
+  query as firestoreQuery, 
   where, 
   orderBy, 
   limit, 
@@ -16,6 +16,14 @@ import {
 import type { FarcasterUser, SearchedUser } from '../../types/user';
 import { db, firebaseLogger } from './config';
 import { fetchWithRetry } from './utils';
+
+// Helper function to ensure string type for Firestore queries
+function ensureString(value: any): string {
+  return typeof value === 'string' ? value : String(value);
+}
+
+// Define a type that allows string operations
+type StringLike = string | String;
 
 // Cache user's wallet address
 export const cacheUserWallet = async (fid: number, address: string): Promise<void> => {
@@ -219,7 +227,7 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
 export const subscribeToRecentSearches = (fid: number, callback: (searches: SearchedUser[]) => void) => {
   const searchesRef = collection(db, 'user_searches');
   // Use unified index pattern for recent searches
-  const q = query(
+  const q = firestoreQuery(
     searchesRef,
     where('searching_fid', '==', fid),
     orderBy('timestamp', 'desc'),
@@ -290,7 +298,7 @@ export const subscribeToRecentSearches = (fid: number, callback: (searches: Sear
           timestamp = data.timestamp;
         } else if (typeof data.timestamp === 'string') {
           // ISO string timestamp
-          timestamp = new Date(data.timestamp).getTime();
+          timestamp = new Date(data.timestamp as string).getTime();
         } else {
           firebaseLogger.warn('Unknown timestamp format:', data.timestamp);
           timestamp = Date.now();
@@ -332,13 +340,13 @@ export const getRecentSearches = async (fid?: number): Promise<SearchedUser[]> =
     const searchesRef = collection(db, 'user_searches');
     // Use unified index pattern for both filtered and unfiltered queries
     const q = fid
-      ? query(
+      ? firestoreQuery(
           searchesRef,
           where('searching_fid', '==', fid),
           orderBy('timestamp', 'desc'),
           limit(20)
         )
-      : query(
+      : firestoreQuery(
           searchesRef,
           orderBy('timestamp', 'desc'),
           limit(20)
@@ -396,11 +404,13 @@ export const searchUsers = async (query: string): Promise<FarcasterUser[]> => {
     }
     
     // Normalize search query
-    const normalizedQuery = query.trim().toLowerCase();
+    const normalizedQuery: string = query.toString().trim().toLowerCase();
+    // Create string suffix for range queries
+    const queryEnd = `${normalizedQuery}\uf8ff`;
     
     // Check if query has special format indicating exact FIDs
     if (normalizedQuery.startsWith('fid:')) {
-      const fidPart = normalizedQuery.substring(4).trim();
+      const fidPart = normalizedQuery.toString().substring(4).trim();
       const fids = fidPart.split(',').map(f => parseInt(f.trim())).filter(f => !isNaN(f));
       
       if (fids.length > 0) {
@@ -431,18 +441,18 @@ export const searchUsers = async (query: string): Promise<FarcasterUser[]> => {
     if (normalizedQuery.length >= 1) {
       try {
         const searchRef = collection(db, 'searchedusers');
-        const usernameQuery = query(
+        const usernameQuery = firestoreQuery(
           searchRef,
           where('username', '>=', normalizedQuery),
-          where('username', '<=', normalizedQuery + '\uf8ff'),
+          where('username', '<=', queryEnd),
           orderBy('username'),
           limit(10)
         );
         
-        const displayNameQuery = query(
+        const displayNameQuery = firestoreQuery(
           searchRef,
           where('display_name', '>=', normalizedQuery),
-          where('display_name', '<=', normalizedQuery + '\uf8ff'),
+          where('display_name', '<=', queryEnd),
           orderBy('display_name'),
           limit(10)
         );
@@ -457,7 +467,18 @@ export const searchUsers = async (query: string): Promise<FarcasterUser[]> => {
         const userMap = new Map<number, FarcasterUser>();
         
         [...usernameSnapshot.docs, ...displayNameSnapshot.docs].forEach(doc => {
-          const data = doc.data();
+          // Use a more explicit type assertion to fix TypeScript errors
+          const docData = doc.data() as Record<string, any>;
+          const data = {
+            fid: docData.fid as number,
+            username: docData.username as string,
+            display_name: docData.display_name as string,
+            pfp_url: docData.pfp_url as string,
+            follower_count: docData.follower_count as number,
+            following_count: docData.following_count as number,
+            custody_address: docData.custody_address as string,
+            verifiedAddresses: (docData.verifiedAddresses as string[]) || []
+          };
           const fid = data.fid;
           
           if (fid && !userMap.has(fid)) {
@@ -469,7 +490,7 @@ export const searchUsers = async (query: string): Promise<FarcasterUser[]> => {
               follower_count: data.follower_count,
               following_count: data.following_count,
               custody_address: data.custody_address,
-              verifiedAddresses: data.verifiedAddresses || []
+              verifiedAddresses: data.verifiedAddresses
             });
           }
         });
