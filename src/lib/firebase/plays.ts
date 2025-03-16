@@ -88,19 +88,54 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
     const userDoc = await getDoc(userRef);
     
     if (!userDoc.exists()) {
-      // Create new user document
+      // Create new user document with both root-level and structured fields
       await setDoc(userRef, {
         fid: fid,
         createdAt: serverTimestamp(),
         lastActive: serverTimestamp(),
-        hasPlayHistory: true
+        hasPlayHistory: true,
+        // These fields will be directly visible in the Firebase console
+        lastPlayedTimestamp: now,
+        lastPlayedISO: nowISO,
+        totalPlays: 1,
+        lastPlayedMediaKey: mediaKey,
+        lastPlayedName: nft.name || 'Untitled',
+        // Still keep the structured data for code that might expect it
+        playHistorySummary: {
+          lastPlayed: serverTimestamp(),
+          totalPlays: 1,
+          lastPlayedNft: {
+            mediaKey,
+            contract: nft.contract,
+            tokenId: nft.tokenId,
+            name: nft.name || 'Untitled'
+          }
+        }
       });
       firebaseLogger.info(`Created new user document for FID ${fid}`);
     } else {
       // Update existing user
+      // Update the user document with play history summary at root level
       await updateDoc(userRef, {
         lastActive: serverTimestamp(),
-        hasPlayHistory: true
+        hasPlayHistory: true,
+        // These fields will be directly visible in the Firebase console
+        'lastPlayedTimestamp': now,
+        'lastPlayedISO': nowISO,
+        'totalPlays': increment(1),
+        'lastPlayedMediaKey': mediaKey,
+        'lastPlayedName': nft.name || 'Untitled',
+        // Still keep the structured data for code that might expect it
+        'playHistorySummary': {
+          lastPlayed: serverTimestamp(),
+          totalPlays: increment(1),
+          lastPlayedNft: {
+            mediaKey,
+            contract: nft.contract,
+            tokenId: nft.tokenId,
+            name: nft.name || 'Untitled'
+          }
+        }
       });
       firebaseLogger.info(`Updated existing user document for FID ${fid}`);
     }
@@ -134,7 +169,16 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
       // Add a NEW document with an auto-generated ID
       const newDoc = await addDoc(playHistoryRef, playHistoryData);
       
+      // Log the exact path for debugging in the Firebase console
+      const exactPath = `users/${fid}/playHistory/${newDoc.id}`;
       firebaseLogger.info(`SUCCESS! Created playHistory document with ID: ${newDoc.id}`);
+      firebaseLogger.info(`EXACT PATH TO ACCESS IN FIREBASE CONSOLE: ${exactPath}`);
+      
+      // Also add a reference to this play in the main user document for easier access
+      await updateDoc(userRef, {
+        'recentPlayHistoryPath': exactPath,
+        'recentPlayHistoryId': newDoc.id
+      });
       
       // STEP 4: Update recent plays collection
       try {
@@ -378,5 +422,112 @@ export const subscribeToRecentPlays = (fid: number, callback: (nfts: NFT[]) => v
     
     firebaseLogger.info(`Returning ${nfts.length} recent plays`);
     callback(nfts);
+  });
+};
+
+// Get a user's play history from their playHistory subcollection
+export const getUserPlayHistory = async (fid: number, maxResults = 50): Promise<NFT[]> => {
+  try {
+    if (!fid) {
+      firebaseLogger.error('Invalid FID provided to getUserPlayHistory');
+      return [];
+    }
+
+    firebaseLogger.info(`Getting play history for FID ${fid} from users/${fid}/playHistory subcollection`);
+    
+    // Query the user's playHistory subcollection
+    const playHistoryRef = collection(db, 'users', fid.toString(), 'playHistory');
+    const q = query(
+      playHistoryRef,
+      orderBy('timestamp', 'desc'),
+      limit(maxResults)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    const playHistory: NFT[] = [];
+    const seenMediaKeys = new Set<string>();
+    
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      
+      // Create an NFT object from the play data
+      const nft: NFT = {
+        contract: data.nftContract,
+        tokenId: data.tokenId,
+        name: data.name || 'Untitled',
+        description: data.description || '',
+        image: data.image || '',
+        audio: data.audioUrl,
+        network: data.network || 'ethereum',
+        mediaKey: data.mediaKey, // This is critical for consistent tracking
+        playCount: data.playCount || 1,
+        timestamp: data.timestamp
+      };
+      
+      // Only add if we haven't seen this mediaKey before (deduplicate)
+      if (nft.mediaKey && !seenMediaKeys.has(nft.mediaKey)) {
+        seenMediaKeys.add(nft.mediaKey);
+        playHistory.push(nft);
+      }
+    });
+    
+    firebaseLogger.info(`Found ${playHistory.length} unique NFTs in play history for FID ${fid}`);
+    return playHistory;
+  } catch (error) {
+    firebaseLogger.error('Error getting user play history:', error instanceof Error ? error.message : 'Unknown error');
+    return [];
+  }
+};
+
+// Subscribe to a user's play history in real-time from their playHistory subcollection
+export const subscribeToUserPlayHistory = (fid: number, maxResults = 50, callback: (nfts: NFT[]) => void) => {
+  if (!fid) {
+    firebaseLogger.error('Invalid FID provided to subscribeToUserPlayHistory');
+    return () => {};
+  }
+
+  firebaseLogger.info(`Subscribing to play history for FID ${fid} from users/${fid}/playHistory subcollection`);
+  
+  // Query the user's playHistory subcollection
+  const playHistoryRef = collection(db, 'users', fid.toString(), 'playHistory');
+  const q = query(
+    playHistoryRef,
+    orderBy('timestamp', 'desc'),
+    limit(maxResults)
+  );
+  
+  // Set up real-time listener
+  return onSnapshot(q, (snapshot) => {
+    const playHistory: NFT[] = [];
+    const seenMediaKeys = new Set<string>();
+    
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      
+      // Create an NFT object from the play data
+      const nft: NFT = {
+        contract: data.nftContract,
+        tokenId: data.tokenId,
+        name: data.name || 'Untitled',
+        description: data.description || '',
+        image: data.image || '',
+        audio: data.audioUrl,
+        network: data.network || 'ethereum',
+        mediaKey: data.mediaKey, // This is critical for consistent tracking
+        playCount: data.playCount || 1,
+        timestamp: data.timestamp
+      };
+      
+      // Only add if we haven't seen this mediaKey before (deduplicate)
+      if (nft.mediaKey && !seenMediaKeys.has(nft.mediaKey)) {
+        seenMediaKeys.add(nft.mediaKey);
+        playHistory.push(nft);
+      }
+    });
+    
+    firebaseLogger.info(`Real-time update: ${playHistory.length} unique NFTs in play history for FID ${fid}`);
+    callback(playHistory);
+  }, (error) => {
+    firebaseLogger.error('Error in play history subscription:', error);
   });
 };
