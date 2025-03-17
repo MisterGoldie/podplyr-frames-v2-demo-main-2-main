@@ -10,12 +10,6 @@ interface AdPlayerProps {
 // Ad configuration with URLs
 const AD_CONFIG = [
   {
-    video: '/ad-video.mp4',
-    url: 'https://acyl.world',  
-    title: 'ACYL TV',
-    domain: 'acyl.world'
-  },
-  {
     video: '/ad-video-2.mp4',
     url: 'https://acyl.world',  
     title: 'ACYL Radio',
@@ -46,7 +40,10 @@ const AD_CONFIG = [
     title: 'ACYL',
     domain: 'acyl.world',
     isVertical: true
-  }
+  },
+   {
+    video: '/podplayrad1.mp4',
+  },
 ];
 
 export const AdPlayer: React.FC<AdPlayerProps> = ({ onAdComplete }) => {
@@ -186,23 +183,25 @@ export const AdPlayer: React.FC<AdPlayerProps> = ({ onAdComplete }) => {
           Ad: {timeRemaining}s / {Math.round(audioDuration)}s
         </div>
       </div>
-      {/* Ad link container */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-purple-900/90 rounded-lg overflow-hidden border border-purple-500/30">
-        <div className="flex items-center space-x-3 p-3">
-          <div className="flex-1">
-            <p className="text-white text-sm font-medium">{selectedAd.title}</p>
-            <p className="text-gray-400 text-xs">{selectedAd.domain}</p>
+      {/* Ad link container - only show if the ad has a URL */}
+      {selectedAd.url && (
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-purple-900/90 rounded-lg overflow-hidden border border-purple-500/30">
+          <div className="flex items-center space-x-3 p-3">
+            <div className="flex-1">
+              <p className="text-white text-sm font-medium">{selectedAd.title}</p>
+              <p className="text-gray-400 text-xs">{selectedAd.domain}</p>
+            </div>
+            <a
+              href={selectedAd.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium px-4 py-1.5 rounded transition-colors"
+            >
+              Learn more
+            </a>
           </div>
-          <a
-            href={selectedAd.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium px-4 py-1.5 rounded transition-colors"
-          >
-            Learn more
-          </a>
         </div>
-      </div>
+      )}
     </div>
   );
 };
