@@ -162,16 +162,49 @@ const ProfileView: React.FC<ProfileViewProps> = ({
     return () => clearInterval(intervalId); // Clean up on unmount
   }, [userContext?.user?.fid]);
 
-  // This function checks if an NFT is liked
+  // This function checks if an NFT is liked using the mediaKey approach
   const isNFTLiked = (nft: NFT, ignoreCurrentPage?: boolean): boolean => {
-    if (!nft.contract || !nft.tokenId || likedNFTs.length === 0) return false;
+    if (likedNFTs.length === 0) return false;
     
-    // Check if the NFT is in the liked NFTs array
-    return likedNFTs.some(
+    // Import getMediaKey function if not already imported
+    const { getMediaKey } = require('../../utils/media');
+    
+    // Get the mediaKey for the current NFT
+    const nftMediaKey = getMediaKey(nft);
+    
+    if (!nftMediaKey) {
+      console.warn('Could not generate mediaKey for NFT:', nft);
+      // Fallback to contract/tokenId comparison if mediaKey can't be generated
+      return nft.contract && nft.tokenId ? likedNFTs.some(
+        likedNFT => 
+          likedNFT.contract === nft.contract && 
+          likedNFT.tokenId === nft.tokenId
+      ) : false;
+    }
+    
+    // Primary check: Compare mediaKeys for content-based tracking
+    const mediaKeyMatch = likedNFTs.some(likedNFT => {
+      const likedMediaKey = likedNFT.mediaKey || getMediaKey(likedNFT);
+      return likedMediaKey === nftMediaKey;
+    });
+    
+    // Secondary check: Use contract/tokenId as fallback
+    const contractTokenMatch = nft.contract && nft.tokenId ? likedNFTs.some(
       likedNFT => 
         likedNFT.contract === nft.contract && 
         likedNFT.tokenId === nft.tokenId
-    );
+    ) : false;
+    
+    // Log for debugging
+    if (mediaKeyMatch || contractTokenMatch) {
+      console.log(`NFT liked state: mediaKeyMatch=${mediaKeyMatch}, contractTokenMatch=${contractTokenMatch}`, {
+        mediaKey: nftMediaKey,
+        name: nft.name
+      });
+    }
+    
+    // Return true if either match method succeeds
+    return mediaKeyMatch || contractTokenMatch;
   };
   
   // State for like notification
@@ -182,19 +215,41 @@ const ProfileView: React.FC<ProfileViewProps> = ({
   // Handle like toggle with notification
   const handleNFTLikeToggle = async (nft: NFT) => {
     try {
+      // Import getMediaKey function
+      const { getMediaKey } = require('../../utils/media');
+      
       // Determine if this is a like or unlike action before making the change
       const currentlyLiked = isNFTLiked(nft, true);
       const willBeLiked = !currentlyLiked;
       
+      // Get the mediaKey for the current NFT for content-based tracking
+      const nftMediaKey = getMediaKey(nft);
+      
+      console.log(`Toggling like for NFT: ${nft.name}, mediaKey: ${nftMediaKey}, new state: ${willBeLiked ? 'liked' : 'unliked'}`);
+      
       // Immediately update the UI state for instant feedback
       if (willBeLiked) {
         // Add to liked NFTs for immediate UI update
-        setLikedNFTs(prev => [...prev, nft]);
+        // Add mediaKey to the NFT for easier reference later
+        setLikedNFTs(prev => [...prev, {...nft, mediaKey: nftMediaKey}]);
       } else {
-        // Remove from liked NFTs for immediate UI update
-        setLikedNFTs(prev => prev.filter(item => 
-          !(item.contract === nft.contract && item.tokenId === nft.tokenId)
-        ));
+        // Remove from liked NFTs for immediate UI update using both methods:
+        // 1. First try to filter by mediaKey (primary method, content-based)
+        // 2. Then fall back to contract/tokenId if mediaKey matching fails
+        setLikedNFTs(prev => {
+          // If we have a valid mediaKey, use that first (preferred method)
+          if (nftMediaKey) {
+            return prev.filter(item => {
+              const itemMediaKey = item.mediaKey || getMediaKey(item);
+              return itemMediaKey !== nftMediaKey;
+            });
+          } else {
+            // Fall back to contract/tokenId filtering if no mediaKey
+            return prev.filter(item => 
+              !(item.contract === nft.contract && item.tokenId === nft.tokenId)
+            );
+          }
+        });
       }
       
       // Set notification properties
