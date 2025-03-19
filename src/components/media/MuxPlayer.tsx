@@ -62,6 +62,7 @@ export const MuxPlayer: React.FC<MuxPlayerProps> = ({
     
     const initializePlayer = async () => {
       if (!mounted) return;
+      
       if (!nft.metadata?.animation_url) {
         console.warn('No animation URL found for NFT:', nft.name);
         setIsLoading(false);
@@ -69,30 +70,30 @@ export const MuxPlayer: React.FC<MuxPlayerProps> = ({
       }
 
       try {
-        // Get Mux asset (should already be preloaded by FeaturedSection)
+        // Get Mux asset (should already be preloaded)
         let currentMuxAsset = getMuxAsset(nft);
         
-        // If no asset exists, create one with mobile-optimized settings
         if (!currentMuxAsset) {
-          // Temporarily disable preloadAudio to avoid errors
-          // await preloadAudio(nft);
-          console.log('Skipping preload for Mux asset');
-          
-          // Retry getting the asset
-          currentMuxAsset = getMuxAsset(nft);
-          if (!currentMuxAsset) {
-            console.warn('Failed to create Mux asset for NFT:', nft.name);
-            setIsLoading(false);
-            return;
-          }
+          // Asset not found - this would typically trigger asset creation
+          // but for simplicity, we'll just report an error
+          console.warn('No Mux asset found for NFT:', nft.name);
+          setIsLoading(false);
+          onError?.(new Error('Mux asset not found'));
+          return;
         }
 
-        // At this point currentMuxAsset is guaranteed to be non-null
+        // Set playback ID and status
         setPlaybackId(currentMuxAsset.playbackId);
         setAssetStatus(currentMuxAsset.status);
         
+        // If asset is ready, we can stop loading
+        if (currentMuxAsset.status === 'ready') {
+          setIsLoading(false);
+          onReady?.();
+        }
+        
         // If the asset is still preparing, poll for status updates
-        if (currentMuxAsset.status === 'preparing') {
+        else if (currentMuxAsset.status === 'preparing') {
           const pollStatus = async () => {
             try {
               const statusResponse = await fetch(`/api/mux/asset-status?playbackId=${currentMuxAsset.playbackId}`);
@@ -108,6 +109,7 @@ export const MuxPlayer: React.FC<MuxPlayerProps> = ({
                 setRetryCount(prev => prev + 1);
               } else if (statusData.status === 'ready') {
                 setIsLoading(false);
+                onReady?.();
               } else if (statusData.status === 'errored' || retryCount >= maxRetries) {
                 setIsLoading(false);
                 onError?.(new Error(`Asset creation failed: ${statusData.status}`));
@@ -124,18 +126,17 @@ export const MuxPlayer: React.FC<MuxPlayerProps> = ({
           pollTimeout = setTimeout(pollStatus, pollInterval);
         }
 
-        console.log('Mux asset initialized successfully:', { 
+        console.log('Mux asset initialized:', { 
           playbackId: currentMuxAsset.playbackId, 
           status: currentMuxAsset.status 
         });
       } catch (error) {
         console.error('Error initializing Mux player:', error);
         
-        // Implement retry logic with cleanup
         if (retryCount < maxRetries && mounted) {
           console.log(`Retrying Mux initialization (${retryCount + 1}/${maxRetries})...`);
           setRetryCount(prev => prev + 1);
-          pollTimeout = setTimeout(initializePlayer, 2000 * (retryCount + 1)); // Exponential backoff
+          pollTimeout = setTimeout(initializePlayer, 2000 * (retryCount + 1));
           return;
         }
         
@@ -154,7 +155,7 @@ export const MuxPlayer: React.FC<MuxPlayerProps> = ({
         clearTimeout(pollTimeout);
       }
     };
-  }, [nft, onError, retryCount]);
+  }, [nft, onError, onReady, retryCount]);
 
   // Initialize MSE for cellular connections
   useEffect(() => {
