@@ -507,11 +507,17 @@ export const MuxPlayer: React.FC<MuxPlayerProps> = ({
   }
 
   // For cellular, use optimized video element
-  if (isCellular && !useFallbackMux) {
+  if (isCellular && !useFallbackMux && playbackId) {
+    // Direct MP4 URL - much faster cellular loading than HLS
+    const directMp4Url = `https://stream.mux.com/${playbackId}/low.mp4`;
+    // Also have fallback to animation_url if needed
+    const fallbackUrl = nft.metadata?.animation_url || '';
+    
     return (
       <div className="cellular-optimized-player">
         <video
           ref={videoRef}
+          src={directMp4Url}
           className="direct-video-player"
           playsInline
           muted={muted}
@@ -519,6 +525,13 @@ export const MuxPlayer: React.FC<MuxPlayerProps> = ({
           controls
           autoPlay={autoPlay}
           poster={nft.metadata?.image || ''}
+          preload="metadata"
+          onError={(e) => {
+            // Fallback to animation_url if Mux fails
+            if (videoRef.current && fallbackUrl) {
+              videoRef.current.src = fallbackUrl;
+            }
+          }}
           style={{
             width: '100%',
             height: '100%',
