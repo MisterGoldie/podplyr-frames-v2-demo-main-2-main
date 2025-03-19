@@ -95,7 +95,7 @@ export const followUser = async (currentUserFid: number, userToFollow: Farcaster
   }
 };
 
-// Update PODPlayr follower count based on total users in the system
+// Update PODPLAYR follower count based on total users in the system
 export const updatePodplayrFollowerCount = async (): Promise<number> => {
   try {
     // Get all users
@@ -113,8 +113,8 @@ export const updatePodplayrFollowerCount = async (): Promise<number> => {
         userDocs.push(doc);
       }
     });
-    
-    // Update PODPlayr follower count
+  
+    // Update PODLAYR follower count
     const podplayrRef = doc(db, 'users', PODPLAYR_FID.toString());
     await updateDoc(podplayrRef, {
       follower_count: followerCount
@@ -131,7 +131,7 @@ export const updatePodplayrFollowerCount = async (): Promise<number> => {
   }
 };
 
-// Update the followers subcollection for PODPlayr
+// Update the followers subcollection for PODPLAYR
 export const updatePodplayrFollowersSubcollection = async (userDocs: QueryDocumentSnapshot<DocumentData>[]): Promise<void> => {
   try {
     const batchSize = 500; // Firestore batch limit

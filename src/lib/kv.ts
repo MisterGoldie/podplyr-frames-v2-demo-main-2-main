@@ -11,7 +11,7 @@ if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
 }
 
 function getUserNotificationDetailsKey(fid: number): string {
-  return `POD PLAYR:user:${fid}`;
+  return `PODPLAYR:user:${fid}`;
 }
 
 export async function getUserNotificationDetails(

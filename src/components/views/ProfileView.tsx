@@ -125,11 +125,11 @@ const ProfileView: React.FC<ProfileViewProps> = ({
     const fetchFollowCounts = async () => {
       if (userContext?.user?.fid) {
         try {
-          // Special case for PODPlayr account (FID: 1014485)
+          // Special case for PODPLAYR account (FID: 1014485)
           // Update the follower count to reflect all users in the system
           if (userContext.user.fid === 1014485) {
             console.log('PODPlayr account detected - updating follower count');
-            // Update PODPlayr follower count based on all users in the system
+            // Update PODPLAYR follower count based on all users in the system
             const totalUsers = await updatePodplayrFollowerCount();
             setAppFollowerCount(totalUsers);
             setAppFollowingCount(0); // PODPlayr doesn't follow anyone

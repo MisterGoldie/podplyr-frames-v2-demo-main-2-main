@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 
 export const runtime = 'edge';
 
-export const alt = "PODPlayr";
+export const alt = "PODPLAYR";
 export const size = {
   width: 1200,
   height: 630,
@@ -33,7 +33,7 @@ export default function Image() {
             textAlign: 'center',
           }}
         >
-          PODPlayr
+          PODPLAYR
         </div>
       </div>
     ),

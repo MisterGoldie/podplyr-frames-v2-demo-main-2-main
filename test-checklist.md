@@ -1,4 +1,4 @@
-# PODPlayr Functionality Test Checklist
+# PODPLAYR Functionality Test Checklist
 
 ## Core Audio Playback
 - [ ] Play NFT from main grid

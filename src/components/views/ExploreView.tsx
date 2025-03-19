@@ -13,7 +13,7 @@ import { db, trackUserSearch, isUserFollowed, toggleFollowUser, getFollowersCoun
 // Hardcoded list of FIDs for users who should have "thepod" badge
 const POD_MEMBER_FIDS = [15019, 7472, 14871, 414859, 235025, 892616, 323867, 892130];
 
-// PODPlayr official account FID
+// PODPLAYR official account FID
 const PODPLAYR_OFFICIAL_FID = 1014485;
 import { useContext } from 'react';
 import { FarcasterContext } from '../../app/providers';

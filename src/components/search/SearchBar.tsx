@@ -7,7 +7,7 @@ import { trackUserSearch } from '../../lib/firebase';
 // Hardcoded list of FIDs for users who should have "thepod" badge
 const POD_MEMBER_FIDS = [15019, 7472, 14871, 414859, 892616, 892130];
 
-// PODPlayr official account FID
+// PODPLAYR official account FID
 const PODPLAYR_OFFICIAL_FID = 1014485;
 
 interface SearchBarProps {

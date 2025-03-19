@@ -72,10 +72,10 @@ export async function POST(req: NextRequest) {
              (nft.metadata && nft.metadata.image_url) || 
              (nft.metadata && nft.metadata.animation_url) ||
              `${appUrl}/api/og?contract=${contract}&tokenId=${tokenId}`,
-      title: nft.name || 'PODPlayr NFT',
+      title: nft.name || 'PODPLAYR',
       description: nft.description || 'Listen to this NFT on PODPlayr',
       buttons: [{
-        label: '▶️ Enter PODPlayr',
+        label: '▶️ Enter PODPLAYR',
         action: {
           type: 'post_redirect',
           target: nftUrl

@@ -285,7 +285,7 @@ const FollowsModal: React.FC<FollowsModalProps> = ({
                           </button>
                         )}
                         
-                        {/* Special badge for PODPlayr account */}
+                        {/* Special badge for PODPLAYR account */}
                         {user.fid === 1014485 && (
                           <div className="px-3 py-1 rounded-lg text-xs font-medium bg-purple-600/20 text-purple-300 border border-purple-500/30">
                             Official
