@@ -960,7 +960,7 @@ const Demo: React.FC = () => {
               isLoading={isLoading}
               onReset={handleReset}
               onLikeToggle={handleLikeToggle}
-              likedNFTs={likedNFTs}            />
+              likedNFTs={likedNFTs} hasActivePlayer={false}            />
           )}
           {currentPage.isExplore && (
             <ExploreView
