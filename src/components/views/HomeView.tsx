@@ -27,6 +27,7 @@ interface HomeViewProps {
   onReset: () => void;
   onLikeToggle: (nft: NFT) => Promise<void>;
   likedNFTs: NFT[];
+  hasActivePlayer: boolean;
 }
 
 const HomeView: React.FC<HomeViewProps> = ({
@@ -39,7 +40,8 @@ const HomeView: React.FC<HomeViewProps> = ({
   isLoading = false,
   onReset,
   onLikeToggle,
-  likedNFTs
+  likedNFTs,
+  hasActivePlayer = false,
 }) => {
   // Get NFT notification context (use directly for instant notifications)
   const { showNotification } = useNFTNotification();
@@ -199,7 +201,14 @@ const HomeView: React.FC<HomeViewProps> = ({
             />
         </button>
       </header>
-      <div className="space-y-8 pt-20 pb-40 overflow-y-auto h-screen overscroll-y-contain">
+      <div 
+        className={`space-y-8 pt-20 pb-40 overflow-y-auto overscroll-y-contain ${
+          // Use conditional class for height based on player state and screen size
+          hasActivePlayer 
+            ? 'h-[calc(100vh-130px)] md:h-[calc(100vh-150px)]' // Adjusted height when player active
+            : 'h-screen' // Full height when no player
+        }`}
+      >
         {/* Notifications are now handled by the global NFTNotification component */}
 
         {/* Recently Played Section */}
