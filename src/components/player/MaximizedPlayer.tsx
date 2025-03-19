@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { usePlayerState } from './hooks/usePlayerState';
 import { NFTImage } from '../media/NFTImage';
 import { processMediaUrl, getMediaKey } from '../../utils/media';
@@ -71,6 +71,7 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
   const [scrubPosition, setScrubPosition] = useState<number | null>(null);
   const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
   const progressBarRef = useRef<HTMLDivElement>(null);
+  const [pipActive, setPipActive] = useState(false);
   
   // Auto-hide controls after inactivity
   useEffect(() => {
@@ -98,41 +99,112 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
     };
   }, []);
   
+  // PiP event handlers that need access to the latest state
+  // Define these using useCallback to maintain reference stability
+  const handlePipPlay = useCallback(() => {
+    console.log('PiP play event fired, current isPlaying state:', isPlaying);
+    if (!isPlaying) {
+      console.log('Syncing state: PiP started playing → updating app state');
+      onPlayPause();
+    }
+  }, [isPlaying, onPlayPause]);
+  
+  const handlePipPause = useCallback(() => {
+    console.log('PiP pause event fired, current isPlaying state:', isPlaying);
+    if (isPlaying) {
+      console.log('Syncing state: PiP paused → updating app state');
+      onPlayPause();
+    }
+  }, [isPlaying, onPlayPause]);
+
+  // Set up and clean up PiP event listeners
+  useEffect(() => {
+    // Find the current video element (both via ref and as fallback via DOM)
+    const videoElement = videoRef.current || 
+      (nft?.isVideo || nft?.metadata?.animation_url ? 
+        document.getElementById(`video-${nft.contract}-${nft.tokenId}`) as HTMLVideoElement : null);
+    
+    if (!videoElement) return;
+    
+    // Function to set up event listeners when PiP starts
+    const handleEnterPiP = (event: any) => {
+      console.log('Entered PiP mode, setting up sync event listeners');
+      setPipActive(true);
+      
+      // Add direct event listeners to sync state when PiP controls are used
+      videoElement.addEventListener('play', handlePipPlay);
+      videoElement.addEventListener('pause', handlePipPause);
+    };
+    
+    // Function to clean up when PiP ends
+    const handleLeavePiP = () => {
+      console.log('Left PiP mode, removing sync event listeners');
+      setPipActive(false);
+      
+      // Remove the PiP-specific event listeners
+      videoElement.removeEventListener('play', handlePipPlay);
+      videoElement.removeEventListener('pause', handlePipPause);
+    };
+    
+    // Set up the PiP lifecycle event listeners
+    videoElement.addEventListener('enterpictureinpicture', handleEnterPiP);
+    videoElement.addEventListener('leavepictureinpicture', handleLeavePiP);
+    
+    // If PiP is already active when component renders/updates, ensure listeners are attached
+    if (document.pictureInPictureElement === videoElement) {
+      console.log('Component updated while PiP active - ensuring listeners are attached');
+      setPipActive(true);
+      videoElement.addEventListener('play', handlePipPlay);
+      videoElement.addEventListener('pause', handlePipPause);
+    }
+    
+    // Clean up all event listeners when component unmounts or deps change
+    return () => {
+      videoElement.removeEventListener('enterpictureinpicture', handleEnterPiP);
+      videoElement.removeEventListener('leavepictureinpicture', handleLeavePiP);
+      videoElement.removeEventListener('play', handlePipPlay);
+      videoElement.removeEventListener('pause', handlePipPause);
+    };
+  }, [nft, handlePipPlay, handlePipPause]); // Include the callbacks in deps
+
+  // Update the PiP toggle function to include debug logging
   const handlePictureInPicture = async () => {
     try {
+      // If already in PiP, exit
       if (document.pictureInPictureElement) {
+        console.log('Exiting PiP mode');
         await document.exitPictureInPicture();
         return;
       }
       
-      if (!nft?.isVideo && !nft?.metadata?.animation_url) return;
-      
-      const videoId = `video-${nft.contract}-${nft.tokenId}`;
+      if (!nft?.isVideo && !nft?.metadata?.animation_url) {
+        console.log('No video content to put in PiP mode');
+        return;
+      }
       
       // Try with ref first
       if (videoRef.current) {
         try {
+          console.log('Requesting PiP with ref');
           await videoRef.current.requestPictureInPicture();
           return;
         } catch (e) {
-          console.error("Error requesting PIP with ref:", e);
+          console.error("Error requesting PiP with ref:", e);
         }
       }
       
       // Then try with direct DOM access
+      const videoId = `video-${nft.contract}-${nft.tokenId}`;
       const videoElement = document.getElementById(videoId) as HTMLVideoElement;
+      
       if (videoElement) {
         try {
+          console.log('Requesting PiP with DOM query');
           await videoElement.requestPictureInPicture();
           return;
         } catch (e) {
-          console.error("Error requesting PIP with DOM:", e);
+          console.error("Error requesting PiP with DOM:", e);
         }
-      }
-      
-      // Final check
-      if (videoRef.current) {
-        await videoRef.current.requestPictureInPicture();
       }
     } catch (error) {
       console.error('Error toggling Picture-in-Picture mode:', error);
