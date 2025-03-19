@@ -546,6 +546,30 @@ export const MuxPlayer: React.FC<MuxPlayerProps> = ({
     );
   }
 
+  // For ready Mux assets, render the actual MuxPlayer component
+  if (playbackId && assetStatus === 'ready') {
+    return (
+      <MuxPlayerReact
+        playbackId={playbackId}
+        streamType="on-demand"
+        autoPlay={autoPlay}
+        muted={muted}
+        loop={loop}
+        preload="auto"
+        metadata={{
+          video_title: nft.name || 'NFT Video',
+          player_name: 'PODPlayr'
+        }}
+        style={{
+          height: '100%',
+          width: '100%',
+          borderRadius: '0.5rem'
+        }}
+        playsInline
+      />
+    );
+  }
+
   // For WiFi or fallback, use Mux player
   const muxAsset = getMuxAsset(nft);
   return (
