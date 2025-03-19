@@ -1701,9 +1701,20 @@ export const followUser = async (currentUserFid: number, userToFollow: Farcaster
       timestamp: serverTimestamp()
     };
     
-    // Get the current user's data to store in follower entry
+    // FIRST ensure the user document exists before attempting to update it
     const currentUserSnapshot = await getDoc(currentUserRef);
-    const currentUserData = currentUserSnapshot.data() || {};
+    if (!currentUserSnapshot.exists()) {
+      // Create the user document if it doesn't exist yet
+      await setDoc(currentUserRef, {
+        fid: currentUserFid,
+        following_count: 0,
+        follower_count: 0,
+        last_updated: serverTimestamp(),
+        // Add any other default fields needed for a new user
+      });
+      firebaseLogger.info(`Created new user document for FID: ${currentUserFid}`);
+    }
+    const currentUserData = currentUserSnapshot.exists() ? currentUserSnapshot.data() : {};
     
     // Prepare the follower data with complete profile information
     const followerData = {
