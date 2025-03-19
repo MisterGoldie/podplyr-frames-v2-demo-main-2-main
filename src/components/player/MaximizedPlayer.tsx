@@ -481,7 +481,7 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
                     <button
                       onClick={() => {
                         // Personalize the share message with the NFT name
-                        const shareText = `Check out "${nft.name}" on PODPlayr! 📺`;
+                        const shareText = `Check out "${nft.name}" on PODPLAYR! 📺`;
                         const shareUrl = 'podplayr.vercel.app';
                         
                         // Use the imported SDK directly

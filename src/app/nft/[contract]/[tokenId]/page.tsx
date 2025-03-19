@@ -17,7 +17,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const frame = {
     version: 'vNext',
     image: nft.metadata?.image || `${appUrl}/api/og?contract=${contract}&tokenId=${tokenId}`,
-    title: nft.name || 'PODPlayr NFT',
+    title: nft.name || 'PODPLAYR',
     description: nft.description || 'Listen to this NFT on PODPlayr',
     buttons: [{
       label: '▶️ Play Now',

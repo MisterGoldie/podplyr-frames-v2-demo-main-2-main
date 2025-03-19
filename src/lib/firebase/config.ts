@@ -25,7 +25,7 @@ export const db = getFirestore(app);
 export const auth = getAuth(app);
 export const storage = getStorage(app);
 
-// PODPlayr official account details
+// PODPLAYR official account details
 export const PODPLAYR_FID = 1736;
 export const PODPLAYR_USERNAME = 'podplayr';
 export const PODPLAYR_DISPLAY_NAME = 'PODPlayr 🎧';

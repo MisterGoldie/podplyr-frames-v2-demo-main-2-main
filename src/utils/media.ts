@@ -299,7 +299,7 @@ const createSafeId = (url: string): string => {
  * Generates a consistent mediaKey for NFTs with identical content.
  * 
  * IMPORTANT: This function intentionally returns the same key for NFTs that share identical content
- * (same audio/image/animation URLs). This is a core part of PODPlayr's content-first architecture:
+ * (same audio/image/animation URLs). This is a core part of PODPLAYR's content-first architecture:
  * 
  * - Same content = same mediaKey = shared play count and like status
  * - Different NFT instances with same content are treated as the same media

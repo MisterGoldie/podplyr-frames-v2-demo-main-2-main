@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
       image: nftData.image || nftData.metadata?.image || `${process.env.NEXT_PUBLIC_APP_URL}/og-image.jpg`,
       buttons: [
         {
-          label: '▶️ Play on PODPlayr',
+          label: '▶️ Play on PODPLAYR',
           action: 'post'
         }
       ],
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
           <meta http-equiv="refresh" content="0;url=${appUrl}/?contract=${contract}&tokenId=${tokenId}" />
         </head>
         <body>
-          <p>Redirecting to PODPlayr...</p>
+          <p>Redirecting to PODPLAYR...</p>
         </body>
       </html>`,
       {

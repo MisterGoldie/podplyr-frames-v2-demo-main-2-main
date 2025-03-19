@@ -25,7 +25,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const [fid, setFid] = useState<number>();
   const [initialProfileImage, setInitialProfileImage] = useState<string>();
   
-  // Update PODPlayr follower count when the app starts
+  // Update PODPLAYR follower count when the app starts
   useEffect(() => {
     // Run this once when the app loads
     const updatePodplayrCount = async () => {

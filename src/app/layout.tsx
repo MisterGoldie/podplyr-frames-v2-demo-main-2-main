@@ -10,10 +10,10 @@ const appUrl = process.env.NEXT_PUBLIC_URL;
 const frame = {
   version: 'vNext',
   image: `${appUrl}/image.png`,
-  title: 'PODPlayr',
-  description: 'Listen & Watch NFTs on PODPlayr',
+  title: 'PODPLAYR',
+  description: 'Listen & Watch NFTs on PODPLAYR',
   buttons: [{
-    label: '▶️ Enter PODPlayr',
+    label: '▶️ Enter PODPLAYR',
     action: {
       type: 'post_redirect',
       target: appUrl,
