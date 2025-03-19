@@ -7,11 +7,11 @@ export async function GET() {
     },
     frame: {
       version: "1",
-      name: "POD Playr",
+      name: "PODPLAYR",
       iconUrl: "https://podplayr.vercel.app/icon.png",
       homeUrl: "https://podplayr.vercel.app",
       imageUrl: "https://podplayr.vercel.app/image.png",
-      buttonTitle: "POD Playr",
+      buttonTitle: "PODPLAYR",
       splashImageUrl: "https://podplayr.vercel.app/splash.png",
       splashBackgroundColor: "#000000",
       webhookUrl: "https://podplayr.vercel.app/api/webhook"

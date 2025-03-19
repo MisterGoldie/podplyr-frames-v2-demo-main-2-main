@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { NFTImage } from '../media/NFTImage';
 import type { NFT } from '../../types/user';
 import InfoPanel from './InfoPanel';
@@ -48,9 +48,13 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
   const [swipeDistance, setSwipeDistance] = useState(0);
   const [showInfo, setShowInfo] = useState(false);
   const [infoButtonClicked, setInfoButtonClicked] = useState(false);
+  const [pipActive, setPipActive] = useState(false);
 
   // Add this at the top with other state
   const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  // Add a ref to track the PiP video element
+  const pipVideoRef = useRef<HTMLVideoElement | null>(null);
 
   // Add effects to find, control, and sync the video element
   useEffect(() => {
@@ -159,7 +163,78 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
   const springTransition = 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)';
   const maxSwipeDistance = 100;
 
-  // Fixed styling with black background and animation
+  // Enhanced play/pause handler that directly controls PiP video
+  const handlePlayPauseWithPipSync = () => {
+    // First call the original handler to update app state
+    onPlayPause();
+    
+    // Then directly control the PiP video if active
+    const pipElement = document.pictureInPictureElement as HTMLVideoElement;
+    if (pipElement) {
+      playerLogger.debug('PiP element found, directly controlling it from minimized player');
+      
+      if (isPlaying) {
+        // We're currently playing, so we're going to pause
+        pipElement.pause();
+      } else {
+        // We're currently paused, so we're going to play
+        pipElement.play().catch(e => {
+          playerLogger.error('Error playing PiP video from minimized player:', e);
+        });
+      }
+    }
+  };
+  
+  // Setup effect to track the PiP video element
+  useEffect(() => {
+    // Check if there's a PiP element at component mount
+    const pipElement = document.pictureInPictureElement as HTMLVideoElement;
+    if (pipElement) {
+      playerLogger.debug('Found existing PiP element, tracking it');
+      pipVideoRef.current = pipElement;
+    }
+    
+    // Listen for when a video enters PiP mode anywhere in the document
+    const handleEnterPip = (event: any) => {
+      playerLogger.debug('Video entered PiP mode, tracking element');
+      pipVideoRef.current = event.target;
+    };
+    
+    // Listen for when a video leaves PiP mode
+    const handleLeavePip = (event: any) => {
+      playerLogger.debug('Video left PiP mode, clearing reference');
+      pipVideoRef.current = null;
+    };
+    
+    // Add these listeners globally to catch PiP events from any video
+    document.addEventListener('enterpictureinpicture', handleEnterPip);
+    document.addEventListener('leavepictureinpicture', handleLeavePip);
+    
+    return () => {
+      document.removeEventListener('enterpictureinpicture', handleEnterPip);
+      document.removeEventListener('leavepictureinpicture', handleLeavePip);
+    };
+  }, []);
+  
+  // Add effect to keep PiP video in sync with app state
+  useEffect(() => {
+    // Get either the PiP element or the regular video element
+    const videoElement = document.pictureInPictureElement as HTMLVideoElement || 
+      (nft?.isVideo || nft?.metadata?.animation_url ? 
+        document.getElementById(`video-${nft.contract}-${nft.tokenId}`) as HTMLVideoElement : null);
+    
+    if (!videoElement) return;
+    
+    // Sync the video playback state with the app state
+    if (isPlaying) {
+      videoElement.play().catch(e => {
+        playerLogger.error('Error playing video from minimized player sync effect:', e);
+      });
+    } else {
+      videoElement.pause();
+    }
+  }, [isPlaying, nft]);
+
   return (
     <>
       {showInfo && <InfoPanel nft={nft} onClose={() => setShowInfo(false)} userFid={userFid} />}
@@ -250,7 +325,7 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
               </button>
 
               <button 
-                onClick={onPlayPause}
+                onClick={handlePlayPauseWithPipSync}
                 className="text-purple-400 hover:text-purple-300"
               >
                 {isPlaying ? (

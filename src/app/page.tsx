@@ -10,10 +10,10 @@ const frame = {
   version: "next",
   imageUrl: `${appUrl}/image.png`,
   button: {
-    title: "Enter POD Playr",
+    title: "Enter PODPLAYR",
     action: {
       type: "launch_frame",
-      name: "POD Playr",
+      name: "PODPLAYR",
       url: appUrl,
       splashImageUrl: `${appUrl}/splash.png`,
       splashBackgroundColor: "#000000",
@@ -25,16 +25,16 @@ export const revalidate = 300;
 
 export async function generateMetadata(): Promise<Metadata> {
   return {
-    title: "POD Playr",
+    title: "PODPLAYR",
     openGraph: {
-      title: "POD Playr",
-      description: "Listen & Watch NFTs on PODPlayr",
+      title: "PODPLAYR",
+      description: "Listen & Watch NFTs on PODPLAYR",
       images: [
         {
           url: `${appUrl}/image.png`,
           width: 1200,
           height: 630,
-          alt: "POD Playr Media Player",
+          alt: "PODPLAYR Media Player",
         },
       ],
     },
