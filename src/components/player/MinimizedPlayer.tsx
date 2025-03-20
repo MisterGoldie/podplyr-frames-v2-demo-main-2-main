@@ -56,6 +56,12 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
   // Add a ref to track the PiP video element
   const pipVideoRef = useRef<HTMLVideoElement | null>(null);
 
+  // Add state for tracking thumbnail loading status
+  const [thumbLoaded, setThumbLoaded] = useState(false);
+  
+  // Use a ref to track the image container
+  const imageContainerRef = useRef<HTMLDivElement>(null);
+
   // Add effects to find, control, and sync the video element
   useEffect(() => {
     if (!nft?.isVideo && !nft?.metadata?.animation_url) return;
@@ -235,6 +241,73 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
     }
   }, [isPlaying, nft]);
 
+  // Explicitly preload the thumbnail when component mounts or nft changes
+  useEffect(() => {
+    if (!nft) return;
+    
+    // Reset loading state when NFT changes
+    setThumbLoaded(false);
+    
+    // Create image preloader
+    const img = new Image();
+    
+    // Handle success
+    img.onload = () => {
+      playerLogger.info('Successfully preloaded thumbnail for minimized player:', {
+        nft: nft.name || 'Unknown NFT',
+        contract: nft.contract,
+        tokenId: nft.tokenId
+      });
+      setThumbLoaded(true);
+    };
+    
+    // Set source to trigger loading
+    img.src = nft.image || nft.metadata?.image || '';
+    
+    // If already in cache, onload might not fire, so set loaded to true after a short delay
+    const timer = setTimeout(() => {
+      if (img.complete && img.naturalWidth > 0) {
+        setThumbLoaded(true);
+      }
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, [nft]);
+
+  // Check image status after rendering
+  useEffect(() => {
+    // Find the actual img element rendered inside our container
+    if (imageContainerRef.current) {
+      const imgElement = imageContainerRef.current.querySelector('img');
+      
+      if (imgElement) {
+        // If image is already loaded and complete
+        if (imgElement.complete && imgElement.naturalWidth > 0) {
+          setThumbLoaded(true);
+        } else {
+          // Otherwise add event listeners
+          const handleLoad = () => setThumbLoaded(true);
+          const handleError = () => {
+            playerLogger.warn('Image failed to load in minimized player', {
+              nft: nft?.name,
+              src: imgElement.src
+            });
+            // We'll still set loaded to remove the placeholder
+            setThumbLoaded(true);
+          };
+          
+          imgElement.addEventListener('load', handleLoad);
+          imgElement.addEventListener('error', handleError);
+          
+          return () => {
+            imgElement.removeEventListener('load', handleLoad);
+            imgElement.removeEventListener('error', handleError);
+          };
+        }
+      }
+    }
+  }, [nft, thumbLoaded]);
+
   return (
     <>
       {showInfo && <InfoPanel nft={nft} onClose={() => setShowInfo(false)} userFid={userFid} />}
@@ -275,15 +348,24 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
           <div className="flex items-center justify-between h-[calc(100%-8px)] px-4 gap-4">
             {/* NFT Image and Info */}
             <div className="flex items-center gap-4 flex-1 min-w-0">
-              <div className="relative w-12 h-12 flex-shrink-0 rounded-md overflow-hidden">
+              <div 
+                ref={imageContainerRef}
+                className="relative w-12 h-12 flex-shrink-0 rounded-md overflow-hidden bg-purple-900/20"
+              >
+                {/* Add loading placeholder */}
+                {!thumbLoaded && (
+                  <div className="absolute inset-0 bg-purple-900/30 animate-pulse z-10"></div>
+                )}
+                
                 <NFTImage
-                  src={nft.metadata?.image || ''}
+                  src={nft.image || nft.metadata?.image || ''}
                   alt={nft.name}
                   className="w-full h-full object-cover"
                   width={48}
                   height={48}
                   priority={true}
                   nft={nft}
+                  key={`thumb-${nft.contract}-${nft.tokenId}`}
                 />
               </div>
               <div className="flex-1 min-w-0">
