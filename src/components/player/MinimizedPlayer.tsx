@@ -3,6 +3,7 @@ import { NFTImage } from '../media/NFTImage';
 import type { NFT } from '../../types/user';
 import InfoPanel from './InfoPanel';
 import { logger } from '../../utils/logger';
+import { FEATURED_NFTS } from '../sections/FeaturedSection';
 
 // Create a dedicated logger for the MinimizedPlayer
 const playerLogger = logger.getModuleLogger('minimizedPlayer');
@@ -308,6 +309,43 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
     }
   }, [nft, thumbLoaded]);
 
+  // Inside the MinimizedPlayer component
+  // Add this debugging useEffect to track the NFT data
+  useEffect(() => {
+    if (nft) {
+      playerLogger.info('MinimizedPlayer received NFT:', {
+        name: nft.name,
+        image: nft.image,
+        metadataImage: nft.metadata?.image,
+        contract: nft.contract,
+        tokenId: nft.tokenId,
+        isFeatured: FEATURED_NFTS.some(f => 
+          f.contract === nft.contract && f.tokenId === nft.tokenId
+        )
+      });
+    }
+  }, [nft]);
+
+  // Add this function to the component to get the correct image URL for featured NFTs
+  const getFeaturedNFTImage = (currentNft: NFT): string => {
+    // First try to find a direct match in FEATURED_NFTS array
+    const featuredNft = FEATURED_NFTS.find(f => 
+      f.contract === currentNft.contract && f.tokenId === currentNft.tokenId
+    );
+    
+    if (featuredNft && featuredNft.image) {
+      // Log successful match for debugging
+      playerLogger.info('Found matching featured NFT image:', {
+        name: currentNft.name,
+        foundImage: featuredNft.image
+      });
+      return featuredNft.image;
+    }
+    
+    // Fallback to standard image sources
+    return currentNft.image || currentNft.metadata?.image || '';
+  };
+
   return (
     <>
       {showInfo && <InfoPanel nft={nft} onClose={() => setShowInfo(false)} userFid={userFid} />}
@@ -357,16 +395,37 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
                   <div className="absolute inset-0 bg-purple-900/30 animate-pulse z-10"></div>
                 )}
                 
-                <NFTImage
-                  src={nft.image || nft.metadata?.image || ''}
-                  alt={nft.name}
-                  className="w-full h-full object-cover"
-                  width={48}
-                  height={48}
-                  priority={true}
-                  nft={nft}
-                  key={`thumb-${nft.contract}-${nft.tokenId}`}
-                />
+                {/* Use direct image tag for featured NFTs to bypass NFTImage component */}
+                {FEATURED_NFTS.some(f => f.contract === nft.contract && f.tokenId === nft.tokenId) ? (
+                  <img
+                    src={getFeaturedNFTImage(nft)}
+                    alt={nft.name}
+                    className="w-full h-full object-cover"
+                    width={48}
+                    height={48}
+                    onLoad={() => setThumbLoaded(true)}
+                    onError={(e) => {
+                      playerLogger.error('Featured NFT image failed to load:', {
+                        nft: nft.name,
+                        src: (e.target as HTMLImageElement).src
+                      });
+                      // Try fallback to standard NFTImage
+                      setThumbLoaded(true);
+                    }}
+                  />
+                ) : (
+                  // For regular NFTs, use the standard approach
+                  <NFTImage
+                    src={nft.image || nft.metadata?.image || ''}
+                    alt={nft.name}
+                    className="w-full h-full object-cover"
+                    width={48}
+                    height={48}
+                    priority={true}
+                    nft={nft}
+                    key={`thumb-regular-${nft.contract}-${nft.tokenId}`}
+                  />
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="text-purple-400 font-mono text-sm truncate">{nft.name}</h3>
