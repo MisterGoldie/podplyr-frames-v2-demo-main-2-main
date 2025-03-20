@@ -296,6 +296,7 @@ export const NFTImage: React.FC<NFTImageProps> = ({
   const [retryCount, setRetryCount] = useState(0);
   const [currentGatewayIndex, setCurrentGatewayIndex] = useState(0);
   const [isLoadingFallback, setIsLoadingFallback] = useState(!validateUrl(src));
+  const [imgLoading, setImgLoading] = useState(true);
 
   useEffect(() => {
     // Reset states when src changes, but only if src is valid
@@ -565,21 +566,25 @@ export const NFTImage: React.FC<NFTImageProps> = ({
   }
 
   return (
-    <img
-      src={finalSrc}
-      alt={alt}
-      className={className}
-      width={width || 300}
-      height={height || 300}
-      onError={handleError}
-      // Add a data attribute to help with debugging
-      data-nft-image-status={error ? 'error' : 'loaded'}
-      data-nft-id={nft ? `${nft.contract}-${nft.tokenId}` : 'unknown'}
-      loading={priority ? 'eager' : loading}
-      sizes={sizes}
-      // Use a key that forces re-render when switching to fallback
-      key={`nft-img-${error ? 'fallback' : 'original'}-${nft?.contract || ''}-${nft?.tokenId || ''}-${isLoadingFallback ? 'loading' : 'loaded'}`}
-      style={{ objectFit: 'cover' }}
-    />
+    <>
+      {imgLoading && <div className="animate-pulse bg-gray-700 absolute inset-0"></div>}
+      <img
+        src={finalSrc}
+        alt={alt}
+        className={className}
+        width={width || 300}
+        height={height || 300}
+        onError={handleError}
+        onLoad={() => setImgLoading(false)}
+        // Add a data attribute to help with debugging
+        data-nft-image-status={error ? 'error' : 'loaded'}
+        data-nft-id={nft ? `${nft.contract}-${nft.tokenId}` : 'unknown'}
+        loading={priority ? 'eager' : loading}
+        sizes={sizes}
+        // Improve the key to be more stable and unique
+        key={`nft-img-${nft?.contract || 'unknown'}-${nft?.tokenId || 'unknown'}`}
+        style={{ objectFit: 'cover' }}
+      />
+    </>
   );
 };

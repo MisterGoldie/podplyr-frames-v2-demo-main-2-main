@@ -232,6 +232,21 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
     }
   }, [nft]);
   
+  // Preload the thumbnail when the component mounts
+  useEffect(() => {
+    if (nft && (nft.image || nft.metadata?.image)) {
+      // Create an image element to preload
+      const img = new Image();
+      img.src = nft.image || nft.metadata?.image || '';
+      
+      // Log preloading attempt
+      playerLogger.info('Preloading NFT thumbnail:', {
+        nft: nft.name || 'Unknown NFT',
+        source: img.src
+      });
+    }
+  }, [nft]);
+  
   // Render video with proper fallbacks
   const renderVideo = () => {
     // Get the processed URL - this will use CDN if enabled or fall back to direct URL
@@ -536,6 +551,7 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
                         height={400}
                         priority={true}
                         nft={nft}
+                        key={`thumb-${nft.contract}-${nft.tokenId}`}
                       />
                     )}
                   </div>

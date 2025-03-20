@@ -3,6 +3,7 @@ import { NFTImage } from '../media/NFTImage';
 import type { NFT } from '../../types/user';
 import InfoPanel from './InfoPanel';
 import { logger } from '../../utils/logger';
+import { FEATURED_NFTS } from '../sections/FeaturedSection';
 
 // Create a dedicated logger for the MinimizedPlayer
 const playerLogger = logger.getModuleLogger('minimizedPlayer');
@@ -55,6 +56,12 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
 
   // Add a ref to track the PiP video element
   const pipVideoRef = useRef<HTMLVideoElement | null>(null);
+
+  // Add state for tracking thumbnail loading status
+  const [thumbLoaded, setThumbLoaded] = useState(false);
+  
+  // Use a ref to track the image container
+  const imageContainerRef = useRef<HTMLDivElement>(null);
 
   // Add effects to find, control, and sync the video element
   useEffect(() => {
@@ -235,6 +242,110 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
     }
   }, [isPlaying, nft]);
 
+  // Explicitly preload the thumbnail when component mounts or nft changes
+  useEffect(() => {
+    if (!nft) return;
+    
+    // Reset loading state when NFT changes
+    setThumbLoaded(false);
+    
+    // Create image preloader
+    const img = new Image();
+    
+    // Handle success
+    img.onload = () => {
+      playerLogger.info('Successfully preloaded thumbnail for minimized player:', {
+        nft: nft.name || 'Unknown NFT',
+        contract: nft.contract,
+        tokenId: nft.tokenId
+      });
+      setThumbLoaded(true);
+    };
+    
+    // Set source to trigger loading
+    img.src = nft.image || nft.metadata?.image || '';
+    
+    // If already in cache, onload might not fire, so set loaded to true after a short delay
+    const timer = setTimeout(() => {
+      if (img.complete && img.naturalWidth > 0) {
+        setThumbLoaded(true);
+      }
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, [nft]);
+
+  // Check image status after rendering
+  useEffect(() => {
+    // Find the actual img element rendered inside our container
+    if (imageContainerRef.current) {
+      const imgElement = imageContainerRef.current.querySelector('img');
+      
+      if (imgElement) {
+        // If image is already loaded and complete
+        if (imgElement.complete && imgElement.naturalWidth > 0) {
+          setThumbLoaded(true);
+        } else {
+          // Otherwise add event listeners
+          const handleLoad = () => setThumbLoaded(true);
+          const handleError = () => {
+            playerLogger.warn('Image failed to load in minimized player', {
+              nft: nft?.name,
+              src: imgElement.src
+            });
+            // We'll still set loaded to remove the placeholder
+            setThumbLoaded(true);
+          };
+          
+          imgElement.addEventListener('load', handleLoad);
+          imgElement.addEventListener('error', handleError);
+          
+          return () => {
+            imgElement.removeEventListener('load', handleLoad);
+            imgElement.removeEventListener('error', handleError);
+          };
+        }
+      }
+    }
+  }, [nft, thumbLoaded]);
+
+  // Inside the MinimizedPlayer component
+  // Add this debugging useEffect to track the NFT data
+  useEffect(() => {
+    if (nft) {
+      playerLogger.info('MinimizedPlayer received NFT:', {
+        name: nft.name,
+        image: nft.image,
+        metadataImage: nft.metadata?.image,
+        contract: nft.contract,
+        tokenId: nft.tokenId,
+        isFeatured: FEATURED_NFTS.some(f => 
+          f.contract === nft.contract && f.tokenId === nft.tokenId
+        )
+      });
+    }
+  }, [nft]);
+
+  // Add this function to the component to get the correct image URL for featured NFTs
+  const getFeaturedNFTImage = (currentNft: NFT): string => {
+    // First try to find a direct match in FEATURED_NFTS array
+    const featuredNft = FEATURED_NFTS.find(f => 
+      f.contract === currentNft.contract && f.tokenId === currentNft.tokenId
+    );
+    
+    if (featuredNft && featuredNft.image) {
+      // Log successful match for debugging
+      playerLogger.info('Found matching featured NFT image:', {
+        name: currentNft.name,
+        foundImage: featuredNft.image
+      });
+      return featuredNft.image;
+    }
+    
+    // Fallback to standard image sources
+    return currentNft.image || currentNft.metadata?.image || '';
+  };
+
   return (
     <>
       {showInfo && <InfoPanel nft={nft} onClose={() => setShowInfo(false)} userFid={userFid} />}
@@ -275,16 +386,46 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
           <div className="flex items-center justify-between h-[calc(100%-8px)] px-4 gap-4">
             {/* NFT Image and Info */}
             <div className="flex items-center gap-4 flex-1 min-w-0">
-              <div className="relative w-12 h-12 flex-shrink-0 rounded-md overflow-hidden">
-                <NFTImage
-                  src={nft.metadata?.image || ''}
-                  alt={nft.name}
-                  className="w-full h-full object-cover"
-                  width={48}
-                  height={48}
-                  priority={true}
-                  nft={nft}
-                />
+              <div 
+                ref={imageContainerRef}
+                className="relative w-12 h-12 flex-shrink-0 rounded-md overflow-hidden bg-purple-900/20"
+              >
+                {/* Add loading placeholder */}
+                {!thumbLoaded && (
+                  <div className="absolute inset-0 bg-purple-900/30 animate-pulse z-10"></div>
+                )}
+                
+                {/* Use direct image tag for featured NFTs to bypass NFTImage component */}
+                {FEATURED_NFTS.some(f => f.contract === nft.contract && f.tokenId === nft.tokenId) ? (
+                  <img
+                    src={getFeaturedNFTImage(nft)}
+                    alt={nft.name}
+                    className="w-full h-full object-cover"
+                    width={48}
+                    height={48}
+                    onLoad={() => setThumbLoaded(true)}
+                    onError={(e) => {
+                      playerLogger.error('Featured NFT image failed to load:', {
+                        nft: nft.name,
+                        src: (e.target as HTMLImageElement).src
+                      });
+                      // Try fallback to standard NFTImage
+                      setThumbLoaded(true);
+                    }}
+                  />
+                ) : (
+                  // For regular NFTs, use the standard approach
+                  <NFTImage
+                    src={nft.image || nft.metadata?.image || ''}
+                    alt={nft.name}
+                    className="w-full h-full object-cover"
+                    width={48}
+                    height={48}
+                    priority={true}
+                    nft={nft}
+                    key={`thumb-regular-${nft.contract}-${nft.tokenId}`}
+                  />
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="text-purple-400 font-mono text-sm truncate">{nft.name}</h3>
