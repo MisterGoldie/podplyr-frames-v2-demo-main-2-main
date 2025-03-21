@@ -349,27 +349,6 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
   return (
     <>
       {showInfo && <InfoPanel nft={nft} onClose={() => setShowInfo(false)} userFid={userFid} />}
-      {nft && nft.contract === '0x79428737e60a8a8db494229638eaa5e52874b6fb' && 
-       nft.tokenId === '79428737e6' && (
-        <>
-          {nft.name === 'Isolation(2020)' && (
-            <style dangerouslySetInnerHTML={{ __html: `
-              /* Force Isolation image */
-              .min-player-thumbnail[data-nft-name="Isolation(2020)"] {
-                background-image: url('https://nftstorage.link/ipfs/bafybeibjen3vz5bbw7e3u5sj3x65dyg3k5bqznrmq4ctylvxadkazgnkli') !important;
-              }
-            `}} />
-          )}
-          {nft.name === 'ACYL RADIO - WILL01' && (
-            <style dangerouslySetInnerHTML={{ __html: `
-              /* Force ACYL image */
-              .min-player-thumbnail[data-nft-name="ACYL RADIO - WILL01"] {
-                background-image: url('https://bafybeie7mejoxle27ki56vxmzebb67kcrttu54stlin74xowaq5ugu3sdi.ipfs.w3s.link/COMPRESSEDWILL%20RADIO%20-min.gif') !important;
-              }
-            `}} />
-          )}
-        </>
-      )}
       <div 
         className="fixed bottom-20 left-0 right-0 bg-black border-t border-purple-400/20 h-20 z-[100] will-change-transform overflow-hidden"
         style={{

@@ -125,38 +125,6 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
 
   // Define handlePlayAudio first, before it's used in other functions
   const handlePlayAudio = useCallback(async (nft: NFT, context?: { queue?: NFT[], queueType?: string }) => {
-    // EMERGENCY NUCLEAR OPTION - COMPLETELY REWRITE THE NFT OBJECT
-    if (nft?.contract === '0x79428737e60a8a8db494229638eaa5e52874b6fb' && 
-        nft?.tokenId === '79428737e6') {
-        
-        // Create a BRAND NEW OBJECT with NO REFERENCES to original
-        const fixedNft = { ...nft };
-        
-        if (nft.name === 'ACYL RADIO - WILL01') {
-          console.log('🚨 NUCLEAR FIX: Creating completely new ACYL NFT object');
-          
-          // ALTER THE CONTRACT ADDRESS TO FORCE SEPARATION
-          fixedNft.contract = '0x79428737e60a8a8db494229638eaa5e52874b6fb_ACYL';
-          fixedNft.mediaKey = 'acyl_radio_will01_custom_key';
-          fixedNft.image = 'https://bafybeie7mejoxle27ki56vxmzebb67kcrttu54stlin74xowaq5ugu3sdi.ipfs.w3s.link/COMPRESSEDWILL%20RADIO%20-min.gif';
-          
-          // Use THIS object instead of original
-          nft = fixedNft;
-        }
-        
-        if (nft.name === 'Isolation(2020)') {
-          console.log('🚨 NUCLEAR FIX: Creating completely new ISOLATION NFT object');
-          
-          // ALTER THE CONTRACT ADDRESS TO FORCE SEPARATION
-          fixedNft.contract = '0x79428737e60a8a8db494229638eaa5e52874b6fb_ISOLATION';
-          fixedNft.mediaKey = 'isolation_2020_custom_key';
-          fixedNft.image = 'https://nftstorage.link/ipfs/bafybeibjen3vz5bbw7e3u5sj3x65dyg3k5bqznrmq4ctylvxadkazgnkli';
-          
-          // Use THIS object instead of original
-          nft = fixedNft;
-        }
-    }
-    
     // Add mobile optimization
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     
