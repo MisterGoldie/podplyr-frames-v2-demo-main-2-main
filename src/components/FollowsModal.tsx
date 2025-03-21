@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import Image from 'next/image';
-import { subscribeToFollowers, subscribeToFollowingUsers, toggleFollowUser, isUserFollowed } from '../lib/firebase';
+import { subscribeToFollowers, subscribeToFollowingUsers, toggleFollowUser, isUserFollowed, getFollowerProfiles } from '../lib/firebase';
 import type { FollowedUser, FarcasterUser } from '../types/user';
 import { AnimatePresence, motion } from 'framer-motion';
 
@@ -179,6 +179,19 @@ const FollowsModal: React.FC<FollowsModalProps> = ({
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isOpen, onClose]);
+  
+  const loadFollowers = async () => {
+    setLoading(true);
+    try {
+      // Use getFollowerProfiles instead of getFollowers
+      const followersList = await getFollowerProfiles(userFid);
+      setUsers(followersList);
+    } catch (error) {
+      console.error('Error loading followers:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
   
   return (
     <AnimatePresence>
