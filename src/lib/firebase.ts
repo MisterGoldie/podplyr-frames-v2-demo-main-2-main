@@ -1716,8 +1716,8 @@ export const followUser = async (currentUserFid: number, userToFollow: Farcaster
     }
     const currentUserData = currentUserSnapshot.exists() ? currentUserSnapshot.data() : {};
     
-    // Prepare the follower data with complete profile information
-    const followerData = {
+    // Before creating the follower document, fetch fresh profile data
+    let followerData = {
       fid: currentUserFid,
       username: currentUserData.username || `user${currentUserFid}`,
       display_name: currentUserData.display_name || currentUserData.username || `User ${currentUserFid}`,
@@ -1725,10 +1725,42 @@ export const followUser = async (currentUserFid: number, userToFollow: Farcaster
       timestamp: serverTimestamp()
     };
     
+    // IMPORTANT: If username isn't available, fetch it from Neynar
+    if (!followerData.username || followerData.username.startsWith('user')) {
+      try {
+        const neynarKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
+        const profileResponse = await fetchWithRetry(
+          `https://api.neynar.com/v2/farcaster/user/bulk?fids=${currentUserFid}`,
+          {
+            headers: {
+              'accept': 'application/json',
+              'api_key': neynarKey || ''
+            }
+          }
+        );
+        
+        if (profileResponse.ok) {
+          const profileData = await profileResponse.json();
+          if (profileData.users && profileData.users[0]) {
+            const userData = profileData.users[0];
+            followerData = {
+              ...followerData,
+              username: userData.username,
+              display_name: userData.display_name || userData.username,
+              pfp_url: userData.pfp_url || `https://avatar.vercel.sh/${userData.username}`
+            };
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching follower profile:', error);
+        // Continue with basic data if we can't get better data
+      }
+    }
+    
     // Use a batch write to ensure all operations succeed or fail together
     const batch = writeBatch(db);
     batch.set(followingRef, followData);
-    batch.set(followerRef, followerData);
+    batch.set(followerRef, followerData); // Use the enhanced follower data
     
     // Update the following count for the current user
     batch.update(currentUserRef, {
@@ -2246,3 +2278,106 @@ export const searchUsers = async (query: string): Promise<FarcasterUser[]> => {
     return []; // Return empty array instead of throwing to maintain backward compatibility
   }
 };
+
+// Enhance the getFollowerProfiles function to always fetch complete profiles
+export async function getFollowerProfiles(targetFid: number): Promise<FollowedUser[]> {
+  if (!targetFid) {
+    console.error('Invalid FID provided for fetching followers');
+    return [];
+  }
+  
+  try {
+    // Fetch followers from Firestore first
+    const followersRef = collection(db, 'users', targetFid.toString(), 'followers');
+    const snapshot = await getDocs(followersRef);
+    
+    // Create a Map to maintain unique FIDs and their basic profile data
+    const followersMap = new Map<number, FollowedUser>();
+    const followerFids: number[] = [];
+    
+    // Process followers from the database
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      if (data.fid) {
+        followersMap.set(data.fid, {
+          fid: data.fid,
+          username: data.username || `user${data.fid}`,
+          display_name: data.display_name || data.username || `User ${data.fid}`,
+          pfp_url: data.pfp_url || `https://avatar.vercel.sh/${data.username || data.fid}`,
+          timestamp: data.timestamp?.toDate() || new Date()
+        });
+        followerFids.push(data.fid);
+      }
+    });
+    
+    // CRITICAL: Always fetch latest profiles from Neynar API to ensure we have current data
+    if (followerFids.length > 0) {
+      try {
+        const neynarKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
+        if (!neynarKey) throw new Error('Neynar API key not found');
+        
+        // Batch profiles in groups of 50 (Neynar API limit)
+        const batchSize = 50;
+        for (let i = 0; i < followerFids.length; i += batchSize) {
+          const batch = followerFids.slice(i, i + batchSize);
+          const fidsParam = batch.join(',');
+          
+          // Fetch the latest profiles from Neynar API
+          const profileResponse = await fetchWithRetry(
+            `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fidsParam}`,
+            {
+              headers: {
+                'accept': 'application/json',
+                'api_key': neynarKey
+              }
+            }
+          );
+
+          if (profileResponse.ok) {
+            const profileData = await profileResponse.json();
+            
+            // Update the followers Map with complete profile data
+            if (profileData && profileData.users) {
+              for (const user of profileData.users) {
+                if (followersMap.has(user.fid)) {
+                  console.log(`Updating follower profile for FID ${user.fid}: ${user.username}`);
+                  
+                  // Get the existing data so we preserve the timestamp
+                  const existingData = followersMap.get(user.fid)!;
+                  
+                  // Update with fresh data from API
+                  followersMap.set(user.fid, {
+                    ...existingData,
+                    username: user.username,
+                    display_name: user.display_name || user.username,
+                    pfp_url: user.pfp_url || `https://avatar.vercel.sh/${user.username}`
+                  });
+                  
+                  // IMPORTANT: Also update the stored follower data in Firestore
+                  // This ensures future queries have the latest profile info
+                  const followerRef = doc(db, 'users', targetFid.toString(), 'followers', user.fid.toString());
+                  await updateDoc(followerRef, {
+                    username: user.username,
+                    display_name: user.display_name || user.username,
+                    pfp_url: user.pfp_url || `https://avatar.vercel.sh/${user.username}`
+                  });
+                }
+              }
+            }
+          }
+        }
+      } catch (apiError) {
+        console.error('Error fetching complete profiles from Neynar:', apiError);
+        // Continue with the basic profiles we have as fallback
+      }
+    }
+    
+    // Sort by display name or username for consistent order
+    return Array.from(followersMap.values()).sort((a, b) => 
+      (a.display_name || a.username).localeCompare(b.display_name || b.username)
+    );
+  } catch (error) {
+    console.error('Error getting follower profiles:', error);
+    return [];
+  }
+}
