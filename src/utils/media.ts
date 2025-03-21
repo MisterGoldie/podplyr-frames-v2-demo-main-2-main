@@ -311,9 +311,28 @@ const createSafeId = (url: string): string => {
 export const getMediaKey = (nft: NFT): string => {
   if (!nft) return '';
 
-  // Check if the NFT already has a mediaKey property (from migration)
+  // EMERGENCY FIX FOR CONFLICTING NFTs
+  // These NFTs have the same contract/tokenId but different content
+  // Force them to have completely different mediaKeys
+  if (nft.contract === '0x79428737e60a8a8db494229638eaa5e52874b6fb' && 
+      nft.tokenId === '79428737e6') {
+      
+    // Check name to determine which NFT it is
+    if (nft.name === 'ACYL RADIO - WILL01' || 
+        (nft.image && nft.image.includes('COMPRESSEDWILL'))) {
+      console.log('🔑 FORCING UNIQUE MEDIA KEY FOR ACYL RADIO');
+      return 'acyl_radio_will01_unique_key';
+    }
+    
+    if (nft.name === 'Isolation(2020)' || 
+        (nft.image && nft.image.includes('bafybeibjen3vz5'))) {
+      console.log('🔑 FORCING UNIQUE MEDIA KEY FOR ISOLATION');
+      return 'isolation_2020_unique_key';
+    }
+  }
+
+  // Continue with existing implementation
   if (nft.mediaKey) {
-    console.log('🔑 Using existing mediaKey:', nft.mediaKey.slice(0, 8));
     return nft.mediaKey;
   }
   
