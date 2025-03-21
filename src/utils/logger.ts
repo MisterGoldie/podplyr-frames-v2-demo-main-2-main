@@ -24,15 +24,15 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 // Set this to true to enable logs in production (normally should be false)
 const FORCE_LOGS_IN_PRODUCTION = false;
 
-// Master switch to enable/disable all logging - FORCE ENABLE for debugging likes
-export let DEBUG_MODE = true; // FORCE ENABLED to debug the like functionality
+// Master switch to enable/disable all logging - FORCE DISABLED for demo
+export let DEBUG_MODE = false; // Completely disabled for demo
 
-// Enable specific log levels (can be customized)
+// Disable ALL log levels for the demo
 const ENABLED_LEVELS = {
-  debug: true, // FORCE ENABLED for debugging
-  info: true,  // FORCE ENABLED for debugging
-  warn: true,  // Warnings always shown
-  error: true, // Errors always shown
+  debug: false,
+  info: false,
+  warn: false, // Warnings now disabled too
+  error: false, // Errors now disabled too
 };
 
 // Enable logs for specific modules (can be customized)
@@ -109,8 +109,7 @@ const log = (
 };
 
 /**
- * Function to completely disable all logs - MODIFIED to preserve console methods for debugging
- * CRITICAL: This now only changes the DEBUG_MODE flags but DOES NOT override console methods
+ * Function to completely disable all logs and modal dialogs
  */
 const disableAllLogs = () => {
   DEBUG_MODE = false;
@@ -119,9 +118,22 @@ const disableAllLogs = () => {
   ENABLED_LEVELS.warn = false;
   ENABLED_LEVELS.error = false;
   
-  console.warn('⚠️⚠️⚠️ LOGGER: Logs were disabled via disableAllLogs, but console methods are preserved for debugging');
+  // Override ALL console methods to be no-ops
+  console.log = () => {};
+  console.debug = () => {};
+  console.info = () => {};
+  console.warn = () => {};
+  console.error = () => {};
+  console.trace = () => {};
+  console.dir = () => {};
+  console.table = () => {};
   
-  // NO LONGER overrides console methods to ensure direct console logs continue to work
+  // Prevent modal dialogs from appearing
+  if (typeof window !== 'undefined') {
+    window.alert = () => {};
+    window.confirm = () => false;
+    window.prompt = () => null;
+  }
 };
 
 /**
@@ -198,5 +210,8 @@ export const debugLog = (...args: any[]) => {
     console.log(...args);
   }
 };
+
+// IMMEDIATELY disable all logs regardless of environment for demo
+disableAllLogs();
 
 export default logger; 
