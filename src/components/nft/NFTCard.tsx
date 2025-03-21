@@ -637,42 +637,12 @@ const HeartIconWithForcedState = ({ isLiked }: { isLiked: boolean }) => {
   
   // Use the ref value for rendering
   return (
-    <div 
-      className="absolute bottom-2 right-2 z-10" 
-      onClick={(e) => {
-        e.stopPropagation();
-        
-        // Mark this card as explicitly unliked by the user if it was liked
-        if (isNFTLiked && isNFTLiked(nft) && cardRef.current) {
-          cardRef.current.setAttribute('data-user-unliked', 'true');
-        } else if (cardRef.current) {
-          // This is being liked - mark as most recently liked
-          cardRef.current.querySelector('.heart-icon')?.setAttribute('data-recently-liked', 'true');
-          
-          // Dispatch an event to notify the app of the recently liked NFT
-          const mediaKey = getMediaKey(nft);
-          const likeEvent = new CustomEvent('nftLikeStateChange', {
-            detail: {
-              mediaKey,
-              contract: nft.contract,
-              tokenId: nft.tokenId,
-              isLiked: true,
-              timestamp: Date.now(),
-              isRecent: true
-            }
-          });
-          document.dispatchEvent(likeEvent);
-        }
-        
-        // Call the normal like toggle handler
-        onLikeToggle();
-      }}
-    >
-      <HeartIcon 
-        className={`w-6 h-6 heart-icon ${isNFTLiked(nft) ? 'text-red-500 fill-red-500' : 'text-white'}`}
-        data-liked={isNFTLiked(nft).toString()}
-      />
-    </div>
+    <HeartIcon 
+      className={`w-6 h-6 ${initialLikedState.current ? 'text-red-500 fill-red-500 locked-liked-status' : 'text-white'}`}
+      onClick={handleLikeToggle}
+      // Add data attribute to help identify the element
+      data-liked={initialLikedState.current.toString()}
+    />
   );
 };
 

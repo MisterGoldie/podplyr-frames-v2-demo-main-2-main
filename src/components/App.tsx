@@ -74,46 +74,5 @@ useEffect(() => {
   // Start preserving like states
   const cleanup = preserveLikeStates();
   
-  // Add this to your existing App component useEffect
-  // This is a direct DOM manipulation fix for your demo
-  setTimeout(() => {
-    // After everything else loads, check if we're on the Library tab
-    const libraryTab = document.querySelector('.library-tab, [data-tab="library"]');
-    const isLibraryActive = libraryTab && 
-      (libraryTab.classList.contains('active') || document.URL.includes('library'));
-      
-    if (isLibraryActive) {
-      // Find all NFT cards in the library
-      const nftCards = document.querySelectorAll('.library-content .nft-card, [data-nft-id]');
-      
-      // Find the one with Latasha in the name or check liked status
-      let latashaCard = null;
-      for (const card of nftCards) {
-        const titleElement = card.querySelector('h3, .nft-title');
-        if (titleElement && titleElement.textContent && 
-            titleElement.textContent.toLowerCase().includes('latasha')) {
-          latashaCard = card;
-          break;
-        }
-        
-        // Alternative: check for most recently liked
-        const heartElement = card.querySelector('.text-red-500.fill-red-500');
-        if (heartElement && heartElement.getAttribute('data-recently-liked') === 'true') {
-          latashaCard = card;
-          break;
-        }
-      }
-      
-      // If found, move it to the beginning of the list
-      if (latashaCard && latashaCard.parentElement) {
-        const parent = latashaCard.parentElement;
-        // Remove and insert at beginning
-        latashaCard.remove();
-        parent.insertBefore(latashaCard, parent.firstChild);
-        console.log('🔄 Moved recently liked NFT to the front of the library');
-      }
-    }
-  }, 2000); // Wait for library to load
-  
   return cleanup;
 }, []); 
