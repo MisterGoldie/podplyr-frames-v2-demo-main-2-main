@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { NFT, UserContext } from '../../types/user';
 import { NFTImage } from '../media/NFTImage';
 import { getMediaKey } from '~/utils/media';
@@ -173,7 +173,9 @@ class LibraryView extends React.Component<LibraryViewProps> {
     searchFilter: '',
     filterSort: 'recent' as 'recent' | 'name',
     isLoading: true, // Add loading state, initially true
-    nftToNotify: null as NFT | null // Track the NFT that needs a notification
+    nftToNotify: null as NFT | null, // Track the NFT that needs a notification
+    sortedLikedNFTs: [] as NFT[],
+    mostRecentlyLikedNFT: null as string | null
   };
 
   componentDidMount() {
@@ -182,6 +184,16 @@ class LibraryView extends React.Component<LibraryViewProps> {
     setTimeout(() => {
       this.setState({ isLoading: false });
     }, 1500);
+
+    // Listen for like events to track the most recently liked NFT
+    const handleLikeEvent = (event: CustomEvent) => {
+      if (event.detail && event.detail.mediaKey) {
+        this.setState({ mostRecentlyLikedNFT: event.detail.mediaKey });
+      }
+    };
+
+    // Add event listener for our custom like events
+    document.addEventListener('nftLikeStateChange', handleLikeEvent as EventListener);
   }
 
   componentDidUpdate(prevProps: LibraryViewProps) {
@@ -200,6 +212,11 @@ class LibraryView extends React.Component<LibraryViewProps> {
       const isNFTLiked = this.props.likedNFTs.some(nft => getMediaKey(nft) === currentMediaKey);
       this.props.setIsLiked(isNFTLiked);
     }
+  }
+
+  componentWillUnmount() {
+    // Remove event listener for our custom like events
+    document.removeEventListener('nftLikeStateChange', this.handleLikeEvent as EventListener);
   }
 
   // Deduplicate NFTs based on unique contract-tokenId combinations
@@ -261,6 +278,36 @@ class LibraryView extends React.Component<LibraryViewProps> {
     this.setState({ nftToNotify: null });
   };
 
+  // Sort the liked NFTs when they or the most recently liked NFT changes
+  sortLikedNFTs() {
+    const { likedNFTs, mostRecentlyLikedNFT } = this.props;
+    const { sortedLikedNFTs } = this.state;
+
+    if (!likedNFTs || !likedNFTs.length) {
+      this.setState({ sortedLikedNFTs: [] });
+      return;
+    }
+
+    // Create a copy of the liked NFTs array
+    const newSortedNFTs = [...likedNFTs];
+    
+    // If we have a most recently liked NFT, move it to the front
+    if (mostRecentlyLikedNFT) {
+      const recentIndex = newSortedNFTs.findIndex(nft => {
+        const mediaKey = getMediaKey(nft);
+        return mediaKey === mostRecentlyLikedNFT;
+      });
+      
+      // If found, move it to the front
+      if (recentIndex > 0) {
+        const [recentNFT] = newSortedNFTs.splice(recentIndex, 1);
+        newSortedNFTs.unshift(recentNFT);
+      }
+    }
+    
+    this.setState({ sortedLikedNFTs: newSortedNFTs });
+  }
+
   render() {
     const { 
       handlePlayAudio, 
@@ -271,7 +318,7 @@ class LibraryView extends React.Component<LibraryViewProps> {
       onLikeToggle 
     } = this.props;
     
-    const { viewMode, searchFilter, filterSort, isLoading } = this.state;
+    const { viewMode, searchFilter, filterSort, isLoading, sortedLikedNFTs } = this.state;
     const uniqueNFTs = this.getUniqueNFTs();
     const filteredNFTs = this.getFilteredNFTs();
 
