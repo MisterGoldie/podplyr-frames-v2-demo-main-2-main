@@ -358,28 +358,6 @@ export const NFTCard: React.FC<NFTCardProps> = ({
     animation: `fadeInUp 0.5s ease-out ${animationDelay}s forwards`
   };
 
-  // Add a state to track local like status for immediate feedback
-  const [isLikedLocally, setIsLikedLocally] = useState<boolean | null>(null);
-
-  // Initialize local state from the prop when component mounts
-  useEffect(() => {
-    if (isLikedLocally === null && isNFTLiked) {
-      setIsLikedLocally(isNFTLiked(nft));
-    }
-  }, [isNFTLiked, nft, isLikedLocally]);
-
-  // Handle like toggle with local state update first
-  const handleLikeToggle = () => {
-    // Update local state immediately for UI response
-    setIsLikedLocally(prev => !prev);
-    
-    // Then call the actual handler
-    onLikeToggle();
-  };
-
-  // Use the local state OR the checked state for rendering
-  const heartFilled = isLikedLocally !== null ? isLikedLocally : isNFTLiked(nft);
-
   // All hooks are guaranteed to be called before any return statements now
 
   // For list mode
@@ -561,7 +539,199 @@ export const NFTCard: React.FC<NFTCardProps> = ({
               style={{ touchAction: 'manipulation' }}
             >
             {onLikeToggle ? (
-              <HeartIconWithForcedState isLiked={heartFilled} />
+              <button 
+                onClick={async (e) => {
+                  // DIRECT CONSOLE LOGGING - Bypasses all filtering
+                  console.error('🔴🔴🔴 LIKE BUTTON CLICKED 🔴🔴🔴', { 
+                    nft_name: nft?.name,
+                    contract: nft?.contract,
+                    tokenId: nft?.tokenId,
+                    mediaKey,
+                    current_like_status: isLiked ? 'LIKED' : 'NOT LIKED',
+                    timestamp: new Date().toISOString(),
+                  });
+                  
+                  // Use window.console to bypass potential console filtering
+                  window.console.log('DIRECT WINDOW CONSOLE - LIKE BUTTON CLICKED', {
+                    nft_name: nft?.name,
+                    mediaKey,
+                    current_like_status: isLiked ? 'LIKED' : 'NOT LIKED',
+                  });
+                  
+                  // Provide immediate visual feedback for touch events
+                  const button = e.currentTarget as HTMLElement;
+                  button.style.transform = 'scale(1.2)';
+                  setTimeout(() => {
+                    button.style.transform = '';
+                  }, 150);
+                  
+                  e.stopPropagation();
+                  e.preventDefault();
+                  
+                  // In demo mode, don't block like functionality even without userFid
+                  // This allows testing the like feature in the demo without login
+                  if (!userFid) {
+                    nftCardLogger.warn('No userFid provided, but proceeding with like operation in demo mode');
+                  }
+                  
+                  try {
+                    // Determine current like state before toggle
+                    const wasLiked = isLiked;
+                    const newLikeState = !wasLiked;
+                    
+                    // IMPORTANT: Show notification IMMEDIATELY before any Firebase operations
+                    // This ensures smooth animation regardless of backend delays
+                    try {
+                      // Determine the notification type based on the current state
+                      const notificationType = wasLiked ? 'unlike' : 'like';
+                      nftCardLogger.debug('Triggering notification for:', nft.name, 'Type:', notificationType);
+                      
+                      // Add a small delay to sync with the heart icon animation (150ms)
+                      // This ensures the notification appears after the heart turns red
+                      setTimeout(() => {
+                        // Make sure nftNotification is available and show the notification
+                        if (nftNotification && typeof nftNotification.showNotification === 'function') {
+                          nftNotification.showNotification(notificationType, nft);
+                          nftCardLogger.debug('Notification triggered with type:', notificationType, 'for NFT:', nft.name);
+                        } else {
+                          nftCardLogger.error('nftNotification is not available or showNotification is not a function');
+                        }
+                      }, 150); // Timing synchronized with heart icon animation
+                    } catch (error) {
+                      nftCardLogger.error('Error showing notification:', error);
+                    }
+                    
+                    // ENHANCED: Update DOM immediately for all instances of this content
+                    // This ensures all NFT cards with the same mediaKey update their UI in sync
+                    if (mediaKey) {
+                      nftCardLogger.debug('Updating all NFT cards with mediaKey', { 
+                        mediaKey, 
+                        newLikeState,
+                        wasLiked
+                      });
+                      
+                      // Update all cards with the same mediaKey
+                      document.querySelectorAll(`[data-media-key="${mediaKey}"]`).forEach(element => {
+                        element.setAttribute('data-liked', newLikeState ? 'true' : 'false');
+                      });
+                    }
+                    
+                    // Perform the like toggle operation in the background
+                    // Don't block the UI or notification on this
+                    if (onLikeToggle) {
+                      // DIRECT CONSOLE LOGGING - Before Firebase operation
+                      console.warn('⚠️⚠️⚠️ CALLING FIREBASE LIKE TOGGLE ⚠️⚠️⚠️', { 
+                        nft_name: nft?.name,
+                        contract: nft?.contract,
+                        tokenId: nft?.tokenId,
+                        mediaKey,
+                        current_status: wasLiked ? 'LIKED' : 'NOT LIKED',
+                        new_status: !wasLiked ? 'WILL BE LIKED' : 'WILL BE UNLIKED',
+                        timestamp: new Date().toISOString(),
+                      });
+                      
+                      // Add mediaKey to the NFT object for easier reference
+                      const nftWithMediaKey = { ...nft, mediaKey };
+                      
+                      try {
+                        // Use async/await for better error handling
+                        await onLikeToggle(nftWithMediaKey);
+                        
+                        // DIRECT CONSOLE LOGGING - Firebase operation success
+                        console.warn('✅✅✅ FIREBASE LIKE TOGGLE SUCCEEDED ✅✅✅', { 
+                          nft_name: nft?.name,
+                          contract: nft?.contract,
+                          tokenId: nft?.tokenId,
+                          mediaKey,
+                          previous_status: wasLiked ? 'WAS LIKED' : 'WAS NOT LIKED',
+                          new_status: !wasLiked ? 'NOW LIKED' : 'NOW UNLIKED',
+                          timestamp: new Date().toISOString(),
+                        });
+                        
+                        // Verify that all DOM elements with this mediaKey are in sync
+                        // This ensures UI consistency across all instances of this NFT
+                        setTimeout(() => {
+                          if (mediaKey) {
+                            const expectedState = !wasLiked;
+                            document.querySelectorAll(`[data-media-key="${mediaKey}"]`).forEach(element => {
+                              const currentState = element.getAttribute('data-liked') === 'true';
+                              if (currentState !== expectedState) {
+                                // Fix any inconsistencies
+                                element.setAttribute('data-liked', expectedState ? 'true' : 'false');
+                                nftCardLogger.debug('Fixed inconsistent like state for element', element);
+                              }
+                            });
+                          }
+                        }, 300); // Small delay to ensure Firebase has time to update
+                      } catch (error) {
+                        // DIRECT CONSOLE LOGGING - Firebase operation error
+                        console.error('❌❌❌ FIREBASE LIKE TOGGLE FAILED ❌❌❌', { 
+                          nft_name: nft?.name,
+                          contract: nft?.contract,
+                          tokenId: nft?.tokenId,
+                          mediaKey,
+                          error: error instanceof Error ? error.message : String(error),
+                          timestamp: new Date().toISOString(),
+                        });
+                        
+                        // On error, revert the DOM changes
+                        if (mediaKey) {
+                          document.querySelectorAll(`[data-media-key="${mediaKey}"]`).forEach(element => {
+                            element.setAttribute('data-liked', wasLiked ? 'true' : 'false');
+                          });
+                          
+                          // Show error notification
+                          if (nftNotification && typeof nftNotification.showNotification === 'function') {
+                            // Show unlike notification since we're reverting to original state
+                            nftNotification.showNotification(wasLiked ? 'like' : 'unlike', nft);
+                          }
+                        }
+                      }
+                    } else {
+                      nftCardLogger.error('onLikeToggle function is not available');
+                      // Provide visual feedback that something went wrong
+                      const button = e.currentTarget as HTMLElement;
+                      button.classList.add('animate-shake');
+                      setTimeout(() => button.classList.remove('animate-shake'), 500);
+                    }
+                  } catch (error) {
+                    nftCardLogger.error('Error in like toggle operation:', error);
+                    // Provide visual feedback on error
+                    const button = e.currentTarget as HTMLElement;
+                    button.classList.add('animate-shake');
+                    setTimeout(() => button.classList.remove('animate-shake'), 500);
+                  }
+                  
+                  if (e) startOverlayTimer(e);
+                }}
+                className="w-10 h-10 flex items-center justify-center text-red-500 transition-all duration-300 hover:scale-125 z-10"
+                style={{ touchAction: 'manipulation' }}
+                aria-label="Toggle like"
+              >
+              {isLiked ? (
+                <svg 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  height="24" 
+                  viewBox="0 -960 960 960" 
+                  width="24" 
+                  fill="red"
+                >
+                  <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
+                </svg>
+              ) : (
+                <svg 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  height="24" 
+                  viewBox="0 -960 960 960" 
+                  width="24" 
+                  fill="white" 
+                  stroke="red"
+                  strokeWidth="1"
+                >
+                  <path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Zm0-108q96-86 158-147.5t98-107q36-45.5 50-81t14-70.5q0-60-40-100t-100-40q-47 0-87 26.5T518-680h-76q-15-41-55-67.5T300-774q-60 0-100 40t-40 100q0 35 14 70.5t50 81q36 45.5 98 107T480-228Zm0-273Z"/>
+                </svg>
+              )}
+            </button>
             ) : (
               <button 
                 onClick={(e) => {
@@ -630,30 +800,3 @@ export const NFTCard: React.FC<NFTCardProps> = ({
     </>
   );
 };
-
-const HeartIconWithForcedState = ({ isLiked }: { isLiked: boolean }) => {
-  // Store the initial state in a ref that won't change
-  const initialLikedState = useRef(isLiked);
-  
-  // Use the ref value for rendering
-  return (
-    <HeartIcon 
-      className={`w-6 h-6 ${initialLikedState.current ? 'text-red-500 fill-red-500 locked-liked-status' : 'text-white'}`}
-      onClick={handleLikeToggle}
-      // Add data attribute to help identify the element
-      data-liked={initialLikedState.current.toString()}
-    />
-  );
-};
-
-useEffect(() => {
-  // Mark this card with its NFT ID to help our global override
-  if (cardRef.current && nft.contract && nft.tokenId) {
-    cardRef.current.setAttribute('data-nft-id', `${nft.contract}-${nft.tokenId}`);
-    
-    // If this card is liked, force-mark it
-    if (isNFTLiked && isNFTLiked(nft)) {
-      cardRef.current.setAttribute('data-force-liked', 'true');
-    }
-  }
-}, [nft, isNFTLiked]);
