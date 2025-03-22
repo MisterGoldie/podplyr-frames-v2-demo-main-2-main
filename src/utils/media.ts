@@ -317,11 +317,6 @@ export const getMediaKey = (nft: NFT): string => {
     return nft.mediaKey;
   }
   
-  // IMPORTANT: We must use URL-based approach to implement the content-first architecture.
-  // This ensures identical content = same mediaKey regardless of contract/tokenId.
-  // DO NOT prioritize contract-tokenId - that breaks the content-first approach.
-
-  // PRIMARY approach: Use URL-based keys to ensure content-first architecture
   // Get media URLs that uniquely identify the content
   const videoUrl = nft.metadata?.animation_url || '';
   const imageUrl = nft.image || nft.metadata?.image || '';
@@ -350,8 +345,45 @@ export const getMediaKey = (nft: NFT): string => {
     .replace(/_+/g, '_') // Clean up any remaining multiple underscores
     .replace(/^_+|_+$/g, ''); // Trim leading/trailing underscores
   
-  console.log('🔑 Using content-based mediaKey:', urlBasedKey.slice(0, 16));
-  return urlBasedKey;
+  // Create a unique identifier for this specific NFT
+  const contractTokenId = `${nft.contract}_${nft.tokenId}`.toLowerCase();
+  
+  // Create a unique hash for the content URLs to identify variants
+  const contentHash = createSafeId(safeUrls.join('|'));
+  const variantKey = `${contractTokenId}_variant_${contentHash.slice(0, 8)}`;
+  
+  // Check if we need to distinguish between variants
+  // Try to find in local storage if we've seen other variants for this contract/tokenId pair
+  const knownVariantsKey = `nft_variants_${contractTokenId}`;
+  try {
+    const knownVariantsStr = localStorage.getItem(knownVariantsKey);
+    const knownVariants = knownVariantsStr ? JSON.parse(knownVariantsStr) : {};
+    
+    // If we've never seen this contract/tokenId, initialize and use the URL-based key
+    if (!knownVariants.variants) {
+      knownVariants.variants = [contentHash];
+      knownVariants.primaryKey = urlBasedKey;
+      localStorage.setItem(knownVariantsKey, JSON.stringify(knownVariants));
+      console.log('🔑 First instance of NFT, using content-based mediaKey:', urlBasedKey.slice(0, 16));
+      return urlBasedKey;
+    }
+    
+    // If we've seen this exact content for this contract/tokenId, use the original URL-based key
+    if (knownVariants.primaryKey && knownVariants.variants.includes(contentHash)) {
+      console.log('🔑 Known content variant, using primary key:', knownVariants.primaryKey.slice(0, 16));
+      return knownVariants.primaryKey;
+    }
+    
+    // If we have a different content variant, store it and use variant key
+    knownVariants.variants.push(contentHash);
+    localStorage.setItem(knownVariantsKey, JSON.stringify(knownVariants));
+    console.log('🔑 New content variant detected, using variant key:', variantKey.slice(0, 16));
+    return variantKey;
+  } catch (e) {
+    // If local storage fails, fall back to the variant key approach
+    console.log('🔑 Local storage error, using variant key:', variantKey.slice(0, 16));
+    return variantKey;
+  }
 };
 
 export function getDirectMediaUrl(url: string): string {
