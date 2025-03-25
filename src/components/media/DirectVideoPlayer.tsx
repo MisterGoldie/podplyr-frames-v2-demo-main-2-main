@@ -46,6 +46,8 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
   
   // Define multiple IPFS gateways to try
   const IPFS_GATEWAYS = [
+    'https://w3s.link/ipfs/', // Web3.Storage's optimized gateway with caching layer
+    'https://ipfs.filebase.io/ipfs/', // Filebase's S3-compatible gateway
     'https://cloudflare-ipfs.com/ipfs/',
     'https://ipfs.io/ipfs/',
     'https://gateway.pinata.cloud/ipfs/',
@@ -323,7 +325,7 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
         return;
       }
       
-      // For non-IPFS URLs, fail gracefully after first attempt
+      // For other URLs, fail gracefully after first attempt
       if (!hasError && typeof directUrl === 'string') {
         setHasError(true);
         if (onError) onError(new Error('Video failed to load'));
