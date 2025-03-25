@@ -73,12 +73,14 @@ export const getCdnUrl = (url: string, type: 'image' | 'audio' | 'metadata' = 'i
     // Construct CDN URL with type-specific path and cache settings
     const cdnUrl = `${CDN_CONFIG.baseUrl}/${region}/${type}/${encodedUrl}`;
     
-    cdnLogger.info('Generated CDN URL', {
-      originalUrl: url,
-      cdnUrl,
-      type,
-      region
-    });
+    // Only log in development and not during media playback
+    if (process.env.NODE_ENV === 'development') {
+      cdnLogger.debug('Generated CDN URL', {
+        originalUrl: url,
+        cdnUrl,
+        type
+      });
+    }
     
     return cdnUrl;
   } catch (error) {
@@ -87,14 +89,24 @@ export const getCdnUrl = (url: string, type: 'image' | 'audio' | 'metadata' = 'i
   }
 };
 
+// In-memory cache for NFT CDN URLs to prevent redundant processing
+const nftCdnUrlCache: Record<string, Record<string, string>> = {};
+
 /**
  * Gets a CDN URL for an NFT's media (image or audio)
  * Uses mediaKey for consistent caching across identical content
  */
 export const getNftCdnUrl = (nft: NFT, mediaType: 'image' | 'audio'): string => {
   if (!nft) {
-    cdnLogger.warn('Empty NFT provided to getNftCdnUrl, using fallback', { mediaType });
+    // Don't log this warning repeatedly
     return mediaType === 'image' ? CDN_CONFIG.fallbacks.image : CDN_CONFIG.fallbacks.audio;
+  }
+  
+  // Check cache first using contract+tokenId as the key
+  const cacheKey = `${nft.contract}-${nft.tokenId}`;
+  
+  if (nftCdnUrlCache[cacheKey] && nftCdnUrlCache[cacheKey][mediaType]) {
+    return nftCdnUrlCache[cacheKey][mediaType];
   }
   
   // Get the mediaKey for consistent caching of identical content
@@ -103,19 +115,11 @@ export const getNftCdnUrl = (nft: NFT, mediaType: 'image' | 'audio'): string => 
   try {
     // If CDN is not enabled, use the original URL processing
     if (!CDN_CONFIG.enabled || !CDN_CONFIG.baseUrl) {
-      cdnLogger.info('CDN disabled or no baseUrl, using direct URL', {
-        mediaKey,
-        mediaType,
-        cdnEnabled: CDN_CONFIG.enabled,
-        baseUrl: CDN_CONFIG.baseUrl
-      });
       if (mediaType === 'image') {
         const url = processMediaUrl(nft.metadata?.image || '', '', 'image');
-        cdnLogger.info('Using direct image URL', { mediaKey, url });
         return url;
       } else {
         const url = processMediaUrl(nft.metadata?.animation_url || '', '', 'audio');
-        cdnLogger.info('Using direct audio URL', { mediaKey, url });
         return url;
       }
     }
@@ -141,7 +145,15 @@ export const getNftCdnUrl = (nft: NFT, mediaType: 'image' | 'audio'): string => 
     }
     
     // Add mediaKey as a query parameter for cache consistency
-    return `${getCdnUrl(processedUrl, mediaType)}?mediaKey=${encodeURIComponent(mediaKey)}`;
+    const result = `${getCdnUrl(processedUrl, mediaType)}?mediaKey=${encodeURIComponent(mediaKey)}`;
+    
+    // Cache the result
+    if (!nftCdnUrlCache[cacheKey]) {
+      nftCdnUrlCache[cacheKey] = {};
+    }
+    nftCdnUrlCache[cacheKey][mediaType] = result;
+    
+    return result;
   } catch (error) {
     cdnLogger.error('Error generating NFT CDN URL', { nft: nft.name, mediaKey, mediaType, error });
     // On error, fall back to the original URL processing

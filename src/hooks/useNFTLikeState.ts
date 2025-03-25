@@ -1,12 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
 import { getFirestore, doc, getDoc, onSnapshot, DocumentSnapshot } from 'firebase/firestore';
 import type { NFT } from '../types/user';
-import { getMediaKey } from '../utils/media';
+import { getMediaKey, isPlaybackActive } from '../utils/media';
 
-// Create a logger specifically for like state management
+// Create a logger specifically for like state management with playback awareness
 const likeStateLogger = {
-  debug: (message: string, ...args: any[]) => console.debug(`[LikeState] ${message}`, ...args),
-  info: (message: string, ...args: any[]) => console.info(`[LikeState] ${message}`, ...args),
+  debug: (message: string, ...args: any[]) => {
+    if (!isPlaybackActive()) {
+      console.debug(`[LikeState] ${message}`, ...args);
+    }
+  },
+  info: (message: string, ...args: any[]) => {
+    if (!isPlaybackActive()) {
+      console.info(`[LikeState] ${message}`, ...args);
+    }
+  },
   warn: (message: string, ...args: any[]) => console.warn(`[LikeState] ${message}`, ...args),
   error: (message: string, ...args: any[]) => console.error(`[LikeState] ${message}`, ...args),
 };
@@ -38,11 +46,14 @@ export const useNFTLikeState = (nft: NFT | null, fid: number) => {
     const mediaKey = getMediaKey(nft);
     mediaKeyRef.current = mediaKey;
     
-    likeStateLogger.info('Setting up like state listeners for:', { 
-      nftName: nft.name, 
-      mediaKey,
-      fid
-    });
+    // Only log during development or when not in playback mode
+    if (process.env.NODE_ENV === 'development' && !isPlaybackActive()) {
+      likeStateLogger.info('Setting up like state listeners for:', { 
+        nftName: nft.name, 
+        mediaKey,
+        fid
+      });
+    }
     
     // FIRST: Do an immediate check instead of waiting for the listener
     const db = getFirestore();
@@ -57,13 +68,16 @@ export const useNFTLikeState = (nft: NFT | null, fid: number) => {
       setIsLiked(initialLikedState);
       setIsLoading(false);
       
-      likeStateLogger.info('Initial like state loaded:', { 
-        isLiked: initialLikedState, 
-        mediaKey,
-        nftName: nft.name,
-        fid,
-        timestamp: new Date().toISOString()
-      });
+      // Only log during development or when not in playback mode
+      if (process.env.NODE_ENV === 'development' && !isPlaybackActive()) {
+        likeStateLogger.info('Initial like state loaded:', { 
+          isLiked: initialLikedState, 
+          mediaKey,
+          nftName: nft.name,
+          fid,
+          timestamp: new Date().toISOString()
+        });
+      }
       
       // Update DOM elements for consistency
       try {
@@ -87,15 +101,21 @@ export const useNFTLikeState = (nft: NFT | null, fid: number) => {
           const data = snapshot.data();
           const count = data?.likeCount || 0;
           setLikesCount(count);
-          likeStateLogger.debug('Global like count updated:', { 
-            count, 
-            mediaKey,
-            nftName: nft.name,
-            timestamp: new Date().toISOString()
-          });
+          // Only log during development or when not in playback mode
+          if (process.env.NODE_ENV === 'development' && !isPlaybackActive()) {
+            likeStateLogger.debug('Global like count updated:', { 
+              count, 
+              mediaKey,
+              nftName: nft.name,
+              timestamp: new Date().toISOString()
+            });
+          }
         } else {
           setLikesCount(0);
-          likeStateLogger.debug('No global likes found for:', { mediaKey, nftName: nft.name });
+          // Only log during development or when not in playback mode
+          if (process.env.NODE_ENV === 'development' && !isPlaybackActive()) {
+            likeStateLogger.debug('No global likes found for:', { mediaKey, nftName: nft.name });
+          }
         }
       },
       (error: Error) => {
@@ -112,26 +132,31 @@ export const useNFTLikeState = (nft: NFT | null, fid: number) => {
         setLastUpdated(Date.now());
         isSubscribedRef.current = true;
         
-        // Log the like state change
-        likeStateLogger.info('User like state updated:', { 
-          isLiked: newLikedState, 
-          mediaKey,
-          nftName: nft.name,
-          fid,
-          timestamp: new Date().toISOString(),
-          docExists: snapshot.exists(),
-          docId: snapshot.id
-        });
+        // Log the like state change only when not in playback mode
+        if (!isPlaybackActive()) {
+          likeStateLogger.info('User like state updated:', { 
+            isLiked: newLikedState, 
+            mediaKey,
+            nftName: nft.name,
+            fid,
+            timestamp: new Date().toISOString(),
+            docExists: snapshot.exists(),
+            docId: snapshot.id
+          });
+        }
         
         // Update DOM elements with this mediaKey to ensure UI consistency
         try {
           document.querySelectorAll(`[data-media-key="${mediaKey}"]`).forEach(element => {
             element.setAttribute('data-liked', newLikedState ? 'true' : 'false');
-            likeStateLogger.debug('Updated DOM element with new like state:', { 
-              element: element.tagName, 
-              mediaKey,
-              newState: newLikedState
-            });
+            // Only log DOM updates when not in playback mode
+            if (!isPlaybackActive()) {
+              likeStateLogger.debug('Updated DOM element with new like state:', { 
+                element: element.tagName, 
+                mediaKey,
+                newState: newLikedState
+              });
+            }
           });
         } catch (error) {
           likeStateLogger.error('Error updating DOM elements:', error);
@@ -152,11 +177,14 @@ export const useNFTLikeState = (nft: NFT | null, fid: number) => {
 
     // Cleanup listeners when component unmounts or NFT/FID changes
     return () => {
-      likeStateLogger.debug('Cleaning up like state listeners for:', { 
-        mediaKey, 
-        nftName: nft?.name,
-        fid
-      });
+      // Only log cleanup when not in playback mode
+      if (!isPlaybackActive()) {
+        likeStateLogger.debug('Cleaning up like state listeners for:', { 
+          mediaKey, 
+          nftName: nft?.name,
+          fid
+        });
+      }
       unsubscribeGlobal();
       unsubscribeUser();
       isSubscribedRef.current = false;
@@ -177,16 +205,20 @@ export const useNFTLikeState = (nft: NFT | null, fid: number) => {
       // Only process events for this NFT
       if (detail.mediaKey === mediaKey || 
           (detail.contract === nft.contract && detail.tokenId === nft.tokenId)) {
+        // Log custom events only when not in playback mode
+        if (!isPlaybackActive()) {
+          likeStateLogger.debug('Received like state change event:', {
+            mediaKey,
+            nftName: nft.name,
+            detail
+          });
+        }
         
         // Skip if this event originated from this hook (to avoid loops)
         if (detail.source === 'nft-like-state-hook') return;
         
-        likeStateLogger.debug('Received like state change event:', {
-          mediaKey,
-          isLiked: detail.isLiked,
-          nftName: nft.name,
-          source: detail.source || 'unknown'
-        });
+        // We already log this above when not in playback mode, so this is redundant
+        // Remove the duplicate log to reduce console noise during playback
         
         // Update the local state to match the event
         setIsLiked(detail.isLiked);

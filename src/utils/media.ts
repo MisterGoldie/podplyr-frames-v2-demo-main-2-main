@@ -296,6 +296,86 @@ const createSafeId = (url: string): string => {
 };
 
 /**
+ * In-memory cache to avoid redundant mediaKey calculations
+ * Maps NFT contract+tokenId to its calculated mediaKey
+ */
+const mediaKeyCache: Record<string, string> = {};
+
+/**
+ * Secondary cache that maps content URLs to mediaKeys
+ * This helps identify identical content across different NFTs
+ */
+const contentUrlToMediaKeyCache: Record<string, string> = {};
+
+/**
+ * Debug mode toggle for mediaKey generation
+ * Set to false in production for better performance
+ */
+const DEBUG_MEDIA_KEYS = false;
+
+/**
+ * Maximum cache size to prevent memory leaks
+ */
+const MAX_CACHE_SIZE = 1000;
+
+// Track if playback is active to reduce logging
+let _isPlaybackActive = false;
+
+/**
+ * Check if playback is currently active
+ * Used to reduce logging during playback
+ */
+export const isPlaybackActive = (): boolean => _isPlaybackActive;
+
+/**
+ * Set the playback active state
+ * @param active Whether playback is active
+ */
+export const setPlaybackActive = (active: boolean): void => {
+  _isPlaybackActive = active;
+};
+
+/**
+ * Normalize a URL to ensure consistent matching
+ * Removes protocol, query params, and normalizes IPFS/Arweave URLs
+ * @param url The URL to normalize
+ * @returns Normalized URL string
+ */
+export const normalizeUrl = (url: string): string => {
+  if (!url) return '';
+  
+  try {
+    // Handle IPFS URLs
+    if (url.startsWith('ipfs://')) {
+      const cid = url.replace('ipfs://', '');
+      return `ipfs-${cid}`;
+    }
+    
+    // Handle Arweave URLs
+    if (url.startsWith('ar://')) {
+      const txId = url.replace('ar://', '');
+      return `arweave-${txId}`;
+    }
+    
+    // For HTTP URLs, remove protocol and query params
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      try {
+        const urlObj = new URL(url);
+        return `${urlObj.hostname}${urlObj.pathname}`;
+      } catch (e) {
+        // If URL parsing fails, return the original
+        return url;
+      }
+    }
+    
+    return url;
+  } catch (e) {
+    // If any error occurs, return the original URL
+    return url;
+  }
+};
+
+/**
  * Generates a consistent mediaKey for NFTs with identical content.
  * 
  * IMPORTANT: This function intentionally returns the same key for NFTs that share identical content
@@ -307,22 +387,46 @@ const createSafeId = (url: string): string => {
  * - The warnings indicate the system is correctly identifying duplicate content
  * 
  * DO NOT modify this to generate unique keys - duplicate keys are intentional!
+ * 
+ * PERFORMANCE: This function is optimized with caching to avoid redundant calculations.
  */
 export const getMediaKey = (nft: NFT): string => {
   if (!nft) return '';
+  
+  // Generate a cache key for this specific NFT instance
+  const cacheKey = `${nft.contract}_${nft.tokenId}`;
+  
+  // Check if we already have the mediaKey cached
+  if (mediaKeyCache[cacheKey]) {
+    return mediaKeyCache[cacheKey];
+  }
 
   // Check if the NFT already has a mediaKey property (from migration)
   if (nft.mediaKey) {
-    console.log('🔑 Using existing mediaKey:', nft.mediaKey.slice(0, 8));
+    // Cache the result for future calls
+    mediaKeyCache[cacheKey] = nft.mediaKey;
     return nft.mediaKey;
   }
   
   // Get media URLs that uniquely identify the content
-  const videoUrl = nft.metadata?.animation_url || '';
-  const imageUrl = nft.image || nft.metadata?.image || '';
-  const audioUrl = nft.audio || '';
+  // Normalize URLs to ensure consistent matching
+  const videoUrl = normalizeUrl(nft.metadata?.animation_url || '');
+  const imageUrl = normalizeUrl(nft.image || nft.metadata?.image || '');
+  const audioUrl = normalizeUrl(nft.audio || '');
+  
+  // Create a content signature based on the URLs - this is the CORE of our content-first architecture
+  // NFTs with identical content (same audio/image/animation) MUST have the same mediaKey
+  const contentSignature = [videoUrl, imageUrl, audioUrl].filter(Boolean).sort().join('|');
+  
+  // Check if we've already calculated a mediaKey for this content
+  if (contentUrlToMediaKeyCache[contentSignature]) {
+    const cachedMediaKey = contentUrlToMediaKeyCache[contentSignature];
+    mediaKeyCache[cacheKey] = cachedMediaKey;
+    return cachedMediaKey;
+  }
 
-  // Create safe IDs for each URL
+  // Create safe IDs for each URL - using the normalized URLs
+  // This is a critical step to ensure identical content gets the same mediaKey
   const safeUrls = Array.from(new Set([
     videoUrl,
     imageUrl,
@@ -331,7 +435,7 @@ export const getMediaKey = (nft: NFT): string => {
     .filter(Boolean) // Remove empty strings
     .map(createSafeId)
     .filter(Boolean) // Remove any empty strings after processing
-    .sort(); // Sort for consistency
+    .sort(); // Sort for consistency to ensure same content = same key regardless of URL order
 
   if (safeUrls.length === 0) {
     // Last resort fallback
@@ -352,37 +456,34 @@ export const getMediaKey = (nft: NFT): string => {
   const contentHash = createSafeId(safeUrls.join('|'));
   const variantKey = `${contractTokenId}_variant_${contentHash.slice(0, 8)}`;
   
-  // Check if we need to distinguish between variants
-  // Try to find in local storage if we've seen other variants for this contract/tokenId pair
-  const knownVariantsKey = `nft_variants_${contractTokenId}`;
   try {
-    const knownVariantsStr = localStorage.getItem(knownVariantsKey);
-    const knownVariants = knownVariantsStr ? JSON.parse(knownVariantsStr) : {};
+    // CRITICAL OPTIMIZATION: For content-first architecture, we prioritize the urlBasedKey
+    // This ensures identical content gets the same mediaKey regardless of contract/tokenId
     
-    // If we've never seen this contract/tokenId, initialize and use the URL-based key
-    if (!knownVariants.variants) {
-      knownVariants.variants = [contentHash];
-      knownVariants.primaryKey = urlBasedKey;
-      localStorage.setItem(knownVariantsKey, JSON.stringify(knownVariants));
-      console.log('🔑 First instance of NFT, using content-based mediaKey:', urlBasedKey.slice(0, 16));
-      return urlBasedKey;
+    // Cache the urlBasedKey for this content signature
+    contentUrlToMediaKeyCache[contentSignature] = urlBasedKey;
+    
+    // Cache the result for future calls with this specific NFT
+    mediaKeyCache[cacheKey] = urlBasedKey;
+    
+    // We're now using a simplified approach that focuses on content identity
+    // rather than tracking variants, which aligns with our core architectural decision
+    
+    // Only log in debug mode to reduce noise during playback
+    if (DEBUG_MEDIA_KEYS && !isPlaybackActive()) {
+      console.log('🔑 Using content-based mediaKey:', urlBasedKey.slice(0, 16));
     }
     
-    // If we've seen this exact content for this contract/tokenId, use the original URL-based key
-    if (knownVariants.primaryKey && knownVariants.variants.includes(contentHash)) {
-      console.log('🔑 Known content variant, using primary key:', knownVariants.primaryKey.slice(0, 16));
-      return knownVariants.primaryKey;
-    }
-    
-    // If we have a different content variant, store it and use variant key
-    knownVariants.variants.push(contentHash);
-    localStorage.setItem(knownVariantsKey, JSON.stringify(knownVariants));
-    console.log('🔑 New content variant detected, using variant key:', variantKey.slice(0, 16));
-    return variantKey;
+    return urlBasedKey;
   } catch (e) {
-    // If local storage fails, fall back to the variant key approach
-    console.log('🔑 Local storage error, using variant key:', variantKey.slice(0, 16));
-    return variantKey;
+    // If any error occurs, fall back to the urlBasedKey which is our content-first approach
+    mediaKeyCache[cacheKey] = urlBasedKey;
+    contentUrlToMediaKeyCache[contentSignature] = urlBasedKey;
+    
+    if (DEBUG_MEDIA_KEYS && !isPlaybackActive()) {
+      console.log('🔑 Error occurred, using content-based mediaKey:', urlBasedKey.slice(0, 16));
+    }
+    return urlBasedKey;
   }
 };
 
