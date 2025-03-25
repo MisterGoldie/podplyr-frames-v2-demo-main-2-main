@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { NFT } from '../../types/user';
 import { processMediaUrl } from '../../utils/media';
 
@@ -24,8 +24,21 @@ export const NFTGifImage: React.FC<NFTGifImageProps> = ({
   const elementRef = useRef<HTMLDivElement>(null);
   const animatedImgRef = useRef<HTMLImageElement>(null);
   
-  // Process the image URL to ensure it's properly formatted
-  const imageUrl = nft.image ? processMediaUrl(nft.image, '/default-nft.png', 'image') : '/default-nft.png';
+  // Use a ref to cache the processed URL to avoid redundant processing
+  const processedUrlRef = useRef<string>('');
+  
+  // Process the image URL to ensure it's properly formatted, with caching
+  const imageUrl = useMemo(() => {
+    // If we've already processed this NFT's image URL, use the cached result
+    if (processedUrlRef.current && nft.image) {
+      return processedUrlRef.current;
+    }
+    
+    // Process the URL and cache the result
+    const url = nft.image ? processMediaUrl(nft.image, '/default-nft.png', 'image') : '/default-nft.png';
+    processedUrlRef.current = url;
+    return url;
+  }, [nft.image]);
   
   // Use Intersection Observer to only load when visible
   useEffect(() => {
@@ -43,8 +56,12 @@ export const NFTGifImage: React.FC<NFTGifImageProps> = ({
     return () => observer.disconnect();
   }, []);
 
-  // Check if another NFT is currently playing audio
-  const isAnotherNFTPlaying = document.querySelector('.now-playing') !== null;
+  // Check if another NFT is currently playing audio - memoize to avoid redundant DOM queries
+  const isAnotherNFTPlaying = useMemo(() => {
+    // Only perform this check when the component is visible to reduce DOM operations
+    if (!isVisible) return false;
+    return document.querySelector('.now-playing') !== null;
+  }, [isVisible]);
   
   // Only load animated version when visible and either:
   // 1. User is hovering over it, OR

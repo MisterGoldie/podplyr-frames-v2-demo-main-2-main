@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { processMediaUrl, IPFS_GATEWAYS, isAudioUrlUsedAsImage, getCleanIPFSUrl, processArweaveUrl, getMediaKey } from '../../utils/media';
 import Image from 'next/image';
 import type { SyntheticEvent } from 'react';
@@ -298,32 +298,37 @@ export const NFTImage: React.FC<NFTImageProps> = ({
   const [isLoadingFallback, setIsLoadingFallback] = useState(!validateUrl(src));
   const [imgLoading, setImgLoading] = useState(true);
 
+  // Cache for processed image URLs to avoid redundant processing
+  const processedUrlCache = useRef<Record<string, string>>({});
+  
   useEffect(() => {
     // Reset states when src changes, but only if src is valid
     const isValidSrc = src && src !== '' && src !== 'undefined' && src !== 'null';
     
     if (isValidSrc) {
-      // Special handling for Arweave URLs
-      if (typeof src === 'string' && src.startsWith('ar://')) {
-        const processedSrc = processArweaveUrl(src);
-        imageLogger.info('Processing Arweave URL:', { 
-          original: src, 
-          processed: processedSrc 
-        });
-        setImgSrc(processedSrc);
+      // Check if we've already processed this URL
+      const cacheKey = nft ? `${nft.contract}-${nft.tokenId}` : src;
+      
+      if (processedUrlCache.current[cacheKey]) {
+        setImgSrc(processedUrlCache.current[cacheKey]);
       } else {
-        // If we have an NFT object, use the CDN URL specifically for this NFT
-        if (nft) {
-          const cdnUrl = getNftCdnUrl(nft, 'image');
-          imageLogger.info('Using CDN URL for NFT image:', { 
-            nft: nft.name || 'Unknown', 
-            cdnUrl 
-          });
-          setImgSrc(cdnUrl);
-        } else {
-          // Process the URL to handle special protocols like ipfs://
-          const processedSrc = processMediaUrl(src, fallbackSrc, 'image');
+        // Special handling for Arweave URLs
+        if (typeof src === 'string' && src.startsWith('ar://')) {
+          const processedSrc = processArweaveUrl(src);
           setImgSrc(processedSrc);
+          processedUrlCache.current[cacheKey] = processedSrc;
+        } else {
+          // If we have an NFT object, use the CDN URL specifically for this NFT
+          if (nft) {
+            const cdnUrl = getNftCdnUrl(nft, 'image');
+            setImgSrc(cdnUrl);
+            processedUrlCache.current[cacheKey] = cdnUrl;
+          } else {
+            // Process the URL to handle special protocols like ipfs://
+            const processedSrc = processMediaUrl(src, fallbackSrc, 'image');
+            setImgSrc(processedSrc);
+            processedUrlCache.current[cacheKey] = processedSrc;
+          }
         }
       }
       
@@ -407,24 +412,37 @@ export const NFTImage: React.FC<NFTImageProps> = ({
     }
   }, [src, nft]);
 
+  // Track already attempted fallback strategies to avoid redundant retries
+  const attemptedFallbacks = useRef<Record<string, boolean>>({});
+  
   const handleError = async (error: SyntheticEvent<HTMLVideoElement | HTMLImageElement>) => {
-    // Log the error
-    imageLogger.warn('NFT Image load failed:', { 
-      nftId: nft ? `${nft.contract}-${nft.tokenId}` : 'unknown',
-      mediaKey: nft ? getMediaKey(nft) : 'unknown',
-      originalSrc: src,
-      failedSrc: error.currentTarget.src || imgSrc,
-      isVideo,
-      retryCount
-    });
+    // Only log errors in development mode
+    if (process.env.NODE_ENV === 'development') {
+      imageLogger.warn('NFT Image load failed');
+    }
+    
+    // Get the current failing URL
+    const failedSrc = error.currentTarget.src || imgSrc;
+    
+    // Skip if we've already tried this fallback strategy
+    const fallbackKey = `${failedSrc}-${retryCount}`;
+    if (attemptedFallbacks.current[fallbackKey]) {
+      // Go straight to fallback image
+      setImgSrc(fallbackSrc);
+      return;
+    }
+    
+    // Mark this fallback as attempted
+    attemptedFallbacks.current[fallbackKey] = true;
     
     // If we have an NFT, try to preload its media into the CDN cache for future requests
-    if (nft) {
+    // but only do this once per NFT
+    if (nft && retryCount === 0) {
       preloadNftMedia(nft);
     }
     
     // Special handling for Arweave URLs - using proper URL validation
-    if (src && isArweaveUrl(src)) {
+    if (src && isArweaveUrl(src) && retryCount < 1) {
       try {
         // Safe extraction of transaction ID
         const arweaveTxId = src.startsWith('ar://') 
@@ -433,13 +451,12 @@ export const NFTImage: React.FC<NFTImageProps> = ({
         
         if (arweaveTxId) {
           const directArweaveUrl = `https://arweave.net/${arweaveTxId}`;
-          imageLogger.info('Trying direct Arweave URL:', directArweaveUrl);
           setImgSrc(directArweaveUrl);
           setRetryCount(retryCount + 1);
           return;
         }
       } catch (err) {
-        imageLogger.error('Error processing Arweave URL:', err);
+        // Silent failure, just continue to fallback
       }
     }
     

@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { NFT } from '../../types/user';
 import { NFTCard } from './NFTCard';
 import { useVirtualizedNFTs } from '../../hooks/useVirtualizedNFTs';
 import ErrorBoundary from '../ErrorBoundary';
+import { isPlaybackActive } from '../../utils/media';
 
 interface VirtualizedNFTGridProps {
   nfts: NFT[];
@@ -48,24 +49,30 @@ export const VirtualizedNFTGrid: React.FC<VirtualizedNFTGridProps> = ({
   const { visibleNFTs, isLoadingMore, hasMore, loadMoreNFTs } = useVirtualizedNFTs(nfts);
   const [animationKey, setAnimationKey] = useState(0);
 
-  // Log the number of NFTs for debugging
-  console.log('Rendering VirtualizedNFTGrid with', visibleNFTs.length, 'visible NFTs out of', nfts.length, 'total');
+  // Only log when not in playback mode to reduce noise
+  useEffect(() => {
+    if (!isPlaybackActive()) {
+      console.log('Rendering VirtualizedNFTGrid with', visibleNFTs.length, 'visible NFTs out of', nfts.length, 'total');
+    }
+  }, [visibleNFTs.length, nfts.length]);
   
-  // Modified check function - no logging on each check to avoid console spam
-  const checkDirectlyLiked = (nftToCheck: NFT): boolean => {
+  // Memoized check function to avoid redundant processing
+  const checkDirectlyLiked = useCallback((nftToCheck: NFT): boolean => {
     if (!isNFTLiked) return false;
     // Always use true for ignoreCurrentPage to get real like status regardless of page
     return isNFTLiked(nftToCheck, true);
-  };
+  }, [isNFTLiked]);
   
-  // Reduced logging - just once when component mounts
+  // Reduced logging - just once when component mounts and not during playback
   useEffect(() => {
-    // One-time debugging log to verify props
-    console.log('VirtualizedNFTGrid rendered with:',
-      'onLikeToggle=', !!onLikeToggle,
-      'isNFTLiked=', !!isNFTLiked,
-      'userFid=', userFid);
-  }, []);
+    // Only log when not in playback mode
+    if (!isPlaybackActive()) {
+      console.log('VirtualizedNFTGrid rendered with:',
+        'onLikeToggle=', !!onLikeToggle,
+        'isNFTLiked=', !!isNFTLiked,
+        'userFid=', userFid);
+    }
+  }, [onLikeToggle, isNFTLiked, userFid]);
 
   // When new NFTs are loaded, update the animation key
   useEffect(() => {
@@ -74,44 +81,48 @@ export const VirtualizedNFTGrid: React.FC<VirtualizedNFTGridProps> = ({
     }
   }, [visibleNFTs.length]);
 
+  // Memoize the NFT cards to prevent unnecessary re-renders
+  const nftCards = useMemo(() => {
+    return visibleNFTs.map((nft: any, index: number) => {
+      // Calculate a staggered delay based on index
+      // This creates a wave-like appearance as cards animate in
+      const staggerDelay = 0.05 * (index % 8) + 0.2; // Base delay of 0.2s plus stagger
+      
+      // Create a stable unique key that respects the mediaKey architecture
+      const uniqueKey = nft.mediaKey || `${nft.contract}-${nft.tokenId}`;
+      
+      return (
+        <ErrorBoundary key={`boundary-${uniqueKey}`}>
+          <NFTCard
+            key={`${animationKey}-${uniqueKey}`}
+            nft={nft}
+            onPlay={async (nft) => {
+              await onPlayNFT(nft);
+            }}
+            isPlaying={isPlaying}
+            currentlyPlaying={currentlyPlaying}
+            handlePlayPause={handlePlayPause}
+            publicCollections={publicCollections}
+            onAddToCollection={addToPublicCollection}
+            onRemoveFromCollection={removeFromPublicCollection}
+            showTitleOverlay={true}
+            useCenteredPlay={true}
+            onLikeToggle={onLikeToggle}
+            userFid={userFid}
+            isNFTLiked={checkDirectlyLiked}
+            animationDelay={staggerDelay} // Pass the staggered delay
+          />
+        </ErrorBoundary>
+      );
+    });
+  }, [visibleNFTs, animationKey, isPlaying, currentlyPlaying, handlePlayPause, publicCollections, addToPublicCollection, removeFromPublicCollection, onLikeToggle, userFid, checkDirectlyLiked, onPlayNFT]);
+  
   return (
     <>
       {/* Add the keyframes style */}
       <style>{animationKeyframes}</style>
       
-      {visibleNFTs.map((nft: any, index: number) => {
-        // Calculate a staggered delay based on index
-        // This creates a wave-like appearance as cards animate in
-        const staggerDelay = 0.05 * (index % 8) + 0.2; // Base delay of 0.2s plus stagger
-        
-        return (
-          <ErrorBoundary key={`boundary-${nft._uniqueReactId || Math.random()}`}>
-            <NFTCard
-              key={`${animationKey}-${nft._uniqueReactId || `fallback_${Math.random().toString(36).substring(2, 11)}`}`}
-              nft={nft}
-              onPlay={async (nft) => {
-                await onPlayNFT(nft);
-              }}
-              isPlaying={isPlaying}
-              currentlyPlaying={currentlyPlaying}
-              handlePlayPause={handlePlayPause}
-              publicCollections={publicCollections}
-              onAddToCollection={addToPublicCollection}
-              onRemoveFromCollection={removeFromPublicCollection}
-              showTitleOverlay={true}
-              useCenteredPlay={true}
-              onLikeToggle={onLikeToggle}
-              userFid={userFid}
-              isNFTLiked={checkDirectlyLiked}
-              animationDelay={staggerDelay} // Pass the staggered delay
-            />
-          </ErrorBoundary>
-        );
-      })}
-      
-      {/* Remove the entire load more button section */}
-      
-      {/* Remove the spacer div */}
+      {nftCards}
       
       {/* Keep only a simple completion message if needed */}
       {!hasMore && visibleNFTs.length > 0 && (

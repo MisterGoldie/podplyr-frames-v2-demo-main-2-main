@@ -5,6 +5,7 @@ import { MaximizedPlayer } from './MaximizedPlayer';
 import type { NFT } from '../../types/user';
 import { FarcasterContext } from '../../app/providers';
 import { useNFTLikeState } from '../../hooks/useNFTLikeState';
+import { setPlaybackActive } from '../../utils/media';
 
 // Keep all the existing interfaces exactly as they are
 interface PlayerProps {
@@ -59,6 +60,9 @@ export const Player: React.FC<PlayerProps> = (props) => {
     
     // Update the ref for next render
     prevPlayingRef.current = isPlaying;
+    
+    // Set the global playback active state to reduce logging during playback
+    setPlaybackActive(isPlaying);
     
     // If no NFT, don't do anything
     if (!nft) return;
