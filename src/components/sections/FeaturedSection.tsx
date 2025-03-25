@@ -39,6 +39,20 @@ export const FEATURED_NFTS: NFT[] = [
     }
   },
   {
+    name: 'ACYL RADIO - Topia Hour',
+    image: 'https://arweave.net/rGhe8lAX2D9hrbOKeoozySiZvVsSnJqblZ7ofZ2ADnY',
+    contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb',
+    tokenId: '79428737ea',
+    audio: 'https://arweave.net/YV3PQYn-NAX3cC6t6yhlmMtSzZ_SxIcAb3Np6SKBCuQ',
+    metadata: {
+      animation_url: 'https://arweave.net/YV3PQYn-NAX3cC6t6yhlmMtSzZ_SxIcAb3Np6SKBCuQ',
+      description: 'ACYL RADIO - Topia Hour hosted by Latashá',
+      attributes: [
+        {"trait_type":"Host","value":"Latashá"}
+      ]
+    }
+  },
+  {
     name: 'ACYL RADIO - WILL01',
     image: 'https://bafybeie7mejoxle27ki56vxmzebb67kcrttu54stlin74xowaq5ugu3sdi.ipfs.w3s.link/COMPRESSEDWILL%20RADIO%20-min.gif',
     contract: '0x79428737e60a8a8db494229638eaa5e52874b6fb',
