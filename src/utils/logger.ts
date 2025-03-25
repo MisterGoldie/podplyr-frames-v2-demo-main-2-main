@@ -24,15 +24,15 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 // Set this to true to enable logs in production (normally should be false)
 const FORCE_LOGS_IN_PRODUCTION = false;
 
-// Master switch to enable/disable all logging - FORCE DISABLED for demo
-export let DEBUG_MODE = false; // Completely disabled for demo
+// Master switch to enable/disable all logging - ENABLED for development
+export let DEBUG_MODE = true; // Enabled for development
 
-// Disable ALL log levels for the demo
+// Enable log levels
 const ENABLED_LEVELS = {
-  debug: false,
-  info: false,
-  warn: false, // Warnings now disabled too
-  error: false, // Errors now disabled too
+  debug: true,
+  info: true,
+  warn: true,
+  error: true,
 };
 
 // Enable logs for specific modules (can be customized)
@@ -110,24 +110,20 @@ const log = (
 
 /**
  * Function to completely disable all logs and modal dialogs
+ * Currently not used to allow console logs to work
  */
 const disableAllLogs = () => {
+  // Function disabled to allow console logs to work
+  return;
+  
+  // The code below will not execute
   DEBUG_MODE = false;
   ENABLED_LEVELS.debug = false;
   ENABLED_LEVELS.info = false;
   ENABLED_LEVELS.warn = false;
   ENABLED_LEVELS.error = false;
   
-  // Override ALL console methods to be no-ops
-  console.log = () => {};
-  console.debug = () => {};
-  console.info = () => {};
-  console.warn = () => {};
-  console.error = () => {};
-  console.trace = () => {};
-  console.dir = () => {};
-  console.table = () => {};
-  
+  // We're not overriding console methods anymore to allow logs to appear
   // Prevent modal dialogs from appearing
   if (typeof window !== 'undefined') {
     window.alert = () => {};
