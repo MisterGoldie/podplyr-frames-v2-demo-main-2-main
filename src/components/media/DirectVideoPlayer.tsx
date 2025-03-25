@@ -46,12 +46,16 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
   
   // Define multiple IPFS gateways to try
   const IPFS_GATEWAYS = [
-    'https://cloudflare-ipfs.com/ipfs/',
-    'https://ipfs.io/ipfs/',
-    'https://gateway.pinata.cloud/ipfs/',
-    'https://dweb.link/ipfs/',
-    'https://ipfs.4everland.io/ipfs/',
-    'https://gateway.ipfs.io/ipfs/'
+    'https://w3s.link/ipfs/', // Web3.Storage's optimized gateway with caching layer
+    'https://ipfs.filebase.io/ipfs/', // Filebase's S3-compatible gateway
+    'https://nftstorage.link/ipfs/', // NFT.Storage's dedicated gateway
+    'https://ipfs.infura.io/ipfs/', // Infura's enterprise-grade gateway
+    'https://cloudflare-ipfs.com/ipfs/', // Cloudflare's high-performance gateway
+    'https://ipfs.io/ipfs/', // IPFS project's official gateway
+    'https://gateway.pinata.cloud/ipfs/', // Pinata's dedicated gateway
+    'https://dweb.link/ipfs/', // Protocol Labs gateway
+    'https://ipfs.4everland.io/ipfs/', // 4EVERLAND distributed gateway
+    'https://gateway.ipfs.io/ipfs/' // Another official IPFS gateway
   ];
   
   // We'll use processVideoUrl function to get the URL when needed
@@ -323,7 +327,7 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
         return;
       }
       
-      // For non-IPFS URLs, fail gracefully after first attempt
+      // For other URLs, fail gracefully after first attempt
       if (!hasError && typeof directUrl === 'string') {
         setHasError(true);
         if (onError) onError(new Error('Video failed to load'));
