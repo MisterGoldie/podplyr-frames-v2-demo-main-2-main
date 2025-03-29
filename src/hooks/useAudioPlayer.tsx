@@ -55,7 +55,7 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
   const [hasReachedThreshold, setHasReachedThreshold] = useState<boolean>(false);
   
   // Get access to the VideoPlayContext
-  const { trackNFTProgress, hasReachedPlayThreshold, resetPlayCount } = useVideoPlay();
+  const { trackNFTProgress, hasReachedPlayThreshold, resetNFTTrackingState } = useVideoPlay();
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -195,8 +195,8 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
     setHasReachedThreshold(false);
     
     // Reset tracking in VideoPlayContext for this NFT to allow multiple plays
-    // of the same NFT to be tracked correctly
-    resetPlayCount(nft);
+    // of the same NFT to be tracked correctly without affecting ad counters
+    resetNFTTrackingState(nft);
     
     // We'll only track the play after reaching the 25% threshold
     // This happens in the timeupdate event listener
@@ -445,7 +445,7 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
         videoElement.load();
       }
     }
-  }, [currentlyPlaying, handlePlayPause, fid, setRecentlyPlayedNFTs, hasReachedThreshold, trackNFTProgress, hasReachedPlayThreshold, resetPlayCount]);
+  }, [currentlyPlaying, handlePlayPause, fid, setRecentlyPlayedNFTs, hasReachedThreshold, trackNFTProgress, hasReachedPlayThreshold, resetNFTTrackingState]);
   
   // Now define handlePlayNext and handlePlayPrevious which use handlePlayAudio
   const handlePlayNext = useCallback(async () => {

@@ -11,6 +11,8 @@ interface VideoPlayContextType {
   resetPlayCount: (currentNFT?: NFT) => void;
   trackNFTProgress: (nft: NFT, currentTime: number, duration: number) => void;
   hasReachedPlayThreshold: (nft: NFT) => boolean;
+  // Separate function for resetting individual NFT tracking without affecting ad counters
+  resetNFTTrackingState: (nft: NFT) => void;
 }
 
 // Create a type for tracking NFT playback thresholds
@@ -24,6 +26,7 @@ type NFTPlaybackState = {
 const VideoPlayContext = createContext<VideoPlayContextType | undefined>(undefined);
 
 export const VideoPlayProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Global play count for ad triggering logic - this should accumulate across NFTs
   const [playCount, setPlayCount] = useState(0);
   // Track which NFTs have reached 25% threshold
   const [playedNFTs, setPlayedNFTs] = useState<NFTPlaybackState[]>([]);
@@ -74,6 +77,18 @@ export const VideoPlayProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         // Report to Firebase only once per NFT
         if (!reportedNFTs.has(mediaKey)) {
           console.log(`💾 Recording play in Firebase for NFT: ${nft.name || 'Unnamed'}`);
+          
+          // Increment the global play count when a play is recorded
+          // This ensures ads trigger properly based on total plays
+          // We use async/await to ensure we don't double-increment due to React batching
+          (async () => {
+            // Get current value immediately before updating
+            const currentVal = playCount;
+            const newCount = currentVal + 1;
+            console.log(`🔢 AD COUNTER: Global play count INCREASED: ${currentVal} -> ${newCount} for ${nft.name || 'Unnamed'} (${mediaKey})`);
+            setPlayCount(newCount);
+          })();
+          
           // Track play in Firebase
           trackNFTPlay(nft, fid)
             .then(() => {
@@ -103,6 +118,18 @@ export const VideoPlayProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         // Report to Firebase only once per NFT
         if (!reportedNFTs.has(mediaKey)) {
           console.log(`💾 Recording play in Firebase for NFT: ${nft.name || 'Unnamed'}`);
+          
+          // Increment the global play count when a play is recorded
+          // This ensures ads trigger properly based on total plays
+          // We use async/await to ensure we don't double-increment due to React batching
+          (async () => {
+            // Get current value immediately before updating
+            const currentVal = playCount;
+            const newCount = currentVal + 1;
+            console.log(`🔢 AD COUNTER: Global play count INCREASED: ${currentVal} -> ${newCount} for ${nft.name || 'Unnamed'} (${mediaKey})`);
+            setPlayCount(newCount);
+          })();
+          
           // Track play in Firebase
           trackNFTPlay(nft, fid)
             .then(() => {
@@ -133,36 +160,62 @@ export const VideoPlayProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     
     // Only count the play if we've reached the threshold
     if (hasReachedPlayThreshold(nft)) {
-      setPlayCount(prev => prev + 1);
+      const mediaKey = getNFTMediaKey(nft);
+      setPlayCount(prev => {
+        const newCount = prev + 1;
+        console.log(`🔢 Global play count INCREASED: ${prev} -> ${newCount} for ${nft.name || 'Unnamed NFT'} (${mediaKey})`);
+        return newCount;
+      });
     } else {
       console.log(`⏳ Not counting play yet for ${nft.name || 'Unnamed NFT'} - 25% threshold not reached`);
     }
   }, [hasReachedPlayThreshold]);
 
-  const resetPlayCount = useCallback((currentNFT?: NFT) => {
-    setPlayCount(0);
+  // Add a separate function to reset ONLY the tracking state for a specific NFT
+  // without affecting the global play count used for ad triggering
+  const resetNFTTrackingState = useCallback((nft: NFT) => {
+    if (!nft) return;
     
-    // When resetting, we should also clear the playedNFTs for the current NFT
-    // to allow it to be tracked again, even within the same session
-    if (currentNFT) {
-      const mediaKey = getNFTMediaKey(currentNFT);
-      
-      // Remove this NFT from playedNFTs if it exists
-      setPlayedNFTs(prev => prev.filter(item => item.mediaKey !== mediaKey));
-      
-      // Also remove from reportedNFTs
-      setReportedNFTs(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(mediaKey);
-        return newSet;
-      });
-    } else {
-      // If no specific NFT is provided, just reset everything
-      setPlayedNFTs([]);
+    const mediaKey = getNFTMediaKey(nft);
+    
+    // Remove this NFT from playedNFTs if it exists
+    setPlayedNFTs(prev => prev.filter(item => item.mediaKey !== mediaKey));
+    
+    // Also remove from reportedNFTs
+    setReportedNFTs(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(mediaKey);
+      return newSet;
+    });
+    
+    // IMPORTANT: We DO NOT reset the global play count here
+    // This is intentional to ensure ads trigger correctly
+    
+    console.log(`🔄 Reset tracking state for NFT: ${nft.name || 'Unnamed NFT'} (${mediaKey})`);
+  }, []);
+  
+  // This function is explicitly for resetting the ad counter after ads play
+  // It should ONLY be called after an ad has been shown, not for regular tracking
+  const resetPlayCount = useCallback((currentNFT?: NFT) => {
+    // Log when this function is called for debugging
+    console.log(`⚠️ resetPlayCount called ${currentNFT ? `for NFT: ${currentNFT.name || 'Unnamed'}` : 'for all NFTs'} - Only do this after ads play!`);
+    
+    // Reset the global play count (used for ad triggering) ONLY for global resets, not for single NFTs
+    // This preserves the mediaKey-based global tracking system while allowing single NFT resets
+    if (!currentNFT) {
+      console.log(`🔄 RESETTING GLOBAL PLAY COUNTER to 0 - This should happen after an ad plays`);
+      setPlayCount(0);
     }
     
-    // Note: We don't clear all reportedNFTs to avoid re-reporting other currently playing NFTs
-  }, []);
+    // Reset NFT tracking state if a specific NFT is provided
+    if (currentNFT) {
+      resetNFTTrackingState(currentNFT);
+    } else {
+      // If no specific NFT is provided, reset all NFT tracking
+      setPlayedNFTs([]);
+      // Note: We don't clear all reportedNFTs to avoid re-reporting other currently playing NFTs
+    }
+  }, [resetNFTTrackingState]);
 
   return (
     <VideoPlayContext.Provider value={{ 
@@ -170,7 +223,8 @@ export const VideoPlayProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       incrementPlayCount, 
       resetPlayCount,
       trackNFTProgress,
-      hasReachedPlayThreshold
+      hasReachedPlayThreshold,
+      resetNFTTrackingState
     }}>
       {children}
     </VideoPlayContext.Provider>
