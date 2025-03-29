@@ -7,6 +7,7 @@ import { FarcasterContext } from '../../app/providers';
 import { useNFTLikeState } from '../../hooks/useNFTLikeState';
 import { setPlaybackActive } from '../../utils/media';
 import { useVideoPlay } from '../../contexts/VideoPlayContext';
+import { logger } from '../../utils/logger';
 
 // Keep all the existing interfaces exactly as they are
 interface PlayerProps {
@@ -44,6 +45,8 @@ export const Player: React.FC<PlayerProps> = (props) => {
   // Video reference for syncing video playback
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const prevPlayingRef = useRef(isPlaying);
+  const isFirstMountRef = useRef(true);
+  const initialPlayAttemptsRef = useRef(0);
 
   // Get user's FID from context
   const { fid: userFid = 0 } = useContext(FarcasterContext);
@@ -78,6 +81,10 @@ export const Player: React.FC<PlayerProps> = (props) => {
     
     // If no NFT, don't do anything
     if (!nft) return;
+    
+    // Log video sync status - helps debug first NFT issues
+    const hasVideoRef = !!videoRef.current;
+    logger.debug(`🎥 Player video sync - NFT: ${nft.name}, isPlaying: ${isPlaying}, has videoRef: ${hasVideoRef}`);
     
     // First try using our ref
     if (videoRef.current) {
@@ -119,6 +126,59 @@ export const Player: React.FC<PlayerProps> = (props) => {
     }
   }, [isPlaying, nft, progress]);
 
+  // First mount detection with retry mechanism for initial video playback
+  useEffect(() => {
+    // Skip if no NFT
+    if (!nft) return;
+    
+    // Only run on first mount
+    if (isFirstMountRef.current && (nft?.isVideo || nft?.metadata?.animation_url)) {
+      logger.debug(`💡 First NFT detected in Player: ${nft.name}`);
+      
+      // Setup retry mechanism for first NFT video playback
+      const attemptVideoPlay = () => {
+        const videoId = `video-${nft.contract}-${nft.tokenId}`;
+        const videoElement = document.getElementById(videoId) as HTMLVideoElement;
+        
+        if (videoElement) {
+          logger.debug(`📼 Executing play for first NFT video: ${nft.name}`);
+          // Ensure video element is connected to DOM and ready
+          if (document.body.contains(videoElement) && videoElement.readyState >= 2) {
+            // Update our ref if it's not already set
+            if (!videoRef.current) {
+              videoRef.current = videoElement;
+            }
+            // Try to play the video
+            videoElement.play().catch(e => {
+              logger.error(`⚠️ Error playing first NFT video: ${e.message}`);
+            });
+            return true; // Success
+          }
+        }
+        return false; // Video element not ready yet
+      };
+      
+      // Try immediately
+      if (!attemptVideoPlay()) {
+        // If failed, retry with increasing delays
+        const retryTimes = [100, 300, 600, 1000]; // Increasing delay pattern
+        
+        retryTimes.forEach((delay, index) => {
+          setTimeout(() => {
+            if (initialPlayAttemptsRef.current <= index) {
+              initialPlayAttemptsRef.current = index + 1;
+              logger.debug(`⏱️ Retry #${index + 1} for first NFT video: ${nft.name}`);
+              attemptVideoPlay();
+            }
+          }, delay);
+        });
+      }
+      
+      // Mark first mount as complete
+      isFirstMountRef.current = false;
+    }
+  }, [nft]);
+  
   // Add this effect to save the current video position before state changes
   useEffect(() => {
     if (nft?.isVideo || nft?.metadata?.animation_url) {
