@@ -8,7 +8,7 @@ import { FarcasterContext } from '../app/providers';
 interface VideoPlayContextType {
   playCount: number;
   incrementPlayCount: (nft: NFT) => void;
-  resetPlayCount: () => void;
+  resetPlayCount: (currentNFT?: NFT) => void;
   trackNFTProgress: (nft: NFT, currentTime: number, duration: number) => void;
   hasReachedPlayThreshold: (nft: NFT) => boolean;
 }
@@ -138,10 +138,21 @@ export const VideoPlayProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, [hasReachedPlayThreshold]);
 
-  const resetPlayCount = useCallback(() => {
+  const resetPlayCount = useCallback((currentNFT?: NFT) => {
     setPlayCount(0);
     setPlayedNFTs([]);
-    // Don't clear reportedNFTs to avoid re-reporting the same NFTs
+    
+    // Clear reportedNFTs for the current NFT only if provided
+    // This allows re-tracking the same NFT after an ad plays
+    if (currentNFT) {
+      const mediaKey = getNFTMediaKey(currentNFT);
+      setReportedNFTs(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(mediaKey);
+        return newSet;
+      });
+    }
+    // Otherwise, don't clear all reportedNFTs to avoid re-reporting other NFTs
   }, []);
 
   return (

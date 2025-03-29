@@ -127,8 +127,19 @@ export const PlayerWithAds: React.FC<PlayerWithAdsProps> = (props) => {
   const handleAdComplete = () => {
     setShowAd(false);
     setAdComplete(true);
-    resetPlayCount();
+    
+    // Reset play count and clear this specific NFT from reported set
+    // This is key to allowing tracking after ads
+    if (props.nft) {
+      resetPlayCount(props.nft);
+      console.log(`🔄 Reset play tracking for NFT: ${props.nft.name || 'Unnamed NFT'}`);
+    } else {
+      resetPlayCount();
+    }
+    
     setPlaysAfterAd(0); // Reset the counter for plays after ad
+    // Reset play tracking state so the play after the ad can be counted
+    setPlayTracked(false);
     
     // Restore nav and headers
     const nav = document.querySelector('nav');
@@ -139,7 +150,10 @@ export const PlayerWithAds: React.FC<PlayerWithAdsProps> = (props) => {
       header.style.display = 'flex';
     });
     
-    props.onPlayPause(); // Resume the main content
+    // Add a small delay before resuming playback to ensure state updates are processed
+    setTimeout(() => {
+      props.onPlayPause(); // Resume the main content
+    }, 100); // Slightly longer delay to ensure all state updates are processed
   };
 
   // Don't render anything until ad is complete if we're showing an ad
