@@ -27,7 +27,7 @@ export const VideoPlayProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [playCount, setPlayCount] = useState(0);
   // Track which NFTs have reached 25% threshold
   const [playedNFTs, setPlayedNFTs] = useState<NFTPlaybackState[]>([]);
-  // Track which NFTs have already been reported to Firebase
+  // Track which NFTs have already been reported to Firebase in the current play attempt
   const [reportedNFTs, setReportedNFTs] = useState<Set<string>>(new Set());
   
   // Get user's FID from context
@@ -49,10 +49,11 @@ export const VideoPlayProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const mediaKey = getNFTMediaKey(nft);
     const threshold = duration * 0.25; // 25% threshold
     
-    // Don't track progress for already reported NFTs
+    // Note: We still use reportedNFTs, but this gets cleared when an NFT starts playing again
+    // This prevents multiple reports for the same playback session
     if (reportedNFTs.has(mediaKey)) return;
     
-    // Check if we've already tracked this NFT
+    // Check if we've already tracked this NFT in the current session
     const existingIndex = playedNFTs.findIndex(item => item.mediaKey === mediaKey);
     
     if (existingIndex >= 0) {
@@ -140,19 +141,27 @@ export const VideoPlayProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const resetPlayCount = useCallback((currentNFT?: NFT) => {
     setPlayCount(0);
-    setPlayedNFTs([]);
     
-    // Clear reportedNFTs for the current NFT only if provided
-    // This allows re-tracking the same NFT after an ad plays
+    // When resetting, we should also clear the playedNFTs for the current NFT
+    // to allow it to be tracked again, even within the same session
     if (currentNFT) {
       const mediaKey = getNFTMediaKey(currentNFT);
+      
+      // Remove this NFT from playedNFTs if it exists
+      setPlayedNFTs(prev => prev.filter(item => item.mediaKey !== mediaKey));
+      
+      // Also remove from reportedNFTs
       setReportedNFTs(prev => {
         const newSet = new Set(prev);
         newSet.delete(mediaKey);
         return newSet;
       });
+    } else {
+      // If no specific NFT is provided, just reset everything
+      setPlayedNFTs([]);
     }
-    // Otherwise, don't clear all reportedNFTs to avoid re-reporting other NFTs
+    
+    // Note: We don't clear all reportedNFTs to avoid re-reporting other currently playing NFTs
   }, []);
 
   return (
