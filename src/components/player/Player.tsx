@@ -6,6 +6,7 @@ import type { NFT } from '../../types/user';
 import { FarcasterContext } from '../../app/providers';
 import { useNFTLikeState } from '../../hooks/useNFTLikeState';
 import { setPlaybackActive } from '../../utils/media';
+import { useVideoPlay } from '../../contexts/VideoPlayContext';
 
 // Keep all the existing interfaces exactly as they are
 interface PlayerProps {
@@ -49,9 +50,20 @@ export const Player: React.FC<PlayerProps> = (props) => {
   
   // Use the hook to get real-time like state
   const { isLiked } = useNFTLikeState(nft || null, userFid);
+  
+  // Get progress tracking functions
+  const { trackNFTProgress } = useVideoPlay();
 
   // Add a ref to track the current video position
   const lastPositionRef = useRef<number>(0);
+  
+  // Track progress for 25% threshold calculation
+  useEffect(() => {
+    if (nft && isPlaying && progress > 0 && duration > 0) {
+      // Track playback progress for the 25% threshold
+      trackNFTProgress(nft, progress, duration);
+    }
+  }, [nft, isPlaying, progress, duration, trackNFTProgress]);
 
   // Handle video synchronization
   useEffect(() => {

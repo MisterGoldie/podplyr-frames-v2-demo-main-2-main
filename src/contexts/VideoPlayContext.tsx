@@ -1,28 +1,157 @@
 'use client';
 
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
+import { NFT } from '../types/user';
+import { trackNFTPlay } from '../lib/firebase';
+import { FarcasterContext } from '../app/providers';
 
 interface VideoPlayContextType {
   playCount: number;
-  incrementPlayCount: () => void;
+  incrementPlayCount: (nft: NFT) => void;
   resetPlayCount: () => void;
+  trackNFTProgress: (nft: NFT, currentTime: number, duration: number) => void;
+  hasReachedPlayThreshold: (nft: NFT) => boolean;
 }
 
+// Create a type for tracking NFT playback thresholds
+type NFTPlaybackState = {
+  mediaKey: string;
+  duration: number;
+  thresholdReached: boolean;
+};
+
+// Create the context with default undefined value
 const VideoPlayContext = createContext<VideoPlayContextType | undefined>(undefined);
 
 export const VideoPlayProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [playCount, setPlayCount] = useState(0);
-
-  const incrementPlayCount = () => {
-    setPlayCount(prev => prev + 1);
+  // Track which NFTs have reached 25% threshold
+  const [playedNFTs, setPlayedNFTs] = useState<NFTPlaybackState[]>([]);
+  // Track which NFTs have already been reported to Firebase
+  const [reportedNFTs, setReportedNFTs] = useState<Set<string>>(new Set());
+  
+  // Get user's FID from context
+  const { fid } = useContext(FarcasterContext);
+  
+  // Get the mediaKey from NFT or generate one
+  const getNFTMediaKey = (nft: NFT): string => {
+    // Use existing mediaKey if available
+    if (nft.mediaKey) return nft.mediaKey;
+    
+    // Otherwise use contract-tokenId as a fallback identifier
+    return `${nft.contract}-${nft.tokenId}`;
   };
 
-  const resetPlayCount = () => {
+  // Track an NFT's playback progress
+  const trackNFTProgress = useCallback((nft: NFT, currentTime: number, duration: number) => {
+    if (!nft || !duration || !fid) return;
+    
+    const mediaKey = getNFTMediaKey(nft);
+    const threshold = duration * 0.25; // 25% threshold
+    
+    // Don't track progress for already reported NFTs
+    if (reportedNFTs.has(mediaKey)) return;
+    
+    // Check if we've already tracked this NFT
+    const existingIndex = playedNFTs.findIndex(item => item.mediaKey === mediaKey);
+    
+    if (existingIndex >= 0) {
+      // NFT is already being tracked
+      const nftState = playedNFTs[existingIndex];
+      
+      // If threshold not yet reached and current time exceeds it
+      if (!nftState.thresholdReached && currentTime >= threshold) {
+        // Update the NFT state to mark threshold as reached
+        const updatedNFTs = [...playedNFTs];
+        updatedNFTs[existingIndex] = {
+          ...nftState,
+          thresholdReached: true
+        };
+        setPlayedNFTs(updatedNFTs);
+        console.log(`🎵 25% threshold reached for NFT: ${nft.name || 'Unnamed'}`);
+        
+        // Report to Firebase only once per NFT
+        if (!reportedNFTs.has(mediaKey)) {
+          console.log(`💾 Recording play in Firebase for NFT: ${nft.name || 'Unnamed'}`);
+          // Track play in Firebase
+          trackNFTPlay(nft, fid)
+            .then(() => {
+              // Add to reported set after successfully logging to Firebase
+              setReportedNFTs(prev => new Set([...prev, mediaKey]));
+            })
+            .catch(error => {
+              console.error('Error tracking NFT play in Firebase:', error);
+            });
+        }
+      }
+    } else {
+      // First time tracking this NFT
+      const thresholdReached = currentTime >= threshold;
+      setPlayedNFTs(prev => [
+        ...prev,
+        {
+          mediaKey,
+          duration,
+          thresholdReached
+        }
+      ]);
+      
+      if (thresholdReached) {
+        console.log(`🎵 25% threshold already reached for NFT: ${nft.name || 'Unnamed'}`);
+        
+        // Report to Firebase only once per NFT
+        if (!reportedNFTs.has(mediaKey)) {
+          console.log(`💾 Recording play in Firebase for NFT: ${nft.name || 'Unnamed'}`);
+          // Track play in Firebase
+          trackNFTPlay(nft, fid)
+            .then(() => {
+              // Add to reported set after successfully logging to Firebase
+              setReportedNFTs(prev => new Set([...prev, mediaKey]));
+            })
+            .catch(error => {
+              console.error('Error tracking NFT play in Firebase:', error);
+            });
+        }
+      }
+    }
+  }, [fid, playedNFTs, reportedNFTs]);
+  
+  // Check if an NFT has reached the play threshold
+  const hasReachedPlayThreshold = useCallback((nft: NFT): boolean => {
+    if (!nft) return false;
+    
+    const mediaKey = getNFTMediaKey(nft);
+    const nftState = playedNFTs.find(item => item.mediaKey === mediaKey);
+    
+    return nftState?.thresholdReached || false;
+  }, [playedNFTs]);
+
+  // Increment play count only if threshold has been reached
+  const incrementPlayCount = useCallback((nft: NFT) => {
+    if (!nft) return;
+    
+    // Only count the play if we've reached the threshold
+    if (hasReachedPlayThreshold(nft)) {
+      setPlayCount(prev => prev + 1);
+    } else {
+      console.log(`⏳ Not counting play yet for ${nft.name || 'Unnamed NFT'} - 25% threshold not reached`);
+    }
+  }, [hasReachedPlayThreshold]);
+
+  const resetPlayCount = useCallback(() => {
     setPlayCount(0);
-  };
+    setPlayedNFTs([]);
+    // Don't clear reportedNFTs to avoid re-reporting the same NFTs
+  }, []);
 
   return (
-    <VideoPlayContext.Provider value={{ playCount, incrementPlayCount, resetPlayCount }}>
+    <VideoPlayContext.Provider value={{ 
+      playCount, 
+      incrementPlayCount, 
+      resetPlayCount,
+      trackNFTProgress,
+      hasReachedPlayThreshold
+    }}>
       {children}
     </VideoPlayContext.Provider>
   );

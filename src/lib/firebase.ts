@@ -423,12 +423,19 @@ export const getRecentSearches = async (fid?: number): Promise<SearchedUser[]> =
 };
 
 // Track NFT play and update play count globally
+// This function should only be called after the 25% threshold has been reached
 export const trackNFTPlay = async (nft: NFT, fid: number) => {
   try {
     if (!nft || !fid) {
       firebaseLogger.error('Invalid NFT or FID provided to trackNFTPlay');
       return;
     }
+    
+    firebaseLogger.info(`⭐ Recording verified play (25% threshold reached): ${nft.name}`, {
+      nft: nft.name,
+      mediaKey: nft.mediaKey || `${nft.contract}-${nft.tokenId}`,
+      fid
+    });
 
     // Validate required NFT fields
     if (!nft.contract || !nft.tokenId) {
