@@ -3,6 +3,7 @@ import { NFT } from '../types/user';
 import { trackNFTPlay } from '../lib/firebase';
 import { processMediaUrl, getMediaKey } from '../utils/media';
 import { logger } from '../utils/logger';
+import { useVideoPlay } from '../contexts/VideoPlayContext';
 
 // Create a dedicated logger for this module
 const audioLogger = logger.getModuleLogger('audioPlayer');
@@ -51,6 +52,10 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
   const [currentQueue, setCurrentQueue] = useState<NFT[]>([]);
   const [queueType, setQueueType] = useState<string>('default');
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [hasReachedThreshold, setHasReachedThreshold] = useState<boolean>(false);
+  
+  // Get access to the VideoPlayContext
+  const { trackNFTProgress, hasReachedPlayThreshold, resetNFTTrackingState } = useVideoPlay();
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -60,6 +65,21 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
       if (!audio.duration) return;
       setAudioProgress(audio.currentTime);
       setAudioDuration(audio.duration);
+      
+      // Track progress for the 25% threshold if we have a current NFT
+      if (currentPlayingNFT && audio.duration > 0) {
+        trackNFTProgress(currentPlayingNFT, audio.currentTime, audio.duration);
+        
+        // Check if we've reached the threshold and haven't tracked it yet
+        if (!hasReachedThreshold && hasReachedPlayThreshold(currentPlayingNFT)) {
+          setHasReachedThreshold(true);
+          
+          // Now we can track the play in Firebase since we've reached the threshold
+          trackNFTPlay(currentPlayingNFT, fid).catch(error => {
+            audioLogger.error('Error tracking NFT play after threshold:', error);
+          });
+        }
+      }
     };
 
     const handleLoadedMetadata = () => {
@@ -171,11 +191,18 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
 
     setCurrentPlayingNFT(nft);
     setCurrentlyPlaying(`${nft.contract}-${nft.tokenId}`);
-
-    // Track play in Firebase
+    // Reset threshold flag for the new NFT
+    setHasReachedThreshold(false);
+    
+    // Reset tracking in VideoPlayContext for this NFT to allow multiple plays
+    // of the same NFT to be tracked correctly without affecting ad counters
+    resetNFTTrackingState(nft);
+    
+    // We'll only track the play after reaching the 25% threshold
+    // This happens in the timeupdate event listener
+    
+    // Still update recently played NFTs immediately for UI purposes
     try {
-      // Always track the play - our Firebase function will handle deduplication
-      await trackNFTPlay(nft, fid);
       if (setRecentlyPlayedNFTs) {
         setRecentlyPlayedNFTs((prevNFTs: NFT[]) => {
           const newNFT: NFT = { ...nft };
@@ -403,7 +430,7 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
         videoElement.load();
       }
     }
-  }, [currentlyPlaying, handlePlayPause, fid, setRecentlyPlayedNFTs]);
+  }, [currentlyPlaying, handlePlayPause, fid, setRecentlyPlayedNFTs, hasReachedThreshold, trackNFTProgress, hasReachedPlayThreshold, resetNFTTrackingState]);
   
   // Now define handlePlayNext and handlePlayPrevious which use handlePlayAudio
   const handlePlayNext = useCallback(async () => {
