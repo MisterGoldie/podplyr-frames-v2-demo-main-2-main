@@ -19,24 +19,36 @@ export const PlaybackButton: React.FC<PlaybackButtonProps> = ({
     large: 'w-16 h-16',
   };
 
+  // Track if we're handling a mobile touch event
+  const isTouchDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+    typeof navigator !== 'undefined' ? navigator.userAgent : ''
+  );
+
   return (
     <button
-      onClick={onClick}
+      // On mobile, we'll handle clicks through the touchEnd event only to prevent double-firing
+      onClick={isTouchDevice ? undefined : onClick}
       className={`rounded-full bg-purple-400 hover:bg-purple-500 active:bg-purple-600 transition-all flex items-center justify-center touch-none select-none ${sizeClasses[size]} ${className}`}
       style={{ WebkitTapHighlightColor: 'transparent' }}
       onTouchStart={(e) => {
-        e.preventDefault();
+        // Only preventDefault on mobile to avoid interfering with mouse events on desktop
+        if (isTouchDevice) e.preventDefault();
         const btn = e.currentTarget;
         btn.style.transform = 'scale(0.95)';
       }}
       onTouchEnd={(e) => {
-        e.preventDefault();
+        // Only preventDefault on mobile to avoid interfering with mouse events on desktop
+        if (isTouchDevice) {
+          e.preventDefault();
+          // Call onClick only for touch devices
+          onClick();
+        }
         const btn = e.currentTarget;
         btn.style.transform = 'scale(1)';
-        onClick();
       }}
       onTouchCancel={(e) => {
-        e.preventDefault();
+        // Only preventDefault on mobile to avoid interfering with mouse events on desktop
+        if (isTouchDevice) e.preventDefault();
         const btn = e.currentTarget;
         btn.style.transform = 'scale(1)';
       }}
