@@ -8,6 +8,17 @@ module.exports = {
   theme: {
     extend: {
       keyframes: {
+        'count-updated': {
+          '0%': { transform: 'scale(1)', backgroundColor: '#a855f7' }, // Normal size, default purple-500
+          '30%': { transform: 'scale(1.2)', backgroundColor: '#9333ea' }, // Slightly larger, brighter purple-600
+          '60%': { transform: 'scale(1.1)', backgroundColor: '#7e22ce' }, // Pulsing back, even brighter purple-700
+          '100%': { transform: 'scale(1)', backgroundColor: '#a855f7' }, // Back to normal
+        },
+        'text-count-updated': {
+          '0%': { transform: 'scale(1)', color: '#d8b4fe' }, // Normal size, default purple-300
+          '50%': { transform: 'scale(1.15)', color: '#ffffff' }, // Slightly larger, bright white
+          '100%': { transform: 'scale(1)', color: '#d8b4fe' }, // Back to normal
+        },
         'pulse-subtle': {
           '0%, 100%': { opacity: 1 },
           '50%': { opacity: 0.95 },
@@ -68,6 +79,8 @@ module.exports = {
         }
       },
       animation: {
+        'count-updated': 'count-updated 1.2s ease-in-out forwards',
+        'text-count-updated': 'text-count-updated 1s ease-in-out forwards',
         'pulse-subtle': 'pulse-subtle 3s ease-in-out infinite',
         'float-slow': 'float-slow 12s ease-in-out infinite',
         'float-medium': 'float-medium 14s ease-in-out infinite',

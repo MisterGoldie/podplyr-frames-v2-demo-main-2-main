@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getFirestore, doc, onSnapshot, DocumentSnapshot } from 'firebase/firestore';
 import type { NFT } from '../types/user';
 import { getMediaKey } from '../utils/media';
@@ -10,6 +10,8 @@ const playCountLogger = logger.getModuleLogger('playCount');
 export const useNFTPlayCount = (nft: NFT | null, shouldFetch: boolean = true) => {
   const [playCount, setPlayCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
+  const [realCountIncrease, setRealCountIncrease] = useState(false);
+  const previousCountRef = useRef<number>(0);
 
   useEffect(() => {
     // Skip Firebase connection if we shouldn't fetch yet
@@ -38,10 +40,33 @@ export const useNFTPlayCount = (nft: NFT | null, shouldFetch: boolean = true) =>
       (snapshot: DocumentSnapshot) => {
         if (snapshot.exists()) {
           const data = snapshot.data();
-          setPlayCount(data?.playCount || 0);
-          playCountLogger.debug('Updated play count:', { mediaKey, count: data?.playCount || 0 });
+          const newCount = data?.playCount || 0;
+          
+          // Check if this is a real count increase from Firebase
+          // This will only happen when the 25% threshold is reached
+          if (newCount > previousCountRef.current) {
+            playCountLogger.debug('REAL PLAY COUNT INCREASE:', { 
+              mediaKey, 
+              oldCount: previousCountRef.current, 
+              newCount 
+            });
+            setRealCountIncrease(true);
+            
+            // Reset the animation flag after a short delay
+            setTimeout(() => {
+              setRealCountIncrease(false);
+            }, 2000); // slightly longer than animation duration
+          }
+          
+          // Update previous count reference
+          previousCountRef.current = newCount;
+          
+          // Update the state
+          setPlayCount(newCount);
+          playCountLogger.debug('Updated play count:', { mediaKey, count: newCount });
         } else {
           setPlayCount(0);
+          previousCountRef.current = 0;
           playCountLogger.debug('No play count found for:', { mediaKey });
         }
         setLoading(false);
@@ -60,5 +85,5 @@ export const useNFTPlayCount = (nft: NFT | null, shouldFetch: boolean = true) =>
     };
   }, [nft, shouldFetch]);
 
-  return { playCount, loading };
+  return { playCount, loading, realCountIncrease };
 };
