@@ -12,6 +12,14 @@ export const useNFTPlayCount = (nft: NFT | null, shouldFetch: boolean = true) =>
   const [loading, setLoading] = useState(true);
   const [realCountIncrease, setRealCountIncrease] = useState(false);
   const previousCountRef = useRef<number>(0);
+  const isInitialLoadRef = useRef<boolean>(true);
+
+  // Reset the initial load flag when NFT changes
+  useEffect(() => {
+    // We need to reset this for each NFT change to avoid immediate animation
+    isInitialLoadRef.current = true;
+    previousCountRef.current = 0; // Reset this too for clean state
+  }, [nft?.contract, nft?.tokenId]);
 
   useEffect(() => {
     // Skip Firebase connection if we shouldn't fetch yet
@@ -44,11 +52,13 @@ export const useNFTPlayCount = (nft: NFT | null, shouldFetch: boolean = true) =>
           
           // Check if this is a real count increase from Firebase
           // This will only happen when the 25% threshold is reached
-          if (newCount > previousCountRef.current) {
+          // Don't trigger animation on initial load
+          if (newCount > previousCountRef.current && !isInitialLoadRef.current) {
             playCountLogger.debug('REAL PLAY COUNT INCREASE:', { 
               mediaKey, 
               oldCount: previousCountRef.current, 
-              newCount 
+              newCount,
+              isInitialLoad: isInitialLoadRef.current
             });
             setRealCountIncrease(true);
             
@@ -56,6 +66,11 @@ export const useNFTPlayCount = (nft: NFT | null, shouldFetch: boolean = true) =>
             setTimeout(() => {
               setRealCountIncrease(false);
             }, 2000); // slightly longer than animation duration
+          }
+          
+          // After first load, set initial load flag to false
+          if (isInitialLoadRef.current) {
+            isInitialLoadRef.current = false;
           }
           
           // Update previous count reference
