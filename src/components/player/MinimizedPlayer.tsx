@@ -75,6 +75,24 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
       // Store reference
       videoRef.current = videoElement;
       
+      // Don't control playback here - let the main effect below handle it
+      // This prevents race conditions with multiple play/pause calls
+      playerLogger.debug("Found video element in minimized player, storing reference");
+    }
+  }, [nft]);
+  
+  // Add effects to find, control, and sync the video element
+  useEffect(() => {
+    if (!nft?.isVideo && !nft?.metadata?.animation_url) return;
+    
+    // Find the video element in the document
+    const videoId = `video-${nft.contract}-${nft.tokenId}`;
+    const videoElement = document.getElementById(videoId) as HTMLVideoElement;
+    
+    if (videoElement) {
+      // Store reference
+      videoRef.current = videoElement;
+      
       // Simple play/pause control
       if (isPlaying) {
         videoElement.play().catch(e => {
@@ -232,7 +250,7 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
     
     if (!videoElement) return;
     
-    // Sync the video playback state with the app state
+      // Sync the video playback state with the app state
     if (isPlaying) {
       videoElement.play().catch(e => {
         playerLogger.error('Error playing video from minimized player sync effect:', e);

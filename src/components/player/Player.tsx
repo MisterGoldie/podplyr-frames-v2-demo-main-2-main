@@ -68,7 +68,7 @@ export const Player: React.FC<PlayerProps> = (props) => {
     }
   }, [nft, isPlaying, progress, duration, trackNFTProgress]);
 
-  // Handle video synchronization
+  // Handle video synchronization - VISUAL ONLY (audio handled by MinimizedPlayer)
   useEffect(() => {
     // Detect if we're resuming playback (changing from paused to playing)
     const isResuming = isPlaying && !prevPlayingRef.current;
@@ -82,96 +82,79 @@ export const Player: React.FC<PlayerProps> = (props) => {
     // If no NFT, don't do anything
     if (!nft) return;
     
+    // Skip if not a video NFT
+    if (!nft.isVideo && !nft?.metadata?.animation_url?.match(/\.(mp4|webm|mov)$/i)) {
+      return;
+    }
+    
     // Log video sync status - helps debug first NFT issues
     const hasVideoRef = !!videoRef.current;
     logger.debug(`🎥 Player video sync - NFT: ${nft.name}, isPlaying: ${isPlaying}, has videoRef: ${hasVideoRef}`);
     
-    // First try using our ref
-    if (videoRef.current) {
+    // Find the video element
+    const videoId = `video-${nft.contract}-${nft.tokenId}`;
+    const videoElement = videoRef.current || document.getElementById(videoId) as HTMLVideoElement;
+    
+    if (!videoElement) {
+      logger.debug(`No video element found for NFT: ${nft.name}`);
+      return;
+    }
+    
+    // Store reference if we found it via DOM
+    if (!videoRef.current && videoElement) {
+      videoRef.current = videoElement;
+    }
+    
+    // IMPORTANT: Always ensure video is muted - audio is handled by MinimizedPlayer
+    videoElement.muted = true;
+    
+    // Only sync time when resuming playback to avoid choppy video
+    if (isResuming && progress > 0) {
       try {
-        if (isPlaying) {
-          // Only sync time when resuming playback to avoid choppy video
-          if (isResuming) {
-            videoRef.current.currentTime = progress;
-          }
-          videoRef.current.play().catch(e => console.error("Video play error with ref:", e));
-        } else {
-          videoRef.current.pause();
-        }
+        videoElement.currentTime = progress;
+        logger.debug(`Set video time to ${progress}s`);
       } catch (e) {
-        console.error("Error controlling video with ref:", e);
+        logger.warn('Failed to set video currentTime:', e);
       }
     }
     
-    // As a backup, try direct DOM access for both minimized and maximized states
-    if (nft?.isVideo || nft?.metadata?.animation_url) {
-      const videoId = `video-${nft.contract}-${nft.tokenId}`;
-      const videoElement = document.getElementById(videoId) as HTMLVideoElement;
-      
-      if (videoElement && videoElement !== videoRef.current) {
-        try {
-          if (isPlaying) {
-            // Only sync time when resuming playback to avoid choppy video
-            if (isResuming) {
-              videoElement.currentTime = progress;
-            }
-            videoElement.play().catch(e => console.error("Video play error with DOM:", e));
-          } else {
-            videoElement.pause();
-          }
-        } catch (e) {
-          console.error("Error controlling video with DOM:", e);
+    // Control video playback based on isPlaying state
+    if (isPlaying) {
+      // Use a simple play with catch - no retries needed as this is just visual
+      videoElement.play().catch(error => {
+        // Don't log AbortError as it's expected when switching NFTs
+        if (!(error instanceof DOMException && error.name === 'AbortError')) {
+          logger.error("Error playing video (visual only):", error);
         }
-      }
+      });
+    } else {
+      videoElement.pause();
     }
   }, [isPlaying, nft, progress]);
 
-  // First mount detection with retry mechanism for initial video playback
+  // First mount detection for initial video playback - VISUAL ONLY
   useEffect(() => {
-    // Skip if no NFT
-    if (!nft) return;
+    // Skip if no NFT or not a video NFT
+    if (!nft || (!nft.isVideo && !nft?.metadata?.animation_url?.match(/\.(mp4|webm|mov)$/i))) return;
     
     // Only run on first mount
-    if (isFirstMountRef.current && (nft?.isVideo || nft?.metadata?.animation_url)) {
+    if (isFirstMountRef.current) {
       logger.debug(`💡 First NFT detected in Player: ${nft.name}`);
       
-      // Setup retry mechanism for first NFT video playback
-      const attemptVideoPlay = () => {
-        const videoId = `video-${nft.contract}-${nft.tokenId}`;
-        const videoElement = document.getElementById(videoId) as HTMLVideoElement;
-        
-        if (videoElement) {
-          logger.debug(`📼 Executing play for first NFT video: ${nft.name}`);
-          // Ensure video element is connected to DOM and ready
-          if (document.body.contains(videoElement) && videoElement.readyState >= 2) {
-            // Update our ref if it's not already set
-            if (!videoRef.current) {
-              videoRef.current = videoElement;
-            }
-            // Try to play the video
-            videoElement.play().catch(e => {
-              logger.error(`⚠️ Error playing first NFT video: ${e.message}`);
-            });
-            return true; // Success
-          }
-        }
-        return false; // Video element not ready yet
-      };
+      // Find the video element
+      const videoId = `video-${nft.contract}-${nft.tokenId}`;
+      const videoElement = document.getElementById(videoId) as HTMLVideoElement;
       
-      // Try immediately
-      if (!attemptVideoPlay()) {
-        // If failed, retry with increasing delays
-        const retryTimes = [100, 300, 600, 1000]; // Increasing delay pattern
+      if (videoElement) {
+        // Update our ref
+        videoRef.current = videoElement;
         
-        retryTimes.forEach((delay, index) => {
-          setTimeout(() => {
-            if (initialPlayAttemptsRef.current <= index) {
-              initialPlayAttemptsRef.current = index + 1;
-              logger.debug(`⏱️ Retry #${index + 1} for first NFT video: ${nft.name}`);
-              attemptVideoPlay();
-            }
-          }, delay);
-        });
+        // IMPORTANT: Always ensure video is muted - audio is handled by MinimizedPlayer
+        videoElement.muted = true;
+        
+        logger.debug(`Found video element for first NFT: ${nft.name}`);
+      } else {
+        logger.debug(`No video element found for first NFT: ${nft.name}`);
       }
       
       // Mark first mount as complete
