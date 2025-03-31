@@ -238,8 +238,26 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   // In library view, ensure at least 1 like
   const likesCount = isLibraryView ? Math.max(1, globalLikesCount) : globalLikesCount;
   
-  // Get real-time play count
-  const { playCount } = useNFTPlayCount(nft);
+  // Get real-time play count with real increase tracking
+  const { playCount, realCountIncrease } = useNFTPlayCount(nft);
+  
+  // Use realCountIncrease flag to control animation
+  const [isAnimating, setIsAnimating] = useState(false);
+  
+  // Trigger animation only when a real Firebase count increase happens (25% threshold)
+  useEffect(() => {
+    if (realCountIncrease) {
+      // Real play count increase from Firebase - trigger animation
+      setIsAnimating(true);
+      
+      // Reset animation after it completes
+      const timer = setTimeout(() => {
+        setIsAnimating(false);
+      }, 1500); // Animation duration (slightly longer than the CSS animation)
+      
+      return () => clearTimeout(timer);
+    }
+  }, [realCountIncrease]);
   
   // Only show badge if explicitly passed as 'Top Played'
   const shouldShowBadge = badge === 'Top Played';
@@ -519,7 +537,10 @@ export const NFTCard: React.FC<NFTCardProps> = ({
             />
           )}
           {shouldShowPlayCount && (
-            <div className="absolute top-2 left-2 bg-purple-400 text-white text-xs px-2 py-1 rounded-full font-medium">
+            <div 
+              className={`absolute top-2 left-2 bg-purple-400 text-white text-xs px-2 py-1 rounded-full font-medium transition-all duration-300 ${isAnimating ? 'animate-count-updated' : ''}`}
+              data-media-key={getMediaKey(nft)} // Adding mediaKey as a data attribute for DOM tracking
+            >
               {playCountBadge}
             </div>
           )}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNFTPlayCount } from '../../hooks/useNFTPlayCount';
 import { useNFTLikeState } from '../../hooks/useNFTLikeState';
 import { useNFTTopPlayed } from '../../hooks/useNFTTopPlayed';
@@ -12,10 +12,28 @@ interface InfoPanelProps {
 }
 
 const InfoPanel: React.FC<InfoPanelProps> = ({ nft, onClose, userFid = 0 }) => {
-  const { playCount, loading } = useNFTPlayCount(nft);
+  const { playCount, loading, realCountIncrease } = useNFTPlayCount(nft);
   const { isLiked, likesCount, isLoading: likesLoading } = useNFTLikeState(nft, userFid);
   const { hasBeenInTopPlayed, loading: topPlayedLoading } = useNFTTopPlayed(nft);
   const [isClosing, setIsClosing] = useState(false);
+  
+  // State to track animation of play count
+  const [isPlayCountAnimating, setIsPlayCountAnimating] = useState(false);
+  
+  // Trigger animation only when a real Firebase count increase happens (25% threshold)
+  useEffect(() => {
+    if (realCountIncrease) {
+      // Real play count increase from Firebase - trigger animation
+      setIsPlayCountAnimating(true);
+      
+      // Reset animation after it completes
+      const timer = setTimeout(() => {
+        setIsPlayCountAnimating(false);
+      }, 1500); // Animation duration (slightly longer than the CSS animation)
+      
+      return () => clearTimeout(timer);
+    }
+  }, [realCountIncrease]);
 
   // Handle closing animation
   const handleClose = () => {
@@ -51,11 +69,14 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ nft, onClose, userFid = 0 }) => {
           <div className="flex-1">
             <h2 className="text-purple-300 font-mono text-base font-semibold">{nft.name}</h2>
             <div className="flex items-center gap-2 mt-1">
-              <div className="flex items-center gap-1.5 bg-purple-500/10 px-2 py-0.5 rounded-full">
+              <div 
+                className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full transition-all duration-300 ${isPlayCountAnimating ? 'animate-count-updated' : 'bg-purple-500/10'}`}
+                data-media-key={nft.mediaKey || getMediaKey(nft)}
+              >
                 <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="#4ADE80" className="text-green-400">
                   <path d="M320-200v-560l440 280-440 280Z"/>
                 </svg>
-                <span className="text-purple-300 text-xs font-mono">
+                <span className={`text-purple-300 text-xs font-mono ${isPlayCountAnimating ? 'animate-text-count-updated' : ''}`}>
                   {loading ? '...' : `${playCount} plays`}
                 </span>
               </div>
