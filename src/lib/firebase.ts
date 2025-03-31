@@ -1058,6 +1058,37 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
     
     firebaseLogger.info('Document fetch complete. User like exists:', userLikeDoc.exists(), 'Global like exists:', globalLikeDoc.exists());
     
+    // CRITICAL: Update DOM immediately to prevent flickering
+    const isCurrentlyLiked = userLikeDoc.exists();
+    const willBeLiked = !isCurrentlyLiked;
+    
+    if (typeof window !== 'undefined') {
+      try {
+        // Update all DOM elements with this mediaKey
+        document.querySelectorAll(`[data-media-key="${mediaKey}"]`).forEach(element => {
+          element.setAttribute('data-liked', willBeLiked ? 'true' : 'false');
+          element.setAttribute('data-is-liked', willBeLiked ? 'true' : 'false');
+          
+          // Also update any child elements that might be used for styling
+          const likeButtons = element.querySelectorAll('.like-button, [data-like-button]');
+          likeButtons.forEach(button => {
+            if (button instanceof HTMLElement) {
+              button.setAttribute('data-liked', willBeLiked ? 'true' : 'false');
+              button.setAttribute('data-is-liked', willBeLiked ? 'true' : 'false');
+              if (willBeLiked) {
+                button.classList.add('liked');
+              } else {
+                button.classList.remove('liked');
+              }
+            }
+          });
+        });
+      } catch (err) {
+        // Ignore DOM errors
+        firebaseLogger.warn('Error updating DOM in toggleLikeNFT:', err);
+      }
+    }
+    
     const batch = writeBatch(db);
     
     if (userLikeDoc.exists()) {
@@ -1154,6 +1185,16 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
       try {
         await batch.commit();
         firebaseLogger.info('Successfully removed like for:', mediaKey);
+        
+        // Trigger a global DOM update event
+        if (typeof window !== 'undefined' && window.dispatchEvent) {
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('updateLikedNFTs', {
+              detail: { mediaKey, isLiked: false }
+            }));
+          }, 100);
+        }
+        
         return false; // Return false to indicate NFT is not liked
       } catch (error) {
         firebaseLogger.error('Error committing unlike operation:', error);
@@ -1242,6 +1283,16 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
         // Commit the batch operations
         await batch.commit();
         firebaseLogger.info('Successfully added like for:', mediaKey);
+        
+        // Trigger a global DOM update event
+        if (typeof window !== 'undefined' && window.dispatchEvent) {
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('updateLikedNFTs', {
+              detail: { mediaKey, isLiked: true }
+            }));
+          }, 100);
+        }
+        
         return true; // Return true to indicate NFT is liked
       } catch (error) {
         firebaseLogger.error('Error adding like:', error);
@@ -1307,6 +1358,146 @@ export const subscribeToRecentPlays = (fid: number, callback: (nfts: NFT[]) => v
     }
 
     callback(recentNFTs);
+  });
+};
+
+// Subscribe to permanent likes for a user
+export const subscribeToPermanentLikes = (fid: number, callback: (nfts: NFT[]) => void) => {
+  if (!fid || fid <= 0) {
+    firebaseLogger.error('Invalid fid provided to subscribeToPermanentLikes:', fid);
+    return () => {}; // Return empty unsubscribe function
+  }
+  
+  firebaseLogger.info('Setting up permanent likes subscription for FID:', fid);
+  
+  // Listen to the user's likes collection
+  const userLikesRef = collection(db, 'users', fid.toString(), 'likes');
+  const q = query(userLikesRef, orderBy('timestamp', 'desc'));
+  
+  // Set up real-time listener
+  return onSnapshot(q, async (snapshot) => {
+    try {
+      // Skip empty snapshots
+      if (snapshot.empty) {
+        firebaseLogger.info('No liked NFTs found for user:', fid);
+        callback([]);
+        return;
+      }
+      
+      // Use a map for mediaKey->NFT to handle duplicates
+      const likedNFTsMap = new Map<string, NFT>();
+      const mediaKeysToFetch: string[] = [];
+      
+      // First, collect all media keys from liked docs
+      snapshot.docs.forEach(doc => {
+        const mediaKey = doc.id;
+        mediaKeysToFetch.push(mediaKey);
+        
+        // If the user like has embedded NFT data, use it immediately
+        const data = doc.data();
+        if (data.nft) {
+          const nft = data.nft as NFT;
+          nft.mediaKey = mediaKey;
+          likedNFTsMap.set(mediaKey, nft);
+        }
+      });
+      
+      firebaseLogger.info(`Found ${mediaKeysToFetch.length} liked NFTs to process for user ${fid}`);
+      
+      // Batch fetch global likes for all media keys that don't have NFT data
+      const batchSize = 10;
+      for (let i = 0; i < mediaKeysToFetch.length; i += batchSize) {
+        const batch = mediaKeysToFetch.slice(i, i + batchSize);
+        const fetchPromises = batch.map(async (mediaKey) => {
+          // Skip if we already have this NFT from the user like document
+          if (likedNFTsMap.has(mediaKey)) {
+            return null;
+          }
+          
+          try {
+            const globalLikeDoc = await getDoc(doc(db, 'global_likes', mediaKey));
+            
+            if (!globalLikeDoc.exists()) {
+              firebaseLogger.warn(`No global like found for mediaKey: ${mediaKey}`);
+              return null;
+            }
+            
+            const globalData = globalLikeDoc.data();
+            
+            const nft: NFT = {
+              contract: globalData.nftContract,
+              tokenId: globalData.tokenId,
+              name: globalData.name || 'Untitled',
+              description: globalData.description || '',
+              image: globalData.image || '',
+              audio: globalData.audioUrl || '',
+              hasValidAudio: Boolean(globalData.audioUrl),
+              metadata: {
+                name: globalData.name || 'Untitled',
+                description: globalData.description || '',
+                image: globalData.image || '',
+                animation_url: globalData.audioUrl || ''
+              },
+              collection: {
+                name: globalData.collection || 'Unknown Collection'
+              },
+              network: globalData.network || 'ethereum',
+              mediaKey: mediaKey
+            };
+            
+            return nft;
+          } catch (error) {
+            firebaseLogger.error(`Error fetching global like for ${mediaKey}:`, error);
+            return null;
+          }
+        });
+        
+        const results = await Promise.all(fetchPromises);
+        results.filter(Boolean).forEach((nft) => {
+          if (nft && nft.mediaKey) {
+            likedNFTsMap.set(nft.mediaKey, nft);
+          }
+        });
+      }
+      
+      // Convert map to array and callback
+      const likedNFTs = Array.from(likedNFTsMap.values());
+      firebaseLogger.info(`Delivering ${likedNFTs.length} liked NFTs for user ${fid}`);
+      
+      // CRITICAL: Update DOM elements directly to ensure liked state persists
+      if (typeof window !== 'undefined' && likedNFTs.length > 0) {
+        // Update DOM elements directly
+        likedNFTs.forEach(nft => {
+          if (nft.mediaKey) {
+            try {
+              document.querySelectorAll(`[data-media-key="${nft.mediaKey}"]`).forEach(element => {
+                element.setAttribute('data-liked', 'true');
+                element.setAttribute('data-is-liked', 'true');
+              });
+            } catch (err) {
+              // Ignore DOM errors
+            }
+          }
+        });
+        
+        // Trigger a global DOM update
+        setTimeout(() => {
+          if (window.dispatchEvent) {
+            window.dispatchEvent(new CustomEvent('updateLikedNFTs', {
+              detail: { count: likedNFTs.length }
+            }));
+          }
+        }, 100);
+      }
+      
+      callback(likedNFTs);
+    } catch (error) {
+      firebaseLogger.error('Error in subscribeToPermanentLikes:', error);
+      callback([]); // Return empty array on error
+    }
+  }, (error) => {
+    firebaseLogger.error('Error in likes subscription:', error);
+    callback([]); // Return empty array on subscription error
   });
 };
 
