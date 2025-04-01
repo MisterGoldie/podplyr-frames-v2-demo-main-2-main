@@ -43,6 +43,54 @@ type AudioPlayerHandles = {
   timeupdate: () => void;
 }
 
+// Create a global audio context for the entire app
+let globalAudioContext: AudioContext | null = null;
+
+// Helper function to unlock audio context
+const unlockAudioContext = () => {
+  // Skip if already created
+  if (globalAudioContext) return globalAudioContext;
+  
+  const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+  if (!AudioContextClass) return null;
+  
+  // Create new audio context
+  globalAudioContext = new AudioContextClass();
+  
+  // Unlock the audio context (needed for iOS/Safari)
+  if (globalAudioContext && globalAudioContext.state === 'suspended') {
+    const resumeAudio = () => {
+      if (globalAudioContext && globalAudioContext.state === 'suspended') {
+        globalAudioContext.resume();
+      }
+      
+      // Create and play a silent buffer to unlock audio
+      if (globalAudioContext) {
+        const buffer = globalAudioContext.createBuffer(1, 1, 22050);
+        const source = globalAudioContext.createBufferSource();
+        source.buffer = buffer;
+        source.connect(globalAudioContext.destination);
+        source.start(0);
+      }
+      
+      // Remove listeners once played
+      document.removeEventListener('touchstart', resumeAudio);
+      document.removeEventListener('touchend', resumeAudio);
+      document.removeEventListener('click', resumeAudio);
+    };
+    
+    // Add event listeners to unlock audio on user interaction
+    document.addEventListener('touchstart', resumeAudio, true);
+    document.addEventListener('touchend', resumeAudio, true);
+    document.addEventListener('click', resumeAudio, true);
+  }
+  
+  return globalAudioContext;
+};
+
+// Ensure audio context is unlocked on page load
+document.addEventListener('DOMContentLoaded', unlockAudioContext);
+
 export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNFT }: UseAudioPlayerProps = {}): UseAudioPlayerReturn => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentPlayingNFT, setCurrentPlayingNFT] = useState<NFT | null>(null);
@@ -118,32 +166,74 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
   const handlePlayPause = useCallback(() => {
     if (!audioRef.current) return;
     
+    audioLogger.info('handlePlayPause called, current state:', isPlaying ? 'playing' : 'paused');
+    
     if (isPlaying) {
+      audioLogger.info('Pausing audio');
       audioRef.current.pause();
       // Pause video if it exists
       if (currentPlayingNFT) {
-        const video = document.querySelector(`#video-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`);
+        const videoSelector = `#video-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`;
+        audioLogger.info('Looking for video element with selector:', videoSelector);
+        const video = document.querySelector(videoSelector);
         if (video instanceof HTMLVideoElement) {
+          audioLogger.info('Pausing video element');
           video.pause();
+        } else {
+          audioLogger.info('No specific video element found for the NFT');
         }
       }
     } else {
+      audioLogger.info('Playing audio');
       audioRef.current.play().catch(error => {
         audioLogger.error("Error in handlePlayPause:", error);
         setIsPlaying(false);
       }).then(() => {
-        // Play video if it exists
-        const video = document.querySelector('video');
-        if (video) {
-          video.play().catch(error => {
-            audioLogger.error("Error playing video:", error);
-          });
+        // Play video if it exists - use the same specific selector as in pause
+        if (currentPlayingNFT) {
+          const videoSelector = `#video-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`;
+          audioLogger.info('Looking for video element with selector:', videoSelector);
+          const video = document.querySelector(videoSelector);
+          if (video instanceof HTMLVideoElement) {
+            audioLogger.info('Playing video element');
+            video.play().catch(error => {
+              audioLogger.error("Error playing video:", error);
+            });
+          } else {
+            audioLogger.info('No specific video element found for the NFT');
+          }
         }
       });
     }
   }, [isPlaying]);
 
   // Define handlePlayAudio first, before it's used in other functions
+  // Force audio context unlocking at the beginning of the component
+  useEffect(() => {
+    // This ensures that audio context is unlocked even if the DOMContentLoaded event has already fired
+    unlockAudioContext();
+    
+    // Initialize an empty audio element for immediate reference
+    if (!audioRef.current) {
+      audioRef.current = new Audio();
+      
+      // Set default properties
+      audioRef.current.preload = "metadata";
+      audioRef.current.volume = 1.0;
+      
+      audioLogger.info('Audio player initialized with empty audio element');
+    }
+    
+    // Clean up function
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+        audioRef.current.load();
+      }
+    };
+  }, []);
+  
   const handlePlayAudio = useCallback(async (nft: NFT, context?: { queue?: NFT[], queueType?: string }) => {
     // Add mobile optimization
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -243,6 +333,17 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
     } catch (error) {
       audioLogger.error('Error tracking NFT play:', error);
     }
+    
+    // Log detailed information about the NFT being played
+    audioLogger.info('NFT playback details:', {
+      name: nft.name,
+      contract: nft.contract,
+      tokenId: nft.tokenId,
+      isVideo: nft.isVideo,
+      audioUrl: audioUrl,
+      hasAnimationUrl: !!nft.metadata?.animation_url,
+      mediaKey: getMediaKey(nft)
+    });
 
     // NEW CODE: Check if this is a video with embedded audio
     const isVideoWithEmbeddedAudio = nft.isVideo && 
@@ -290,31 +391,95 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
     
     // EXISTING CODE for audio-only or separate audio+image NFTs
     if (audioRef.current) {
-      // Create a new audio element for this NFT
-      const audio = new Audio(processMediaUrl(audioUrl));
+      // Always create a fresh audio element for each NFT to avoid stale state
+      const audio = new Audio();
       
-      // Set up event listeners before loading
-      audio.addEventListener('loadedmetadata', () => {
-        audioLogger.info('Audio metadata loaded:', {
-          duration: audio.duration,
-          currentTime: audio.currentTime
+      // For diagnostic purposes, add attributes to track the NFT
+      audio.dataset.nftName = nft.name;
+      audio.dataset.nftId = `${nft.contract}-${nft.tokenId}`;
+      
+      // Clean up any previous listeners to avoid memory leaks
+      const setupAudioListeners = () => {
+        // This is a clean function to track all event handlers
+        const handlers: {[key: string]: EventListener} = {};
+        
+        handlers.loadedmetadata = () => {
+          audioLogger.info('Audio metadata loaded:', {
+            duration: audio.duration,
+            currentTime: audio.currentTime,
+            nftName: nft.name,
+            readyState: audio.readyState
+          });
+          setAudioDuration(audio.duration);
+        };
+        
+        handlers.timeupdate = () => {
+          setAudioProgress(audio.currentTime);
+        };
+        
+        handlers.play = () => {
+          audioLogger.info(`Audio playback started for NFT: ${nft.name}`);
+          setIsPlaying(true);
+        };
+        
+        handlers.pause = () => {
+          audioLogger.info(`Audio playback paused for NFT: ${nft.name}`);
+          setIsPlaying(false);
+        };
+        
+        handlers.ended = () => {
+          audioLogger.info(`Audio playback ended for NFT: ${nft.name}`);
+          setIsPlaying(false);
+          setAudioProgress(0);
+        };
+        
+        handlers.error = (e: Event) => {
+          audioLogger.error(`Audio error for NFT: ${nft.name}`, {
+            error: (e as ErrorEvent).error,
+            errorCode: audio.error?.code,
+            errorMessage: audio.error?.message,
+            src: audio.src,
+            readyState: audio.readyState
+          });
+        };
+        
+        handlers.loadstart = () => {
+          audioLogger.info(`Audio loading started for NFT: ${nft.name}`);
+        };
+        
+        handlers.waiting = () => {
+          audioLogger.info(`Audio is waiting for data for NFT: ${nft.name}`);
+        };
+        
+        handlers.canplay = () => {
+          audioLogger.info(`Audio can start playing for NFT: ${nft.name}`);
+        };
+        
+        handlers.canplaythrough = () => {
+          audioLogger.info(`Audio can play through without buffering for NFT: ${nft.name}`);
+        };
+        
+        // Attach all handlers
+        Object.entries(handlers).forEach(([event, handler]) => {
+          audio.addEventListener(event, handler);
         });
-        setAudioDuration(audio.duration);
-      });
-
-      audio.addEventListener('timeupdate', () => {
-        setAudioProgress(audio.currentTime);
-      });
-
-      audio.addEventListener('play', () => setIsPlaying(true));
-      audio.addEventListener('pause', () => setIsPlaying(false));
-      audio.addEventListener('ended', () => {
-        setIsPlaying(false);
-        setAudioProgress(0);
-      });
-
+        
+        // Return cleanup function
+        return () => {
+          Object.entries(handlers).forEach(([event, handler]) => {
+            audio.removeEventListener(event, handler);
+          });
+        };
+      };
+      
+      // Setup the listeners
+      const cleanupListeners = setupAudioListeners();
+      
       // Replace the current audio reference
       audioRef.current = audio;
+      
+      // When we replace the audio element, make sure we unlock audio context
+      unlockAudioContext();
 
       // When setting up the audio element
       if (isMobile) {
@@ -334,38 +499,159 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
           audio.dataset.lowLatency = 'true';
         }
       }
+      
+      // Set the source AFTER adding all event listeners
+      const processedUrl = processMediaUrl(audioUrl);
+      audioLogger.info(`Setting audio source for NFT: ${nft.name}`, { url: processedUrl });
+      
+      // Set critical audio properties for consistent playback
+      audio.crossOrigin = "anonymous"; // Allow CORS audio where supported
+      audio.preload = "auto"; // Force preload of entire audio file
+      audio.src = processedUrl;
+      
+      // Force the browser to start loading the audio
+      audioLogger.info(`Explicitly loading audio for NFT: ${nft.name}`);
+      try {
+        audio.load();
+      } catch (loadError) {
+        audioLogger.error(`Error loading audio for NFT: ${nft.name}`, loadError);
+      }
 
       try {
-        if (isMobile) {
-          // Improved mobile audio handling
-          // First try to play normally without muting
-          try {
-            await audio.play();
-            setIsPlaying(true);
-          } catch (mobileError) {
-            // If normal play fails, try the muted approach as fallback
-            audioLogger.debug('First play attempt failed on mobile, trying muted approach');
-            audio.muted = true; // Start muted to bypass autoplay restrictions
-            
-            try {
+        // CRITICAL FIX: For all NFTs, we need a consistent approach
+        // with multiple fallbacks to ensure reliable playback
+        const playWithAdvancedRetry = async () => {
+          // Make the retry process more aggressive for all NFTs (not just the first one)
+          const maxRetries = 5; // Increase from 3 to 5
+          let retryCount = 0;
+          let success = false;
+          
+          // Different strategies to try
+          const strategies = [
+            // Strategy 1: Standard play
+            async () => {
+              audioLogger.info(`Strategy 1: Standard play for NFT: ${nft.name}`);
+              return audio.play();
+            },
+            // Strategy 2: Delayed play (wait for canplay event)
+            async () => {
+              audioLogger.info(`Strategy 2: Delayed play with canplay event for NFT: ${nft.name}`);
+              return new Promise<void>((resolve, reject) => {
+                const canPlayHandler = () => {
+                  audio.removeEventListener('canplay', canPlayHandler);
+                  audio.play().then(resolve).catch(reject);
+                };
+                
+                // Set a timeout in case canplay never fires
+                const timeout = setTimeout(() => {
+                  audio.removeEventListener('canplay', canPlayHandler);
+                  reject(new Error('Timeout waiting for canplay event'));
+                }, 2000);
+                
+                // If we already have enough data, play immediately
+                if (audio.readyState >= 3) {
+                  clearTimeout(timeout);
+                  audio.play().then(resolve).catch(reject);
+                } else {
+                  audio.addEventListener('canplay', canPlayHandler);
+                }
+              });
+            },
+            // Strategy 3: Muted play then unmute (for autoplay restrictions)
+            async () => {
+              audioLogger.info(`Strategy 3: Muted play for NFT: ${nft.name}`);
+              audio.muted = true;
               await audio.play();
-              // Autoplay started successfully with muting, now unmute
+              // Unmute after a short delay
               setTimeout(() => {
                 audio.muted = false;
-              }, 300); // Small delay to ensure browser accepts the unmute
-              setIsPlaying(true);
-            } catch (mutedError) {
-              // Both approaches failed
-              audioLogger.warn("Mobile audio playback failed even with muting:", mutedError);
-              setIsPlaying(false);
-              throw mutedError; // Re-throw to be caught by the outer catch
+              }, 500);
+            },
+            // Strategy 4: Force audio context unlock then play
+            async () => {
+              audioLogger.info(`Strategy 4: Force audio context unlock for NFT: ${nft.name}`);
+              // Unlock audio context
+              const ctx = unlockAudioContext();
+              if (ctx && ctx.state === 'suspended') {
+                await ctx.resume();
+              }
+              
+              // Create a silent buffer to force unlock
+              if (ctx) {
+                try {
+                  const buffer = ctx.createBuffer(1, 1, 22050);
+                  const source = ctx.createBufferSource();
+                  source.buffer = buffer;
+                  source.connect(ctx.destination);
+                  source.start(0);
+                } catch (ctxError) {
+                  audioLogger.warn('Error creating audio context buffer:', ctxError);
+                }
+              }
+              
+              // Try to play after a short delay
+              await new Promise(resolve => setTimeout(resolve, 100));
+              return audio.play();
+            },
+            // Strategy 5: Reload and play
+            async () => {
+              audioLogger.info(`Strategy 5: Reload and play for NFT: ${nft.name}`);
+              const currentSrc = audio.src;
+              audio.src = '';
+              await new Promise(resolve => setTimeout(resolve, 50));
+              audio.src = currentSrc;
+              audio.load();
+              await new Promise(resolve => setTimeout(resolve, 100));
+              return audio.play();
+            }
+          ];
+          
+          // Customize strategies for mobile vs desktop
+          const orderedStrategies = isMobile ? 
+            [strategies[0], strategies[2], strategies[3], strategies[1], strategies[4]] : // Mobile order
+            [strategies[0], strategies[1], strategies[3], strategies[4], strategies[2]]; // Desktop order
+          
+          // Try each strategy with increasing delays between attempts
+          while (retryCount < maxRetries && !success) {
+            // Select strategy (cycle through them)
+            const strategyIndex = retryCount % orderedStrategies.length;
+            const currentStrategy = orderedStrategies[strategyIndex];
+            
+            try {
+              audioLogger.info(`Attempt ${retryCount + 1}/${maxRetries} for NFT: ${nft.name} using strategy ${strategyIndex + 1}`);
+              await currentStrategy();
+              
+              // Check if audio is actually playing
+              if (!audio.paused) {
+                audioLogger.info(`Successfully played NFT: ${nft.name} on attempt ${retryCount + 1} using strategy ${strategyIndex + 1}`);
+                success = true;
+                setIsPlaying(true);
+                break;
+              } else {
+                throw new Error(`Audio still paused after strategy ${strategyIndex + 1}`);
+              }
+            } catch (error) {
+              audioLogger.warn(`Strategy ${strategyIndex + 1} failed for NFT: ${nft.name}:`, error);
+              retryCount++;
+              
+              // Progressive backoff delay between retries
+              if (retryCount < maxRetries) {
+                const delay = 200 * Math.pow(1.5, retryCount);
+                audioLogger.info(`Waiting ${delay}ms before next attempt`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+              }
             }
           }
-        } else {
-          // Normal desktop play behavior
-          await audio.play();
-          setIsPlaying(true);
-        }
+          
+          if (!success) {
+            audioLogger.error(`All ${maxRetries} play attempts failed for NFT: ${nft.name}`);
+            setIsPlaying(false);
+            throw new Error(`Failed to play NFT: ${nft.name} after exhausting all strategies`);
+          }
+        };
+        
+        // Start the enhanced play process
+        await playWithAdvancedRetry();
         
         // Start the new video
         const newVideo = document.querySelector(`#video-${nft.contract}-${nft.tokenId}`);
@@ -432,6 +718,25 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
     }
   }, [currentlyPlaying, handlePlayPause, fid, setRecentlyPlayedNFTs, hasReachedThreshold, trackNFTProgress, hasReachedPlayThreshold, resetNFTTrackingState]);
   
+  // Helper function to safely pause current media
+  const safelyPauseMedia = useCallback(() => {
+    // Pause audio if it exists
+    if (audioRef.current) {
+      audioLogger.info('Safely pausing audio');
+      audioRef.current.pause();
+    }
+    
+    // Pause video if it exists
+    if (currentPlayingNFT) {
+      const videoSelector = `#video-${currentPlayingNFT.contract}-${currentPlayingNFT.tokenId}`;
+      const video = document.querySelector(videoSelector);
+      if (video instanceof HTMLVideoElement) {
+        audioLogger.info('Safely pausing video element');
+        video.pause();
+      }
+    }
+  }, [currentPlayingNFT]);
+
   // Now define handlePlayNext and handlePlayPrevious which use handlePlayAudio
   const handlePlayNext = useCallback(async () => {
     if (!currentPlayingNFT) return;
