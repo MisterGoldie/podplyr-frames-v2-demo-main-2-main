@@ -23,8 +23,7 @@ import {
   subscribeToRecentSearches,
   toggleLikeNFT,
   fetchUserNFTs,
-  subscribeToRecentPlays,
-  subscribeToPermanentLikes
+  subscribeToRecentPlays
 } from '../lib/firebase';
 import { fetchUserNFTsFromAlchemy } from '../lib/alchemy';
 import type { NFT, FarcasterUser, SearchedUser, UserContext, LibraryViewProps, ProfileViewProps, NFTFile, NFTPlayData, GroupedNFT } from '../types/user';
@@ -170,36 +169,13 @@ const Demo: React.FC = () => {
   // Load liked NFTs and recent searches when user changes
   useEffect(() => {
     let unsubscribeSearches: (() => void) | undefined;
-    let unsubscribeLikes: (() => void) | undefined;
 
     const loadUserData = async () => {
       if (userFid) {
         try {
-          // Load initial liked NFTs
+          // Load liked NFTs
           const liked = await getLikedNFTs(userFid);
           setLikedNFTs(liked);
-          
-          // Subscribe to real-time updates for liked NFTs
-          unsubscribeLikes = subscribeToPermanentLikes(userFid, (likedNFTs: NFT[]) => {
-            console.log(`🔵 Received ${likedNFTs.length} liked NFTs update from Firebase`);
-            setLikedNFTs(likedNFTs);
-            
-            // Force DOM update for all liked NFTs
-            setTimeout(() => {
-              likedNFTs.forEach((nft: NFT) => {
-                if (nft.mediaKey) {
-                  try {
-                    document.querySelectorAll(`[data-media-key="${nft.mediaKey}"]`).forEach(element => {
-                      element.setAttribute('data-liked', 'true');
-                      element.setAttribute('data-is-liked', 'true');
-                    });
-                  } catch (err) {
-                    // Ignore DOM errors
-                  }
-                }
-              });
-            }, 100);
-          });
 
           // Load recent searches
           const searches = await getRecentSearches(userFid);
@@ -221,51 +197,8 @@ const Demo: React.FC = () => {
       if (unsubscribeSearches) {
         unsubscribeSearches();
       }
-      if (unsubscribeLikes) {
-        unsubscribeLikes();
-      }
     };
   }, [userFid]);
-  
-  // Listen for like state updates from Firebase
-  useEffect(() => {
-    const handleLikeStateChange = (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const { mediaKey, isLiked } = customEvent.detail;
-      
-      if (mediaKey) {
-        // Update DOM elements with this mediaKey
-        try {
-          document.querySelectorAll(`[data-media-key="${mediaKey}"]`).forEach(element => {
-            element.setAttribute('data-liked', isLiked ? 'true' : 'false');
-            element.setAttribute('data-is-liked', isLiked ? 'true' : 'false');
-            
-            // Also update child elements
-            const likeButtons = element.querySelectorAll('.like-button, [data-like-button]');
-            likeButtons.forEach(button => {
-              if (button instanceof HTMLElement) {
-                button.setAttribute('data-liked', isLiked ? 'true' : 'false');
-                button.setAttribute('data-is-liked', isLiked ? 'true' : 'false');
-                if (isLiked) {
-                  button.classList.add('liked');
-                } else {
-                  button.classList.remove('liked');
-                }
-              }
-            });
-          });
-        } catch (err) {
-          // Ignore DOM errors
-        }
-      }
-    };
-    
-    window.addEventListener('updateLikedNFTs', handleLikeStateChange);
-    
-    return () => {
-      window.removeEventListener('updateLikedNFTs', handleLikeStateChange);
-    };
-  }, []);
 
   const {
     isPlaying,

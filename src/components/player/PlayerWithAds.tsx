@@ -34,9 +34,6 @@ export const PlayerWithAds: React.FC<PlayerWithAdsProps> = (props) => {
   const currentNftRef = useRef<string | null>(null);
 
   // Check if we need to show an ad when attempting to play a video
-  // Tracking state for the 25% threshold
-  const [playTracked, setPlayTracked] = useState(false);
-  
   useEffect(() => {
     if (!props.nft) return;
     
@@ -46,44 +43,33 @@ export const PlayerWithAds: React.FC<PlayerWithAdsProps> = (props) => {
     // Check if this is a new NFT (different from the previous one)
     const isNewNft = nftId !== currentNftRef.current;
     
-    // Reset tracking state when NFT changes
-    if (isNewNft) {
-      setPlayTracked(false);
+    // Only increment play count and check for ads when a new NFT is played
+    if (props.isPlaying && !showAd && isNewNft) {
+      console.log('New NFT detected:', nftId, 'Previous:', currentNftRef.current);
+      
       // Update the current NFT ref
       currentNftRef.current = nftId;
-      console.log('New NFT detected:', nftId, 'Previous:', currentNftRef.current);
-    }
-    
-    // Check if the NFT has reached the 25% threshold but hasn't been counted yet
-    if (props.isPlaying && !showAd && !playTracked && props.nft) {
-      // Check if the NFT has reached the 25% threshold
-      if (props.progress >= (props.duration * 0.25)) {
-        console.log(`🎵 25% threshold reached (${Math.round(props.progress)}s of ${Math.round(props.duration)}s)`);
-        
-        // Mark as tracked to prevent duplicate incrementing
-        setPlayTracked(true);
-        
-        // Increment play count with the NFT parameter
-        incrementPlayCount(props.nft);
-        
-        // Update plays after ad if we've already shown the first ad
-        if (hasShownFirstAd) {
-          setPlaysAfterAd(prev => prev + 1);
-        }
-        
-        // Check if we need to show an ad
-        if (!hasShownFirstAd && playCount >= 2) {
-          console.log('Showing first ad after 3 plays');
-          setShowAd(true);
-          setHasShownFirstAd(true);
-        } else if (hasShownFirstAd && playsAfterAd >= 8) {
-          console.log('Showing subsequent ad after 9 more plays');
-          setShowAd(true);
-          setPlaysAfterAd(0); // Reset counter after showing ad
-        }
+      
+      // Increment play count
+      incrementPlayCount();
+      
+      // Update plays after ad if we've already shown the first ad
+      if (hasShownFirstAd) {
+        setPlaysAfterAd(prev => prev + 1);
+      }
+      
+      // Check if we need to show an ad
+      if (!hasShownFirstAd && playCount >= 2) {
+        console.log('Showing first ad after 3 plays');
+        setShowAd(true);
+        setHasShownFirstAd(true);
+      } else if (hasShownFirstAd && playsAfterAd >= 8) {
+        console.log('Showing subsequent ad after 9 more plays');
+        setShowAd(true);
+        setPlaysAfterAd(0); // Reset counter after showing ad
       }
     }
-  }, [props.nft, props.isPlaying, props.progress, props.duration, playCount, playsAfterAd, hasShownFirstAd, incrementPlayCount, playTracked, showAd]);
+  }, [props.nft, props.isPlaying, playCount, playsAfterAd, hasShownFirstAd, incrementPlayCount]);
 
   // Force pause content if ad is showing and handle nav and header visibility
   useEffect(() => {
