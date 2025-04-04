@@ -167,7 +167,7 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
     };
   }, [nft, handlePipPlay, handlePipPause]); // Include the callbacks in deps
 
-  // Update the PiP toggle function to include debug logging
+  // Update the PiP toggle function to include debug logging and readiness checks
   const handlePictureInPicture = async () => {
     try {
       // If already in PiP, exit
@@ -182,10 +182,65 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
         return;
       }
       
+      // Function to check if video is ready for PiP
+      const isVideoReadyForPiP = (video: HTMLVideoElement): boolean => {
+        // Check multiple readiness conditions
+        const isLoaded = video.readyState >= 2; // HAVE_CURRENT_DATA or higher
+        const hasVideo = video.videoWidth > 0 && video.videoHeight > 0;
+        const canUsePiP = document.pictureInPictureEnabled && video.disablePictureInPicture !== true;
+        
+        console.log('Video readiness check:', { 
+          readyState: video.readyState,
+          hasVideo,
+          canUsePiP,
+          videoWidth: video.videoWidth,
+          videoHeight: video.videoHeight
+        });
+        
+        return isLoaded && hasVideo && canUsePiP;
+      };
+      
+      // Function to wait for video to be ready
+      const waitForVideoReadiness = (video: HTMLVideoElement): Promise<void> => {
+        return new Promise((resolve, reject) => {
+          // If already ready, resolve immediately
+          if (isVideoReadyForPiP(video)) {
+            resolve();
+            return;
+          }
+          
+          console.log('Waiting for video to be ready for PiP...');
+          
+          // Add event listeners for video readiness
+          const readyHandler = () => {
+            if (isVideoReadyForPiP(video)) {
+              video.removeEventListener('loadeddata', readyHandler);
+              video.removeEventListener('canplay', readyHandler);
+              resolve();
+            }
+          };
+          
+          // Set a timeout to avoid waiting forever
+          const timeoutId = setTimeout(() => {
+            video.removeEventListener('loadeddata', readyHandler);
+            video.removeEventListener('canplay', readyHandler);
+            reject(new Error('Timed out waiting for video to be ready for PiP'));
+          }, 5000); // 5 second timeout
+          
+          video.addEventListener('loadeddata', readyHandler);
+          video.addEventListener('canplay', readyHandler);
+        });
+      };
+      
       // Try with ref first
       if (videoRef.current) {
         try {
-          console.log('Requesting PiP with ref');
+          console.log('Preparing to request PiP with ref');
+          
+          // Wait for video to be ready before requesting PiP
+          await waitForVideoReadiness(videoRef.current);
+          
+          console.log('Video is ready, requesting PiP with ref');
           await videoRef.current.requestPictureInPicture();
           return;
         } catch (e) {
@@ -199,7 +254,12 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
       
       if (videoElement) {
         try {
-          console.log('Requesting PiP with DOM query');
+          console.log('Preparing to request PiP with DOM query');
+          
+          // Wait for video to be ready before requesting PiP
+          await waitForVideoReadiness(videoElement);
+          
+          console.log('Video is ready, requesting PiP with DOM query');
           await videoElement.requestPictureInPicture();
           return;
         } catch (e) {
