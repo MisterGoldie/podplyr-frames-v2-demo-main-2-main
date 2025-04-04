@@ -229,19 +229,24 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({
                     )}
                   </div>
                   <h3 className="font-mono text-white text-sm truncate mb-1">{nft.name}</h3>
+                  {/* Completely hide media elements with inline style and aria-hidden for accessibility */}
                   <video
                     id={`video-${nft.contract}-${nft.tokenId}`}
                     src={nft.metadata?.animation_url ? processMediaUrl(nft.metadata.animation_url) : undefined}
                     className="hidden"
+                    style={{ display: 'none', width: 0, height: 0, position: 'absolute', visibility: 'hidden' }}
                     preload="none"
                     playsInline
                     muted
                     loop
+                    aria-hidden="true"
                   />
                   <audio
                     id={`audio-${nft.contract}-${nft.tokenId}`}
                     src={nft.audio ? processMediaUrl(nft.audio) : undefined}
                     preload="none"
+                    style={{ display: 'none', width: 0, height: 0, position: 'absolute', visibility: 'hidden' }}
+                    aria-hidden="true"
                   />
                 </div>
               );
