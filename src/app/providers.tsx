@@ -11,6 +11,7 @@ import NetworkProvider from '../providers/NetworkProvider';
 import { ensurePodplayrFollow, updatePodplayrFollowerCount } from '../lib/firebase';
 import { NFTNotificationProvider } from '../context/NFTNotificationContext';
 import { ConnectionProvider } from '../context/ConnectionContext';
+import { TermsProvider } from '../context/TermsContext';
 
 const WagmiProvider = dynamic(
   () => import("~/components/providers/WagmiProvider"),
@@ -64,17 +65,19 @@ export function Providers({ children }: { children: React.ReactNode }) {
             <VideoPlayProvider>
               <NFTNotificationProvider>
                 <ConnectionProvider>
-                  <Frame 
-                  onContextUpdate={(context) => {
-                    console.log('Farcaster context:', context);
-                    if (context?.user?.fid && context.user.fid !== 1) {
-                      setFid(context.user.fid);
-                      setInitialProfileImage(context.user.pfpUrl);
-                    }
-                  }}
-                />
-                <Toaster position="top-center" />
-                {children}
+                  <TermsProvider>
+                    <Frame 
+                    onContextUpdate={(context) => {
+                      console.log('Farcaster context:', context);
+                      if (context?.user?.fid && context.user.fid !== 1) {
+                        setFid(context.user.fid);
+                        setInitialProfileImage(context.user.pfpUrl);
+                      }
+                    }}
+                  />
+                  <Toaster position="top-center" />
+                  {children}
+                  </TermsProvider>
                 </ConnectionProvider>
               </NFTNotificationProvider>
             </VideoPlayProvider>
