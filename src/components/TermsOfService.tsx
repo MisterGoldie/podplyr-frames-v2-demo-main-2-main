@@ -59,7 +59,12 @@ const TermsOfService: React.FC<TermsOfServiceProps> = ({ onAccept }) => {
         <div className="flex justify-center mt-6">
           <button 
             onClick={onAccept}
-            className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-8 rounded-full transition-colors duration-300 shadow-lg shadow-purple-600/30"
+            onTouchEnd={(e) => {
+              e.preventDefault(); // Prevent default touch behavior
+              onAccept();
+            }}
+            className="bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white font-bold py-4 px-10 rounded-full transition-colors duration-300 shadow-lg shadow-purple-600/30 touch-manipulation text-lg"
+            style={{ WebkitTapHighlightColor: 'transparent' }} // Remove tap highlight on iOS
           >
             I Accept the Terms of Service
           </button>
