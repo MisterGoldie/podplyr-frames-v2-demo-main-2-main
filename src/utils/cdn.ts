@@ -45,9 +45,10 @@ export const CDN_CONFIG = {
 
 /**
  * Determines the best CDN region based on user's location
+ * Note: This function now returns an empty string as regions are no longer used in the URL
  */
 export const getBestCdnRegion = (): string => {
-  return CDN_CONFIG.regions.default;
+  return ''; // Regions are no longer used in the URL format
 };
 
 /**
@@ -68,10 +69,10 @@ export const getCdnUrl = (url: string, type: 'image' | 'audio' | 'metadata' = 'i
   try {
     // Create a safe URL path for the CDN
     const encodedUrl = encodeURIComponent(url);
-    const region = CDN_CONFIG.features.geolocationRouting ? getBestCdnRegion() : CDN_CONFIG.regions.default;
     
-    // Construct CDN URL with type-specific path and cache settings
-    const cdnUrl = `${CDN_CONFIG.baseUrl}/${region}/${type}/${encodedUrl}`;
+    // Updated: Use query parameter format instead of path segments
+    // This matches the fix mentioned in the memory about CDN URL format
+    const cdnUrl = `${CDN_CONFIG.baseUrl}/api/cdn/${type}?url=${encodedUrl}`;
     
     // Only log in development and not during media playback
     if (process.env.NODE_ENV === 'development') {
@@ -145,7 +146,10 @@ export const getNftCdnUrl = (nft: NFT, mediaType: 'image' | 'audio'): string => 
     }
     
     // Add mediaKey as a query parameter for cache consistency
-    const result = `${getCdnUrl(processedUrl, mediaType)}?mediaKey=${encodeURIComponent(mediaKey)}`;
+    const cdnUrl = getCdnUrl(processedUrl, mediaType);
+    // Properly append mediaKey as a query parameter, handling existing query parameters
+    const separator = cdnUrl.includes('?') ? '&' : '?';
+    const result = `${cdnUrl}${separator}mediaKey=${encodeURIComponent(mediaKey)}`;
     
     // Cache the result
     if (!nftCdnUrlCache[cacheKey]) {
