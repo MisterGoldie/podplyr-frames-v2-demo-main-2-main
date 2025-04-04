@@ -10,6 +10,8 @@ import HomeView from './views/HomeView';
 import ExploreView from './views/ExploreView';
 import LibraryView from './views/LibraryView';
 import ProfileView from './views/ProfileView';
+import TermsOfService from './TermsOfService';
+import { useTerms } from '../context/TermsContext';
 import Image from 'next/image';
 import { processMediaUrl } from '../utils/media';
 import {
@@ -99,6 +101,7 @@ const Demo: React.FC = () => {
   
   // 1. Context Hooks
   const { fid } = useContext(FarcasterContext);
+  const { hasAcceptedTerms, acceptTerms } = useTerms();
   // Assert fid type for TypeScript
   const userFid = fid as number;
   
@@ -1530,6 +1533,11 @@ const Demo: React.FC = () => {
       demoLogger.debug('Cleaning up subscriptions');
     };
   }, [checkProblematicNFTs]);
+
+  // If terms haven't been accepted, show only the Terms of Service component
+  if (!hasAcceptedTerms) {
+    return <TermsOfService onAccept={acceptTerms} />;
+  }
 
   return (
     <div className="min-h-screen flex flex-col no-select">
