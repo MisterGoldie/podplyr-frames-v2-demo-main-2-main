@@ -31,11 +31,40 @@ const RecentlyPlayed: React.FC<RecentlyPlayedProps> = ({
   isNFTLiked
 }) => {
   const [recentlyPlayedNFTs, setRecentlyPlayedNFTs] = useState<NFT[]>([]);
+  const [firebaseRecentlyPlayed, setFirebaseRecentlyPlayed] = useState<NFT[]>([]);
+  const [localRecentlyPlayed, setLocalRecentlyPlayed] = useState<NFT[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const unsubscribeRef = useRef<(() => void) | null>(null);
   // Create a unique instance ID for this component instance to help with debugging
   const instanceId = useRef<string>(uuidv4().substring(0, 8));
 
+  // Initialize local recently played from localStorage if available
+  useEffect(() => {
+    try {
+      const storedNFTs = localStorage.getItem(`recentlyPlayed_${userFid}`);
+      if (storedNFTs) {
+        const parsedNFTs = JSON.parse(storedNFTs) as NFT[];
+        setLocalRecentlyPlayed(parsedNFTs);
+        recentlyPlayedLogger.info(`📥 Loaded ${parsedNFTs.length} local recently played NFTs from localStorage`);
+      }
+    } catch (error) {
+      recentlyPlayedLogger.warn('⚠️ Error loading recently played from localStorage:', error);
+    }
+  }, [userFid]);
+
+  // Save local recently played to localStorage when it changes
+  useEffect(() => {
+    if (userFid && localRecentlyPlayed.length > 0) {
+      try {
+        localStorage.setItem(`recentlyPlayed_${userFid}`, JSON.stringify(localRecentlyPlayed));
+        recentlyPlayedLogger.debug(`💾 Saved ${localRecentlyPlayed.length} local recently played NFTs to localStorage`);
+      } catch (error) {
+        recentlyPlayedLogger.warn('⚠️ Error saving recently played to localStorage:', error);
+      }
+    }
+  }, [localRecentlyPlayed, userFid]);
+
+  // Set up Firebase subscription for recently played NFTs that have reached the 25% threshold
   useEffect(() => {
     recentlyPlayedLogger.info(`🎵 RecentlyPlayed component [${instanceId.current}] mounted with userFid:`, userFid);
     
@@ -46,11 +75,11 @@ const RecentlyPlayed: React.FC<RecentlyPlayedProps> = ({
     }
 
     try {
-      // Set up subscription to recently played NFTs
+      // Set up subscription to recently played NFTs from Firebase (25% threshold)
       recentlyPlayedLogger.info(`🔄 Setting up subscription to recently played NFTs [instance: ${instanceId.current}]`);
       
       const unsubscribe = subscribeToRecentPlays(userFid, (nfts) => {
-        recentlyPlayedLogger.info(`📥 [${instanceId.current}] Received recently played NFTs update:`, {
+        recentlyPlayedLogger.info(`📥 [${instanceId.current}] Received Firebase recently played NFTs update:`, {
           count: nfts.length,
           firstNft: nfts.length > 0 ? `${nfts[0]?.name} (${nfts[0]?.mediaKey?.substring(0, 8) || 'no-mediaKey'})` : 'none'
         });
@@ -73,10 +102,11 @@ const RecentlyPlayed: React.FC<RecentlyPlayedProps> = ({
         
         // Log each NFT being added to the recently played list
         nfts.forEach((nft, index) => {
-          recentlyPlayedLogger.debug(`NFT ${index+1}: ${nft.name} (mediaKey: ${nft.mediaKey?.substring(0, 8) || 'no-mediaKey'})`);
+          recentlyPlayedLogger.debug(`Firebase NFT ${index+1}: ${nft.name} (mediaKey: ${nft.mediaKey?.substring(0, 8) || 'no-mediaKey'})`);
         });
         
-        setRecentlyPlayedNFTs(nfts);
+        // Store Firebase NFTs separately
+        setFirebaseRecentlyPlayed(nfts);
         setIsLoading(false);
       });
       
@@ -96,10 +126,77 @@ const RecentlyPlayed: React.FC<RecentlyPlayedProps> = ({
       setIsLoading(false);
     }
   }, [userFid, recentlyAddedNFT]);
+  
+  // Update local recently played when props.recentlyAddedNFT changes
+  // Connect the localRecentlyPlayed state to the useAudioPlayer hook by watching the recentlyAddedNFT ref
+  useEffect(() => {
+    if (recentlyAddedNFT?.current) {
+      recentlyPlayedLogger.debug(`🎮 Local recently played ref updated: ${recentlyAddedNFT.current}`);
+      
+      // When we get a new recentlyAddedNFT, update the localRecentlyPlayed state
+      // This will be triggered by the useAudioPlayer hook
+      const mediaKey = recentlyAddedNFT.current;
+      
+      // Find the NFT in either the existing localRecentlyPlayed or in the firebase list
+      const existingLocalNFT = localRecentlyPlayed.find(nft => {
+        const nftMediaKey = nft.mediaKey || getMediaKey(nft);
+        return nftMediaKey === mediaKey;
+      });
+      
+      const firebaseNFT = firebaseRecentlyPlayed.find(nft => {
+        const nftMediaKey = nft.mediaKey || getMediaKey(nft);
+        return nftMediaKey === mediaKey;
+      });
+      
+      // Find the best source NFT to use (we don't have direct access to the current playing NFT)
+      const sourceNFT = existingLocalNFT || firebaseNFT;
+      
+      if (sourceNFT) {
+        setLocalRecentlyPlayed(prev => {
+          // Copy the NFT and ensure it has the right mediaKey and timestamp
+          const newNFT = { ...sourceNFT };
+          if (!newNFT.mediaKey) {
+            newNFT.mediaKey = mediaKey;
+          }
+          newNFT.addedToRecentlyPlayed = true;
+          newNFT.addedToRecentlyPlayedAt = new Date().getTime();
+          
+          // Filter out any existing version of this NFT
+          const filtered = prev.filter(nft => {
+            const nftMediaKey = nft.mediaKey || getMediaKey(nft);
+            return nftMediaKey !== mediaKey;
+          });
+          
+          // Add the new NFT to the beginning and limit to 8 items
+          return [newNFT, ...filtered].slice(0, 8);
+        });
+      }
+    }
+  }, [recentlyAddedNFT, localRecentlyPlayed, firebaseRecentlyPlayed]);
 
-  // Filter out invalid NFTs from recently played
+  // Combine local and Firebase recently played NFTs with local taking priority
+  // and deduplicate them based on mediaKey
   const validRecentlyPlayedNFTs = useMemo(() => {
-    return recentlyPlayedNFTs.filter(nft => {
+    // First add all local recently played NFTs
+    let combined = [...localRecentlyPlayed];
+    
+    // Then add Firebase NFTs only if they don't already exist in the local list
+    firebaseRecentlyPlayed.forEach(firebaseNFT => {
+      const firebaseMediaKey = firebaseNFT.mediaKey || getMediaKey(firebaseNFT);
+      
+      // Skip if the NFT is already in the combined list (prioritize local state)
+      const existsInCombined = combined.some(localNFT => {
+        const localMediaKey = localNFT.mediaKey || getMediaKey(localNFT);
+        return localMediaKey === firebaseMediaKey;
+      });
+      
+      if (!existsInCombined) {
+        combined.push(firebaseNFT);
+      }
+    });
+    
+    // Filter out invalid NFTs
+    return combined.filter(nft => {
       // Basic validation
       if (!nft) return false;
       
@@ -126,7 +223,7 @@ const RecentlyPlayed: React.FC<RecentlyPlayedProps> = ({
       
       return hasDisplayInfo && hasMedia;
     });
-  }, [recentlyPlayedNFTs]);
+  }, [localRecentlyPlayed, firebaseRecentlyPlayed]);
 
   // Handle empty state
   if (isLoading) {
@@ -241,7 +338,9 @@ export default React.memo(RecentlyPlayed, (prevProps, nextProps) => {
   const currentlyPlayingEqual = prevProps.currentlyPlaying === nextProps.currentlyPlaying;
   const isPlayingEqual = prevProps.isPlaying === nextProps.isPlaying;
   
-  // If recentlyAddedNFT refs change, we should update
+  // CRITICAL: For immediate updates to recently played, we need to check if the ref itself
+  // or its current value has changed. This ensures we re-render when a new NFT is played
+  // even before it reaches the 25% threshold.
   const recentlyAddedNFTEqual = 
     (!prevProps.recentlyAddedNFT && !nextProps.recentlyAddedNFT) || // both are null/undefined
     (prevProps.recentlyAddedNFT && nextProps.recentlyAddedNFT && 
@@ -257,7 +356,8 @@ export default React.memo(RecentlyPlayed, (prevProps, nextProps) => {
       userFidChanged: !userFidEqual,
       currentlyPlayingChanged: !currentlyPlayingEqual,
       isPlayingChanged: !isPlayingEqual,
-      recentlyAddedNFTChanged: !recentlyAddedNFTEqual
+      recentlyAddedNFTChanged: !recentlyAddedNFTEqual,
+      recentlyAddedValue: nextProps.recentlyAddedNFT?.current?.substring(0, 8) || 'none'
     });
   }
   

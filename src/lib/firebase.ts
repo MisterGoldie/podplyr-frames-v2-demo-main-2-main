@@ -1373,7 +1373,7 @@ export const subscribeToRecentPlays = (fid: number, callback: (nfts: NFT[]) => v
       // Store in our map
       nftByMediaKey.set(playData.mediaKey, nft);
       
-      firebaseLogger.debug(`[RECENT PLAYS] Added NFT to recently played: ${nft.name} (mediaKey: ${nft.mediaKey.substring(0, 8)}...)`);
+      firebaseLogger.debug(`[RECENT PLAYS] Added NFT to recently played: ${nft.name} (mediaKey: ${nft.mediaKey?.substring(0, 8) || 'undefined'}...)`);
       
       // Stop once we have 8 unique NFTs by mediaKey
       if (nftByMediaKey.size >= 8) break;

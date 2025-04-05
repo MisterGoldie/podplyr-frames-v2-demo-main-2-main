@@ -129,6 +129,11 @@ export interface NFT {
   playTracked?: boolean;
   quantity?: number;
   lastPlayed?: any; // Firestore Timestamp
+  mediaKey?: string; // Added: Composite key based on media URLs for deduplication
+  
+  // Local state properties (not persisted to Firebase)
+  addedToRecentlyPlayed?: boolean; // Whether this NFT was added to locally tracked recently played
+  addedToRecentlyPlayedAt?: number; // Timestamp when the NFT was added to locally tracked recently played
 }
 
 export interface GroupedNFT extends Omit<NFT, 'quantity'> {
