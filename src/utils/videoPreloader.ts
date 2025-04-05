@@ -133,4 +133,33 @@ export const preloadVideoInitialChunk = async (nft: NFT): Promise<void> => {
 };
 
 // Export the cache for use in the player
-export { videoCache }; 
+export { videoCache };
+
+// Function to predictively preload the next few NFTs in a queue
+export const predictivePreload = (nfts: NFT[], currentIndex: number, preloadCount: number = 3): void => {
+  if (!nfts || nfts.length === 0 || currentIndex < 0) return;
+  
+  // Determine if we're on a cellular connection
+  const { isCellular } = isCellularConnection();
+  
+  // Determine how many NFTs to preload based on connection type
+  const actualPreloadCount = isCellular ? Math.min(2, preloadCount) : preloadCount;
+  
+  // Preload the next few NFTs
+  for (let i = 1; i <= actualPreloadCount; i++) {
+    const nextIndex = (currentIndex + i) % nfts.length;
+    const nextNFT = nfts[nextIndex];
+    
+    if (nextNFT && nextNFT.metadata?.animation_url) {
+      console.log(`Predictively preloading NFT ${i} of ${actualPreloadCount}: ${nextNFT.name || 'Unnamed NFT'}`);
+      
+      // For cellular connections, just preload metadata
+      if (isCellular) {
+        preloadVideoMetadata(nextNFT);
+      } else {
+        // For WiFi, preload initial chunk too
+        preloadVideoInitialChunk(nextNFT);
+      }
+    }
+  }
+};
