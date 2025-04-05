@@ -3,9 +3,7 @@ import { NFT } from '../../types/user';
 import { NFTCard } from './NFTCard';
 import { useVirtualizedNFTs } from '../../hooks/useVirtualizedNFTs';
 import ErrorBoundary from '../ErrorBoundary';
-import { isPlaybackActive, getMediaKey } from '../../utils/media';
-import { predictivePreload } from '../../utils/videoPreloader';
-import { logger } from '../../utils/logger';
+import { isPlaybackActive } from '../../utils/media';
 
 interface VirtualizedNFTGridProps {
   nfts: NFT[];
@@ -66,17 +64,13 @@ export const VirtualizedNFTGrid: React.FC<VirtualizedNFTGridProps> = ({
   }, [isNFTLiked]);
   
   // Reduced logging - just once when component mounts and not during playback
-  // Create a dedicated logger for the NFT grid
-  const gridLogger = logger.getModuleLogger('virtualizedNFTGrid');
-  
   useEffect(() => {
     // Only log when not in playback mode
     if (!isPlaybackActive()) {
-      gridLogger.debug('VirtualizedNFTGrid rendered with:', {
-        hasLikeToggle: !!onLikeToggle,
-        hasLikeCheck: !!isNFTLiked,
-        userFid
-      });
+      console.log('VirtualizedNFTGrid rendered with:',
+        'onLikeToggle=', !!onLikeToggle,
+        'isNFTLiked=', !!isNFTLiked,
+        'userFid=', userFid);
     }
   }, [onLikeToggle, isNFTLiked, userFid]);
 
@@ -103,20 +97,6 @@ export const VirtualizedNFTGrid: React.FC<VirtualizedNFTGridProps> = ({
             key={`${animationKey}-${uniqueKey}`}
             nft={nft}
             onPlay={async (nft) => {
-              // Find this NFT's index in the visible NFTs array
-              const currentIndex = visibleNFTs.findIndex(
-                item => getMediaKey(item) === getMediaKey(nft)
-              );
-              
-              // Use predictive preloading to improve playback experience
-              if (currentIndex !== -1) {
-                gridLogger.info('Predictively preloading next NFTs in Explore view', {
-                  currentNFT: nft.name || 'Unknown NFT',
-                  currentIndex
-                });
-                predictivePreload(visibleNFTs, currentIndex);
-              }
-              
               await onPlayNFT(nft);
             }}
             isPlaying={isPlaying}

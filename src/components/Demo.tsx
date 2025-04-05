@@ -115,10 +115,6 @@ const Demo: React.FC = () => {
     isLibrary: false,
     isProfile: false
   });
-  
-  // Add state to track the current NFT queue for proper next/previous navigation
-  const [currentNFTQueue, setCurrentNFTQueue] = useState<NFT[]>([]);
-  const [currentQueueType, setCurrentQueueType] = useState<string>('');
 
   const [isPlayerMinimized, setIsPlayerMinimized] = useState(true);
   const [isInitialPlay, setIsInitialPlay] = useState(false);
@@ -918,53 +914,18 @@ const Demo: React.FC = () => {
     window.nftList = [...recentlyPlayedNFTs, ...topPlayedNFTs.map(item => item.nft)];
   };
 
-  const handlePlayFromLibrary = async (nft: NFT, context?: { queue?: NFT[], queueType?: string }) => {
+  const handlePlayFromLibrary = async (nft: NFT) => {
     setIsInitialPlay(true);
-    
-    // If a specific queue context was provided, use that
-    if (context?.queue && context.queue.length > 0) {
-      demoLogger.info(`Setting current queue to ${context.queue.length} NFTs from ${context.queueType || 'unknown'} context`);
-      setCurrentNFTQueue(context.queue);
-      setCurrentQueueType(context.queueType || '');
-      
-      // For backward compatibility
-      window.nftList = context.queue;
-    } else {
-      // Set the queue based on the active view
-      let queueNFTs: NFT[] = [];
-      let queueSource = '';
-      
-      if (currentPage.isExplore) {
-        queueNFTs = filteredNFTs;
-        queueSource = 'explore';
-      } else if (currentPage.isLibrary) {
-        queueNFTs = likedNFTs;
-        queueSource = 'library';
-      } else if (currentPage.isProfile) {
-        queueNFTs = userNFTs;
-        queueSource = 'profile';
-      } else if (currentPage.isHome) {
-        // Only use the source that this NFT belongs to
-        const isInRecentlyPlayed = recentlyPlayedNFTs.some(item => getMediaKey(item) === getMediaKey(nft));
-        if (isInRecentlyPlayed) {
-          queueNFTs = recentlyPlayedNFTs;
-          queueSource = 'recentlyPlayed';
-        } else {
-          // Must be in topPlayed
-          queueNFTs = topPlayedNFTs.map(item => item.nft);
-          queueSource = 'topPlayed';
-        }
-      }
-      
-      demoLogger.info(`Setting default queue to ${queueNFTs.length} NFTs from ${queueSource}`);
-      setCurrentNFTQueue(queueNFTs);
-      setCurrentQueueType(queueSource);
-      
-      // For backward compatibility
-      window.nftList = queueNFTs;
+    // Set the current list based on the active view
+    if (currentPage.isExplore) {
+      window.nftList = filteredNFTs;
+    } else if (currentPage.isLibrary) {
+      window.nftList = likedNFTs;
+    } else if (currentPage.isProfile) {
+      window.nftList = userNFTs;
+    } else if (currentPage.isHome) {
+      window.nftList = [...recentlyPlayedNFTs, ...topPlayedNFTs.map(item => item.nft)];
     }
-    
-    // Start playing the NFT
     await handlePlayAudio(nft);
     setIsInitialPlay(false);
   };
@@ -995,7 +956,7 @@ const Demo: React.FC = () => {
             <HomeView
               recentlyPlayedNFTs={recentlyPlayedNFTs}
               topPlayedNFTs={topPlayedNFTs}
-              onPlayNFT={(nft: NFT, context?: { queue?: NFT[], queueType?: string }) => handlePlayFromLibrary(nft, context)}
+              onPlayNFT={handlePlayAudio}
               currentlyPlaying={currentlyPlaying}
               isPlaying={isPlaying}
               handlePlayPause={handlePlayPause}
@@ -1008,7 +969,7 @@ const Demo: React.FC = () => {
             <ExploreView
               onSearch={handleSearch}
               selectedUser={selectedUser}
-              onPlayNFT={(nft: NFT, context?: { queue?: NFT[], queueType?: string }) => handlePlayFromLibrary(nft, context)}
+              onPlayNFT={handlePlayAudio}
               currentlyPlaying={currentlyPlaying}
               isPlaying={isPlaying}
               searchResults={searchResults}
@@ -1087,7 +1048,7 @@ const Demo: React.FC = () => {
             <LibraryView
               ref={libraryViewRef}
               likedNFTs={likedNFTs}
-              handlePlayAudio={(nft: NFT, context?: { queue?: NFT[], queueType?: string }) => handlePlayFromLibrary(nft, context)}
+              handlePlayAudio={handlePlayFromLibrary}
               currentlyPlaying={currentlyPlaying}
               currentPlayingNFT={currentPlayingNFT}
               isPlaying={isPlaying}
@@ -1148,7 +1109,7 @@ const Demo: React.FC = () => {
                 }
               }}
               nfts={userNFTs}
-              handlePlayAudio={(nft: NFT, context?: { queue?: NFT[], queueType?: string }) => handlePlayFromLibrary(nft, context)}
+              handlePlayAudio={handlePlayFromLibrary}
               isPlaying={isPlaying}
               currentlyPlaying={currentlyPlaying}
               handlePlayPause={handlePlayPause}
@@ -1270,86 +1231,91 @@ const Demo: React.FC = () => {
   }, [fetchRecentlyPlayed]);
 
   const prepareAndPlayAudio = async (nft: NFT) => {
-    // Only build a default queue if the current queue is empty
-    if (currentNFTQueue.length === 0) {
-      // Set the current queue based on the active view
-      let defaultQueue: NFT[] = [];
-      
-      if (currentPage.isExplore) {
-        defaultQueue = filteredNFTs;
-        setCurrentQueueType('explore');
-      } else if (currentPage.isLibrary) {
-        defaultQueue = likedNFTs;
-        setCurrentQueueType('library');
-      } else if (currentPage.isProfile) {
-        defaultQueue = userNFTs;
-        setCurrentQueueType('profile');
-      } else if (currentPage.isHome) {
-        // Only use recently played as the default queue, don't combine with top played
-        defaultQueue = recentlyPlayedNFTs;
-        setCurrentQueueType('recentlyPlayed');
-      }
-      
-      demoLogger.info(`Building default queue with ${defaultQueue.length} NFTs from ${currentPage.isHome ? 'home' : currentPage.isExplore ? 'explore' : currentPage.isLibrary ? 'library' : 'profile'} page`);
-      
-      // Update the queue state
-      setCurrentNFTQueue(defaultQueue);
+    // Set the current queue based on the active view
+    let currentQueue: NFT[] = [];
+    
+    if (currentPage.isExplore) {
+      currentQueue = filteredNFTs;
+    } else if (currentPage.isLibrary) {
+      currentQueue = likedNFTs;
+    } else if (currentPage.isProfile) {
+      currentQueue = userNFTs;
+    } else if (currentPage.isHome) {
+      currentQueue = [...recentlyPlayedNFTs, ...topPlayedNFTs.map(item => item.nft)];
     }
     
-    // For compatibility with any code that might use this global
-    window.nftList = currentNFTQueue;
+    // Update the global nftList for next/previous navigation
+    window.nftList = currentQueue;
     
     try {
       // Call the original handlePlayAudio from useAudioPlayer
       await handlePlayAudio(nft);
     } catch (error) {
-      demoLogger.error('Error playing audio:', error);
+      logger.error('Error playing audio:', error);
     }
   };
 
   const handlePlayNext = async () => {
-    if (!currentPlayingNFT || currentNFTQueue.length === 0) return;
+    if (!currentPlayingNFT) return;
     
-    // Find current NFT index in our saved queue
-    // Use mediaKey for consistent tracking rather than contract+tokenId
-    const currentIndex = currentNFTQueue.findIndex(
-      (nft: NFT) => getMediaKey(nft) === getMediaKey(currentPlayingNFT)
+    // Get the appropriate queue based on current page
+    let currentQueue: NFT[] = [];
+    
+    if (currentPage.isExplore) {
+      currentQueue = filteredNFTs;
+    } else if (currentPage.isLibrary) {
+      currentQueue = likedNFTs;
+    } else if (currentPage.isProfile) {
+      currentQueue = userNFTs;
+    } else if (currentPage.isHome) {
+      currentQueue = [...recentlyPlayedNFTs, ...topPlayedNFTs.map(item => item.nft)];
+    }
+    
+    // Find current NFT index in the queue
+    const currentIndex = currentQueue.findIndex(
+      nft => nft.contract === currentPlayingNFT.contract && nft.tokenId === currentPlayingNFT.tokenId
     );
     
-    if (currentIndex === -1) {
-      demoLogger.warn(`Current NFT not found in the ${currentQueueType} queue. Can't navigate to next.`);
+    if (currentIndex === -1 || currentQueue.length === 0) {
       return;
     }
     
     // Get next NFT with wraparound
-    const nextIndex = (currentIndex + 1) % currentNFTQueue.length;
-    const nextNFT = currentNFTQueue[nextIndex];
-    
-    demoLogger.info(`Playing next NFT (${nextIndex + 1}/${currentNFTQueue.length}) in ${currentQueueType} queue`);
+    const nextIndex = (currentIndex + 1) % currentQueue.length;
+    const nextNFT = currentQueue[nextIndex];
     
     // Play the next NFT
     await prepareAndPlayAudio(nextNFT);
   };
 
   const handlePlayPrevious = async () => {
-    if (!currentPlayingNFT || currentNFTQueue.length === 0) return;
+    if (!currentPlayingNFT) return;
     
-    // Find current NFT index in our saved queue
-    // Use mediaKey for consistent tracking rather than contract+tokenId
-    const currentIndex = currentNFTQueue.findIndex(
-      (nft: NFT) => getMediaKey(nft) === getMediaKey(currentPlayingNFT)
+    // Get the appropriate queue based on current page
+    let currentQueue: NFT[] = [];
+    
+    if (currentPage.isExplore) {
+      currentQueue = filteredNFTs;
+    } else if (currentPage.isLibrary) {
+      currentQueue = likedNFTs;
+    } else if (currentPage.isProfile) {
+      currentQueue = userNFTs;
+    } else if (currentPage.isHome) {
+      currentQueue = [...recentlyPlayedNFTs, ...topPlayedNFTs.map(item => item.nft)];
+    }
+    
+    // Find current NFT index in the queue
+    const currentIndex = currentQueue.findIndex(
+      nft => nft.contract === currentPlayingNFT.contract && nft.tokenId === currentPlayingNFT.tokenId
     );
     
-    if (currentIndex === -1) {
-      demoLogger.warn(`Current NFT not found in the ${currentQueueType} queue. Can't navigate to previous.`);
+    if (currentIndex === -1 || currentQueue.length === 0) {
       return;
     }
     
     // Get previous NFT with wraparound
-    const prevIndex = (currentIndex - 1 + currentNFTQueue.length) % currentNFTQueue.length;
-    const prevNFT = currentNFTQueue[prevIndex];
-    
-    demoLogger.info(`Playing previous NFT (${prevIndex + 1}/${currentNFTQueue.length}) in ${currentQueueType} queue`);
+    const prevIndex = (currentIndex - 1 + currentQueue.length) % currentQueue.length;
+    const prevNFT = currentQueue[prevIndex];
     
     // Play the previous NFT
     await prepareAndPlayAudio(prevNFT);
