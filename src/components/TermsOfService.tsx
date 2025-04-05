@@ -8,7 +8,7 @@ const TermsOfService: React.FC<TermsOfServiceProps> = ({ onAccept }) => {
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center p-4 overflow-y-auto">
       <div className="w-full max-w-lg bg-gray-900 rounded-lg border border-purple-500/30 shadow-xl p-6 max-h-[80vh] overflow-y-auto">
-        <h1 className="text-2xl font-bold text-green-400 mb-4 font-mono">Terms of Service</h1>
+        <h1 className="text-2xl font-bold text-green-400 mb-4 font-mono text-center">Terms of Service</h1>
         
         <div className="text-gray-300 space-y-4 mb-6 text-sm">
           <p>
