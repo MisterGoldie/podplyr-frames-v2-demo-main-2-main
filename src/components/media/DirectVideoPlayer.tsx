@@ -31,6 +31,10 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
   const [isVisible, setIsVisible] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const elementRef = useRef<HTMLDivElement>(null);
+  const [bufferingState, setBufferingState] = useState<'none' | 'loading' | 'sufficient' | 'full'>('none');
+  const [loadProgress, setLoadProgress] = useState(0);
+  const [networkType, setNetworkType] = useState<'cellular' | 'wifi' | 'unknown'>('unknown');
+  const [networkGeneration, setNetworkGeneration] = useState<'5G' | '4G' | '3G' | '2G' | 'unknown'>('unknown');
   
   // Get the mediaKey for consistent tracking
   const mediaKey = getMediaKey(nft);
@@ -43,6 +47,153 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
   const isAndroid = /Android/i.test(navigator.userAgent);
   const isMobile = isIOS || isAndroid;
   const posterUrl = nft.image || nft.metadata?.image || '';
+  
+  // Get network information for adaptive quality
+  useEffect(() => {
+    // Detect network type and capabilities
+    const detectNetwork = () => {
+      if (typeof navigator !== 'undefined' && 'connection' in navigator) {
+        const connection = (navigator as any).connection;
+        
+        // Detect cellular vs wifi
+        if (connection.type === 'cellular') {
+          setNetworkType('cellular');
+          
+          // Determine generation based on effectiveType and measured performance
+          const effectiveType = connection.effectiveType;
+          const downlink = connection.downlink || 0; // Mbps
+          
+          // Check for 5G - ultra high bandwidth or user agent contains 5G
+          if (downlink >= 25 || 
+              (navigator?.userAgent && navigator.userAgent.toLowerCase().includes('5g'))) {
+            setNetworkGeneration('5G');
+            videoLogger.info('5G network detected!', { downlink: `${downlink} Mbps` });
+          } else if (downlink >= 7 || effectiveType === '4g') {
+            setNetworkGeneration('4G');
+          } else if (downlink >= 1.5 || effectiveType === '3g') {
+            setNetworkGeneration('3G');
+          } else if (effectiveType === '2g') {
+            setNetworkGeneration('2G');
+          } else {
+            setNetworkGeneration('unknown');
+          }
+          
+          videoLogger.info('Cellular network detected', { 
+            generation: networkGeneration,
+            effectiveType,
+            downlink: `${downlink} Mbps`
+          });
+        } else if (connection.type === 'wifi') {
+          setNetworkType('wifi');
+        } else {
+          setNetworkType('unknown');
+        }
+      }
+    };
+    
+    detectNetwork();
+    
+    // Monitor network changes
+    const handleNetworkChange = () => {
+      detectNetwork();
+      
+      // If on cellular, adjust video quality based on new network conditions
+      if (networkType === 'cellular' && videoRef.current) {
+        adjustQualityForCellular();
+      }
+    };
+    
+    if (typeof navigator !== 'undefined' && 'connection' in navigator) {
+      (navigator as any).connection.addEventListener('change', handleNetworkChange);
+    }
+    
+    return () => {
+      if (typeof navigator !== 'undefined' && 'connection' in navigator) {
+        (navigator as any).connection.removeEventListener('change', handleNetworkChange);
+      }
+    };
+  }, []);
+  
+  // Function to adjust video quality based on network conditions
+  const adjustQualityForCellular = () => {
+    if (!videoRef.current) return;
+    
+    // Apply optimizations based on network generation
+    if (networkType === 'cellular') {
+      const video = videoRef.current;
+      
+      // Basic optimizations for all cellular connections
+      video.preload = 'metadata';
+      
+      if (networkGeneration === '2G' || networkGeneration === '3G') {
+        // Lower quality for slower connections
+        video.setAttribute('data-quality', 'low');
+        
+        // Reduce resolution
+        video.style.maxHeight = networkGeneration === '2G' ? '360px' : '480px';
+        
+        // Reduce buffering aggressiveness
+        if ('fastSeek' in video) {
+          // Some browsers support fastSeek for more efficient seeking
+          video.dataset.useFastSeek = 'true';
+        }
+        
+        videoLogger.info('Applied low-quality optimizations for cellular', {
+          generation: networkGeneration,
+          maxHeight: video.style.maxHeight
+        });
+      } else {
+        // 4G/5G can handle higher quality
+        video.setAttribute('data-quality', 'medium');
+        video.preload = 'auto';
+        
+        videoLogger.info('Using medium quality for 4G/5G cellular');
+      }
+    }
+  };
+  
+  // Monitor buffering state
+  useEffect(() => {
+    if (!videoRef.current) return;
+    
+    const video = videoRef.current;
+    
+    const handleProgress = () => {
+      if (video.buffered.length > 0) {
+        const bufferedEnd = video.buffered.end(video.buffered.length - 1);
+        const duration = video.duration;
+        const progress = Math.round((bufferedEnd / duration) * 100);
+        
+        setLoadProgress(progress);
+        
+        // Determine buffering state
+        if (progress >= 95) {
+          setBufferingState('full');
+        } else if (progress >= 15 || bufferedEnd >= video.currentTime + 10) {
+          setBufferingState('sufficient');
+        } else {
+          setBufferingState('loading');
+        }
+      }
+    };
+    
+    const handleWaiting = () => setBufferingState('loading');
+    const handleCanPlay = () => {
+      if (bufferingState !== 'full') {
+        setBufferingState('sufficient');
+      }
+    };
+    
+    video.addEventListener('progress', handleProgress);
+    video.addEventListener('waiting', handleWaiting);
+    video.addEventListener('canplay', handleCanPlay);
+    
+    return () => {
+      video.removeEventListener('progress', handleProgress);
+      video.removeEventListener('waiting', handleWaiting);
+      video.removeEventListener('canplay', handleCanPlay);
+    };
+  }, [bufferingState]);
   
   // Define multiple IPFS gateways to try
   const IPFS_GATEWAYS = [
@@ -224,15 +375,54 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
     return () => observer.disconnect();
   }, []);
 
-  // Only load video when visible and hovered
-  const shouldLoadVideo = isVisible && isHovered;
+  // Always preload video metadata, but only fully load when visible
+  // This change helps video start faster along with audio
+  const shouldLoadVideo = isVisible;
+  const shouldPlayVideo = isVisible && isHovered;
 
+  // Early video preload effect - runs once on component mount
+  useEffect(() => {
+    // Start preloading video metadata as soon as component mounts
+    if (typeof directUrl === 'string' && directUrl && !isHostedPlayer) {
+      const processedUrl = processVideoUrl();
+      
+      // Use Image prefetching for video poster
+      if (posterUrl) {
+        const img = new Image();
+        img.src = posterUrl;
+      }
+      
+      // Use link preload for video - this signals browser to start loading
+      // even before the video element is fully set up
+      const link = document.createElement('link');
+      link.rel = 'preload';
+      link.as = 'video';
+      link.href = processedUrl;
+      document.head.appendChild(link);
+      
+      // Clean up
+      return () => {
+        document.head.removeChild(link);
+      };
+    }
+  }, [directUrl, isHostedPlayer, posterUrl]);
+  
+  // Main video loading effect - handles actual video setup
   useEffect(() => {
     const video = videoRef.current;
     if (!video || isHostedPlayer) return;
     
     // Reset video element to prevent previous error states from persisting
     video.removeAttribute('src');
+    
+    // Progressive loading setup - starts with metadata only
+    video.preload = 'metadata';
+    
+    // Set playsinline early to ensure proper mobile behavior
+    video.playsInline = true;
+    video.muted = true;
+    
+    // Force a load to initiate metadata download
     video.load();
     
     // Check if we've exceeded max retries
@@ -266,6 +456,76 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
       // Both Android and iOS need these optimizations
       video.style.transform = 'translateZ(0)'; // Hardware acceleration
       
+      // Check for cellular connection on mobile
+      if (typeof navigator !== 'undefined' && 'connection' in navigator) {
+        const connection = (navigator as any).connection;
+        
+        // Detect cellular vs wifi
+        if (connection.type === 'cellular') {
+          setNetworkType('cellular');
+          
+          // Determine generation based on effectiveType and measured performance
+          const effectiveType = connection.effectiveType;
+          const downlink = connection.downlink || 0; // Mbps
+          
+          // Check for 5G - ultra high bandwidth or user agent contains 5G
+          if (downlink >= 25 || 
+              (navigator?.userAgent && navigator.userAgent.toLowerCase().includes('5g'))) {
+            setNetworkGeneration('5G');
+            videoLogger.info('5G network detected!', { downlink: `${downlink} Mbps` });
+          } else if (downlink >= 7 || effectiveType === '4g') {
+            setNetworkGeneration('4G');
+          } else if (downlink >= 1.5 || effectiveType === '3g') {
+            setNetworkGeneration('3G');
+          } else if (effectiveType === '2g') {
+            setNetworkGeneration('2G');
+          } else {
+            setNetworkGeneration('unknown');
+          }
+          
+          // Cellular optimizations based on generation
+          if (networkGeneration === '5G') {
+            // 5G can handle high quality
+            video.preload = 'auto';
+            // Enable DASH-like segmented loading by setting sizes
+            video.dataset.segmentSize = '4000000'; // 4MB segments
+            video.setAttribute('data-quality', 'high');
+            // No height restrictions for 5G
+            
+            videoLogger.info('Applied 5G optimizations - using high quality', {
+              generation: networkGeneration,
+              effectiveType,
+              downlink: `${downlink} Mbps`
+            });
+          }
+          else if (networkGeneration === '4G') {
+            // 4G can handle good quality
+            video.preload = 'auto';
+            video.setAttribute('data-quality', 'medium');
+            
+            videoLogger.info('Applied 4G optimizations - using medium quality', {
+              generation: networkGeneration,
+              effectiveType,
+              downlink: `${downlink} Mbps`
+            });
+          }
+          else if (networkGeneration === '2G' || networkGeneration === '3G') {
+            // 2G/3G need low quality settings
+            video.preload = 'metadata';
+            video.setAttribute('data-quality', 'low');
+            video.style.maxHeight = networkGeneration === '2G' ? '360px' : '480px';
+            
+            videoLogger.info('Applied cellular optimizations for slower networks', {
+              generation: networkGeneration,
+              effectiveType,
+              downlink: `${downlink} Mbps`
+            });
+          }
+        } else if (connection.type === 'wifi') {
+          setNetworkType('wifi');
+        }
+      }
+      
       // Android-specific handling
       if (isAndroid) {
         video.preload = 'metadata'; // Save bandwidth on Android
@@ -286,7 +546,32 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
     
     const handleCanPlay = (): void => {
       setHasError(false); // Reset error state on successful load
+      setBufferingState('sufficient');
       if (onLoadComplete) onLoadComplete();
+    };
+    
+    // Add progress monitoring for buffering state
+    const handleProgress = (): void => {
+      if (video.buffered.length > 0) {
+        const bufferedEnd = video.buffered.end(video.buffered.length - 1);
+        const duration = video.duration;
+        const progress = Math.round((bufferedEnd / duration) * 100);
+        
+        setLoadProgress(progress);
+        
+        // Determine buffering state
+        if (progress >= 95) {
+          setBufferingState('full');
+        } else if (progress >= 15 || bufferedEnd >= video.currentTime + 10) {
+          setBufferingState('sufficient');
+        } else {
+          setBufferingState('loading');
+        }
+      }
+    };
+    
+    const handleWaiting = (): void => {
+      setBufferingState('loading');
     };
     
     const handleError = (e: Event): void => {
@@ -336,9 +621,25 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
     
     video.addEventListener('canplay', handleCanPlay);
     video.addEventListener('error', handleError);
+    video.addEventListener('progress', handleProgress);
+    video.addEventListener('waiting', handleWaiting);
     
     // Apply adaptive streaming optimizations based on connection quality
     optimizeVideoForConnection(video, mediaKey, isMobile);
+    
+    // Add a loadedmetadata listener to transition to auto preload after metadata is loaded
+    // This creates a progressive loading effect that gets video started faster
+    const handleLoadedMetadata = () => {
+      // Once we have basic metadata, switch to auto preload if we're on wifi or 4G/5G
+      if (networkType === 'wifi' || 
+          (networkType === 'cellular' && 
+           (networkGeneration === '4G' || networkGeneration === '5G'))) {
+        video.preload = 'auto';
+      }
+      videoLogger.info('Video metadata loaded, switching to more aggressive loading');
+    };
+    
+    video.addEventListener('loadedmetadata', handleLoadedMetadata);
     
     // Simple one-time play attempt when video element is ready
     if (retryCount < MAX_RETRIES) {
@@ -356,6 +657,9 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
     return () => {
       video.removeEventListener('canplay', handleCanPlay);
       video.removeEventListener('error', handleError);
+      video.removeEventListener('progress', handleProgress);
+      video.removeEventListener('waiting', handleWaiting);
+      video.removeEventListener('loadedmetadata', handleLoadedMetadata);
       
       // Cancel any pending play operation when unmounting
       if (video.src) {
@@ -417,25 +721,49 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
         }}
       />
       
-      {/* Video - only loaded when needed */}
-      {shouldLoadVideo && !hasError && (
-        <video
-          ref={videoRef}
-          id={`video-${nft.contract}-${nft.tokenId}`}
-          poster={nft.image || nft.metadata?.image}
-          muted
-          loop
-          playsInline
-          controls={isMobile} // Add controls for all mobile devices
-          className="w-full h-full object-cover rounded-md"
-          style={{ 
-            transform: 'translateZ(0)', // Hardware acceleration for all platforms
-            // Add Android-specific height limitations to improve performance
-            ...(isAndroid ? { maxHeight: '480px' } : {})
-          }} 
-          {...(isIOS ? { 'webkit-playsinline': 'true' } : {})}
-          {...(isAndroid ? { 'playsinline': 'true' } : {})}
-        />
+      {/* Video - always start preloading metadata, but only fully load when needed */}
+      {!hasError && (
+        <>
+          <video
+            ref={videoRef}
+            id={`video-${nft.contract}-${nft.tokenId}`}
+            poster={nft.image || nft.metadata?.image}
+            muted
+            loop
+            playsInline
+            autoPlay={shouldPlayVideo} // Only autoplay when visible and hovered
+            controls={isMobile} // Add controls for all mobile devices
+            className={`w-full h-full object-cover rounded-md ${shouldLoadVideo ? 'opacity-100' : 'opacity-0'}`}
+            preload="metadata" // Always start with metadata for faster loading
+            data-network-type={networkType}
+            data-network-generation={networkGeneration}
+            data-media-key={mediaKey} // Ensure mediaKey tracking is maintained
+            data-priority="high" // Mark as high priority for browser loading
+            style={{ 
+              transform: 'translateZ(0)', // Hardware acceleration for all platforms
+              // Add Android-specific height limitations to improve performance
+              ...(isAndroid ? { maxHeight: '480px' } : {})
+            }} 
+            {...(isIOS ? { 'webkit-playsinline': 'true' } : {})}
+            {...(isAndroid ? { 'playsinline': 'true' } : {})}
+          />
+          
+          {/* Cellular network indicator */}
+          {networkType === 'cellular' && (
+            <div className="absolute top-2 right-2 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded">
+              {networkGeneration !== 'unknown' ? networkGeneration : 'Cellular'}
+            </div>
+          )}
+          
+          {/* Loading indicator */}
+          {bufferingState === 'loading' && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-40">
+              <div className="text-white text-sm">
+                {loadProgress > 0 ? `Loading: ${loadProgress}%` : 'Buffering...'}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
