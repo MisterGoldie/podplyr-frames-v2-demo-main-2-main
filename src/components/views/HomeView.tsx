@@ -6,6 +6,7 @@ import type { NFT } from '../../types/user';
 import Image from 'next/image';
 import { useNFTPreloader } from '../../hooks/useNFTPreloader';
 import FeaturedSection from '../sections/FeaturedSection';
+import RecentlyPlayed from '../RecentlyPlayed';
 import { getMediaKey } from '../../utils/media';
 import { FarcasterContext } from '../../app/providers';
 import NotificationHeader from '../NotificationHeader';
@@ -211,63 +212,16 @@ const HomeView: React.FC<HomeViewProps> = ({
       >
         {/* Notifications are now handled by the global NFTNotification component */}
 
-        {/* Recently Played Section */}
-        <section>
-          {validRecentlyPlayedNFTs.length > 0 && (
-            <div className="mb-8">
-              <h2 className="text-xl font-mono text-green-400 mb-6">Recently Played</h2>
-              <div className="relative">
-                <div className="overflow-x-auto pb-4 hide-scrollbar">
-                  <div className="flex gap-4">
-                    {/* Extra deduplicate by contract+tokenId to ensure no duplicates */}
-                    {validRecentlyPlayedNFTs
-                      .filter((nft, index, self) => {
-                        const key = `${nft.contract}-${nft.tokenId}`.toLowerCase();
-                        return index === self.findIndex(n => 
-                          `${n.contract}-${n.tokenId}`.toLowerCase() === key
-                        );
-                      })
-                      .map((nft, index) => {
-                      // Generate strictly unique key that doesn't depend on content
-                      const uniqueKey = nft.contract && nft.tokenId 
-                        ? `recent-${nft.contract.toLowerCase()}-${nft.tokenId}` 
-                        : `recent-fallback-${index}-${Math.random().toString(36).substring(2, 9)}`;
-                      
-                      return (
-                        <div key={uniqueKey} className="flex-shrink-0 w-[140px]">
-                          <NFTCard
-                            nft={nft}
-                            onPlay={async (nft) => {
-                              homeLogger.debug(`Play button clicked for NFT in Recently Played: ${nft.name}`);
-                              try {
-                                // Directly call onPlayNFT with the NFT and context
-                                await onPlayNFT(nft, {
-                                  queue: validRecentlyPlayedNFTs,
-                                  queueType: 'recentlyPlayed'
-                                });
-                              } catch (error) {
-                                homeLogger.error('Error playing NFT from Recently Played:', error);
-                              }
-                            }}
-                            isPlaying={isPlaying && currentlyPlaying === getMediaKey(nft)}
-                            currentlyPlaying={currentlyPlaying}
-                            handlePlayPause={handlePlayPause}
-                            onLikeToggle={() => handleNFTLike(nft)}
-                            userFid={userFid}
-                            isNFTLiked={() => checkDirectlyLiked(nft)}
-                            animationDelay={0.2 + (index * 0.05)}
-                            smallCard={true} // Position heart icon properly for smaller cards
-                          />
-                          <h3 className="font-mono text-white text-sm truncate mt-3">{nft.name}</h3>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </section>
+        {/* Recently Played Section - Now using dedicated component */}
+        <RecentlyPlayed
+          userFid={userFid}
+          onPlayNFT={onPlayNFT}
+          currentlyPlaying={currentlyPlaying}
+          isPlaying={isPlaying}
+          handlePlayPause={handlePlayPause}
+          onLikeToggle={onLikeToggle}
+          isNFTLiked={checkDirectlyLiked}
+        />
 
         {/* Top Played Section */}
         <section>

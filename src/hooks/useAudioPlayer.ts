@@ -226,12 +226,40 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
           // Filter out NFTs with the same mediaKey to avoid duplicates
           const filteredNFTs = prevNFTs.filter(item => {
             const itemMediaKey = item.mediaKey || getMediaKey(item);
-            return itemMediaKey !== mediaKey;
+            const contract_tokenId = `${item.contract}-${item.tokenId}`;
+            const new_contract_tokenId = `${nft.contract}-${nft.tokenId}`;
+            
+            // Log extensive details for debugging
+            audioLogger.debug(`Filtering NFT comparison - Current: ${item.name} (${contract_tokenId.substring(0, 8)}), New: ${nft.name} (${new_contract_tokenId.substring(0, 8)})`);
+            audioLogger.debug(`MediaKey comparison - Current: ${itemMediaKey?.substring(0, 15)}... vs New: ${mediaKey?.substring(0, 15)}...`);
+            
+            // Check if this is actually the same NFT by contract-tokenId (as a fallback)
+            if (contract_tokenId === new_contract_tokenId) {
+              audioLogger.debug(`Found exact duplicate by contract-tokenId: ${contract_tokenId}`);
+              return false;
+            }
+            
+            // Main mediaKey comparison
+            if (itemMediaKey && mediaKey && itemMediaKey === mediaKey) {
+              audioLogger.debug(`Found duplicate by mediaKey: ${mediaKey.substring(0, 15)}...`);
+              return false;
+            }
+            
+            return true; // Keep this NFT in the filtered list
           });
           
           audioLogger.info('Adding NFT to Recently Played:', nft.name);
           audioLogger.info('Using mediaKey for deduplication:', mediaKey?.substring(0, 12) + '...');
-          audioLogger.info('Filtered out duplicates, previous count:', prevNFTs.length, 'new count:', filteredNFTs.length);
+          audioLogger.info('Filtered out duplicates, previous count:', prevNFTs.length, 'new count:', filteredNFTs.length + 1); // +1 for the new NFT
+          
+          // Log a warning if this NFT is filtered out as a duplicate but we can't see it in the UI
+          if (prevNFTs.length === filteredNFTs.length) {
+            audioLogger.warn('⚠️ NFT filtered out as duplicate but may not be visible in UI:', {
+              nftName: nft.name,
+              contract_tokenId: `${nft.contract}-${nft.tokenId}`,
+              mediaKey: mediaKey?.substring(0, 20) + '...'
+            });
+          }
           
           // Track this NFT as recently added to prevent duplicates from subscription
           // CRITICAL: Store the mediaKey instead of nftKey to match our updated Demo.tsx

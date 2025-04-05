@@ -10,6 +10,7 @@ import HomeView from './views/HomeView';
 import ExploreView from './views/ExploreView';
 import LibraryView from './views/LibraryView';
 import ProfileView from './views/ProfileView';
+import RecentlyPlayed from './RecentlyPlayed';
 import TermsOfService from './TermsOfService';
 import { useTerms } from '../context/TermsContext';
 import Image from 'next/image';
@@ -24,8 +25,7 @@ import {
   searchUsers,
   subscribeToRecentSearches,
   toggleLikeNFT,
-  fetchUserNFTs,
-  subscribeToRecentPlays
+  fetchUserNFTs
 } from '../lib/firebase';
 import { fetchUserNFTsFromAlchemy } from '../lib/alchemy';
 import type { NFT, FarcasterUser, SearchedUser, UserContext, LibraryViewProps, ProfileViewProps, NFTFile, NFTPlayData, GroupedNFT } from '../types/user';
@@ -239,44 +239,12 @@ const Demo: React.FC = () => {
         setRecentSearches(searches || []); // Handle potential undefined
         demoLogger.info('📜 Recent searches loaded:', searches?.length || 0);
 
-        // Subscribe to recently played NFTs
-        if (userFid) {
-          demoLogger.info('🎵 Setting up subscription to recently played NFTs with userFid:', userFid);
-          
-          const unsubscribe = subscribeToRecentPlays(userFid, (nfts) => {
-            demoLogger.info('🎵 Received recently played NFTs update from Firebase:', {
-              count: nfts.length,
-              firstNft: nfts.length > 0 ? `${nfts[0].name} (${nfts[0].contract}-${nfts[0].tokenId})` : 'none'
-            });
-            
-            // Before setting, check if the first NFT is the same as our recently added one
-            if (nfts.length > 0 && recentlyAddedNFT.current) {
-              // CRITICAL CHANGE: Use mediaKey as the primary identifier instead of contract-tokenId
-              // This is required for PODPlayr's content-first architecture
-              const mediaKey = nfts[0].mediaKey || '';
-              demoLogger.debug('🔍 Checking for duplicate with recentlyAddedNFT using mediaKey:', {
-                mediaKey: mediaKey.substring(0, 12) + '...',
-                recentlyAdded: recentlyAddedNFT.current
-              });
-              
-              // If the first NFT is one we just added manually, skip this update
-              if (mediaKey && mediaKey === recentlyAddedNFT.current) {
-                demoLogger.debug('⏭️ Skipping duplicate NFT update based on mediaKey match');
-                return;
-              }
-            }
-            
-            demoLogger.info('✅ Updating recentlyPlayedNFTs state with', nfts.length, 'NFTs');
-            setRecentlyPlayedNFTs(nfts);
-          });
-          
-          demoLogger.info('🔔 Firebase subscription to recently played NFTs established');
-          return () => {
-            demoLogger.info('🛑 Unsubscribing from recently played NFTs updates');
-            unsubscribe();
-          };
+        // We no longer need to subscribe to recently played NFTs here
+        // This is now handled by the RecentlyPlayed component
+        if (!userFid) {
+          demoLogger.warn('⚠️ No userFid available for initial data load');
         } else {
-          demoLogger.warn('⚠️ Cannot subscribe to recently played NFTs - no userFid available');
+          demoLogger.info('✅ Initial data load with userFid:', userFid);
         }
       } catch (error) {
         demoLogger.error('❌ Error loading initial data:', error);
@@ -1018,7 +986,7 @@ const Demo: React.FC = () => {
         >
           {currentPage.isHome && (
             <HomeView
-              recentlyPlayedNFTs={recentlyPlayedNFTs}
+              recentlyPlayedNFTs={[]} // We're now using the dedicated RecentlyPlayed component
               topPlayedNFTs={topPlayedNFTs}
               onPlayNFT={(nft: NFT, context?: { queue?: NFT[], queueType?: string }) => handlePlayFromLibrary(nft, context)}
               currentlyPlaying={currentlyPlaying}
@@ -1027,7 +995,9 @@ const Demo: React.FC = () => {
               isLoading={isLoading}
               onReset={handleReset}
               onLikeToggle={handleLikeToggle}
-              likedNFTs={likedNFTs} hasActivePlayer={false}            />
+              likedNFTs={likedNFTs}
+              hasActivePlayer={Boolean(currentPlayingNFT)}
+            />
           )}
           {currentPage.isExplore && (
             <ExploreView
@@ -1651,6 +1621,8 @@ const Demo: React.FC = () => {
           onError={setError}
         />
       )}
+      {/* We no longer need a hidden RecentlyPlayed component since we're using it directly in HomeView */}
+
       <div className="flex-1 container mx-auto px-4 py-6 pb-40"> {/* Removed mt-16 to restore original positioning */}
         {renderCurrentView()}
       </div>
