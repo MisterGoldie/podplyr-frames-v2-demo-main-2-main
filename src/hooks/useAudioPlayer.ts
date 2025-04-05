@@ -8,13 +8,18 @@ const immediatelyTrackedNFTs = new Set<string>();
 
 // This function wraps the original trackNFTPlay to implement the 25% threshold logic
 const trackNFTPlay = (nft: NFT, fid: number, options?: { forceTrack?: boolean, thresholdReached?: boolean }) => {
-  // Generate a unique key for this NFT
-  const nftKey = `${nft.contract}-${nft.tokenId}`;
+  // CRITICAL: Use mediaKey as the primary identifier for this NFT
+  // This ensures identical content is tracked together regardless of contract/tokenId
+  const mediaKey = nft.mediaKey || getMediaKey(nft);
+  // For backwards compatibility, also track the legacy nftKey
+  const legacyNftKey = `${nft.contract}-${nft.tokenId}`;
   
   // If this is an immediate tracking call (from handlePlayAudio) and not forced
   if (!options?.forceTrack && !options?.thresholdReached) {
     // Just mark this NFT as having been immediately tracked
-    immediatelyTrackedNFTs.add(nftKey);
+    // Add both mediaKey and legacy key to support transition
+    if (mediaKey) immediatelyTrackedNFTs.add(mediaKey);
+    immediatelyTrackedNFTs.add(legacyNftKey);
     audioLogger.info(`Skipping immediate play tracking for NFT: ${nft.name} - will track at 25% threshold`);
     return Promise.resolve(); // Return a resolved promise to maintain the same interface
   }
@@ -214,24 +219,28 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
             return prevNFTs;
           }
           
-          // Filter out NFTs with the same contract+tokenId (case insensitive) to avoid duplicates
-          const nftKey = `${nft.contract}-${nft.tokenId}`.toLowerCase();
+          // CRITICAL CHANGE: Use mediaKey as primary identifier instead of contract+tokenId
+          // This ensures identical content is properly grouped regardless of contract/tokenId
+          const mediaKey = newMediaKey; // Use the already computed mediaKey from above
+          
+          // Filter out NFTs with the same mediaKey to avoid duplicates
           const filteredNFTs = prevNFTs.filter(item => {
-            const itemKey = `${item.contract}-${item.tokenId}`.toLowerCase();
-            return itemKey !== nftKey;
+            const itemMediaKey = item.mediaKey || getMediaKey(item);
+            return itemMediaKey !== mediaKey;
           });
           
           audioLogger.info('Adding NFT to Recently Played:', nft.name);
-          audioLogger.info('NFT Key for deduplication:', nftKey);
+          audioLogger.info('Using mediaKey for deduplication:', mediaKey?.substring(0, 12) + '...');
           audioLogger.info('Filtered out duplicates, previous count:', prevNFTs.length, 'new count:', filteredNFTs.length);
           
           // Track this NFT as recently added to prevent duplicates from subscription
-          if (recentlyAddedNFT) {
-            recentlyAddedNFT.current = nftKey;
+          // CRITICAL: Store the mediaKey instead of nftKey to match our updated Demo.tsx
+          if (recentlyAddedNFT && mediaKey) {
+            recentlyAddedNFT.current = mediaKey;
             
             // Clear the ref after a delay
             setTimeout(() => {
-              if (recentlyAddedNFT.current === nftKey) {
+              if (recentlyAddedNFT.current === mediaKey) {
                 recentlyAddedNFT.current = null;
               }
             }, 2000);

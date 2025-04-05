@@ -423,7 +423,7 @@ export const getRecentSearches = async (fid?: number): Promise<SearchedUser[]> =
 };
 
 // Track NFT play and update play count globally
-export const trackNFTPlay = async (nft: NFT, fid: number) => {
+export const trackNFTPlay = async (nft: NFT, fid: number, options?: { forceTrack?: boolean, thresholdReached?: boolean }) => {
   try {
     if (!nft || !fid) {
       firebaseLogger.error('Invalid NFT or FID provided to trackNFTPlay');
@@ -464,11 +464,18 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
     }
 
     // Get mediaKey for consistent NFT content identification
-    const mediaKey = getMediaKey(nft);
+    const mediaKey = nft.mediaKey || getMediaKey(nft);
     if (!mediaKey) {
       firebaseLogger.error('Could not generate mediaKey for NFT:', nft);
       return;
     }
+
+    // Store the mediaKey on the NFT object for future reference
+    nft.mediaKey = mediaKey;
+    
+    // Add debug logging for tracking
+    const isThresholdPlay = options?.thresholdReached === true;
+    firebaseLogger.info(`🎵 Tracking NFT play: ${nft.name}, mediaKey: ${mediaKey.substring(0, 12)}..., threshold: ${isThresholdPlay}`);
 
     const batch = writeBatch(db);
 
@@ -524,12 +531,27 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
     // Calculate new play count after the increment
     const newPlayCount = currentPlayCount + 1;
 
-    // Update NFT document
-    const nftRef = doc(db, 'nfts', `${nft.contract}-${nft.tokenId}`);
+    // Update NFT document using mediaKey as part of the ID
+    // This ensures we track plays per unique content, not just per contract-tokenId
+    const nftKeyWithMedia = `${nft.contract}-${nft.tokenId}-${mediaKey.substring(0, 12)}`;
+    const nftRef = doc(db, 'nfts', nftKeyWithMedia);
     const nftDoc = await getDoc(nftRef);
+    
     if (nftDoc.exists()) {
       batch.update(nftRef, {
         plays: newPlayCount,
+        lastPlayed: serverTimestamp(),
+        mediaKey: mediaKey // Ensure mediaKey is stored
+      });
+    } else {
+      // Create new document with mediaKey
+      batch.set(nftRef, {
+        contract: nft.contract,
+        tokenId: nft.tokenId,
+        mediaKey: mediaKey,
+        name: nft.name || 'Untitled',
+        plays: 1,
+        firstPlayed: serverTimestamp(),
         lastPlayed: serverTimestamp()
       });
     }
@@ -573,6 +595,7 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
     // Also update nft_plays collection for backward compatibility
     const nftPlayData = {
       fid,
+      mediaKey, // Add mediaKey to play data for consistency
       nftContract: nft.contract,
       tokenId: nft.tokenId,
       name: nft.name || 'Untitled',
@@ -582,7 +605,8 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
       collection: nft.collection?.name || 'Unknown Collection',
       network: nft.network || 'ethereum',
       timestamp: serverTimestamp(),
-      playCount: currentPlayCount + 1 // Use the actual play count
+      playCount: currentPlayCount + 1, // Use the actual play count
+      thresholdReached: options?.thresholdReached || false // Track if this was a threshold play
     };
     await addDoc(collection(db, 'nft_plays'), nftPlayData);
 
@@ -591,12 +615,15 @@ export const trackNFTPlay = async (nft: NFT, fid: number) => {
     const playHistoryRef = collection(userRef, 'playHistory');
     await addDoc(playHistoryRef, {
       ...nftPlayData,
-      mediaKey,
+      mediaKey, // Ensure mediaKey is included
       timestamp: serverTimestamp()
     });
 
     // Commit the batch
     await batch.commit();
+    
+    // Return mediaKey for reference by caller
+    return mediaKey;
   } catch (error) {
     firebaseLogger.error('Error tracking NFT play:', error instanceof Error ? error.message : 'Unknown error');
     throw error; // Re-throw to allow handling by the caller
@@ -1263,24 +1290,64 @@ export const toggleLikeNFT = async (nft: NFT, fid: number, forceUnlike: boolean 
 
 // Subscribe to recent plays
 export const subscribeToRecentPlays = (fid: number, callback: (nfts: NFT[]) => void) => {
-  // Listen to nft_plays collection
-  const playsRef = collection(db, 'nft_plays');
-  const q = query(playsRef, where('fid', '==', fid), orderBy('timestamp', 'desc'), limit(20));
+  // Listen to user's play history collection for the most reliable recent plays tracking
+  const userRef = doc(db, 'users', fid.toString());
+  const playHistoryRef = collection(userRef, 'playHistory');
+  
+  firebaseLogger.info('=== SUBSCRIBING TO RECENT PLAYS ===');
+  firebaseLogger.info(`Subscribing to recent plays for FID: ${fid}`);
+  
+  // Query user's play history collection, ordered by timestamp descending (most recent first)
+  // This is the SINGLE SOURCE OF TRUTH for what the user has recently played
+  const q = query(playHistoryRef, orderBy('timestamp', 'desc'), limit(30));
 
   return onSnapshot(q, (snapshot) => {
-    const recentNFTs: NFT[] = [];
-    const seenKeys = new Set<string>();
-
+    firebaseLogger.info(`Received recent plays snapshot update with ${snapshot.docs.length} docs`);
+    
+    // Track NFTs by mediaKey to prevent duplicates
+    const nftByMediaKey = new Map<string, NFT>();
+    const processedMediaKeys = new Set<string>();
+    
     // Process each play history entry
     for (const playDoc of snapshot.docs) {
       const playData = playDoc.data();
-      // Create a unique and consistent key using contract and tokenId
-      const nftKey = `${playData.nftContract}-${playData.tokenId}`.toLowerCase();
       
-      // Skip if we've already seen this NFT
-      if (seenKeys.has(nftKey)) continue;
-      seenKeys.add(nftKey);
-
+      // CRITICAL: Verify we have a mediaKey - this is the PRIMARY IDENTIFIER
+      if (!playData.mediaKey) {
+        // Create a temporary NFT object to generate the mediaKey
+        const tempNFT: NFT = {
+          contract: playData.nftContract,
+          tokenId: playData.tokenId,
+          name: playData.name || 'Unknown',
+          image: playData.image || '',
+          audio: playData.audioUrl || '',
+          metadata: {
+            animation_url: playData.audioUrl || '',
+            image: playData.image || ''
+          }
+        };
+        
+        // Generate mediaKey from the NFT object
+        const mediaKey = getMediaKey(tempNFT);
+        
+        if (!mediaKey) {
+          firebaseLogger.warn(`[RECENT PLAYS] Missing mediaKey for NFT: ${playData.name}, skipping`);
+          continue;
+        }
+        
+        playData.mediaKey = mediaKey;
+      }
+      
+      // Skip if we've already processed this mediaKey in this snapshot
+      if (processedMediaKeys.has(playData.mediaKey)) {
+        firebaseLogger.debug(`[RECENT PLAYS] Skipping duplicate mediaKey: ${playData.mediaKey.substring(0, 8)}...`);
+        continue;
+      }
+      
+      // Mark this mediaKey as processed
+      processedMediaKeys.add(playData.mediaKey);
+      
+      // Create NFT object from play data
       const nft: NFT = {
         contract: playData.nftContract,
         tokenId: playData.tokenId,
@@ -1298,14 +1365,24 @@ export const subscribeToRecentPlays = (fid: number, callback: (nfts: NFT[]) => v
         collection: {
           name: playData.collection || 'Unknown Collection'
         },
-        network: playData.network || 'ethereum'
+        network: playData.network || 'ethereum',
+        // Always store the mediaKey in the NFT object
+        mediaKey: playData.mediaKey
       };
-      recentNFTs.push(nft);
-
-      // Show 8 unique NFTs, consistent with fetchRecentlyPlayed
-      if (recentNFTs.length >= 8) break;
+      
+      // Store in our map
+      nftByMediaKey.set(playData.mediaKey, nft);
+      
+      firebaseLogger.debug(`[RECENT PLAYS] Added NFT to recently played: ${nft.name} (mediaKey: ${nft.mediaKey.substring(0, 8)}...)`);
+      
+      // Stop once we have 8 unique NFTs by mediaKey
+      if (nftByMediaKey.size >= 8) break;
     }
-
+    
+    // Convert to array
+    const recentNFTs = Array.from(nftByMediaKey.values());
+    
+    firebaseLogger.info(`[RECENT PLAYS] Sending ${recentNFTs.length} recently played NFTs to UI`);
     callback(recentNFTs);
   });
 };
