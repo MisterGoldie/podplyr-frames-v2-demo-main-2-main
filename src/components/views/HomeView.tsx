@@ -12,7 +12,6 @@ import NotificationHeader from '../NotificationHeader';
 import NFTNotification from '../NFTNotification';
 import { useNFTNotification } from '../../context/NFTNotificationContext';
 import { logger } from '../../utils/logger';
-import { predictivePreload } from '../../utils/videoPreloader';
 
 // Create a dedicated logger for the HomeView
 const homeLogger = logger.getModuleLogger('homeView');
@@ -70,21 +69,6 @@ const HomeView: React.FC<HomeViewProps> = ({
       }
     });
     return nfts;
-  }, [recentlyPlayedNFTs, topPlayedNFTs]);
-  
-  // Preload videos for recently played and top played NFTs when they're loaded
-  useEffect(() => {
-    if (recentlyPlayedNFTs.length > 0) {
-      homeLogger.info('Starting predictive preload for recently played NFTs');
-      predictivePreload(recentlyPlayedNFTs, -1); // Start preloading from beginning
-    }
-    
-    if (topPlayedNFTs.length > 0) {
-      homeLogger.info('Starting predictive preload for top played NFTs');
-      // Convert from {nft, count} format to just NFT array
-      const topPlayedNftArray = topPlayedNFTs.map(item => item.nft);
-      predictivePreload(topPlayedNftArray, -1); // Start preloading from beginning
-    }
   }, [recentlyPlayedNFTs, topPlayedNFTs]);
 
   // Preload all NFT images
@@ -256,20 +240,6 @@ const HomeView: React.FC<HomeViewProps> = ({
                             onPlay={async (nft) => {
                               homeLogger.debug(`Play button clicked for NFT in Recently Played: ${nft.name}`);
                               try {
-                                // Find this NFT's index in the queue
-                                const currentIndex = validRecentlyPlayedNFTs.findIndex(
-                                  item => getMediaKey(item) === getMediaKey(nft)
-                                );
-                                
-                                // Predictively preload next few NFTs for smoother playback
-                                if (currentIndex !== -1) {
-                                  homeLogger.info('Predictively preloading next Recently Played NFTs', {
-                                    currentNFT: nft.name,
-                                    currentIndex
-                                  });
-                                  predictivePreload(validRecentlyPlayedNFTs, currentIndex);
-                                }
-                                
                                 // Directly call onPlayNFT with the NFT and context
                                 await onPlayNFT(nft, {
                                   queue: validRecentlyPlayedNFTs,
@@ -320,26 +290,9 @@ const HomeView: React.FC<HomeViewProps> = ({
                             onPlay={async (nft) => {
                               homeLogger.debug(`Play button clicked for NFT in Top Played: ${nft.name}`);
                               try {
-                                // Convert to NFT array for easier handling
-                                const topPlayedNftArray = topPlayedNFTs.map(item => item.nft);
-                                
-                                // Find this NFT's index in the queue
-                                const currentIndex = topPlayedNftArray.findIndex(
-                                  item => getMediaKey(item) === getMediaKey(nft)
-                                );
-                                
-                                // Predictively preload next few NFTs for smoother playback
-                                if (currentIndex !== -1) {
-                                  homeLogger.info('Predictively preloading next Top Played NFTs', {
-                                    currentNFT: nft.name,
-                                    currentIndex
-                                  });
-                                  predictivePreload(topPlayedNftArray, currentIndex);
-                                }
-                                
                                 // Pass all top played NFTs as the queue context
                                 await onPlayNFT(nft, {
-                                  queue: topPlayedNftArray,
+                                  queue: topPlayedNFTs.map(item => item.nft),
                                   queueType: 'topPlayed'
                                 });
                               } catch (error) {

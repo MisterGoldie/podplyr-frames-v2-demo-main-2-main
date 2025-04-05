@@ -1005,7 +1005,7 @@ export const getLikedNFTs = async (fid: number): Promise<NFT[]> => {
 };
 
 // Toggle NFT like status globally
-export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => {
+export const toggleLikeNFT = async (nft: NFT, fid: number, forceUnlike: boolean = false): Promise<boolean> => {
   firebaseLogger.info('Starting toggleLikeNFT with NFT:', nft.name, 'and fid:', fid);
   
   if (!fid || fid <= 0) {
@@ -1053,7 +1053,11 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
     
     const batch = writeBatch(db);
     
-    if (userLikeDoc.exists()) {
+    // If forceUnlike is true, we always want to unlike, regardless of current state
+    // This ensures Library view unlike operations always work correctly
+    const shouldUnlike = forceUnlike || userLikeDoc.exists();
+    
+    if (shouldUnlike) {
       // UNLIKE FLOW - Remove like from user's likes
       firebaseLogger.info('User like exists - removing like');
       batch.delete(userLikeRef);
@@ -1152,7 +1156,7 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
         firebaseLogger.error('Error committing unlike operation:', error);
         return userLikeDoc.exists(); // Return previous state on error
       }
-    } else {
+    } else if (!forceUnlike) {
       // LIKE FLOW - Add NFT to user's likes
       firebaseLogger.info('User like does not exist - adding like');
       
@@ -1252,6 +1256,9 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
     }
     return false; // Default to not liked on error
   }
+  
+  // Default return to satisfy TypeScript
+  return false;
 };
 
 // Subscribe to recent plays

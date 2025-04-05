@@ -571,7 +571,7 @@ const debugLike = (message: string, data: any = {}) => {
   console.error('PODPLAYR-DEBUG', `LIKE: ${message}`, data);
 };
 
-export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => {
+export const toggleLikeNFT = async (nft: NFT, fid: number, forceUnlike: boolean = false): Promise<boolean> => {
   // Force debugger to pause at the start of toggleLikeNFT
   debugger; // This will pause execution in Chrome DevTools
   
@@ -638,6 +638,10 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
     console.log('%c🔎 CHECKING CURRENT LIKE STATUS', 'font-size:14px;color:blue;font-weight:bold');
     const userLikeDoc = await getDoc(userLikeRef);
     const isLiked = userLikeDoc.exists();
+    
+    // If forceUnlike is true, we always want to unlike, regardless of current state
+    // This ensures Library view unlike operations always work correctly
+    const shouldUnlike = forceUnlike || isLiked;
     console.log('%c👍 CURRENT STATUS:', 'font-size:14px;color:orange;font-weight:bold', { 
       liked: isLiked, 
       exists: userLikeDoc.exists(),
@@ -689,7 +693,7 @@ export const toggleLikeNFT = async (nft: NFT, fid: number): Promise<boolean> => 
       // Continue with Firebase operations even if DOM update fails
     }
     
-    if (isLiked) {
+    if (shouldUnlike) {
       // UNLIKE: Simple deletion from user's likes collection using mediaKey
       console.log('%c💔 UNLIKE OPERATION', 'font-size:16px;color:red;font-weight:bold;background:lightgray;padding:3px;border-radius:3px', { 
         key: mediaKey, 

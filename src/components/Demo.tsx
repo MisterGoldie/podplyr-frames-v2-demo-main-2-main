@@ -564,7 +564,8 @@ const Demo: React.FC = () => {
         });
         
         // Use the effective userFid (real or test value) - ONLY CALL ONCE
-        newLikeState = await toggleLikeNFT(nft, effectiveUserFid);
+        // Pass forceUnlike=true when in Library view to ensure proper unliking
+        newLikeState = await toggleLikeNFT(nft, effectiveUserFid, currentPage.isLibrary);
         
         // Use our custom filter tag for debugging
         superDebug('FIREBASE LIKE RESULT', {

@@ -8,8 +8,6 @@ import Image from 'next/image';
 import NotificationHeader from '../NotificationHeader';
 import { useNFTNotification } from '../../context/NFTNotificationContext';
 import NFTNotification from '../NFTNotification';
-import { predictivePreload } from '../../utils/videoPreloader';
-import { logger } from '../../utils/logger';
 
 // This component is a wrapper that uses the hook and passes it to the class component
 const NotificationHandler = ({ nft, onTrigger }: { nft: NFT | null, onTrigger: () => void }) => {
@@ -53,9 +51,6 @@ interface SimpleNFTCardProps {
   animationDelay?: number;
   parent: LibraryView;
 }
-
-// Create a logger instance for the Library
-const libraryLogger = logger.getModuleLogger('libraryView');
 
 // This is a simple component that doesn't use hooks
 class SimpleNFTCard extends React.Component<SimpleNFTCardProps> {
@@ -245,34 +240,6 @@ class LibraryView extends React.Component<LibraryViewProps> {
       });
   }
 
-  // Method to play an NFT with predictive preloading
-  handlePlayNFT = async (nft: NFT) => {
-    try {
-      // Get the list of filtered NFTs that are currently displayed
-      const filteredNFTs = this.getFilteredNFTs();
-      
-      // Find the index of the current NFT
-      const currentIndex = filteredNFTs.findIndex(
-        item => getMediaKey(item) === getMediaKey(nft)
-      );
-      
-      // Predictively preload next NFTs for smoother playback experience
-      if (currentIndex !== -1) {
-        libraryLogger.info('Predictively preloading next Library NFTs', {
-          currentNFT: nft.name || 'Unknown NFT',
-          currentIndex,
-          totalNFTs: filteredNFTs.length
-        });
-        predictivePreload(filteredNFTs, currentIndex);
-      }
-      
-      // Call the original play function
-      await this.props.handlePlayAudio(nft);
-    } catch (error) {
-      libraryLogger.error('Error playing NFT:', error);
-    }
-  }
-  
   handleUnlike = async (nft: NFT) => {
     try {
       // Set the NFT that needs a notification
@@ -285,7 +252,7 @@ class LibraryView extends React.Component<LibraryViewProps> {
       // Force a re-render after the unlike operation
       this.forceUpdate();
     } catch (error) {
-      libraryLogger.error('Error unliking NFT:', error);
+      console.error('Error unliking NFT:', error);
     }
   };
   
@@ -442,7 +409,7 @@ class LibraryView extends React.Component<LibraryViewProps> {
                   <SimpleNFTCard
                     key={uniqueKey}
                     nft={nft}
-                    onPlay={this.handlePlayNFT}
+                    onPlay={handlePlayAudio}
                     isPlaying={isPlaying}
                     currentlyPlaying={currentlyPlaying}
                     onLikeToggle={onLikeToggle}

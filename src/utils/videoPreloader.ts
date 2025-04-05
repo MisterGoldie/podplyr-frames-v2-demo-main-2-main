@@ -1,6 +1,5 @@
 import { NFT } from '../types/user';
 import { isCellularConnection } from './cellularOptimizer';
-import { logger } from './logger';
 
 // LRU Cache for video chunks
 class VideoCache {
@@ -133,68 +132,34 @@ export const preloadVideoInitialChunk = async (nft: NFT): Promise<void> => {
   }
 };
 
-/**
- * Predictively preload the next few NFTs that a user is likely to interact with
- * This dramatically improves perceived performance by having content ready
- * before the user clicks on it
- */
-export const predictivePreload = (nfts: NFT[], currentIndex: number): void => {
-  // Create a dedicated logger for predictive preloading
-  const preloadLogger = logger.getModuleLogger('predictivePreload');
+// Export the cache for use in the player
+export { videoCache };
+
+// Function to predictively preload the next few NFTs in a queue
+export const predictivePreload = (nfts: NFT[], currentIndex: number, preloadCount: number = 3): void => {
+  if (!nfts || nfts.length === 0 || currentIndex < 0) return;
   
-  // Check if cellular - if so, we'll be more conservative
+  // Determine if we're on a cellular connection
   const { isCellular } = isCellularConnection();
   
-  // Determine how many NFTs to preload based on connection
-  const preloadCount = isCellular ? 2 : 3;
+  // Determine how many NFTs to preload based on connection type
+  const actualPreloadCount = isCellular ? Math.min(2, preloadCount) : preloadCount;
   
-  // Find the starting and ending indices for preloading
-  const startIdx = Math.min(currentIndex + 1, nfts.length - 1);
-  const endIdx = Math.min(currentIndex + preloadCount, nfts.length - 1);
-  
-  preloadLogger.info('Starting predictive preload', {
-    currentIndex,
-    startIdx,
-    endIdx,
-    isCellular,
-    totalNfts: nfts.length
-  });
-  
-  // Don't do anything if we're already at the end
-  if (startIdx > endIdx) {
-    preloadLogger.info('No items to preload (end of list)');
-    return;
-  }
-  
-  // Preload each NFT with staggered timing
-  for (let i = startIdx; i <= endIdx; i++) {
-    // Skip NFTs without animation URLs
-    if (!nfts[i]?.metadata?.animation_url) continue;
+  // Preload the next few NFTs
+  for (let i = 1; i <= actualPreloadCount; i++) {
+    const nextIndex = (currentIndex + i) % nfts.length;
+    const nextNFT = nfts[nextIndex];
     
-    const nft = nfts[i];
-    const delayMs = (i - startIdx) * 500; // Stagger by 500ms
-    
-    // Use setTimeout to stagger and deprioritize these requests
-    setTimeout(() => {
-      preloadLogger.debug(`Preloading NFT at index ${i}`, {
-        name: nft.name || 'Unknown',
-        position: `${i - currentIndex} ahead of current`
-      });
+    if (nextNFT && nextNFT.metadata?.animation_url) {
+      console.log(`Predictively preloading NFT ${i} of ${actualPreloadCount}: ${nextNFT.name || 'Unnamed NFT'}`);
       
-      // Only load metadata on cellular to save data
+      // For cellular connections, just preload metadata
       if (isCellular) {
-        preloadVideoMetadata(nft);
+        preloadVideoMetadata(nextNFT);
       } else {
-        // On Wi-Fi, we can be more aggressive and preload initial chunks too
-        preloadVideoMetadata(nft)
-          .then(() => preloadVideoInitialChunk(nft))
-          .catch(err => {
-            preloadLogger.warn(`Failed to preload NFT at index ${i}`, { error: err.message });
-          });
+        // For WiFi, preload initial chunk too
+        preloadVideoInitialChunk(nextNFT);
       }
-    }, delayMs);
+    }
   }
 };
-
-// Export the cache for use in the player
-export { videoCache }; 
