@@ -232,30 +232,54 @@ const Demo: React.FC = () => {
       setIsLoading(true);
       setError(null);
       try {
+        demoLogger.info('🔄 Starting initial data load with userFid:', userFid);
+        
         // Get recent searches
         const searches = await getRecentSearches(fid);
         setRecentSearches(searches || []); // Handle potential undefined
+        demoLogger.info('📜 Recent searches loaded:', searches?.length || 0);
 
         // Subscribe to recently played NFTs
         if (userFid) {
+          demoLogger.info('🎵 Setting up subscription to recently played NFTs with userFid:', userFid);
+          
           const unsubscribe = subscribeToRecentPlays(userFid, (nfts) => {
+            demoLogger.info('🎵 Received recently played NFTs update from Firebase:', {
+              count: nfts.length,
+              firstNft: nfts.length > 0 ? `${nfts[0].name} (${nfts[0].contract}-${nfts[0].tokenId})` : 'none'
+            });
+            
             // Before setting, check if the first NFT is the same as our recently added one
             if (nfts.length > 0 && recentlyAddedNFT.current) {
-              const firstNFTKey = `${nfts[0].contract}-${nfts[0].tokenId}`.toLowerCase();
+              // CRITICAL CHANGE: Use mediaKey as the primary identifier instead of contract-tokenId
+              // This is required for PODPlayr's content-first architecture
+              const mediaKey = nfts[0].mediaKey || '';
+              demoLogger.debug('🔍 Checking for duplicate with recentlyAddedNFT using mediaKey:', {
+                mediaKey: mediaKey.substring(0, 12) + '...',
+                recentlyAdded: recentlyAddedNFT.current
+              });
               
               // If the first NFT is one we just added manually, skip this update
-              if (firstNFTKey === recentlyAddedNFT.current) {
-                demoLogger.debug('Skipping duplicate NFT update', firstNFTKey);
+              if (mediaKey && mediaKey === recentlyAddedNFT.current) {
+                demoLogger.debug('⏭️ Skipping duplicate NFT update based on mediaKey match');
                 return;
               }
             }
             
+            demoLogger.info('✅ Updating recentlyPlayedNFTs state with', nfts.length, 'NFTs');
             setRecentlyPlayedNFTs(nfts);
           });
-          return () => unsubscribe();
+          
+          demoLogger.info('🔔 Firebase subscription to recently played NFTs established');
+          return () => {
+            demoLogger.info('🛑 Unsubscribing from recently played NFTs updates');
+            unsubscribe();
+          };
+        } else {
+          demoLogger.warn('⚠️ Cannot subscribe to recently played NFTs - no userFid available');
         }
       } catch (error) {
-        logger.error('Error loading initial data:', error);
+        demoLogger.error('❌ Error loading initial data:', error);
         setError('Failed to load initial data. Please try again later.');
       } finally {
         setIsLoading(false);

@@ -175,31 +175,49 @@ export const preloadAudio = async (nft: NFT, priority: 'high' | 'medium' | 'low'
     // IMPORTANT: This function now uses direct preloading without mediaLoadManager
     // to avoid circular dependency issues. DO NOT add references to mediaLoadManager here.
     
-    // Check if we should preload based on device type and network
+    // Enhanced mobile and network detection
     const isMobile = typeof window !== 'undefined' && 
                     (navigator.userAgent.match(/Android/i) ||
                      navigator.userAgent.match(/iPhone/i) ||
                      navigator.userAgent.match(/iPad/i));
     
-    // Check connection type for mobile optimization
-    // @ts-ignore - Some browsers may not support navigator.connection
-    const connectionType = typeof navigator !== 'undefined' && navigator.connection?.type;
-    // @ts-ignore
-    const effectiveType = typeof navigator !== 'undefined' && navigator.connection?.effectiveType;
-    // @ts-ignore
-    const saveData = typeof navigator !== 'undefined' && navigator.connection?.saveData;
+    // Get comprehensive network information 
+    const connection = typeof navigator !== 'undefined' && 'connection' in navigator ? 
+                      (navigator as any).connection : null;
     
-    // For mobile on limited connections, reduce preloading
+    const networkInfo = {
+      type: connection?.type || 'unknown',
+      effectiveType: connection?.effectiveType || 'unknown',
+      saveData: connection?.saveData || false,
+      downlink: connection?.downlink || 0,
+      rtt: connection?.rtt || 0,
+      isCellular: connection?.type === 'cellular' || 
+                 (connection?.effectiveType && 
+                  ['slow-2g', '2g', '3g'].includes(connection.effectiveType))
+    };
+    
+    // Enhanced logging of network conditions for debugging
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[AudioPreloader] Network info for ${nft.name}:`, networkInfo);
+    }
+    
+    // Enhanced decision logic for preloading on cellular connections
     if (isMobile) {
       // Helper function to check if priority is low without type errors
       const isPriorityLow = priority === 'low';
       
-      // On very slow connections or with data saver enabled, 
-      // only preload high priority items
+      // Don't preload at all in these critical scenarios to save user data
+      if (networkInfo.saveData || 
+          (networkInfo.effectiveType === 'slow-2g' && isPriorityLow)) {
+        console.log(`[AudioPreloader] Skipping preload for ${nft.name} - data saving mode or extremely slow connection`);
+        return;
+      }
+      
+      // On very slow connections, only preload high priority items
       if (
-        saveData || 
-        effectiveType === 'slow-2g' || 
-        effectiveType === '2g' ||
+        networkInfo.saveData || 
+        networkInfo.effectiveType === 'slow-2g' || 
+        networkInfo.effectiveType === '2g' ||
         isPriorityLow
       ) {
         console.log(`[Mobile] Skipping preload for ${mediaKey} due to limited connection`);
@@ -207,7 +225,7 @@ export const preloadAudio = async (nft: NFT, priority: 'high' | 'medium' | 'low'
       }
       
       // On 3G, only preload high and medium priority
-      if (effectiveType === '3g' && isPriorityLow) {
+      if (networkInfo.effectiveType === '3g' && isPriorityLow) {
         console.log(`[Mobile] Skipping low priority preload for ${mediaKey} on 3G`);
         return;
       }
