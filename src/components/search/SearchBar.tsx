@@ -33,12 +33,16 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, isSearching, han
         // Instead of direct API calls, use Firebase functions that are already imported
         const { trackUserSearch } = await import('../../lib/firebase');
         
-        // Use trackUserSearch which already has proper error handling
-        // This function is already imported at the top and doesn't have CORS issues
-        const user = await trackUserSearch(username, userFid);
+        // IMPORTANT: We need to search for users WITHOUT tracking the search
+        // We'll use searchUsers instead of trackUserSearch to avoid adding to recently searched
+        const { searchUsers } = await import('../../lib/firebase');
         
-        if (user) {
-          // If we found a user, create a suggestion from it
+        // Search for users without tracking the search in recently searched
+        const users = await searchUsers(username);
+        
+        if (users && users.length > 0) {
+          // Use the first matching user as a suggestion
+          const user = users[0];
           const suggestion = {
             fid: user.fid,
             username: user.username,
