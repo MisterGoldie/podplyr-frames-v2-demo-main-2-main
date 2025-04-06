@@ -300,7 +300,7 @@ const FollowsModal: React.FC<FollowsModalProps> = ({
                           <button
                             onClick={() => handleToggleFollow(user)}
                             disabled={processingFollow[user.fid]}
-                            className={`flex items-center justify-center rounded-lg text-sm font-medium transition-colors w-[80px] h-[32px] ${followStatus[user.fid] 
+                            className={`flex items-center justify-center rounded-lg text-sm font-medium transition-colors w-[90px] h-[36px] ${followStatus[user.fid] 
                               ? 'bg-gray-700 hover:bg-gray-600 text-white' 
                               : 'bg-purple-600 hover:bg-purple-500 text-white'} ${
                                 processingFollow[user.fid] ? 'opacity-70 cursor-not-allowed' : ''
