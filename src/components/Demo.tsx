@@ -10,6 +10,7 @@ import HomeView from './views/HomeView';
 import ExploreView from './views/ExploreView';
 import LibraryView from './views/LibraryView';
 import ProfileView from './views/ProfileView';
+import UserProfileView from './views/UserProfileView';
 import RecentlyPlayed from './RecentlyPlayed';
 import TermsOfService from './TermsOfService';
 import { useTerms } from '../context/TermsContext';
@@ -73,6 +74,7 @@ interface PageState {
   isExplore: boolean;
   isLibrary: boolean;
   isProfile: boolean;
+  isUserProfile: boolean;
 }
 
 const pageTransition = {
@@ -113,7 +115,8 @@ const Demo: React.FC = () => {
     isHome: true,
     isExplore: false,
     isLibrary: false,
-    isProfile: false
+    isProfile: false,
+    isUserProfile: false
   });
   
   // Add state to track the current NFT queue for proper next/previous navigation
@@ -963,7 +966,8 @@ const Demo: React.FC = () => {
       isHome: false,
       isExplore: false,
       isLibrary: false,
-      isProfile: false
+      isProfile: false,
+      isUserProfile: false
     };
     newState[page] = true;
     
@@ -1105,7 +1109,8 @@ const Demo: React.FC = () => {
       isHome: true,
       isExplore: false,
       isLibrary: false,
-      isProfile: false
+      isProfile: false,
+      isUserProfile: false
     });
     
     // Reset scroll position to top of page
@@ -1361,6 +1366,33 @@ const Demo: React.FC = () => {
               onReset={handleReset}
               onNFTsLoaded={setUserNFTs}
               onLikeToggle={handleLikeToggle}
+              onUserProfileClick={handleDirectUserSelect}
+            />
+          )}
+          {currentPage.isUserProfile && selectedUser && (
+            <UserProfileView
+              user={selectedUser}
+              nfts={userNFTs}
+              handlePlayAudio={(nft: NFT, context?: { queue?: NFT[], queueType?: string }) => handlePlayFromLibrary(nft, context)}
+              isPlaying={isPlaying}
+              currentlyPlaying={currentlyPlaying}
+              handlePlayPause={handlePlayPause}
+              onReset={handleReset}
+              onUserProfileClick={handleDirectUserSelect}
+              onBack={() => {
+                // Go back to previous page or home
+                setCurrentPage({
+                  isHome: true,
+                  isExplore: false,
+                  isLibrary: false,
+                  isProfile: false,
+                  isUserProfile: false
+                });
+                setSelectedUser(null);
+              }}
+              currentUserFid={userFid || 0}
+              onLikeToggle={handleLikeToggle}
+              isNFTLiked={isNFTLiked}
             />
           )}
         </motion.div>
@@ -1722,6 +1754,15 @@ const Demo: React.FC = () => {
       
       // Update global NFT list for player
       window.nftList = nfts;
+      
+      // Navigate to the user profile view
+      setCurrentPage({
+        isHome: false,
+        isExplore: false,
+        isLibrary: false,
+        isProfile: false,
+        isUserProfile: true
+      });
       
       setError(null);
     } catch (error) {

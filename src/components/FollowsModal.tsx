@@ -13,6 +13,7 @@ interface FollowsModalProps {
   type: 'followers' | 'following';
   currentUserFid: number;
   onFollowStatusChange?: (newFollowStatus: boolean, targetFid: number) => void;
+  onUserProfileClick?: (user: FarcasterUser) => void;
 }
 
 interface NotificationProps {
@@ -43,7 +44,8 @@ const FollowsModal: React.FC<FollowsModalProps> = ({
   userFid,
   type,
   currentUserFid,
-  onFollowStatusChange
+  onFollowStatusChange,
+  onUserProfileClick
 }) => {
   const [users, setUsers] = useState<FollowedUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -255,11 +257,29 @@ const FollowsModal: React.FC<FollowsModalProps> = ({
                   {users.map(user => (
                     <li key={user.fid} className="hover:bg-purple-500/5 transition-colors">
                       <div className="flex items-center justify-between px-4 py-3">
-                        <a
-                          href={`https://warpcast.com/${user.username}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center flex-1"
+                        <div 
+                          onClick={() => {
+                            // If we have a custom profile handler, use it
+                            if (onUserProfileClick) {
+                              // Close the modal first
+                              onClose();
+                              // Convert FollowedUser to FarcasterUser format for navigation
+                              const farcasterUser: FarcasterUser = {
+                                fid: user.fid,
+                                username: user.username,
+                                display_name: user.display_name,
+                                pfp_url: user.pfp_url,
+                                follower_count: 0,
+                                following_count: 0
+                              };
+                              // Navigate to the user's profile within the app
+                              onUserProfileClick(farcasterUser);
+                            } else {
+                              // Default fallback to external link if no custom handler
+                              window.open(`https://warpcast.com/${user.username}`, '_blank');
+                            }
+                          }}
+                          className="flex items-center flex-1 cursor-pointer hover:bg-purple-500/10 rounded-lg p-2"
                         >
                           <div className="h-12 w-12 rounded-full overflow-hidden mr-3 border border-purple-400/20">
                             <Image
@@ -274,7 +294,7 @@ const FollowsModal: React.FC<FollowsModalProps> = ({
                             <p className="font-semibold text-white">{user.display_name}</p>
                             <p className="text-sm text-gray-400">@{user.username}</p>
                           </div>
-                        </a>
+                        </div>
                         
                         {currentUserFid !== user.fid && user.fid !== 1014485 && (
                           <button
