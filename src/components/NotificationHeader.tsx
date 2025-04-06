@@ -79,7 +79,7 @@ const NotificationHeader: React.FC<NotificationHeaderProps> = memo(({
       case 'connection':
         return 'bg-purple-600 border-b border-purple-700';
       case 'profile':
-        return 'bg-gray-800 border-b border-gray-900';
+        return 'bg-orange-500 border-b border-orange-600';
       default:
         return 'bg-blue-600 border-b border-blue-700';
     }
