@@ -145,6 +145,7 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
     <>
       <NotificationHeader 
         show={true}
+        type="profile"
         message={user?.username ? `@${user.username}` : 'User profile'}
         autoHideDuration={3000}
         onReset={onReset}

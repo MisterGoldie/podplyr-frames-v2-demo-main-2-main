@@ -1,7 +1,7 @@
 import React, { useState, useEffect, memo } from 'react';
 import Image from 'next/image';
 
-type NotificationType = 'success' | 'info' | 'warning' | 'error' | 'connection';
+type NotificationType = 'success' | 'info' | 'warning' | 'error' | 'connection' | 'profile';
 
 interface NotificationHeaderProps {
   show: boolean;
@@ -78,6 +78,8 @@ const NotificationHeader: React.FC<NotificationHeaderProps> = memo(({
         return 'bg-red-600 border-b border-red-700';
       case 'connection':
         return 'bg-purple-600 border-b border-purple-700';
+      case 'profile':
+        return 'bg-gray-800 border-b border-gray-900';
       default:
         return 'bg-blue-600 border-b border-blue-700';
     }
@@ -110,6 +112,9 @@ const NotificationHeader: React.FC<NotificationHeaderProps> = memo(({
             <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
           </svg>
         );
+      case 'profile':
+        // No icon for profile notifications
+        return null;
       default:
         return (
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
@@ -180,9 +185,11 @@ const NotificationHeader: React.FC<NotificationHeaderProps> = memo(({
           >
             {/* Fixed-width container to ensure consistent layout */}
             <div className="w-full max-w-md flex items-center justify-center px-4">
-              <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center mr-3 flex-shrink-0">
-                {icon || getDefaultIcon()}
-              </div>
+              {(icon || getDefaultIcon()) && (
+                <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center mr-3 flex-shrink-0">
+                  {icon || getDefaultIcon()}
+                </div>
+              )}
               <div className="text-white text-lg flex items-center overflow-hidden">
                 <span className="flex-shrink-0 whitespace-nowrap">{message}</span>
                 {highlightText && (
