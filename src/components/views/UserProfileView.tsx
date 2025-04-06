@@ -178,7 +178,7 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
             {/* Back button */}
             <button 
               onClick={onBack}
-              className="mb-4 flex items-center text-purple-300 hover:text-purple-100 transition-colors"
+              className="mb-4 flex items-center text-purple-300 hover:text-purple-100 transition-colors bg-black/60 px-3 py-1 rounded-full"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L4.414 9H17a1 1 0 110 2H4.414l5.293 5.293a1 1 0 010 1.414z" clipRule="evenodd" />
@@ -217,10 +217,12 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
                 )}
               </div>
               <div className="space-y-2 flex-1 min-w-0">
-                <h2 className="text-2xl font-mono text-green-400 truncate">@{user?.username}</h2>
-                {user?.display_name && (
-                  <p className="text-lg text-white font-semibold">{user.display_name}</p>
-                )}
+                <div className="bg-black/70 px-3 py-2 rounded-lg inline-block">
+                  <h2 className="text-2xl font-mono text-green-400 truncate">@{user?.username}</h2>
+                  {user?.display_name && (
+                    <p className="text-lg text-white font-semibold">{user.display_name}</p>
+                  )}
+                </div>
                 
                 {/* App-specific follower and following counts */}
                 <div className="flex items-center gap-2 mb-2">
@@ -229,7 +231,7 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
                       setFollowsModalType('followers');
                       setShowFollowsModal(true);
                     }}
-                    className="bg-purple-500/20 hover:bg-purple-500/30 active:bg-purple-500/40 transition-colors rounded-full px-3 py-1 inline-flex items-center"
+                    className="bg-black/60 hover:bg-black/70 active:bg-black/80 transition-colors rounded-full px-3 py-1 inline-flex items-center"
                   >
                     <span className="font-mono text-xs text-purple-300 font-medium">
                       {appFollowerCount} Followers
@@ -240,7 +242,7 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
                       setFollowsModalType('following');
                       setShowFollowsModal(true);
                     }}
-                    className="bg-purple-500/20 hover:bg-purple-500/30 active:bg-purple-500/40 transition-colors rounded-full px-3 py-1 inline-flex items-center"
+                    className="bg-black/60 hover:bg-black/70 active:bg-black/80 transition-colors rounded-full px-3 py-1 inline-flex items-center"
                   >
                     <span className="font-mono text-xs text-purple-300 font-medium">
                       {appFollowingCount} Following
