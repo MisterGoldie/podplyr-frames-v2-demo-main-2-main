@@ -204,6 +204,34 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
 
     setCurrentPlayingNFT(nft);
     setCurrentlyPlaying(`${nft.contract}-${nft.tokenId}`);
+    
+    // Make sure the NFT has mediaKey for proper deduplication
+    const mediaKey = nft.mediaKey || getMediaKey(nft);
+    
+    // CRITICAL: Update the recentlyAddedNFT ref immediately to trigger the RecentlyPlayed component
+    if (recentlyAddedNFT && mediaKey) {
+      audioLogger.info(`📢 CRITICAL: Setting recentlyAddedNFT ref to: ${mediaKey}`);
+      // Force a new value to trigger the useEffect in RecentlyPlayed
+      recentlyAddedNFT.current = null;
+      
+      // Small delay to ensure the null value is registered
+      setTimeout(() => {
+        if (recentlyAddedNFT) {
+          recentlyAddedNFT.current = mediaKey;
+          audioLogger.info(`📢 CONFIRMED: recentlyAddedNFT ref set to: ${recentlyAddedNFT.current}`);
+        }
+      }, 50);
+      
+      // Clear the ref after a longer delay
+      setTimeout(() => {
+        if (recentlyAddedNFT && recentlyAddedNFT.current === mediaKey) {
+          audioLogger.info(`📢 CLEARING: recentlyAddedNFT ref after delay`);
+          recentlyAddedNFT.current = null;
+        }
+      }, 5000);
+    } else {
+      audioLogger.error(`❌ Cannot update recentlyAddedNFT ref: ${recentlyAddedNFT ? 'ref exists' : 'ref is null'}, ${mediaKey ? 'mediaKey exists' : 'mediaKey is null'}`);
+    }
 
     // IMPORTANT: Immediately update the Recently Played list regardless of the 25% threshold
     // This ensures users can find NFTs they started playing even if they don't reach 25%
@@ -213,9 +241,8 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
         const newNFT: NFT = { ...nft };
         // Make sure the NFT has mediaKey for proper deduplication
         if (!newNFT.mediaKey) {
-          newNFT.mediaKey = getMediaKey(newNFT);
+          newNFT.mediaKey = mediaKey; // Use the mediaKey we already generated
         }
-        const mediaKey = newNFT.mediaKey;
         
         if (!mediaKey) {
           audioLogger.error('Could not generate mediaKey for NFT:', nft);
@@ -251,17 +278,7 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
         audioLogger.info('Using mediaKey for deduplication:', mediaKey?.substring(0, 12) + '...');
         audioLogger.info('Local recently played update - previous count:', prevNFTs.length, 'new count:', filteredNFTs.length + 1);
         
-        // Track this NFT as recently added to prevent duplicates from subscription
-        if (recentlyAddedNFT && mediaKey) {
-          recentlyAddedNFT.current = mediaKey;
-          
-          // Clear the ref after a delay
-          setTimeout(() => {
-            if (recentlyAddedNFT.current === mediaKey) {
-              recentlyAddedNFT.current = null;
-            }
-          }, 2000);
-        }
+        // We already set the recentlyAddedNFT ref above, no need to do it again here
         
         // Add the new NFT to the beginning and limit to 8 items
         return [newNFT, ...filteredNFTs].slice(0, 8);

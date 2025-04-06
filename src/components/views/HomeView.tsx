@@ -29,6 +29,8 @@ interface HomeViewProps {
   onLikeToggle: (nft: NFT) => Promise<void>;
   likedNFTs: NFT[];
   hasActivePlayer: boolean;
+  currentPlayingNFT?: NFT | null; // Add currentPlayingNFT prop
+  recentlyAddedNFT?: React.MutableRefObject<string | null>; // Add recentlyAddedNFT ref
 }
 
 const HomeView: React.FC<HomeViewProps> = ({
@@ -43,6 +45,8 @@ const HomeView: React.FC<HomeViewProps> = ({
   onLikeToggle,
   likedNFTs,
   hasActivePlayer = false,
+  currentPlayingNFT,
+  recentlyAddedNFT,
 }) => {
   // Get NFT notification context (use directly for instant notifications)
   const { showNotification } = useNFTNotification();
@@ -221,6 +225,8 @@ const HomeView: React.FC<HomeViewProps> = ({
           handlePlayPause={handlePlayPause}
           onLikeToggle={onLikeToggle}
           isNFTLiked={checkDirectlyLiked}
+          currentPlayingNFT={currentPlayingNFT} // Pass the currentPlayingNFT prop
+          recentlyAddedNFT={recentlyAddedNFT} // Pass the recentlyAddedNFT ref
         />
 
         {/* Top Played Section */}

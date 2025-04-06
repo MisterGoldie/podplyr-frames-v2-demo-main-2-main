@@ -997,6 +997,8 @@ const Demo: React.FC = () => {
               onLikeToggle={handleLikeToggle}
               likedNFTs={likedNFTs}
               hasActivePlayer={Boolean(currentPlayingNFT)}
+              currentPlayingNFT={currentPlayingNFT} // Pass the currentPlayingNFT prop
+              recentlyAddedNFT={recentlyAddedNFT} // Pass the recentlyAddedNFT ref
             />
           )}
           {currentPage.isExplore && (

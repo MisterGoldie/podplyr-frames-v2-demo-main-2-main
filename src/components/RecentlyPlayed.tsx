@@ -18,6 +18,7 @@ interface RecentlyPlayedProps {
   handlePlayPause?: () => void;
   onLikeToggle?: (nft: NFT) => Promise<void>;
   isNFTLiked?: (nft: NFT) => boolean;
+  currentPlayingNFT?: NFT | null; // Add currentPlayingNFT prop
 }
 
 const RecentlyPlayed: React.FC<RecentlyPlayedProps> = ({ 
@@ -28,7 +29,8 @@ const RecentlyPlayed: React.FC<RecentlyPlayedProps> = ({
   isPlaying = false,
   handlePlayPause,
   onLikeToggle,
-  isNFTLiked
+  isNFTLiked,
+  currentPlayingNFT
 }) => {
   const [recentlyPlayedNFTs, setRecentlyPlayedNFTs] = useState<NFT[]>([]);
   const [firebaseRecentlyPlayed, setFirebaseRecentlyPlayed] = useState<NFT[]>([]);
@@ -37,6 +39,8 @@ const RecentlyPlayed: React.FC<RecentlyPlayedProps> = ({
   const unsubscribeRef = useRef<(() => void) | null>(null);
   // Create a unique instance ID for this component instance to help with debugging
   const instanceId = useRef<string>(uuidv4().substring(0, 8));
+  // Track processed mediaKeys to prevent infinite loops
+  const processedMediaKeys = useRef<Set<string>>(new Set());
 
   // Initialize local recently played from localStorage if available
   useEffect(() => {
@@ -52,17 +56,18 @@ const RecentlyPlayed: React.FC<RecentlyPlayedProps> = ({
     }
   }, [userFid]);
 
-  // Save local recently played to localStorage when it changes
-  useEffect(() => {
-    if (userFid && localRecentlyPlayed.length > 0) {
+  // We'll handle localStorage updates directly when modifying localRecentlyPlayed
+  // instead of using a useEffect dependency that causes infinite loops
+  const saveToLocalStorage = React.useCallback((items: NFT[]) => {
+    if (userFid && items.length > 0) {
       try {
-        localStorage.setItem(`recentlyPlayed_${userFid}`, JSON.stringify(localRecentlyPlayed));
-        recentlyPlayedLogger.debug(`💾 Saved ${localRecentlyPlayed.length} local recently played NFTs to localStorage`);
+        localStorage.setItem(`recentlyPlayed_${userFid}`, JSON.stringify(items));
+        recentlyPlayedLogger.debug(`💾 Saved ${items.length} local recently played NFTs to localStorage`);
       } catch (error) {
         recentlyPlayedLogger.warn('⚠️ Error saving recently played to localStorage:', error);
       }
     }
-  }, [localRecentlyPlayed, userFid]);
+  }, [userFid]);
 
   // Set up Firebase subscription for recently played NFTs that have reached the 25% threshold
   useEffect(() => {
@@ -131,11 +136,18 @@ const RecentlyPlayed: React.FC<RecentlyPlayedProps> = ({
   // Connect the localRecentlyPlayed state to the useAudioPlayer hook by watching the recentlyAddedNFT ref
   useEffect(() => {
     if (recentlyAddedNFT?.current) {
-      recentlyPlayedLogger.debug(`🎮 Local recently played ref updated: ${recentlyAddedNFT.current}`);
-      
-      // When we get a new recentlyAddedNFT, update the localRecentlyPlayed state
-      // This will be triggered by the useAudioPlayer hook
       const mediaKey = recentlyAddedNFT.current;
+      
+      // Skip if we've already processed this mediaKey to prevent infinite loops
+      if (processedMediaKeys.current.has(mediaKey)) {
+        return;
+      }
+      
+      // Mark this mediaKey as processed
+      processedMediaKeys.current.add(mediaKey);
+      
+      recentlyPlayedLogger.info(`🎮 Local recently played ref updated: ${mediaKey}`);
+      recentlyPlayedLogger.info(`🔑 Using mediaKey from ref: ${mediaKey.substring(0, 15)}...`);
       
       // Find the NFT in either the existing localRecentlyPlayed or in the firebase list
       const existingLocalNFT = localRecentlyPlayed.find(nft => {
@@ -149,7 +161,7 @@ const RecentlyPlayed: React.FC<RecentlyPlayedProps> = ({
       });
       
       // Find the best source NFT to use (we don't have direct access to the current playing NFT)
-      const sourceNFT = existingLocalNFT || firebaseNFT;
+      const sourceNFT = existingLocalNFT || firebaseNFT || currentPlayingNFT;
       
       if (sourceNFT) {
         setLocalRecentlyPlayed(prev => {
@@ -167,12 +179,65 @@ const RecentlyPlayed: React.FC<RecentlyPlayedProps> = ({
             return nftMediaKey !== mediaKey;
           });
           
-          // Add the new NFT to the beginning and limit to 8 items
-          return [newNFT, ...filtered].slice(0, 8);
+          // Create the updated list
+          const updatedList = [newNFT, ...filtered].slice(0, 8);
+          
+          // Save to localStorage using our helper function
+          saveToLocalStorage(updatedList);
+          
+          // Return the updated list for state update
+          return updatedList;
         });
       }
     }
-  }, [recentlyAddedNFT, localRecentlyPlayed, firebaseRecentlyPlayed]);
+  }, [recentlyAddedNFT, localRecentlyPlayed, firebaseRecentlyPlayed, saveToLocalStorage]);
+  
+  // CRITICAL: Update local recently played when currentPlayingNFT changes
+  // This ensures immediate updates when an NFT starts playing
+  useEffect(() => {
+    if (currentPlayingNFT) {
+      // Get the mediaKey for the current playing NFT
+      const mediaKey = currentPlayingNFT.mediaKey || getMediaKey(currentPlayingNFT);
+      
+      // Skip if we've already processed this mediaKey to prevent infinite loops
+      if (processedMediaKeys.current.has(mediaKey)) {
+        return;
+      }
+      
+      // Mark this mediaKey as processed
+      processedMediaKeys.current.add(mediaKey);
+      
+      recentlyPlayedLogger.info(`📢 CRITICAL: Current playing NFT updated: ${currentPlayingNFT.name}`);
+      recentlyPlayedLogger.info(`📢 CRITICAL: Using mediaKey: ${mediaKey}`);
+      
+      // ALWAYS update the local recently played list immediately
+      // This is the key change to ensure the Recently Played section updates right away
+      setLocalRecentlyPlayed(prev => {
+        // Create a new NFT object with the necessary properties
+        const newNFT = { ...currentPlayingNFT };
+        if (!newNFT.mediaKey) {
+          newNFT.mediaKey = mediaKey;
+        }
+        newNFT.addedToRecentlyPlayed = true;
+        newNFT.addedToRecentlyPlayedAt = new Date().getTime();
+        
+        // Filter out any existing version of this NFT
+        const filtered = prev.filter(nft => {
+          const nftMediaKey = nft.mediaKey || getMediaKey(nft);
+          return nftMediaKey !== mediaKey;
+        });
+        
+        // Create the updated list
+        const updatedList = [newNFT, ...filtered].slice(0, 8);
+        
+        // Save to localStorage using our helper function
+        saveToLocalStorage(updatedList);
+        
+        // Return the updated list for state update
+        return updatedList;
+      });
+    }
+  }, [currentPlayingNFT, userFid, saveToLocalStorage]);
 
   // Combine local and Firebase recently played NFTs with local taking priority
   // and deduplicate them based on mediaKey
