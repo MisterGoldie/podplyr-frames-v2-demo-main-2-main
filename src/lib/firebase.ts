@@ -23,7 +23,8 @@ import {
   DocumentSnapshot,
   QueryDocumentSnapshot,
   DocumentData,
-  collectionGroup
+  collectionGroup,
+  startAfter
 } from 'firebase/firestore';
 import type { NFT, FarcasterUser, SearchedUser, NFTPlayData, FollowedUser } from '../types/user';
 import { fetchUserNFTsFromAlchemy } from './alchemy';
@@ -1886,14 +1887,9 @@ export const updatePodplayrFollowerCount = async (): Promise<number> => {
   try {
     console.log('Updating PODPlayr follower count based on total users');
     
-    // Get all users from the users collection
-    const usersRef = collection(db, 'users');
-    const usersSnapshot = await getDocs(usersRef);
-    
-    // Count the total number of users (each document in the users collection represents a user)
-    const totalUsers = usersSnapshot.size;
-    
-    console.log(`Found ${totalUsers} total users in the system`);
+    // Get the actual follower count from the followers subcollection
+    const followerCount = await getFollowersCount(PODPLAYR_ACCOUNT.fid);
+    console.log(`Found ${followerCount} followers in PODPlayr's followers subcollection`);
     
     // Update the PODPlayr account document with the accurate follower count
     const podplayrDocRef = doc(db, 'searchedusers', PODPLAYR_ACCOUNT.fid.toString());
@@ -1902,10 +1898,10 @@ export const updatePodplayrFollowerCount = async (): Promise<number> => {
     if (podplayrDoc.exists()) {
       // Update the existing document with the correct follower count
       await updateDoc(podplayrDocRef, {
-        follower_count: totalUsers,
+        follower_count: followerCount,
         pfp_url: PODPLAYR_ACCOUNT.pfp_url // Ensure profile image is up to date
       });
-      console.log(`Updated PODPlayr follower count to ${totalUsers}`);
+      console.log(`Updated PODPlayr follower count to ${followerCount}`);
     } else {
       // Create the PODPlayr account document if it doesn't exist
       await setDoc(podplayrDocRef, {
@@ -1913,17 +1909,17 @@ export const updatePodplayrFollowerCount = async (): Promise<number> => {
         username: PODPLAYR_ACCOUNT.username,
         display_name: PODPLAYR_ACCOUNT.display_name,
         pfp_url: PODPLAYR_ACCOUNT.pfp_url,
-        follower_count: totalUsers,
+        follower_count: followerCount,
         following_count: 0,
         timestamp: serverTimestamp()
       });
-      console.log(`Created PODPlayr account with follower count ${totalUsers}`);
+      console.log(`Created PODPlayr account with follower count ${followerCount}`);
     }
     
-    // Update the followers subcollection for PODPlayr
-    await updatePodplayrFollowersSubcollection(usersSnapshot.docs);
+    // We don't need to update the followers subcollection here anymore
+    // since we're using the actual followers subcollection count
     
-    return totalUsers;
+    return followerCount;
   } catch (error) {
     console.error('Error updating PODPlayr follower count:', error);
     return 0;
@@ -2177,22 +2173,40 @@ export const getFollowingCount = async (userFid: number): Promise<number> => {
 // Get the count of users that follow the current user
 export const getFollowersCount = async (userFid: number): Promise<number> => {
   try {
-    // Special case for PODPlayr account - return total user count
-    if (userFid === PODPLAYR_ACCOUNT.fid) {
-      // Get total users count
-      const usersRef = collection(db, 'users');
-      const usersSnapshot = await getDocs(usersRef);
-      const totalUsers = usersSnapshot.size;
+    // For ALL accounts (including PODPlayr) - count followers subcollection with pagination
+    const followersRef = collection(db, 'users', userFid.toString(), 'followers');
+    
+    // Use pagination for followers to ensure accurate count
+    let q = query(followersRef, limit(500));
+    let lastDoc = null;
+    let totalFollowers = 0;
+    let hasMoreDocs = true;
+    
+    while (hasMoreDocs) {
+      if (lastDoc) {
+        q = query(followersRef, startAfter(lastDoc), limit(500));
+      }
       
-      // Log the special handling
-      firebaseLogger.info(`Using total users count (${totalUsers}) for PODPlayr followers count`);
-      return totalUsers;
+      const querySnapshot = await getDocs(q);
+      const batchSize = querySnapshot.size;
+      totalFollowers += batchSize;
+      
+      if (batchSize < 500) {
+        hasMoreDocs = false;
+      } else {
+        lastDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
+      }
+      
+      // Log progress for debugging
+      firebaseLogger.info(`Fetched batch of ${batchSize} followers for user ${userFid}, running total: ${totalFollowers}`);
     }
     
-    // Regular case for all other accounts - count followers subcollection
-    const followersRef = collection(db, 'users', userFid.toString(), 'followers');
-    const querySnapshot = await getDocs(followersRef);
-    return querySnapshot.size;
+    // Special logging for PODPlayr account
+    if (userFid === PODPLAYR_ACCOUNT.fid) {
+      firebaseLogger.info(`PODPlayr followers count from subcollection: ${totalFollowers}`);
+    }
+    
+    return totalFollowers;
   } catch (error) {
     console.error('Error getting followers count:', error);
     return 0;

@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useToast } from '../../hooks/useToast';
 import Image from 'next/image';
 import type { NFT, UserContext, FarcasterUser, NFTFile } from '../../types/user';
-import { getFollowersCount, getFollowingCount, isUserFollowed, toggleFollowUser } from '../../lib/firebase';
+import { getFollowersCount, getFollowingCount, isUserFollowed, toggleFollowUser, updatePodplayrFollowerCount, PODPLAYR_ACCOUNT } from '../../lib/firebase';
 import { optimizeImage } from '../../utils/imageOptimizer';
 import NotificationHeader from '../NotificationHeader';
 import FollowsModal from '../FollowsModal';
@@ -74,7 +74,17 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
     const loadFollowCounts = async () => {
       if (user?.fid) {
         try {
-          const followerCount = await getFollowersCount(user.fid);
+          let followerCount;
+          
+          // Special handling for PODPlayr account
+          if (user.fid === PODPLAYR_ACCOUNT.fid) {
+            // Update and get the accurate follower count for PODPlayr
+            followerCount = await updatePodplayrFollowerCount();
+          } else {
+            // Regular follower count for other users
+            followerCount = await getFollowersCount(user.fid);
+          }
+          
           const followingCount = await getFollowingCount(user.fid);
           
           setAppFollowerCount(followerCount);
@@ -145,6 +155,7 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
     <>
       <NotificationHeader 
         show={true}
+        type="profile"
         message={user?.username ? `@${user.username}` : 'User profile'}
         autoHideDuration={3000}
         onReset={onReset}
@@ -163,7 +174,7 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
           onUserProfileClick={onUserProfileClick}
         />
       )}
-      <div className="space-y-8 pt-20 pb-48 overflow-y-auto h-screen overscroll-y-contain">
+      <div className="space-y-4 pt-16 pb-24 overflow-y-auto h-screen overscroll-y-contain">
         {/* Profile Header with Back Button */}
         <div 
           className="border-b border-purple-500/20 shadow-md relative" 
@@ -300,7 +311,7 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
 
         {/* NFT Gallery */}
         <div className="container mx-auto px-4">
-          <h3 className="text-xl font-semibold mb-6 font-mono text-green-400">
+          <h3 className="text-xl font-semibold mb-3 font-mono text-green-400">
             Media NFTs
           </h3>
           
