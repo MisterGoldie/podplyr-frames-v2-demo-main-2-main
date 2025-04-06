@@ -261,46 +261,74 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
                   </button>
                 </div>
                 
-                {/* NFT count - Only show media NFT count */}
+                {/* NFT count and badges in a dark container */}
                 {nfts && (
-                  <div className="flex items-center">
-                    <div className="bg-green-500/20 rounded-full px-3 py-1 inline-flex items-center">
-                      <span className="font-mono text-sm text-green-300 font-medium">
-                        {nfts.filter(nft => {
-                          // Apply the same media filter to the count
-                          let hasMedia = false;
-                          try {
-                            const hasAudio = Boolean(nft.hasValidAudio || 
-                              nft.audio || 
-                              (nft.metadata?.animation_url && (
-                                nft.metadata.animation_url.toLowerCase().endsWith('.mp3') ||
-                                nft.metadata.animation_url.toLowerCase().endsWith('.wav') ||
-                                nft.metadata.animation_url.toLowerCase().endsWith('.m4a') ||
-                                nft.metadata.animation_url.toLowerCase().includes('audio/') ||
-                                nft.metadata.animation_url.toLowerCase().includes('ipfs')
-                              )));
-                            const hasVideo = Boolean(nft.isVideo || 
-                              (nft.metadata?.animation_url && (
-                                nft.metadata.animation_url.toLowerCase().endsWith('.mp4') ||
-                                nft.metadata.animation_url.toLowerCase().endsWith('.webm') ||
-                                nft.metadata.animation_url.toLowerCase().endsWith('.mov') ||
-                                nft.metadata.animation_url.toLowerCase().includes('video/')
-                              )));
-                            const hasMediaInProperties = nft.metadata?.properties?.files?.some((file: any) => {
-                              if (!file) return false;
-                              const fileUrl = (file.uri || file.url || '').toLowerCase();
-                              const fileType = (file.type || file.mimeType || '').toLowerCase();
-                              return fileUrl.endsWith('.mp3') || fileUrl.endsWith('.wav') || fileUrl.endsWith('.m4a') ||
-                                    fileUrl.endsWith('.mp4') || fileUrl.endsWith('.webm') || fileUrl.endsWith('.mov') ||
-                                    fileType.includes('audio/') || fileType.includes('video/');
-                            }) ?? false;
-                            hasMedia = hasAudio || hasVideo || hasMediaInProperties;
-                          } catch (error) {
-                            console.error('Error checking media types in count:', error);
-                          }
-                          return hasMedia;
-                        }).length} Media NFTs
-                      </span>
+                  <div className="bg-black/70 px-3 py-2 rounded-lg inline-block">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="bg-green-500/20 rounded-full px-3 py-1 inline-flex items-center">
+                        <span className="font-mono text-sm text-green-300 font-medium">
+                          {nfts.filter(nft => {
+                            // Apply the same media filter to the count
+                            let hasMedia = false;
+                            try {
+                              const hasAudio = Boolean(nft.hasValidAudio || 
+                                nft.audio || 
+                                (nft.metadata?.animation_url && (
+                                  nft.metadata.animation_url.toLowerCase().endsWith('.mp3') ||
+                                  nft.metadata.animation_url.toLowerCase().endsWith('.wav') ||
+                                  nft.metadata.animation_url.toLowerCase().endsWith('.m4a') ||
+                                  nft.metadata.animation_url.toLowerCase().includes('audio/') ||
+                                  nft.metadata.animation_url.toLowerCase().includes('ipfs')
+                                )));
+                              const hasVideo = Boolean(nft.isVideo || 
+                                (nft.metadata?.animation_url && (
+                                  nft.metadata.animation_url.toLowerCase().endsWith('.mp4') ||
+                                  nft.metadata.animation_url.toLowerCase().endsWith('.webm') ||
+                                  nft.metadata.animation_url.toLowerCase().endsWith('.mov') ||
+                                  nft.metadata.animation_url.toLowerCase().includes('video/')
+                                )));
+                              const hasMediaInProperties = nft.metadata?.properties?.files?.some((file: any) => {
+                                if (!file) return false;
+                                const fileUrl = (file.uri || file.url || '').toLowerCase();
+                                const fileType = (file.type || file.mimeType || '').toLowerCase();
+                                return fileUrl.endsWith('.mp3') || fileUrl.endsWith('.wav') || fileUrl.endsWith('.m4a') ||
+                                      fileUrl.endsWith('.mp4') || fileUrl.endsWith('.webm') || fileUrl.endsWith('.mov') ||
+                                      fileType.includes('audio/') || fileType.includes('video/');
+                              }) ?? false;
+                              hasMedia = hasAudio || hasVideo || hasMediaInProperties;
+                            } catch (error) {
+                              console.error('Error checking media types in count:', error);
+                            }
+                            return hasMedia;
+                          }).length} Media NFTs
+                        </span>
+                      </div>
+                      
+                      {/* THEPOD badge */}
+                      {user?.fid && [15019, 7472, 14871, 414859, 235025, 892616, 323867, 892130].includes(user.fid) && (
+                        <span className="text-xs font-mono px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded-full flex items-center">
+                          thepod
+                        </span>
+                      )}
+                      
+                      {/* ACYL badge */}
+                      {user?.fid && [7472, 14871, 414859, 356115, 296462, 195864, 1020224, 1020659].includes(user.fid) && (
+                        <span className="text-xs font-mono px-2 py-0.5 rounded-full flex items-center font-semibold" 
+                              style={{ 
+                                background: 'linear-gradient(90deg, rgba(255,0,0,0.2) 0%, rgba(255,154,0,0.2) 25%, rgba(208,222,33,0.2) 50%, rgba(79,220,74,0.2) 75%, rgba(63,218,216,0.2) 100%)', 
+                                color: '#f0f0f0',
+                                textShadow: '0 0 2px rgba(0,0,0,0.5)'
+                              }}>
+                          ACYL
+                        </span>
+                      )}
+                      
+                      {/* Official badge for PODPlayr account */}
+                      {user?.fid === PODPLAYR_ACCOUNT.fid && (
+                        <span className="text-xs font-mono px-2 py-0.5 bg-purple-800/40 text-purple-300 rounded-full flex items-center font-semibold">
+                          Official
+                        </span>
+                      )}
                     </div>
                   </div>
                 )}
