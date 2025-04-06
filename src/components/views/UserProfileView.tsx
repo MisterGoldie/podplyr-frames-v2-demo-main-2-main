@@ -3,7 +3,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useToast } from '../../hooks/useToast';
 import Image from 'next/image';
-import { VirtualizedNFTGrid } from '../nft/VirtualizedNFTGrid';
 import type { NFT, UserContext, FarcasterUser } from '../../types/user';
 import { getFollowersCount, getFollowingCount, isUserFollowed, toggleFollowUser } from '../../lib/firebase';
 import { optimizeImage } from '../../utils/imageOptimizer';
@@ -12,6 +11,7 @@ import FollowsModal from '../FollowsModal';
 import { useNFTNotification } from '../../context/NFTNotificationContext';
 import NFTNotification from '../NFTNotification';
 import { getMediaKey } from '../../utils/media';
+import { UserProfileNFTGrid } from '../nft/UserProfileNFTGrid';
 
 interface UserProfileViewProps {
   user: FarcasterUser;
@@ -246,7 +246,7 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
           </h3>
           
           {nfts && nfts.length > 0 ? (
-            <VirtualizedNFTGrid 
+            <UserProfileNFTGrid 
               nfts={nfts}
               onPlayNFT={(nft: NFT) => handlePlayAudio(nft, { queue: nfts, queueType: 'user' })}
               currentlyPlaying={currentlyPlaying}
@@ -254,7 +254,6 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
               handlePlayPause={handlePlayPause}
               isNFTLiked={isNFTLiked}
               onLikeToggle={onLikeToggle}
-              publicCollections={[]}
               userFid={currentUserFid}
             />
           ) : (
