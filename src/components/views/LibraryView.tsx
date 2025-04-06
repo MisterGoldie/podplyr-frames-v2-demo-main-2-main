@@ -177,11 +177,24 @@ class LibraryView extends React.Component<LibraryViewProps> {
   };
 
   componentDidMount() {
-    // Set a short timeout to simulate loading
-    // In a real app, this would be tied to when your data actually loads
-    setTimeout(() => {
+    console.log('🔄 LibraryView mounting - NFT count:', this.props.likedNFTs.length);
+    
+    // Immediately check if we already have liked NFTs and render them
+    if (this.props.likedNFTs.length > 0) {
+      console.log('✅ LibraryView has liked NFTs on mount, immediately rendering');
       this.setState({ isLoading: false });
-    }, 1500);
+      // Force a refresh of the component
+      this.forceUpdate();
+    } else {
+      console.log('⏳ No liked NFTs available yet, showing loading state');
+      // Set a short timeout to finish loading
+      setTimeout(() => {
+        console.log('⌛ Loading timeout complete - NFT count now:', this.props.likedNFTs.length);
+        this.setState({ isLoading: false });
+        // Force a refresh to ensure NFTs are displayed
+        this.forceUpdate();
+      }, 1000);
+    }
   }
 
   componentDidUpdate(prevProps: LibraryViewProps) {
@@ -202,21 +215,39 @@ class LibraryView extends React.Component<LibraryViewProps> {
     }
   }
 
-  // Deduplicate NFTs based on unique contract-tokenId combinations
+  // Deduplicate NFTs based on mediaKey as the primary identifier
+  // with fallback to contract-tokenId
   getUniqueNFTs() {
+    // Log the number of liked NFTs for debugging
+    console.log(`📊 Processing ${this.props.likedNFTs.length} liked NFTs in getUniqueNFTs`); 
+    
     const uniqueNFTs: NFT[] = [];
-    const seenKeys = new Set<string>();
+    const seenMediaKeys = new Set<string>();
+    const seenContractTokenIds = new Set<string>();
     
     for (const nft of this.props.likedNFTs) {
-      if (!nft.contract || !nft.tokenId) continue;
+      // Skip invalid NFTs
+      if (!nft) continue;
       
-      const key = `${nft.contract.toLowerCase()}-${nft.tokenId}`;
-      if (!seenKeys.has(key)) {
-        seenKeys.add(key);
+      // Get the mediaKey for this NFT
+      const mediaKey = getMediaKey(nft);
+      
+      // First try to deduplicate by mediaKey (primary identifier)
+      if (!seenMediaKeys.has(mediaKey)) {
+        seenMediaKeys.add(mediaKey);
         uniqueNFTs.push(nft);
+      }
+      // Fallback to contract-tokenId if available
+      else if (nft.contract && nft.tokenId) {
+        const contractTokenKey = `${nft.contract.toLowerCase()}-${nft.tokenId}`;
+        if (!seenContractTokenIds.has(contractTokenKey)) {
+          seenContractTokenIds.add(contractTokenKey);
+          uniqueNFTs.push(nft);
+        }
       }
     }
     
+    console.log(`✅ Returning ${uniqueNFTs.length} unique NFTs after deduplication`);
     return uniqueNFTs;
   }
 

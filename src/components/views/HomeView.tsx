@@ -82,14 +82,32 @@ const HomeView: React.FC<HomeViewProps> = ({
   // Directly check if an NFT is liked by comparing against likedNFTs prop
   // This is more reliable than depending on context or hooks
   const checkDirectlyLiked = (nftToCheck: NFT): boolean => {
-    if (!nftToCheck || !nftToCheck.contract || !nftToCheck.tokenId) return false;
+    if (!nftToCheck) return false;
     
-    const nftKey = `${nftToCheck.contract}-${nftToCheck.tokenId}`.toLowerCase();
+    // CRITICAL: Use mediaKey as the primary identifier for comparison
+    // This aligns with the core architecture of using mediaKey for all NFT content
+    const mediaKey = nftToCheck.mediaKey || getMediaKey(nftToCheck);
     
-    // Direct comparison with likedNFTs prop from Demo.tsx
-    return likedNFTs.some(likedNFT => 
-      `${likedNFT.contract}-${likedNFT.tokenId}`.toLowerCase() === nftKey
-    );
+    if (mediaKey) {
+      // First try to match by mediaKey (preferred method)
+      const mediaKeyMatch = likedNFTs.some(likedNFT => {
+        const likedMediaKey = likedNFT.mediaKey || getMediaKey(likedNFT);
+        return likedMediaKey === mediaKey;
+      });
+      
+      if (mediaKeyMatch) return true;
+    }
+    
+    // Fallback to contract-tokenId only if mediaKey matching fails
+    if (nftToCheck.contract && nftToCheck.tokenId) {
+      const nftKey = `${nftToCheck.contract}-${nftToCheck.tokenId}`.toLowerCase();
+      return likedNFTs.some(likedNFT => 
+        likedNFT.contract && likedNFT.tokenId &&
+        `${likedNFT.contract}-${likedNFT.tokenId}`.toLowerCase() === nftKey
+      );
+    }
+    
+    return false;
   };
 
   // Get user's FID from context

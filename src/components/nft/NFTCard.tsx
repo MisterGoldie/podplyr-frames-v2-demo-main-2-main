@@ -226,12 +226,49 @@ export const NFTCard: React.FC<NFTCardProps> = ({
       }
     };
     
-    // Add event listener
+    // Handle global like state refresh events
+    const handleGlobalLikeStateRefresh = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const detail = customEvent.detail;
+      
+      if (detail && Array.isArray(detail.likedMediaKeys)) {
+        // Check if this NFT's mediaKey is in the list of liked mediaKeys
+        const isNFTLiked = detail.likedMediaKeys.includes(mediaKey);
+        
+        nftCardLogger.debug('Received global like state refresh event:', {
+          mediaKey,
+          isLiked: isNFTLiked,
+          nftName: nft.name,
+          source: detail.source
+        });
+        
+        // Update the card's DOM attributes
+        if (cardRef.current) {
+          cardRef.current.setAttribute('data-liked', isNFTLiked ? 'true' : 'false');
+          cardRef.current.setAttribute('data-is-liked', isNFTLiked ? 'true' : 'false');
+        }
+        
+        // Force update the NFT object if needed
+        if (nft.isLiked !== isNFTLiked) {
+          // This is a hack to update the NFT object without modifying the original
+          // We can't directly modify nft since it's a prop
+          Object.defineProperty(nft, 'isLiked', {
+            value: isNFTLiked,
+            writable: true,
+            configurable: true
+          });
+        }
+      }
+    };
+    
+    // Add event listeners
     document.addEventListener('nftLikeStateChange', handleLikeStateChange);
+    document.addEventListener('globalLikeStateRefresh', handleGlobalLikeStateRefresh);
     
     // Clean up
     return () => {
       document.removeEventListener('nftLikeStateChange', handleLikeStateChange);
+      document.removeEventListener('globalLikeStateRefresh', handleGlobalLikeStateRefresh);
     };
   }, [mediaKey, nft.contract, nft.tokenId, nft.name]);
   
