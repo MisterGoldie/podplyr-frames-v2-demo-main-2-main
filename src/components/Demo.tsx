@@ -10,6 +10,7 @@ import HomeView from './views/HomeView';
 import ExploreView from './views/ExploreView';
 import LibraryView from './views/LibraryView';
 import ProfileView from './views/ProfileView';
+import RecentlyPlayed from './RecentlyPlayed';
 import TermsOfService from './TermsOfService';
 import { useTerms } from '../context/TermsContext';
 import Image from 'next/image';
@@ -24,8 +25,7 @@ import {
   searchUsers,
   subscribeToRecentSearches,
   toggleLikeNFT,
-  fetchUserNFTs,
-  subscribeToRecentPlays
+  fetchUserNFTs
 } from '../lib/firebase';
 import { fetchUserNFTsFromAlchemy } from '../lib/alchemy';
 import type { NFT, FarcasterUser, SearchedUser, UserContext, LibraryViewProps, ProfileViewProps, NFTFile, NFTPlayData, GroupedNFT } from '../types/user';
@@ -232,30 +232,22 @@ const Demo: React.FC = () => {
       setIsLoading(true);
       setError(null);
       try {
+        demoLogger.info('🔄 Starting initial data load with userFid:', userFid);
+        
         // Get recent searches
         const searches = await getRecentSearches(fid);
         setRecentSearches(searches || []); // Handle potential undefined
+        demoLogger.info('📜 Recent searches loaded:', searches?.length || 0);
 
-        // Subscribe to recently played NFTs
-        if (userFid) {
-          const unsubscribe = subscribeToRecentPlays(userFid, (nfts) => {
-            // Before setting, check if the first NFT is the same as our recently added one
-            if (nfts.length > 0 && recentlyAddedNFT.current) {
-              const firstNFTKey = `${nfts[0].contract}-${nfts[0].tokenId}`.toLowerCase();
-              
-              // If the first NFT is one we just added manually, skip this update
-              if (firstNFTKey === recentlyAddedNFT.current) {
-                demoLogger.debug('Skipping duplicate NFT update', firstNFTKey);
-                return;
-              }
-            }
-            
-            setRecentlyPlayedNFTs(nfts);
-          });
-          return () => unsubscribe();
+        // We no longer need to subscribe to recently played NFTs here
+        // This is now handled by the RecentlyPlayed component
+        if (!userFid) {
+          demoLogger.warn('⚠️ No userFid available for initial data load');
+        } else {
+          demoLogger.info('✅ Initial data load with userFid:', userFid);
         }
       } catch (error) {
-        logger.error('Error loading initial data:', error);
+        demoLogger.error('❌ Error loading initial data:', error);
         setError('Failed to load initial data. Please try again later.');
       } finally {
         setIsLoading(false);
@@ -994,7 +986,7 @@ const Demo: React.FC = () => {
         >
           {currentPage.isHome && (
             <HomeView
-              recentlyPlayedNFTs={recentlyPlayedNFTs}
+              recentlyPlayedNFTs={[]} // We're now using the dedicated RecentlyPlayed component
               topPlayedNFTs={topPlayedNFTs}
               onPlayNFT={(nft: NFT, context?: { queue?: NFT[], queueType?: string }) => handlePlayFromLibrary(nft, context)}
               currentlyPlaying={currentlyPlaying}
@@ -1003,7 +995,11 @@ const Demo: React.FC = () => {
               isLoading={isLoading}
               onReset={handleReset}
               onLikeToggle={handleLikeToggle}
-              likedNFTs={likedNFTs} hasActivePlayer={false}            />
+              likedNFTs={likedNFTs}
+              hasActivePlayer={Boolean(currentPlayingNFT)}
+              currentPlayingNFT={currentPlayingNFT} // Pass the currentPlayingNFT prop
+              recentlyAddedNFT={recentlyAddedNFT} // Pass the recentlyAddedNFT ref
+            />
           )}
           {currentPage.isExplore && (
             <ExploreView
@@ -1627,6 +1623,8 @@ const Demo: React.FC = () => {
           onError={setError}
         />
       )}
+      {/* We no longer need a hidden RecentlyPlayed component since we're using it directly in HomeView */}
+
       <div className="flex-1 container mx-auto px-4 py-6 pb-40"> {/* Removed mt-16 to restore original positioning */}
         {renderCurrentView()}
       </div>
