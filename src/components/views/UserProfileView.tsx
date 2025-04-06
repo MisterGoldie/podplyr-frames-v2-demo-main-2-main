@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useToast } from '../../hooks/useToast';
 import Image from 'next/image';
-import type { NFT, UserContext, FarcasterUser } from '../../types/user';
+import type { NFT, UserContext, FarcasterUser, NFTFile } from '../../types/user';
 import { getFollowersCount, getFollowingCount, isUserFollowed, toggleFollowUser } from '../../lib/firebase';
 import { optimizeImage } from '../../utils/imageOptimizer';
 import NotificationHeader from '../NotificationHeader';
@@ -12,6 +12,8 @@ import { useNFTNotification } from '../../context/NFTNotificationContext';
 import NFTNotification from '../NFTNotification';
 import { getMediaKey } from '../../utils/media';
 import { UserProfileNFTGrid } from '../nft/UserProfileNFTGrid';
+import { logger } from '../../utils/logger';
+import { useUserProfileBackground } from '../../hooks/useUserProfileBackground';
 
 interface UserProfileViewProps {
   user: FarcasterUser;
@@ -27,6 +29,9 @@ interface UserProfileViewProps {
   onLikeToggle: (nft: NFT) => Promise<void>;
   isNFTLiked?: (nft: NFT) => boolean;
 }
+
+// Create logger for NFT filtering in profile view
+const nftLogger = logger.getModuleLogger('ProfileNFTs');
 
 const UserProfileView: React.FC<UserProfileViewProps> = ({
   user,
@@ -48,6 +53,17 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
   const [isFollowingLoading, setIsFollowingLoading] = useState<boolean>(false);
   const toast = useToast();
   const nftNotification = useNFTNotification();
+  
+  // Fetch the viewed user's background image directly
+  const { backgroundImage } = useUserProfileBackground(user?.fid);
+
+  // Extend user with background image if available
+  const extendedUser = useMemo(() => {
+    return {
+      ...user,
+      backgroundImage: backgroundImage
+    };
+  }, [user, backgroundImage]);
 
   // State for follows modal
   const [showFollowsModal, setShowFollowsModal] = useState(false);
@@ -129,7 +145,7 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
     <>
       <NotificationHeader 
         show={true}
-        message="User profile loaded successfully"
+        message={user?.username ? `@${user.username}` : 'User profile'}
         autoHideDuration={3000}
         onReset={onReset}
         onLogoClick={onReset}
@@ -149,12 +165,20 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
       )}
       <div className="space-y-8 pt-20 pb-48 overflow-y-auto h-screen overscroll-y-contain">
         {/* Profile Header with Back Button */}
-        <div className="bg-gradient-to-b from-purple-900/50 to-black border-b border-purple-500/20 shadow-md">
-          <div className="container mx-auto px-4 py-6">
+        <div 
+          className="border-b border-purple-500/20 shadow-md relative" 
+          style={{
+            background: extendedUser?.backgroundImage 
+              ? `url(${extendedUser.backgroundImage}) center/cover no-repeat` 
+              : 'linear-gradient(to bottom, rgba(126, 34, 206, 0.5), #000)'
+          }}
+        >
+          {/* No overlay for better background image visibility */}
+          <div className="container mx-auto px-4 py-6 relative z-10">
             {/* Back button */}
             <button 
               onClick={onBack}
-              className="mb-4 flex items-center text-purple-300 hover:text-purple-100 transition-colors"
+              className="mb-4 flex items-center text-purple-300 hover:text-purple-100 transition-colors bg-black/60 px-3 py-1 rounded-full"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L4.414 9H17a1 1 0 110 2H4.414l5.293 5.293a1 1 0 010 1.414z" clipRule="evenodd" />
@@ -193,10 +217,12 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
                 )}
               </div>
               <div className="space-y-2 flex-1 min-w-0">
-                <h2 className="text-2xl font-mono text-green-400 truncate">@{user?.username}</h2>
-                {user?.display_name && (
-                  <p className="text-lg text-white font-semibold">{user.display_name}</p>
-                )}
+                <div className="bg-black/70 px-3 py-2 rounded-lg inline-block">
+                  <h2 className="text-2xl font-mono text-green-400 truncate">@{user?.username}</h2>
+                  {user?.display_name && (
+                    <p className="text-lg text-white font-semibold">{user.display_name}</p>
+                  )}
+                </div>
                 
                 {/* App-specific follower and following counts */}
                 <div className="flex items-center gap-2 mb-2">
@@ -205,7 +231,7 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
                       setFollowsModalType('followers');
                       setShowFollowsModal(true);
                     }}
-                    className="bg-purple-500/20 hover:bg-purple-500/30 active:bg-purple-500/40 transition-colors rounded-full px-3 py-1 inline-flex items-center"
+                    className="bg-black/60 hover:bg-black/70 active:bg-black/80 transition-colors rounded-full px-3 py-1 inline-flex items-center"
                   >
                     <span className="font-mono text-xs text-purple-300 font-medium">
                       {appFollowerCount} Followers
@@ -216,7 +242,7 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
                       setFollowsModalType('following');
                       setShowFollowsModal(true);
                     }}
-                    className="bg-purple-500/20 hover:bg-purple-500/30 active:bg-purple-500/40 transition-colors rounded-full px-3 py-1 inline-flex items-center"
+                    className="bg-black/60 hover:bg-black/70 active:bg-black/80 transition-colors rounded-full px-3 py-1 inline-flex items-center"
                   >
                     <span className="font-mono text-xs text-purple-300 font-medium">
                       {appFollowingCount} Following
@@ -224,12 +250,45 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
                   </button>
                 </div>
                 
-                {/* NFT count */}
+                {/* NFT count - Only show media NFT count */}
                 {nfts && (
                   <div className="flex items-center">
                     <div className="bg-green-500/20 rounded-full px-3 py-1 inline-flex items-center">
                       <span className="font-mono text-sm text-green-300 font-medium">
-                        {nfts.length} Media NFTs
+                        {nfts.filter(nft => {
+                          // Apply the same media filter to the count
+                          let hasMedia = false;
+                          try {
+                            const hasAudio = Boolean(nft.hasValidAudio || 
+                              nft.audio || 
+                              (nft.metadata?.animation_url && (
+                                nft.metadata.animation_url.toLowerCase().endsWith('.mp3') ||
+                                nft.metadata.animation_url.toLowerCase().endsWith('.wav') ||
+                                nft.metadata.animation_url.toLowerCase().endsWith('.m4a') ||
+                                nft.metadata.animation_url.toLowerCase().includes('audio/') ||
+                                nft.metadata.animation_url.toLowerCase().includes('ipfs')
+                              )));
+                            const hasVideo = Boolean(nft.isVideo || 
+                              (nft.metadata?.animation_url && (
+                                nft.metadata.animation_url.toLowerCase().endsWith('.mp4') ||
+                                nft.metadata.animation_url.toLowerCase().endsWith('.webm') ||
+                                nft.metadata.animation_url.toLowerCase().endsWith('.mov') ||
+                                nft.metadata.animation_url.toLowerCase().includes('video/')
+                              )));
+                            const hasMediaInProperties = nft.metadata?.properties?.files?.some((file: any) => {
+                              if (!file) return false;
+                              const fileUrl = (file.uri || file.url || '').toLowerCase();
+                              const fileType = (file.type || file.mimeType || '').toLowerCase();
+                              return fileUrl.endsWith('.mp3') || fileUrl.endsWith('.wav') || fileUrl.endsWith('.m4a') ||
+                                    fileUrl.endsWith('.mp4') || fileUrl.endsWith('.webm') || fileUrl.endsWith('.mov') ||
+                                    fileType.includes('audio/') || fileType.includes('video/');
+                            }) ?? false;
+                            hasMedia = hasAudio || hasVideo || hasMediaInProperties;
+                          } catch (error) {
+                            console.error('Error checking media types in count:', error);
+                          }
+                          return hasMedia;
+                        }).length} Media NFTs
                       </span>
                     </div>
                   </div>
@@ -246,16 +305,79 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
           </h3>
           
           {nfts && nfts.length > 0 ? (
-            <UserProfileNFTGrid 
-              nfts={nfts}
-              onPlayNFT={(nft: NFT) => handlePlayAudio(nft, { queue: nfts, queueType: 'user' })}
-              currentlyPlaying={currentlyPlaying}
-              isPlaying={isPlaying}
-              handlePlayPause={handlePlayPause}
-              isNFTLiked={isNFTLiked}
-              onLikeToggle={onLikeToggle}
-              userFid={currentUserFid}
-            />
+            <>
+              {(() => {
+                // Filter NFTs to only show media (audio/video) NFTs
+                const filteredNFTs = useMemo(() => {
+                  const filtered = nfts.filter((nft) => {
+                    let hasMedia = false;
+                    
+                    try {
+                      // Check for audio in metadata - Same filtering logic as in ExploreView
+                      const hasAudio = Boolean(nft.hasValidAudio || 
+                        nft.audio || 
+                        (nft.metadata?.animation_url && (
+                          nft.metadata.animation_url.toLowerCase().endsWith('.mp3') ||
+                          nft.metadata.animation_url.toLowerCase().endsWith('.wav') ||
+                          nft.metadata.animation_url.toLowerCase().endsWith('.m4a') ||
+                          // Check for common audio content types
+                          nft.metadata.animation_url.toLowerCase().includes('audio/') ||
+                          // Some NFTs store audio in IPFS
+                          nft.metadata.animation_url.toLowerCase().includes('ipfs')
+                        )));
+
+                      // Check for video in metadata
+                      const hasVideo = Boolean(nft.isVideo || 
+                        (nft.metadata?.animation_url && (
+                          nft.metadata.animation_url.toLowerCase().endsWith('.mp4') ||
+                          nft.metadata.animation_url.toLowerCase().endsWith('.webm') ||
+                          nft.metadata.animation_url.toLowerCase().endsWith('.mov') ||
+                          // Check for common video content types
+                          nft.metadata.animation_url.toLowerCase().includes('video/')
+                        )));
+
+                      // Also check properties.files if they exist
+                      const hasMediaInProperties = nft.metadata?.properties?.files?.some((file: any) => {
+                        if (!file) return false;
+                        const fileUrl = (file.uri || file.url || '').toLowerCase();
+                        const fileType = (file.type || file.mimeType || '').toLowerCase();
+                        
+                        return fileUrl.endsWith('.mp3') || 
+                              fileUrl.endsWith('.wav') || 
+                              fileUrl.endsWith('.m4a') ||
+                              fileUrl.endsWith('.mp4') || 
+                              fileUrl.endsWith('.webm') || 
+                              fileUrl.endsWith('.mov') ||
+                              fileType.includes('audio/') ||
+                              fileType.includes('video/');
+                      }) ?? false;
+
+                      hasMedia = hasAudio || hasVideo || hasMediaInProperties;
+                    } catch (error) {
+                      console.error('Error checking media types:', error);
+                    }
+
+                    return hasMedia;
+                  });
+
+                  nftLogger.info(`Showing ${filtered.length} media NFTs out of ${nfts.length} total NFTs on profile`);
+                  return filtered;
+                }, [nfts]);
+
+                return (
+                  <UserProfileNFTGrid 
+                    nfts={filteredNFTs}
+                    onPlayNFT={(nft: NFT) => handlePlayAudio(nft, { queue: filteredNFTs, queueType: 'user' })}
+                    currentlyPlaying={currentlyPlaying}
+                    isPlaying={isPlaying}
+                    handlePlayPause={handlePlayPause}
+                    isNFTLiked={isNFTLiked}
+                    onLikeToggle={onLikeToggle}
+                    userFid={currentUserFid}
+                  />
+                );
+              })()}
+            </>
           ) : (
             <div className="text-center py-16 text-gray-400">
               No media NFTs found
