@@ -279,9 +279,9 @@ const FollowsModal: React.FC<FollowsModalProps> = ({
                               window.open(`https://warpcast.com/${user.username}`, '_blank');
                             }
                           }}
-                          className="flex items-center flex-1 cursor-pointer rounded-lg p-2"
+                          className="flex items-center cursor-pointer rounded-lg p-2 w-[calc(100%-90px)]" 
                         >
-                          <div className="h-12 w-12 rounded-full overflow-hidden mr-3 border border-purple-400/20">
+                          <div className="h-12 w-12 flex-shrink-0 rounded-full overflow-hidden mr-3 border border-purple-400/20">
                             <Image
                               src={user.pfp_url || '/default-avatar.png'}
                               alt={user.username || 'User profile picture'}
@@ -290,9 +290,9 @@ const FollowsModal: React.FC<FollowsModalProps> = ({
                               className="h-full w-full object-cover"
                             />
                           </div>
-                          <div>
-                            <p className="font-semibold text-white">{user.display_name}</p>
-                            <p className="text-sm text-gray-400">@{user.username}</p>
+                          <div className="min-w-0 w-full overflow-hidden">
+                            <p className="font-semibold text-white truncate max-w-full">{user.display_name}</p>
+                            <p className="text-sm text-gray-400 truncate max-w-full">@{user.username}</p>
                           </div>
                         </div>
                         
@@ -300,20 +300,18 @@ const FollowsModal: React.FC<FollowsModalProps> = ({
                           <button
                             onClick={() => handleToggleFollow(user)}
                             disabled={processingFollow[user.fid]}
-                            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${followStatus[user.fid] 
+                            className={`flex items-center justify-center rounded-lg text-sm font-medium transition-colors w-[80px] h-[32px] ${followStatus[user.fid] 
                               ? 'bg-gray-700 hover:bg-gray-600 text-white' 
                               : 'bg-purple-600 hover:bg-purple-500 text-white'} ${
                                 processingFollow[user.fid] ? 'opacity-70 cursor-not-allowed' : ''
                               }`}
                           >
                             {processingFollow[user.fid] ? (
-                              <span className="flex items-center">
-                                <span className="w-3 h-3 mr-1 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                              </span>
+                              <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
                             ) : followStatus[user.fid] ? (
-                              'Following'
+                              "Following"
                             ) : (
-                              'Follow'
+                              "Follow"
                             )}
                           </button>
                         )}
