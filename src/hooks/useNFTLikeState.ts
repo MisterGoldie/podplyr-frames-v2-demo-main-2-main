@@ -226,12 +226,50 @@ export const useNFTLikeState = (nft: NFT | null, fid: number) => {
       }
     };
     
-    // Add event listener
+    // Handle global like state refresh events
+    const handleGlobalLikeStateRefresh = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const detail = customEvent.detail;
+      
+      if (detail && Array.isArray(detail.likedMediaKeys)) {
+        // Check if this NFT's mediaKey is in the list of liked mediaKeys
+        const isNFTLiked = detail.likedMediaKeys.includes(mediaKey);
+        
+        // Log only when not in playback mode
+        if (!isPlaybackActive()) {
+          likeStateLogger.info('Received global like state refresh event:', { 
+            mediaKey,
+            nftName: nft.name,
+            isLiked: isNFTLiked,
+            source: detail.source,
+            timestamp: new Date().toISOString()
+          });
+        }
+        
+        // Update the local state to match the event
+        setIsLiked(isNFTLiked);
+        setLastUpdated(Date.now());
+        
+        // Update DOM elements with this mediaKey to ensure UI consistency
+        try {
+          document.querySelectorAll(`[data-media-key="${mediaKey}"]`).forEach(element => {
+            element.setAttribute('data-liked', isNFTLiked ? 'true' : 'false');
+            element.setAttribute('data-is-liked', isNFTLiked ? 'true' : 'false');
+          });
+        } catch (error) {
+          likeStateLogger.error('Error updating DOM elements:', error);
+        }
+      }
+    };
+    
+    // Add event listeners
     document.addEventListener('nftLikeStateChange', handleLikeStateChange);
+    document.addEventListener('globalLikeStateRefresh', handleGlobalLikeStateRefresh);
     
     // Clean up
     return () => {
       document.removeEventListener('nftLikeStateChange', handleLikeStateChange);
+      document.removeEventListener('globalLikeStateRefresh', handleGlobalLikeStateRefresh);
     };
   }, [nft]);
   

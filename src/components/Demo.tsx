@@ -172,6 +172,7 @@ const Demo: React.FC = () => {
 
   // Add this near your other state variables
   const [permanentlyRemovedNFTs, setPermanentlyRemovedNFTs] = useState<Set<string>>(new Set());
+  const [likeSyncComplete, setLikeSyncComplete] = useState<boolean>(false);
 
   // Load liked NFTs and recent searches when user changes
   useEffect(() => {
@@ -179,11 +180,75 @@ const Demo: React.FC = () => {
 
     const loadUserData = async () => {
       if (userFid) {
+        logger.info(`[demo] 🔄 Starting initial liked NFTs load for userFid: ${userFid}`);
         try {
           // Load liked NFTs
-          const liked = await getLikedNFTs(userFid);
-          setLikedNFTs(liked);
-
+          const freshLikedNFTs = await getLikedNFTs(userFid);
+          
+          // Filter out permanently removed NFTs
+          const filteredLiked = freshLikedNFTs.filter(item => {
+            const mediaKey = getMediaKey(item);
+            return !permanentlyRemovedNFTs.has(mediaKey);
+          });
+          
+          logger.info(`[demo] 📊 Found ${filteredLiked.length} liked NFTs during initial load`);
+          setLikedNFTs(filteredLiked);
+          
+          // Create a set of liked media keys for efficient lookups
+          const likedMediaKeys = new Set(filteredLiked.map(nft => getMediaKey(nft)));
+          
+          // Update window.nftList for the current page
+          if (currentPage.isLibrary) {
+            window.nftList = filteredLiked;
+          } else if (currentPage.isHome) {
+            // Update recentlyPlayedNFTs and topPlayedNFTs with correct like states
+            const updatedRecentlyPlayed = recentlyPlayedNFTs.map(nft => {
+              const mediaKey = getMediaKey(nft);
+              return { ...nft, isLiked: likedMediaKeys.has(mediaKey) };
+            });
+            
+            const updatedTopPlayed = topPlayedNFTs.map(item => {
+              const mediaKey = getMediaKey(item.nft);
+              return { ...item, nft: { ...item.nft, isLiked: likedMediaKeys.has(mediaKey) } };
+            });
+            
+            window.nftList = [...updatedRecentlyPlayed, ...updatedTopPlayed.map(item => item.nft)];
+          } else if (currentPage.isProfile) {
+            // Update userNFTs with correct like states
+            window.nftList = userNFTs.map(nft => {
+              const mediaKey = getMediaKey(nft);
+              return { ...nft, isLiked: likedMediaKeys.has(mediaKey) };
+            });
+          } else if (currentPage.isExplore) {
+            // Update filteredNFTs with correct like states
+            window.nftList = filteredNFTs.map(nft => {
+              const mediaKey = getMediaKey(nft);
+              return { ...nft, isLiked: likedMediaKeys.has(mediaKey) };
+            });
+          }
+          
+          // Dispatch a custom event to notify all components about the initial like state
+          logger.info(`[demo] 📢 Broadcasting initial like states to all components`);
+          
+          // Use setTimeout to ensure this happens after rendering completes
+          setTimeout(() => {
+            document.dispatchEvent(new CustomEvent('globalLikeStateRefresh', {
+              detail: {
+                likedMediaKeys: Array.from(likedMediaKeys),
+                timestamp: Date.now(),
+                source: 'initial-load'
+              }
+            }));
+            
+            // Also update DOM elements directly for immediate visual feedback
+            likedMediaKeys.forEach(mediaKey => {
+              document.querySelectorAll(`[data-media-key="${mediaKey}"]`).forEach(element => {
+                element.setAttribute('data-liked', 'true');
+                element.setAttribute('data-is-liked', 'true');
+              });
+            });
+          }, 500); // Give components time to render
+          
           // Load recent searches
           const searches = await getRecentSearches(userFid);
           setRecentSearches(searches);
@@ -206,6 +271,58 @@ const Demo: React.FC = () => {
       }
     };
   }, [userFid]);
+
+  // Add a dedicated effect for force-synchronizing like states after initial load
+  // This ensures liked NFTs are properly displayed without requiring navigation
+  useEffect(() => {
+    // Only run this effect when likedNFTs are loaded and not during loading state
+    if (userFid && likedNFTs.length > 0 && !isLoading) {
+      logger.info(`[demo] 🔄 Force synchronizing like states for ${likedNFTs.length} liked NFTs`);
+      
+      // Create a set of liked media keys for efficient lookups
+      const likedMediaKeys = new Set(likedNFTs.map(nft => getMediaKey(nft)));
+      
+      // Broadcast like states to all components multiple times with increasing delays
+      // This ensures all components receive the updates even if they mount at different times
+      const broadcastLikeStates = () => {
+        logger.info(`[demo] 📢 Broadcasting like states for ${likedMediaKeys.size} mediaKeys`);
+        
+        document.dispatchEvent(new CustomEvent('globalLikeStateRefresh', {
+          detail: {
+            likedMediaKeys: Array.from(likedMediaKeys),
+            timestamp: Date.now(),
+            source: 'force-sync'
+          }
+        }));
+        
+        // Also update DOM elements directly
+        likedMediaKeys.forEach(mediaKey => {
+          document.querySelectorAll(`[data-media-key="${mediaKey}"]`).forEach(element => {
+            element.setAttribute('data-liked', 'true');
+            element.setAttribute('data-is-liked', 'true');
+          });
+        });
+      };
+      
+      // Schedule multiple broadcasts with increasing delays
+      // This catches components that mount at different times and improves reliability
+      broadcastLikeStates(); // Immediate broadcast
+      const timeoutIds: NodeJS.Timeout[] = [];
+      
+      // Additional broadcasts with delays
+      [100, 500, 1000, 2000].forEach(delay => {
+        const id = setTimeout(() => {
+          broadcastLikeStates();
+        }, delay);
+        timeoutIds.push(id);
+      });
+      
+      // Clean up timeouts
+      return () => {
+        timeoutIds.forEach(id => clearTimeout(id));
+      };
+    }
+  }, [userFid, likedNFTs, isLoading]);
 
   const {
     isPlaying,
@@ -858,9 +975,9 @@ const Demo: React.FC = () => {
     setSearchResults([]);
     setError(null);
 
-    // If navigating to Library view, FORCE a refresh of liked NFTs from Firebase
-    if (page === 'isLibrary' && userFid) {
-      console.log('🔄 FORCE REFRESHING LIKED NFTS FOR LIBRARY VIEW');
+    // Always fetch fresh liked NFTs regardless of which page we're navigating to
+    if (userFid) {
+      console.log('🔄 REFRESHING LIKED NFTS FOR ALL VIEWS');
       try {
         // Fetch FRESH liked NFTs directly from Firebase
         const freshLikedNFTs = await getLikedNFTs(userFid);
@@ -874,19 +991,85 @@ const Demo: React.FC = () => {
         // Update state with the refreshed NFTs
         console.log(`📊 Found ${filteredLiked.length} liked NFTs in Firebase`); 
         setLikedNFTs(filteredLiked);
-        window.nftList = filteredLiked;
+        
+        // Ensure all NFTs have their isLiked property set correctly
+        const likedMediaKeys = new Set(filteredLiked.map(nft => getMediaKey(nft)));
+        
+        // Update window.nftList based on the current page
+        if (page === 'isLibrary') {
+          window.nftList = filteredLiked;
+        } else if (page === 'isHome') {
+          // Update like state for NFTs in recentlyPlayedNFTs and topPlayedNFTs
+          const updatedRecentlyPlayed = recentlyPlayedNFTs.map(nft => {
+            const mediaKey = getMediaKey(nft);
+            return { ...nft, isLiked: likedMediaKeys.has(mediaKey) };
+          });
+          
+          const updatedTopPlayed = topPlayedNFTs.map(item => {
+            const mediaKey = getMediaKey(item.nft);
+            return { ...item, nft: { ...item.nft, isLiked: likedMediaKeys.has(mediaKey) } };
+          });
+          
+          window.nftList = [...updatedRecentlyPlayed, ...updatedTopPlayed.map(item => item.nft)];
+          
+          // Force update the DOM for all NFTs with matching mediaKeys
+          setTimeout(() => {
+            likedMediaKeys.forEach(mediaKey => {
+              document.querySelectorAll(`[data-media-key="${mediaKey}"]`).forEach(element => {
+                element.setAttribute('data-liked', 'true');
+                element.setAttribute('data-is-liked', 'true');
+              });
+            });
+          }, 100);
+        } else if (page === 'isProfile') {
+          // Update like state for NFTs in userNFTs
+          const updatedUserNFTs = userNFTs.map(nft => {
+            const mediaKey = getMediaKey(nft);
+            return { ...nft, isLiked: likedMediaKeys.has(mediaKey) };
+          });
+          window.nftList = updatedUserNFTs;
+        } else if (page === 'isExplore') {
+          // Update like state for NFTs in filteredNFTs
+          const updatedFilteredNFTs = filteredNFTs.map(nft => {
+            const mediaKey = getMediaKey(nft);
+            return { ...nft, isLiked: likedMediaKeys.has(mediaKey) };
+          });
+          window.nftList = updatedFilteredNFTs;
+        }
+        
+        // Dispatch a custom event to notify all components about the like state update
+        document.dispatchEvent(new CustomEvent('globalLikeStateRefresh', {
+          detail: {
+            likedMediaKeys: Array.from(likedMediaKeys),
+            timestamp: Date.now(),
+            source: 'demo-component'
+          }
+        }));
       } catch (error) {
         console.error('❌ Error refreshing liked NFTs:', error);
         setError('Failed to load your liked NFTs. Please try again.');
+        
+        // Set default window.nftList based on the page
+        if (page === 'isHome') {
+          window.nftList = [...recentlyPlayedNFTs, ...topPlayedNFTs.map(item => item.nft)];
+        } else if (page === 'isProfile') {
+          window.nftList = userNFTs;
+        } else if (page === 'isExplore') {
+          window.nftList = filteredNFTs;
+        } else if (page === 'isLibrary') {
+          window.nftList = likedNFTs;
+        }
       }
     } else {
-      // Update the NFT list for other pages
+      // No user, just set the default window.nftList
       if (page === 'isHome') {
         window.nftList = [...recentlyPlayedNFTs, ...topPlayedNFTs.map(item => item.nft)];
       } else if (page === 'isProfile') {
         window.nftList = userNFTs;
       } else if (page === 'isExplore') {
         window.nftList = filteredNFTs;
+      } else if (page === 'isLibrary') {
+        window.nftList = likedNFTs;
       }
     }
     
