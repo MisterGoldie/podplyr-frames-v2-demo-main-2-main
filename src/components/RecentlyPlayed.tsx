@@ -41,6 +41,22 @@ const RecentlyPlayed: React.FC<RecentlyPlayedProps> = ({
   const instanceId = useRef<string>(uuidv4().substring(0, 8));
   // Track processed mediaKeys to prevent infinite loops
   const processedMediaKeys = useRef<Set<string>>(new Set());
+  
+  // Add a cleanup mechanism for the processedMediaKeys set
+  // This ensures we can process the same NFT again if it's played multiple times
+  useEffect(() => {
+    const clearProcessedKeys = () => {
+      processedMediaKeys.current.clear();
+      recentlyPlayedLogger.debug('🧹 Cleared processed mediaKeys set');
+    };
+    
+    // Clear the set every 5 seconds to allow re-processing
+    const intervalId = setInterval(clearProcessedKeys, 5000);
+    
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, []);
 
   // Initialize local recently played from localStorage if available
   useEffect(() => {
