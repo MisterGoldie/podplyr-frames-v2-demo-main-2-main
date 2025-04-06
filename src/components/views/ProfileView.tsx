@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useToast } from '../../hooks/useToast';
 import Image from 'next/image';
 import { VirtualizedNFTGrid } from '../nft/VirtualizedNFTGrid';
-import type { NFT, UserContext } from '../../types/user';
+import type { NFT, UserContext, FarcasterUser } from '../../types/user';
 import { getLikedNFTs, getFollowersCount, getFollowingCount, updatePodplayrFollowerCount } from '../../lib/firebase';
 import { uploadProfileBackground } from '../../firebase';
 import { fetchUserNFTs } from '../../lib/nft';
@@ -25,6 +25,7 @@ interface ProfileViewProps {
   onReset: () => void;
   onNFTsLoaded: (nfts: NFT[]) => void;
   onLikeToggle: (nft: NFT) => Promise<void>;
+  onUserProfileClick?: (user: FarcasterUser) => void; // New prop for navigating to user profiles
 }
 
 const ProfileView: React.FC<ProfileViewProps> = ({
@@ -36,7 +37,8 @@ const ProfileView: React.FC<ProfileViewProps> = ({
   handlePlayPause,
   onReset,
   onNFTsLoaded,
-  onLikeToggle
+  onLikeToggle,
+  onUserProfileClick
 }) => {
   const [likedNFTs, setLikedNFTs] = useState<NFT[]>([]);
   const toast = useToast();
@@ -315,6 +317,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
           type={followsModalType}
           currentUserFid={userContext.user.fid}
           onFollowStatusChange={handleFollowStatusChange}
+          onUserProfileClick={onUserProfileClick}
         />
       )}
       <div className="space-y-8 pt-20 pb-48 overflow-y-auto h-screen overscroll-y-contain">

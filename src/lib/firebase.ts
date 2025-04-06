@@ -191,6 +191,22 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
     // Update searchedusers collection with user data and search info
     const now = new Date().getTime();
     const searchedUserRef = doc(db, 'searchedusers', user.fid.toString());
+    
+    // For PODPlayr, get the correct follower count from total users
+    let followerCount = user.follower_count;
+    
+    if (user.username === 'podplayr' || user.fid === PODPLAYR_ACCOUNT.fid) {
+      try {
+        // Get the total number of users, which equals the number of PODPlayr followers
+        const usersRef = collection(db, 'users');
+        const usersSnapshot = await getDocs(usersRef);
+        followerCount = usersSnapshot.size;
+        firebaseLogger.info(`Using total users count (${followerCount}) for PODPlayr follower count in trackUserSearch`);
+      } catch (error) {
+        console.error('Error getting total users count for PODPlayr:', error);
+      }
+    }
+    
     const searchedUserData = {
       fid: user.fid,
       username: user.username,
@@ -198,7 +214,7 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
       pfp_url: user.pfp_url,
       custody_address: finalAddresses[0] || null,
       verifiedAddresses: finalAddresses,
-      follower_count: user.follower_count,
+      follower_count: followerCount,
       following_count: user.following_count,
       lastSearched: now,
       searchCount: increment(1)
@@ -2161,6 +2177,19 @@ export const getFollowingCount = async (userFid: number): Promise<number> => {
 // Get the count of users that follow the current user
 export const getFollowersCount = async (userFid: number): Promise<number> => {
   try {
+    // Special case for PODPlayr account - return total user count
+    if (userFid === PODPLAYR_ACCOUNT.fid) {
+      // Get total users count
+      const usersRef = collection(db, 'users');
+      const usersSnapshot = await getDocs(usersRef);
+      const totalUsers = usersSnapshot.size;
+      
+      // Log the special handling
+      firebaseLogger.info(`Using total users count (${totalUsers}) for PODPlayr followers count`);
+      return totalUsers;
+    }
+    
+    // Regular case for all other accounts - count followers subcollection
     const followersRef = collection(db, 'users', userFid.toString(), 'followers');
     const querySnapshot = await getDocs(followersRef);
     return querySnapshot.size;
@@ -2344,12 +2373,40 @@ export const searchUsers = async (query: string): Promise<FarcasterUser[]> => {
         addresses: allAddresses
       });
 
+      // Special handling for PODPlayr account follower count
+      let followerCount = user.follower_count || 0;
+      
+      if (user.fid === PODPLAYR_ACCOUNT.fid) {
+        // This will update asynchronously - not blocking the UI
+        (async () => {
+          try {
+            // Get the total users count - this is the true follower count for PODPlayr
+            const usersRef = collection(db, 'users');
+            const usersSnapshot = await getDocs(usersRef);
+            const totalUsers = usersSnapshot.size;
+            
+            // Only update if the count is different
+            if (totalUsers !== followerCount) {
+              firebaseLogger.info(`Correcting PODPlayr follower count from ${followerCount} to ${totalUsers}`);
+              
+              // Update the searchedusers record with the correct count
+              const podplayrDocRef = doc(db, 'searchedusers', PODPLAYR_ACCOUNT.fid.toString());
+              await updateDoc(podplayrDocRef, {
+                follower_count: totalUsers
+              });
+            }
+          } catch (error) {
+            console.error('Error updating PODPlayr follower count:', error);
+          }
+        })();
+      }
+      
       return {
         fid: user.fid,
         username: user.username,
         display_name: user.display_name || user.username,
         pfp_url: user.pfp_url || `https://avatar.vercel.sh/${user.username}`,
-        follower_count: user.follower_count || 0,
+        follower_count: followerCount,
         following_count: user.following_count || 0,
         custody_address: user.custody_address,
         verified_addresses: {

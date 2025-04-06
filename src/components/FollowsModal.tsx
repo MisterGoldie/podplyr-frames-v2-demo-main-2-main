@@ -13,6 +13,7 @@ interface FollowsModalProps {
   type: 'followers' | 'following';
   currentUserFid: number;
   onFollowStatusChange?: (newFollowStatus: boolean, targetFid: number) => void;
+  onUserProfileClick?: (user: FarcasterUser) => void;
 }
 
 interface NotificationProps {
@@ -43,7 +44,8 @@ const FollowsModal: React.FC<FollowsModalProps> = ({
   userFid,
   type,
   currentUserFid,
-  onFollowStatusChange
+  onFollowStatusChange,
+  onUserProfileClick
 }) => {
   const [users, setUsers] = useState<FollowedUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -253,15 +255,33 @@ const FollowsModal: React.FC<FollowsModalProps> = ({
               ) : (
                 <ul className="divide-y divide-purple-400/10 pb-2">
                   {users.map(user => (
-                    <li key={user.fid} className="hover:bg-purple-500/5 transition-colors">
+                    <li key={user.fid}>
                       <div className="flex items-center justify-between px-4 py-3">
-                        <a
-                          href={`https://warpcast.com/${user.username}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center flex-1"
+                        <div 
+                          onClick={() => {
+                            // If we have a custom profile handler, use it
+                            if (onUserProfileClick) {
+                              // Close the modal first
+                              onClose();
+                              // Convert FollowedUser to FarcasterUser format for navigation
+                              const farcasterUser: FarcasterUser = {
+                                fid: user.fid,
+                                username: user.username,
+                                display_name: user.display_name,
+                                pfp_url: user.pfp_url,
+                                follower_count: 0,
+                                following_count: 0
+                              };
+                              // Navigate to the user's profile within the app
+                              onUserProfileClick(farcasterUser);
+                            } else {
+                              // Default fallback to external link if no custom handler
+                              window.open(`https://warpcast.com/${user.username}`, '_blank');
+                            }
+                          }}
+                          className="flex items-center cursor-pointer rounded-lg p-2 w-[calc(100%-90px)]" 
                         >
-                          <div className="h-12 w-12 rounded-full overflow-hidden mr-3 border border-purple-400/20">
+                          <div className="h-12 w-12 flex-shrink-0 rounded-full overflow-hidden mr-3 border border-purple-400/20">
                             <Image
                               src={user.pfp_url || '/default-avatar.png'}
                               alt={user.username || 'User profile picture'}
@@ -270,30 +290,28 @@ const FollowsModal: React.FC<FollowsModalProps> = ({
                               className="h-full w-full object-cover"
                             />
                           </div>
-                          <div>
-                            <p className="font-semibold text-white">{user.display_name}</p>
-                            <p className="text-sm text-gray-400">@{user.username}</p>
+                          <div className="min-w-0 w-full overflow-hidden">
+                            <p className="font-semibold text-white truncate max-w-full">{user.display_name}</p>
+                            <p className="text-sm text-gray-400 truncate max-w-full">@{user.username}</p>
                           </div>
-                        </a>
+                        </div>
                         
                         {currentUserFid !== user.fid && user.fid !== 1014485 && (
                           <button
                             onClick={() => handleToggleFollow(user)}
                             disabled={processingFollow[user.fid]}
-                            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${followStatus[user.fid] 
+                            className={`flex items-center justify-center rounded-lg text-sm font-medium transition-colors w-[90px] h-[36px] ${followStatus[user.fid] 
                               ? 'bg-gray-700 hover:bg-gray-600 text-white' 
                               : 'bg-purple-600 hover:bg-purple-500 text-white'} ${
                                 processingFollow[user.fid] ? 'opacity-70 cursor-not-allowed' : ''
                               }`}
                           >
                             {processingFollow[user.fid] ? (
-                              <span className="flex items-center">
-                                <span className="w-3 h-3 mr-1 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                              </span>
+                              <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
                             ) : followStatus[user.fid] ? (
-                              'Following'
+                              "Following"
                             ) : (
-                              'Follow'
+                              "Follow"
                             )}
                           </button>
                         )}

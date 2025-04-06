@@ -128,7 +128,12 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
           setAppFollowerCount(followerCount);
           setAppFollowingCount(followingCount);
           
-          console.log(`App follow counts for ${selectedUser.username}: ${followerCount} followers, ${followingCount} following`);
+          // Special logging for PODPlayr - this is our primary PODPlayr account
+          if (selectedUser.username === 'podplayr') {
+            console.log(`App follow counts for ${selectedUser.username}: ${followerCount} followers (total app users), ${followingCount} following`);
+          } else {
+            console.log(`App follow counts for ${selectedUser.username}: ${followerCount} followers, ${followingCount} following`);
+          }
         } catch (error) {
           console.error('Error fetching follow counts:', error);
           // Reset counts on error
@@ -637,8 +642,11 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                         console.log('=== EXPLORE: Direct wallet search from search results ===');
                         console.log('Selected user:', user);
                         
-                        // Track the search before selecting the user
+                        // IMPORTANT: We only track the search when the user actually visits the profile
+                        // This prevents the recently searched list from being populated just by typing
                         if (effectiveUserFid) {
+                          // Only track the search if the user actually clicks to view the profile
+                          console.log('Tracking search for user:', user.username);
                           trackUserSearch(user.username, effectiveUserFid);
                         }
                         
