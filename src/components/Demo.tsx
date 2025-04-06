@@ -1380,12 +1380,12 @@ const Demo: React.FC = () => {
               onReset={handleReset}
               onUserProfileClick={handleDirectUserSelect}
               onBack={() => {
-                // Go back to previous page or home
+                // Go back to profile page instead of home
                 setCurrentPage({
-                  isHome: true,
+                  isHome: false,
                   isExplore: false,
                   isLibrary: false,
-                  isProfile: false,
+                  isProfile: true,
                   isUserProfile: false
                 });
                 setSelectedUser(null);
