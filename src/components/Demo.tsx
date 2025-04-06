@@ -839,7 +839,9 @@ const Demo: React.FC = () => {
     return contractMatch;
   };
 
-  const switchPage = (page: keyof PageState) => {
+  const switchPage = async (page: keyof PageState) => {
+    setIsLoading(true); // Set loading state first
+    
     const newState: PageState = {
       isHome: false,
       isExplore: false,
@@ -847,7 +849,6 @@ const Demo: React.FC = () => {
       isProfile: false
     };
     newState[page] = true;
-    setCurrentPage(newState);
     
     // Reset scroll position when changing pages
     window.scrollTo(0, 0);
@@ -857,16 +858,41 @@ const Demo: React.FC = () => {
     setSearchResults([]);
     setError(null);
 
-    // Update the NFT list for the new page
-    if (page === 'isHome') {
-      window.nftList = [...recentlyPlayedNFTs, ...topPlayedNFTs.map(item => item.nft)];
-    } else if (page === 'isLibrary') {
-      window.nftList = likedNFTs;
-    } else if (page === 'isProfile') {
-      window.nftList = userNFTs;
-    } else if (page === 'isExplore') {
-      window.nftList = filteredNFTs;
+    // If navigating to Library view, FORCE a refresh of liked NFTs from Firebase
+    if (page === 'isLibrary' && userFid) {
+      console.log('🔄 FORCE REFRESHING LIKED NFTS FOR LIBRARY VIEW');
+      try {
+        // Fetch FRESH liked NFTs directly from Firebase
+        const freshLikedNFTs = await getLikedNFTs(userFid);
+        
+        // Filter out permanently removed NFTs
+        const filteredLiked = freshLikedNFTs.filter(item => {
+          const mediaKey = getMediaKey(item);
+          return !permanentlyRemovedNFTs.has(mediaKey);
+        });
+        
+        // Update state with the refreshed NFTs
+        console.log(`📊 Found ${filteredLiked.length} liked NFTs in Firebase`); 
+        setLikedNFTs(filteredLiked);
+        window.nftList = filteredLiked;
+      } catch (error) {
+        console.error('❌ Error refreshing liked NFTs:', error);
+        setError('Failed to load your liked NFTs. Please try again.');
+      }
+    } else {
+      // Update the NFT list for other pages
+      if (page === 'isHome') {
+        window.nftList = [...recentlyPlayedNFTs, ...topPlayedNFTs.map(item => item.nft)];
+      } else if (page === 'isProfile') {
+        window.nftList = userNFTs;
+      } else if (page === 'isExplore') {
+        window.nftList = filteredNFTs;
+      }
     }
+    
+    // Set the current page and finish loading
+    setCurrentPage(newState);
+    setIsLoading(false);
   };
 
   const handleSearch = async (username: string) => {
