@@ -255,7 +255,7 @@ const FollowsModal: React.FC<FollowsModalProps> = ({
               ) : (
                 <ul className="divide-y divide-purple-400/10 pb-2">
                   {users.map(user => (
-                    <li key={user.fid} className="hover:bg-purple-500/5 transition-colors">
+                    <li key={user.fid}>
                       <div className="flex items-center justify-between px-4 py-3">
                         <div 
                           onClick={() => {
@@ -279,7 +279,7 @@ const FollowsModal: React.FC<FollowsModalProps> = ({
                               window.open(`https://warpcast.com/${user.username}`, '_blank');
                             }
                           }}
-                          className="flex items-center flex-1 cursor-pointer hover:bg-purple-500/10 rounded-lg p-2"
+                          className="flex items-center flex-1 cursor-pointer rounded-lg p-2"
                         >
                           <div className="h-12 w-12 rounded-full overflow-hidden mr-3 border border-purple-400/20">
                             <Image
