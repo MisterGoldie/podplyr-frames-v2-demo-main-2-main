@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useToast } from '../../hooks/useToast';
 import Image from 'next/image';
 import type { NFT, UserContext, FarcasterUser, NFTFile } from '../../types/user';
-import { getFollowersCount, getFollowingCount, isUserFollowed, toggleFollowUser, updatePodplayrFollowerCount, PODPLAYR_ACCOUNT } from '../../lib/firebase';
+import { getFollowersCount, getFollowingCount, isUserFollowed, toggleFollowUser, updatePodplayrFollowerCount, PODPLAYR_ACCOUNT, getUserTotalPlays } from '../../lib/firebase';
 import { optimizeImage } from '../../utils/imageOptimizer';
 import NotificationHeader from '../NotificationHeader';
 import FollowsModal from '../FollowsModal';
@@ -49,6 +49,7 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
 }) => {
   const [appFollowerCount, setAppFollowerCount] = useState<number>(0);
   const [appFollowingCount, setAppFollowingCount] = useState<number>(0);
+  const [totalPlays, setTotalPlays] = useState<number>(0);
   const [isFollowed, setIsFollowed] = useState<boolean>(false);
   const [isFollowingLoading, setIsFollowingLoading] = useState<boolean>(false);
   const toast = useToast();
@@ -87,10 +88,14 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
           
           const followingCount = await getFollowingCount(user.fid);
           
+          // Get the user's total play count
+          const plays = await getUserTotalPlays(user.fid);
+          
           setAppFollowerCount(followerCount);
           setAppFollowingCount(followingCount);
+          setTotalPlays(plays);
           
-          console.log(`App follow counts for ${user.username}: ${followerCount} followers, ${followingCount} following`);
+          console.log(`App follow counts for ${user.username}: ${followerCount} followers, ${followingCount} following, ${plays} total plays`);
         } catch (error) {
           console.error('Error loading follow counts:', error);
         }
@@ -261,11 +266,25 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
                   </button>
                 </div>
                 
-                {/* NFT count and badges in a dark container */}
-                {nfts && (
-                  <div className="bg-black/70 px-3 py-2 rounded-lg inline-block">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <div className="bg-green-500/20 rounded-full px-3 py-1 inline-flex items-center">
+                {/* NFT count, play count, and badges in a dark container */}
+                <div className="bg-black/70 px-3 py-2 rounded-lg inline-block mb-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* Total Plays Badge */}
+                    <div className="bg-blue-500/20 rounded-full px-3 py-1 inline-flex items-center gap-1">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-300" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                      </svg>
+                      <span className="font-mono text-sm text-blue-300 font-medium">
+                        {totalPlays.toLocaleString()} Plays
+                      </span>
+                    </div>
+                    
+                    {/* Media NFTs Badge */}
+                    {nfts && (
+                      <div className="bg-green-500/20 rounded-full px-3 py-1 inline-flex items-center gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-300" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+                        </svg>
                         <span className="font-mono text-sm text-green-300 font-medium">
                           {nfts.filter(nft => {
                             // Apply the same media filter to the count
@@ -303,35 +322,40 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
                           }).length} Media NFTs
                         </span>
                       </div>
-                      
-                      {/* THEPOD badge */}
-                      {user?.fid && [15019, 7472, 14871, 414859, 235025, 892616, 323867, 892130].includes(user.fid) && (
-                        <span className="text-xs font-mono px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded-full flex items-center">
-                          thepod
-                        </span>
-                      )}
-                      
-                      {/* ACYL badge */}
-                      {user?.fid && [7472, 14871, 414859, 356115, 296462, 195864, 1020224, 1020659].includes(user.fid) && (
-                        <span className="text-xs font-mono px-2 py-0.5 rounded-full flex items-center font-semibold" 
-                              style={{ 
-                                background: 'linear-gradient(90deg, rgba(255,0,0,0.2) 0%, rgba(255,154,0,0.2) 25%, rgba(208,222,33,0.2) 50%, rgba(79,220,74,0.2) 75%, rgba(63,218,216,0.2) 100%)', 
-                                color: '#f0f0f0',
-                                textShadow: '0 0 2px rgba(0,0,0,0.5)'
-                              }}>
-                          ACYL
-                        </span>
-                      )}
-                      
-                      {/* Official badge for PODPlayr account */}
-                      {user?.fid === PODPLAYR_ACCOUNT.fid && (
-                        <span className="text-xs font-mono px-2 py-0.5 bg-purple-800/40 text-purple-300 rounded-full flex items-center font-semibold">
-                          Official
-                        </span>
-                      )}
-                    </div>
+                    )}
                   </div>
-                )}
+                </div>
+                
+                {/* Badges in a separate container */}
+                <div className="bg-black/70 px-3 py-2 rounded-lg inline-block">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* THEPOD badge */}
+                    {user?.fid && [15019, 7472, 14871, 414859, 235025, 892616, 323867, 892130].includes(user.fid) && (
+                      <span className="text-xs font-mono px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded-full flex items-center">
+                        thepod
+                      </span>
+                    )}
+                    
+                    {/* ACYL badge */}
+                    {user?.fid && [7472, 14871, 414859, 356115, 296462, 195864, 1020224, 1020659].includes(user.fid) && (
+                      <span className="text-xs font-mono px-2 py-0.5 rounded-full flex items-center font-semibold" 
+                            style={{ 
+                              background: 'linear-gradient(90deg, rgba(255,0,0,0.2) 0%, rgba(255,154,0,0.2) 25%, rgba(208,222,33,0.2) 50%, rgba(79,220,74,0.2) 75%, rgba(63,218,216,0.2) 100%)', 
+                              color: '#f0f0f0',
+                              textShadow: '0 0 2px rgba(0,0,0,0.5)'
+                            }}>
+                        ACYL
+                      </span>
+                    )}
+                    
+                    {/* Official badge for PODPlayr account */}
+                    {user?.fid === PODPLAYR_ACCOUNT.fid && (
+                      <span className="text-xs font-mono px-2 py-0.5 bg-purple-800/40 text-purple-300 rounded-full flex items-center font-semibold">
+                        Official
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
