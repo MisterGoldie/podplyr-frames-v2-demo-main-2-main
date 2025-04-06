@@ -2301,6 +2301,48 @@ export const subscribeToFollowers = (userFid: number, callback: (users: Followed
   });
 };
 
+// Get total play count for a user
+export const getUserTotalPlays = async (userFid: number): Promise<number> => {
+  try {
+    if (!userFid) {
+      console.error('Invalid userFid provided to getUserTotalPlays');
+      return 0;
+    }
+    
+    const userRef = doc(db, 'users', userFid.toString());
+    const playHistoryRef = collection(userRef, 'playHistory');
+    
+    // Use pagination to count all plays in case there are many
+    let q = query(playHistoryRef, limit(500));
+    let totalPlays = 0;
+    let lastDoc = null;
+    let hasMoreDocs = true;
+    
+    while (hasMoreDocs) {
+      if (lastDoc) {
+        q = query(playHistoryRef, startAfter(lastDoc), limit(500));
+      }
+      
+      const querySnapshot = await getDocs(q);
+      const batchSize = querySnapshot.size;
+      
+      totalPlays += batchSize;
+      
+      if (batchSize < 500) {
+        hasMoreDocs = false;
+      } else {
+        lastDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
+      }
+    }
+    
+    console.log(`Total plays for user ${userFid}: ${totalPlays}`);
+    return totalPlays;
+  } catch (error) {
+    console.error('Error getting user total plays:', error);
+    return 0;
+  }
+};
+
 export const searchUsers = async (query: string): Promise<FarcasterUser[]> => {
   // Clear any pending search
   if (searchTimeout) clearTimeout(searchTimeout);
