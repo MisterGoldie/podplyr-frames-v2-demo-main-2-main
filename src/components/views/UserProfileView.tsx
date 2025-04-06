@@ -145,7 +145,7 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
     <>
       <NotificationHeader 
         show={true}
-        message="User profile loaded successfully"
+        message={user?.username ? `@${user.username}` : 'User profile'}
         autoHideDuration={3000}
         onReset={onReset}
         onLogoClick={onReset}
