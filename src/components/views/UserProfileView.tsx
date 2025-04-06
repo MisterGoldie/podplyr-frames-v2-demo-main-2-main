@@ -13,6 +13,7 @@ import NFTNotification from '../NFTNotification';
 import { getMediaKey } from '../../utils/media';
 import { UserProfileNFTGrid } from '../nft/UserProfileNFTGrid';
 import { logger } from '../../utils/logger';
+import { useUserProfileBackground } from '../../hooks/useUserProfileBackground';
 
 interface UserProfileViewProps {
   user: FarcasterUser;
@@ -52,6 +53,17 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
   const [isFollowingLoading, setIsFollowingLoading] = useState<boolean>(false);
   const toast = useToast();
   const nftNotification = useNFTNotification();
+  
+  // Fetch the viewed user's background image directly
+  const { backgroundImage } = useUserProfileBackground(user?.fid);
+
+  // Extend user with background image if available
+  const extendedUser = useMemo(() => {
+    return {
+      ...user,
+      backgroundImage: backgroundImage
+    };
+  }, [user, backgroundImage]);
 
   // State for follows modal
   const [showFollowsModal, setShowFollowsModal] = useState(false);
@@ -153,8 +165,16 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
       )}
       <div className="space-y-8 pt-20 pb-48 overflow-y-auto h-screen overscroll-y-contain">
         {/* Profile Header with Back Button */}
-        <div className="bg-gradient-to-b from-purple-900/50 to-black border-b border-purple-500/20 shadow-md">
-          <div className="container mx-auto px-4 py-6">
+        <div 
+          className="border-b border-purple-500/20 shadow-md relative" 
+          style={{
+            background: extendedUser?.backgroundImage 
+              ? `url(${extendedUser.backgroundImage}) center/cover no-repeat` 
+              : 'linear-gradient(to bottom, rgba(126, 34, 206, 0.5), #000)'
+          }}
+        >
+          {/* No overlay for better background image visibility */}
+          <div className="container mx-auto px-4 py-6 relative z-10">
             {/* Back button */}
             <button 
               onClick={onBack}
