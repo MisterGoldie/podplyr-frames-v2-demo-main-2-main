@@ -1721,15 +1721,29 @@ const Demo: React.FC = () => {
     
     // Then track the search
     if (userFid) {
-      await trackUserSearch(user.username, userFid);
-      
-      // Get updated recent searches
-      const searches = await getRecentSearches(userFid);
-      setRecentSearches(searches);
+      try {
+        // Get the updated user data with complete profile information including bio
+        const updatedUserData = await trackUserSearch(user.username, userFid);
+        
+        // Get updated recent searches
+        const searches = await getRecentSearches(userFid);
+        setRecentSearches(searches);
+        
+        // Now set selected user with the updated data that includes profile and bio
+        setSelectedUser(updatedUserData);
+      } catch (error) {
+        logger.error('Error tracking user search:', error);
+        // Fall back to using the original user data if there was an error
+        setSelectedUser(user);
+      }
+    } else {
+      // If no userFid, just set the selected user without tracking
+      // Ensure the user has a profile object with bio even if it's empty
+      setSelectedUser({
+        ...user,
+        profile: user.profile || { bio: "" }
+      });
     }
-    
-    // Now set selected user AFTER clearing search results
-    setSelectedUser(user);
     
     // Continue with wallet search
     setIsLoading(true);
