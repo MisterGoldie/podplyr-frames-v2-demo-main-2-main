@@ -14,6 +14,7 @@ import { getMediaKey } from '../../utils/media';
 import { UserProfileNFTGrid } from '../nft/UserProfileNFTGrid';
 import { logger } from '../../utils/logger';
 import { useUserProfileBackground } from '../../hooks/useUserProfileBackground';
+import UserInfoPanel from '../user/UserInfoPanel';
 
 interface UserProfileViewProps {
   user: FarcasterUser;
@@ -52,6 +53,7 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
   const [totalPlays, setTotalPlays] = useState<number>(0);
   const [isFollowed, setIsFollowed] = useState<boolean>(false);
   const [isFollowingLoading, setIsFollowingLoading] = useState<boolean>(false);
+  const [showInfoPanel, setShowInfoPanel] = useState<boolean>(false);
   const toast = useToast();
   const nftNotification = useNFTNotification();
   
@@ -191,16 +193,30 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
         >
           {/* No overlay for better background image visibility */}
           <div className="container mx-auto px-4 py-6 relative z-10">
-            {/* Back button */}
-            <button 
-              onClick={onBack}
-              className="mb-4 flex items-center text-purple-300 hover:text-purple-100 transition-colors bg-black/60 px-3 py-1 rounded-full"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L4.414 9H17a1 1 0 110 2H4.414l5.293 5.293a1 1 0 010 1.414z" clipRule="evenodd" />
-              </svg>
-              Back
-            </button>
+            {/* Top navigation bar with back button and info button */}
+            <div className="flex justify-between items-center mb-4">
+              {/* Back button */}
+              <button 
+                onClick={onBack}
+                className="flex items-center text-purple-300 hover:text-purple-100 transition-colors bg-black/60 px-3 py-1 rounded-full"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L4.414 9H17a1 1 0 110 2H4.414l5.293 5.293a1 1 0 010 1.414z" clipRule="evenodd" />
+                </svg>
+                Back
+              </button>
+              
+              {/* Info button */}
+              <button 
+                onClick={() => setShowInfoPanel(true)}
+                className="bg-black/70 hover:bg-black/80 active:bg-black/90 transition-colors rounded-full p-2 inline-flex items-center justify-center"
+                aria-label="Show user info"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor" className="text-purple-300">
+                  <path d="M440-280h80v-240h-80v240Zm40-320q17 0 28.5-11.5T520-640q0-17-11.5-28.5T480-680q-17 0-28.5 11.5T440-640q0 17 11.5 28.5T480-600Zm0 520q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z"/>
+                </svg>
+              </button>
+            </div>
 
             <div className="flex items-start md:items-center flex-col md:flex-row gap-6">
               <div className="relative">
@@ -266,65 +282,50 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
                   </button>
                 </div>
                 
-                {/* NFT count, play count, and badges in a dark container */}
-                <div className="bg-black/70 px-3 py-2 rounded-lg inline-block mb-2">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {/* Total Plays Badge */}
-                    <div className="bg-blue-500/20 rounded-full px-3 py-1 inline-flex items-center gap-1">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-300" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-                      </svg>
-                      <span className="font-mono text-sm text-blue-300 font-medium">
-                        {totalPlays.toLocaleString()} Plays
-                      </span>
-                    </div>
-                    
-                    {/* Media NFTs Badge */}
-                    {nfts && (
-                      <div className="bg-green-500/20 rounded-full px-3 py-1 inline-flex items-center gap-1">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-300" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
-                        </svg>
-                        <span className="font-mono text-sm text-green-300 font-medium">
-                          {nfts.filter(nft => {
-                            // Apply the same media filter to the count
-                            let hasMedia = false;
-                            try {
-                              const hasAudio = Boolean(nft.hasValidAudio || 
-                                nft.audio || 
-                                (nft.metadata?.animation_url && (
-                                  nft.metadata.animation_url.toLowerCase().endsWith('.mp3') ||
-                                  nft.metadata.animation_url.toLowerCase().endsWith('.wav') ||
-                                  nft.metadata.animation_url.toLowerCase().endsWith('.m4a') ||
-                                  nft.metadata.animation_url.toLowerCase().includes('audio/') ||
-                                  nft.metadata.animation_url.toLowerCase().includes('ipfs')
-                                )));
-                              const hasVideo = Boolean(nft.isVideo || 
-                                (nft.metadata?.animation_url && (
-                                  nft.metadata.animation_url.toLowerCase().endsWith('.mp4') ||
-                                  nft.metadata.animation_url.toLowerCase().endsWith('.webm') ||
-                                  nft.metadata.animation_url.toLowerCase().endsWith('.mov') ||
-                                  nft.metadata.animation_url.toLowerCase().includes('video/')
-                                )));
-                              const hasMediaInProperties = nft.metadata?.properties?.files?.some((file: any) => {
-                                if (!file) return false;
-                                const fileUrl = (file.uri || file.url || '').toLowerCase();
-                                const fileType = (file.type || file.mimeType || '').toLowerCase();
-                                return fileUrl.endsWith('.mp3') || fileUrl.endsWith('.wav') || fileUrl.endsWith('.m4a') ||
-                                      fileUrl.endsWith('.mp4') || fileUrl.endsWith('.webm') || fileUrl.endsWith('.mov') ||
-                                      fileType.includes('audio/') || fileType.includes('video/');
-                              }) ?? false;
-                              hasMedia = hasAudio || hasVideo || hasMediaInProperties;
-                            } catch (error) {
-                              console.error('Error checking media types in count:', error);
-                            }
-                            return hasMedia;
-                          }).length} Media NFTs
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
+
+                
+                {/* User Info Panel */}
+                {showInfoPanel && (
+                  <UserInfoPanel
+                    user={user}
+                    totalPlays={totalPlays}
+                    nftCount={nfts ? nfts.filter(nft => {
+                      // Apply the same media filter to the count
+                      let hasMedia = false;
+                      try {
+                        const hasAudio = Boolean(nft.hasValidAudio || 
+                          nft.audio || 
+                          (nft.metadata?.animation_url && (
+                            nft.metadata.animation_url.toLowerCase().endsWith('.mp3') ||
+                            nft.metadata.animation_url.toLowerCase().endsWith('.wav') ||
+                            nft.metadata.animation_url.toLowerCase().endsWith('.m4a') ||
+                            nft.metadata.animation_url.toLowerCase().includes('audio/') ||
+                            nft.metadata.animation_url.toLowerCase().includes('ipfs')
+                          )));
+                        const hasVideo = Boolean(nft.isVideo || 
+                          (nft.metadata?.animation_url && (
+                            nft.metadata.animation_url.toLowerCase().endsWith('.mp4') ||
+                            nft.metadata.animation_url.toLowerCase().endsWith('.webm') ||
+                            nft.metadata.animation_url.toLowerCase().endsWith('.mov') ||
+                            nft.metadata.animation_url.toLowerCase().includes('video/')
+                          )));
+                        const hasMediaInProperties = nft.metadata?.properties?.files?.some((file: any) => {
+                          if (!file) return false;
+                          const fileUrl = (file.uri || file.url || '').toLowerCase();
+                          const fileType = (file.type || file.mimeType || '').toLowerCase();
+                          return fileUrl.endsWith('.mp3') || fileUrl.endsWith('.wav') || fileUrl.endsWith('.m4a') ||
+                                fileUrl.endsWith('.mp4') || fileUrl.endsWith('.webm') || fileUrl.endsWith('.mov') ||
+                                fileType.includes('audio/') || fileType.includes('video/');
+                        }) ?? false;
+                        hasMedia = hasAudio || hasVideo || hasMediaInProperties;
+                      } catch (error) {
+                        console.error('Error checking media types in count:', error);
+                      }
+                      return hasMedia;
+                    }).length : 0}
+                    onClose={() => setShowInfoPanel(false)}
+                  />
+                )}
                 
                 {/* Badges in a separate container */}
                 <div className="bg-black/70 px-3 py-2 rounded-lg inline-block">
