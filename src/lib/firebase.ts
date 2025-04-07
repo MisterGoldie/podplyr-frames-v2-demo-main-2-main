@@ -253,10 +253,29 @@ export const trackUserSearch = async (username: string, fid: number): Promise<Fa
     await addDoc(searchRef, searchRecord);
     firebaseLogger.info('Search tracked successfully');
 
+    // Extract bio from the API response and normalize it to a string
+    let bioText = "";
+    const bio = user.profile?.bio;
+    
+    // Handle different possible bio formats
+    if (typeof bio === 'string') {
+      bioText = bio;
+    } else if (bio && typeof bio === 'object') {
+      // Some APIs return bio as an object with a text property
+      const bioObj = bio as any;
+      bioText = bioObj.text || "";
+    }
+    
+    // Ensure we include the profile object with bio as a string
     return {
       ...user,
       custody_address: finalAddresses[0] || null,
-      verifiedAddresses: finalAddresses
+      verifiedAddresses: finalAddresses,
+      // Include profile object with bio as a normalized string
+      profile: {
+        ...(user.profile || {}),
+        bio: bioText
+      }
     };
   } catch (error) {
     firebaseLogger.error('Error tracking user search:', error);
@@ -2518,6 +2537,19 @@ export const searchUsers = async (query: string): Promise<FarcasterUser[]> => {
         })();
       }
       
+      // Extract bio from the API response and normalize it to a string
+      let bioText = "";
+      const bio = user.profile?.bio;
+      
+      // Handle different possible bio formats
+      if (typeof bio === 'string') {
+        bioText = bio;
+      } else if (bio && typeof bio === 'object') {
+        // Some APIs return bio as an object with a text property
+        const bioObj = bio as any;
+        bioText = bioObj.text || "";
+      }
+      
       return {
         fid: user.fid,
         username: user.username,
@@ -2528,6 +2560,10 @@ export const searchUsers = async (query: string): Promise<FarcasterUser[]> => {
         custody_address: user.custody_address,
         verified_addresses: {
           eth_addresses: allAddresses
+        },
+        // Include profile object with bio as a string
+        profile: {
+          bio: bioText
         }
       };
     });

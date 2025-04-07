@@ -290,7 +290,11 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
                 {/* User Info Panel */}
                 {showInfoPanel && (
                   <UserInfoPanel
-                    user={user}
+                    user={{
+                      ...user,
+                      // Ensure user always has a profile object with bio
+                      profile: user.profile || { bio: "" }
+                    }}
                     totalPlays={totalPlays}
                     likedNFTsCount={likedNFTsCount}
                     nftCount={nfts ? nfts.filter(nft => {
