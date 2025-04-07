@@ -1715,18 +1715,19 @@ const Demo: React.FC = () => {
 
   // Add a direct wallet search function that bypasses search results
   const handleDirectUserSelect = async (user: FarcasterUser) => {
+    // Store the target user FID to prevent race conditions
+    const targetUserFid = user.fid;
+    
     // First set loading state to prevent interactions during transition
     setIsLoading(true);
     
-    // Clear current NFTs immediately to prevent UI mismatch during transition
+    // Cancel any pending operations by clearing all data immediately
     setUserNFTs([]);
     setFilteredNFTs([]);
     window.nftList = [];
-    
-    // Set search results to empty array
     setSearchResults([]);
     
-    // Navigate to the user profile view first
+    // Navigate to the user profile view first with a clean slate
     setCurrentPage({
       isHome: false,
       isExplore: false,
@@ -1735,12 +1736,27 @@ const Demo: React.FC = () => {
       isUserProfile: true
     });
     
-    // Then track the search
-    let profileUser = user;
+    // Create a local copy of the user to prevent reference issues
+    let profileUser = {...user};
+    
+    // Track the search and get complete user data
     if (userFid) {
       try {
+        // Verify we're still loading the same user before continuing
+        if (targetUserFid !== user.fid) {
+          logger.warn('User changed during profile load, aborting previous operation');
+          return;
+        }
+        
         // Get the updated user data with complete profile information including bio
         const updatedUserData = await trackUserSearch(user.username, userFid);
+        
+        // Double-check we're still on the same user
+        if (targetUserFid !== user.fid) {
+          logger.warn('User changed after search tracking, aborting previous operation');
+          return;
+        }
+        
         profileUser = updatedUserData;
         
         // Get updated recent searches
@@ -1759,11 +1775,29 @@ const Demo: React.FC = () => {
     }
     
     // Set the user profile - only after we have complete data
+    // Check again that we're still loading the same user
+    if (targetUserFid !== user.fid) {
+      logger.warn('User changed before setting profile data, aborting');
+      setIsLoading(false);
+      return;
+    }
+    
     setSelectedUser(profileUser);
     
     try {
       // Load NFTs for this user directly from Farcaster API/database
-      const nfts = await fetchUserNFTs(user.fid);
+      logger.info(`Loading NFTs for user ${user.username} (FID: ${targetUserFid})`);
+      const nfts = await fetchUserNFTs(targetUserFid);
+      
+      // Final verification that we're still on the same user before updating UI
+      if (targetUserFid !== user.fid) {
+        logger.warn('User changed during NFT fetch, aborting update');
+        setIsLoading(false);
+        return;
+      }
+      
+      // Log NFT loading success
+      logger.info(`Successfully loaded ${nfts.length} NFTs for ${user.username} (FID: ${targetUserFid})`);
       
       // Count by media type (for debugging only, not displayed)
       const audioNFTs = nfts.filter(nft => nft.hasValidAudio).length;
@@ -1777,7 +1811,7 @@ const Demo: React.FC = () => {
         }
       });
       
-      // Only set the NFTs once we have them all loaded
+      // Only set the NFTs once we have them all loaded and we're still on the same user
       setUserNFTs(nfts);
       setFilteredNFTs(nfts);
       
@@ -1786,10 +1820,16 @@ const Demo: React.FC = () => {
       
       setError(null);
     } catch (error) {
-      logger.error('Error loading user NFTs:', error);
-      setError('Error loading NFTs');
+      // Only show error if we're still on the same user
+      if (targetUserFid === user.fid) {
+        logger.error(`Error loading NFTs for ${user.username} (FID: ${targetUserFid}):`, error);
+        setError('Error loading NFTs');
+      }
     } finally {
-      setIsLoading(false);
+      // Only update loading state if we're still on the same user
+      if (targetUserFid === user.fid) {
+        setIsLoading(false);
+      }
     }
   };
 
