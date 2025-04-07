@@ -138,12 +138,18 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
     return filtered;
   }, [nfts]);
   
+  // Use a ref to track the current user FID for cancellation
+  const currentLoadingFidRef = useRef<number | null>(null);
+  
   // Reset state when user changes
   useEffect(() => {
     // If user FID changed, reset all state values
     if (user?.fid !== prevUserFidRef.current) {
       // Store the new FID
       prevUserFidRef.current = user?.fid || null;
+      
+      // Update the current loading FID to the new user
+      currentLoadingFidRef.current = user?.fid || null;
       
       // Reset all counts and states
       setAppFollowerCount(0);
@@ -154,41 +160,88 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
       
       // We're loading new data
       setIsDataLoading(true);
+      
+      console.log(`User profile changed to: ${user?.username} (FID: ${user?.fid})`); 
     }
-  }, [user?.fid]);
+  }, [user?.fid, user?.username]);
   
   // Load follower and following counts
   useEffect(() => {
+    // Store the current FID we're loading for
+    const targetFid = user?.fid;
+    if (!targetFid) return;
+    
+    // Update the current loading FID
+    currentLoadingFidRef.current = targetFid;
+    
+    // Set loading state
+    setIsDataLoading(true);
+    
     const loadFollowCounts = async () => {
-      if (user?.fid) {
-        setIsDataLoading(true);
-        try {
-          let followerCount;
-          
-          // Special handling for PODPlayr account
-          if (user.fid === PODPLAYR_ACCOUNT.fid) {
-            // Update and get the accurate follower count for PODPlayr
-            followerCount = await updatePodplayrFollowerCount();
-          } else {
-            // Regular follower count for other users
-            followerCount = await getFollowersCount(user.fid);
-          }
-          
-          const followingCount = await getFollowingCount(user.fid);
-          
-          // Get the user's total play count and liked NFTs count
-          const plays = await getUserTotalPlays(user.fid);
-          const liked = await getUserLikedNFTsCount(user.fid);
-          
-          setAppFollowerCount(followerCount);
-          setAppFollowingCount(followingCount);
-          setTotalPlays(plays);
-          setLikedNFTsCount(liked);
-          
-          console.log(`App stats for ${user.username}: ${followerCount} followers, ${followingCount} following, ${plays} total plays, ${liked} liked NFTs`);
-        } catch (error) {
-          console.error('Error loading follow counts:', error);
-        } finally {
+      // If the user has changed since we started loading, abort
+      if (targetFid !== currentLoadingFidRef.current) {
+        console.log(`Aborting load for previous user ${user?.username} (FID: ${targetFid}), new user selected`);
+        return;
+      }
+      
+      try {
+        let followerCount;
+        
+        // Special handling for PODPlayr account
+        if (targetFid === PODPLAYR_ACCOUNT.fid) {
+          // Update and get the accurate follower count for PODPlayr
+          followerCount = await updatePodplayrFollowerCount();
+        } else {
+          // Regular follower count for other users
+          followerCount = await getFollowersCount(targetFid);
+        }
+        
+        // Check if user changed during this async operation
+        if (targetFid !== currentLoadingFidRef.current) {
+          console.log(`User changed during follower count fetch, aborting`);
+          return;
+        }
+        
+        const followingCount = await getFollowingCount(targetFid);
+        
+        // Check if user changed during this async operation
+        if (targetFid !== currentLoadingFidRef.current) {
+          console.log(`User changed during following count fetch, aborting`);
+          return;
+        }
+        
+        // Get the user's total play count and liked NFTs count
+        const plays = await getUserTotalPlays(targetFid);
+        
+        // Check if user changed during this async operation
+        if (targetFid !== currentLoadingFidRef.current) {
+          console.log(`User changed during play count fetch, aborting`);
+          return;
+        }
+        
+        const liked = await getUserLikedNFTsCount(targetFid);
+        
+        // Final check if user changed during any async operation
+        if (targetFid !== currentLoadingFidRef.current) {
+          console.log(`User changed during liked NFTs count fetch, aborting`);
+          return;
+        }
+        
+        // Only update state if this is still the current user
+        setAppFollowerCount(followerCount);
+        setAppFollowingCount(followingCount);
+        setTotalPlays(plays);
+        setLikedNFTsCount(liked);
+        
+        console.log(`App stats for ${user?.username} (FID: ${targetFid}): ${followerCount} followers, ${followingCount} following, ${plays} total plays, ${liked} liked NFTs`);
+      } catch (error) {
+        // Only show error if this is still the current user
+        if (targetFid === currentLoadingFidRef.current) {
+          console.error(`Error loading follow counts for ${user?.username} (FID: ${targetFid}):`, error);
+        }
+      } finally {
+        // Only update loading state if this is still the current user
+        if (targetFid === currentLoadingFidRef.current) {
           setIsDataLoading(false);
         }
       }
@@ -196,16 +249,31 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
 
     // Check if current user follows this user
     const checkFollowStatus = async () => {
-      if (currentUserFid && user?.fid && currentUserFid !== user.fid) {
-        try {
-          const followed = await isUserFollowed(currentUserFid, user.fid);
+      const targetFid = user?.fid;
+      if (!currentUserFid || !targetFid || currentUserFid === targetFid) return;
+      
+      try {
+        // Check if user changed during this async operation
+        if (targetFid !== currentLoadingFidRef.current) {
+          console.log(`User changed before follow status check, aborting`);
+          return;
+        }
+        
+        const followed = await isUserFollowed(currentUserFid, targetFid);
+        
+        // Only update state if this is still the current user
+        if (targetFid === currentLoadingFidRef.current) {
           setIsFollowed(followed);
-        } catch (error) {
-          console.error('Error checking follow status:', error);
+        }
+      } catch (error) {
+        // Only show error if this is still the current user
+        if (targetFid === currentLoadingFidRef.current) {
+          console.error(`Error checking follow status for ${user?.username} (FID: ${targetFid}):`, error);
         }
       }
     };
 
+    // Start loading data
     loadFollowCounts();
     checkFollowStatus();
   }, [user?.fid, currentUserFid, user?.username]);
