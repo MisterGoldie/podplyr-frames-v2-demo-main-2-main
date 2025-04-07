@@ -1721,11 +1721,15 @@ const Demo: React.FC = () => {
     // First set loading state to prevent interactions during transition
     setIsLoading(true);
     
-    // Cancel any pending operations by clearing all data immediately
+    // IMPORTANT: Clear all NFT data immediately to prevent showing previous user's NFTs
+    // This is critical to prevent cross-user NFT display issues
     setUserNFTs([]);
     setFilteredNFTs([]);
     window.nftList = [];
     setSearchResults([]);
+    
+    // Set the selected user to null first to ensure clean state transition
+    setSelectedUser(null);
     
     // Navigate to the user profile view first with a clean slate
     setCurrentPage({
@@ -1745,6 +1749,7 @@ const Demo: React.FC = () => {
         // Verify we're still loading the same user before continuing
         if (targetUserFid !== user.fid) {
           logger.warn('User changed during profile load, aborting previous operation');
+          setIsLoading(false);
           return;
         }
         
@@ -1754,6 +1759,7 @@ const Demo: React.FC = () => {
         // Double-check we're still on the same user
         if (targetUserFid !== user.fid) {
           logger.warn('User changed after search tracking, aborting previous operation');
+          setIsLoading(false);
           return;
         }
         
@@ -1782,52 +1788,55 @@ const Demo: React.FC = () => {
       return;
     }
     
+    // Now that we've verified everything, set the selected user
     setSelectedUser(profileUser);
     
     try {
       // Load NFTs for this user directly from Farcaster API/database
-      logger.info(`Loading NFTs for user ${user.username} (FID: ${targetUserFid})`);
+      logger.info(`Loading NFTs for user ${profileUser.username} (FID: ${targetUserFid})`);
       const nfts = await fetchUserNFTs(targetUserFid);
       
       // Final verification that we're still on the same user before updating UI
-      if (targetUserFid !== user.fid) {
+      if (targetUserFid !== profileUser.fid) {
         logger.warn('User changed during NFT fetch, aborting update');
         setIsLoading(false);
         return;
       }
       
       // Log NFT loading success
-      logger.info(`Successfully loaded ${nfts.length} NFTs for ${user.username} (FID: ${targetUserFid})`);
+      logger.info(`Successfully loaded ${nfts.length} NFTs for ${profileUser.username} (FID: ${targetUserFid})`);
       
-      // Count by media type (for debugging only, not displayed)
-      const audioNFTs = nfts.filter(nft => nft.hasValidAudio).length;
-      const videoNFTs = nfts.filter(nft => nft.isVideo).length;
-      const bothTypes = nfts.filter(nft => nft.hasValidAudio && nft.isVideo).length; 
-      
-      const contractCounts: Record<string, number> = {};
-      nfts.forEach(nft => {
-        if (nft.contract) {
-          contractCounts[nft.contract] = (contractCounts[nft.contract] || 0) + 1;
-        }
-      });
+      // Add user FID to each NFT to ensure proper ownership tracking
+      const nftsWithOwnership = nfts.map(nft => ({
+        ...nft,
+        ownerFid: targetUserFid // Add explicit owner FID to each NFT
+      }));
       
       // Only set the NFTs once we have them all loaded and we're still on the same user
-      setUserNFTs(nfts);
-      setFilteredNFTs(nfts);
+      setUserNFTs(nftsWithOwnership);
+      setFilteredNFTs(nftsWithOwnership);
       
-      // Update global NFT list for player
-      window.nftList = nfts;
+      // CRITICAL: Always reset the global NFT list when switching users
+      if (nftsWithOwnership && nftsWithOwnership.length > 0) {
+        // Update global NFT list for player ONLY if there are actual NFTs
+        window.nftList = [...nftsWithOwnership]; // Create a new array to avoid reference issues
+      } else {
+        // For users with no NFTs, ALWAYS set an empty array to prevent showing previous user's NFTs
+        window.nftList = [];
+        // Also clear any cached NFT data
+        logger.info(`User ${profileUser.username} (FID: ${targetUserFid}) has no NFTs, clearing player queue and cached data`);
+      }
       
       setError(null);
     } catch (error) {
       // Only show error if we're still on the same user
-      if (targetUserFid === user.fid) {
-        logger.error(`Error loading NFTs for ${user.username} (FID: ${targetUserFid}):`, error);
+      if (targetUserFid === profileUser.fid) {
+        logger.error(`Error loading NFTs for ${profileUser.username} (FID: ${targetUserFid}):`, error);
         setError('Error loading NFTs');
       }
     } finally {
       // Only update loading state if we're still on the same user
-      if (targetUserFid === user.fid) {
+      if (targetUserFid === profileUser.fid) {
         setIsLoading(false);
       }
     }
