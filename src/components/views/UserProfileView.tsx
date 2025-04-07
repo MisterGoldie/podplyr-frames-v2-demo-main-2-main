@@ -143,6 +143,10 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
   
   // Reset state when user changes
   useEffect(() => {
+    // Always set loading state to true when user changes, even if it's null
+    // This ensures we show the loading state between user transitions
+    setIsDataLoading(true);
+    
     // If user FID changed, reset all state values
     if (user?.fid !== prevUserFidRef.current) {
       // Store the new FID
@@ -158,9 +162,6 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
       setLikedNFTsCount(0);
       setIsFollowed(false);
       
-      // We're loading new data
-      setIsDataLoading(true);
-      
       console.log(`User profile changed to: ${user?.username} (FID: ${user?.fid})`); 
     }
   }, [user?.fid, user?.username]);
@@ -171,9 +172,15 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
     if (nfts !== undefined) {
       // Make sure we're still looking at the same user
       if (user?.fid === currentLoadingFidRef.current) {
-        // Set loading to false since we now have data (even if it's empty)
-        setIsDataLoading(false);
-        console.log(`NFTs loaded for ${user?.username} (FID: ${user?.fid}), setting loading state to false`);
+        // Add a small delay before setting loading to false
+        // This ensures we don't show the empty state prematurely
+        setTimeout(() => {
+          // Double-check we're still on the same user after the timeout
+          if (user?.fid === currentLoadingFidRef.current) {
+            setIsDataLoading(false);
+            console.log(`NFTs loaded for ${user?.username} (FID: ${user?.fid}), setting loading state to false`);
+          }
+        }, 300); // 300ms delay to ensure NFTs have time to fully process
       }
     }
   }, [nfts, user?.fid, user?.username]);
@@ -574,12 +581,13 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
           </h3>
           
           {/* Display filtered media NFTs */}
-          {isDataLoading ? (
+          {/* ALWAYS show loading state if isDataLoading is true */}
+          {isDataLoading || nfts === undefined || nfts === null ? (
             <div className="text-center py-12 bg-black/30 rounded-xl border border-purple-500/20">
               <div className="w-12 h-12 mx-auto border-t-4 border-l-4 border-purple-500 rounded-full animate-spin"></div>
               <p className="mt-4 text-purple-300 font-mono">Loading NFTs...</p>
             </div>
-          ) : nfts && nfts.length > 0 ? (
+          ) : nfts.length > 0 ? (
             filteredNFTs.length > 0 ? (
               <UserProfileNFTGrid 
                 nfts={filteredNFTs}
@@ -609,6 +617,8 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
               </div>
             )
           ) : (
+            // Only show the "No NFTs" message when we're absolutely certain the user has no NFTs
+            // This is the final state after loading is complete and we know there are no NFTs
             <div className="text-center py-12 bg-black/30 rounded-xl border border-purple-500/20">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-purple-400/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />

@@ -1729,7 +1729,12 @@ const Demo: React.FC = () => {
     setSearchResults([]);
     
     // Set the selected user to null first to ensure clean state transition
+    // This forces a complete re-render and ensures the loading state is shown
     setSelectedUser(null);
+    
+    // Small delay to ensure the UI shows the loading state before proceeding
+    // This prevents flickering between users
+    await new Promise(resolve => setTimeout(resolve, 50));
     
     // Navigate to the user profile view first with a clean slate
     setCurrentPage({
@@ -1794,6 +1799,11 @@ const Demo: React.FC = () => {
     try {
       // Load NFTs for this user directly from Farcaster API/database
       logger.info(`Loading NFTs for user ${profileUser.username} (FID: ${targetUserFid})`);
+      
+      // Ensure we have a longer loading state to prevent premature "No NFTs" message
+      // This helps with race conditions where the NFT data might take longer to load
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       const nfts = await fetchUserNFTs(targetUserFid);
       
       // Final verification that we're still on the same user before updating UI
@@ -1811,6 +1821,16 @@ const Demo: React.FC = () => {
         ...nft,
         ownerFid: targetUserFid // Add explicit owner FID to each NFT
       }));
+      
+      // Add a small delay before updating the UI to ensure loading states are properly shown
+      await new Promise(resolve => setTimeout(resolve, 150));
+      
+      // Final check to make sure we're still on the same user
+      if (targetUserFid !== profileUser.fid) {
+        logger.warn('User changed after NFT processing, aborting update');
+        setIsLoading(false);
+        return;
+      }
       
       // Only set the NFTs once we have them all loaded and we're still on the same user
       setUserNFTs(nftsWithOwnership);
