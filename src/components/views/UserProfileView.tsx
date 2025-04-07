@@ -138,12 +138,18 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
     return filtered;
   }, [nfts]);
   
+  // Use a ref to track the current user FID for cancellation
+  const currentLoadingFidRef = useRef<number | null>(null);
+  
   // Reset state when user changes
   useEffect(() => {
     // If user FID changed, reset all state values
     if (user?.fid !== prevUserFidRef.current) {
       // Store the new FID
       prevUserFidRef.current = user?.fid || null;
+      
+      // Update the current loading FID to the new user
+      currentLoadingFidRef.current = user?.fid || null;
       
       // Reset all counts and states
       setAppFollowerCount(0);
@@ -154,41 +160,120 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
       
       // We're loading new data
       setIsDataLoading(true);
+      
+      console.log(`User profile changed to: ${user?.username} (FID: ${user?.fid})`); 
     }
-  }, [user?.fid]);
+  }, [user?.fid, user?.username]);
+  
+  // Handle NFTs loading completion
+  useEffect(() => {
+    // If we have a definitive answer about NFTs (either loaded or empty)
+    if (nfts !== undefined) {
+      // Make sure we're still looking at the same user
+      if (user?.fid === currentLoadingFidRef.current) {
+        // Set loading to false since we now have data (even if it's empty)
+        setIsDataLoading(false);
+        console.log(`NFTs loaded for ${user?.username} (FID: ${user?.fid}), setting loading state to false`);
+      }
+    }
+  }, [nfts, user?.fid, user?.username]);
+  
+  // Add a safety timeout to prevent infinite loading
+  useEffect(() => {
+    if (isDataLoading && user?.fid) {
+      // Store the current user we're setting the timeout for
+      const timeoutFid = user.fid;
+      
+      // Set a timeout to force loading to false after 5 seconds
+      const timeoutId = setTimeout(() => {
+        // Only update if we're still on the same user
+        if (timeoutFid === currentLoadingFidRef.current) {
+          console.log(`Loading timeout reached for ${user.username} (FID: ${user.fid}), forcing loading state to false`);
+          setIsDataLoading(false);
+        }
+      }, 5000); // 5 second timeout
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [isDataLoading, user?.fid, user?.username]);
   
   // Load follower and following counts
   useEffect(() => {
+    // Store the current FID we're loading for
+    const targetFid = user?.fid;
+    if (!targetFid) return;
+    
+    // Update the current loading FID
+    currentLoadingFidRef.current = targetFid;
+    
+    // Set loading state
+    setIsDataLoading(true);
+    
     const loadFollowCounts = async () => {
-      if (user?.fid) {
-        setIsDataLoading(true);
-        try {
-          let followerCount;
-          
-          // Special handling for PODPlayr account
-          if (user.fid === PODPLAYR_ACCOUNT.fid) {
-            // Update and get the accurate follower count for PODPlayr
-            followerCount = await updatePodplayrFollowerCount();
-          } else {
-            // Regular follower count for other users
-            followerCount = await getFollowersCount(user.fid);
-          }
-          
-          const followingCount = await getFollowingCount(user.fid);
-          
-          // Get the user's total play count and liked NFTs count
-          const plays = await getUserTotalPlays(user.fid);
-          const liked = await getUserLikedNFTsCount(user.fid);
-          
-          setAppFollowerCount(followerCount);
-          setAppFollowingCount(followingCount);
-          setTotalPlays(plays);
-          setLikedNFTsCount(liked);
-          
-          console.log(`App stats for ${user.username}: ${followerCount} followers, ${followingCount} following, ${plays} total plays, ${liked} liked NFTs`);
-        } catch (error) {
-          console.error('Error loading follow counts:', error);
-        } finally {
+      // If the user has changed since we started loading, abort
+      if (targetFid !== currentLoadingFidRef.current) {
+        console.log(`Aborting load for previous user ${user?.username} (FID: ${targetFid}), new user selected`);
+        return;
+      }
+      
+      try {
+        let followerCount;
+        
+        // Special handling for PODPlayr account
+        if (targetFid === PODPLAYR_ACCOUNT.fid) {
+          // Update and get the accurate follower count for PODPlayr
+          followerCount = await updatePodplayrFollowerCount();
+        } else {
+          // Regular follower count for other users
+          followerCount = await getFollowersCount(targetFid);
+        }
+        
+        // Check if user changed during this async operation
+        if (targetFid !== currentLoadingFidRef.current) {
+          console.log(`User changed during follower count fetch, aborting`);
+          return;
+        }
+        
+        const followingCount = await getFollowingCount(targetFid);
+        
+        // Check if user changed during this async operation
+        if (targetFid !== currentLoadingFidRef.current) {
+          console.log(`User changed during following count fetch, aborting`);
+          return;
+        }
+        
+        // Get the user's total play count and liked NFTs count
+        const plays = await getUserTotalPlays(targetFid);
+        
+        // Check if user changed during this async operation
+        if (targetFid !== currentLoadingFidRef.current) {
+          console.log(`User changed during play count fetch, aborting`);
+          return;
+        }
+        
+        const liked = await getUserLikedNFTsCount(targetFid);
+        
+        // Final check if user changed during any async operation
+        if (targetFid !== currentLoadingFidRef.current) {
+          console.log(`User changed during liked NFTs count fetch, aborting`);
+          return;
+        }
+        
+        // Only update state if this is still the current user
+        setAppFollowerCount(followerCount);
+        setAppFollowingCount(followingCount);
+        setTotalPlays(plays);
+        setLikedNFTsCount(liked);
+        
+        console.log(`App stats for ${user?.username} (FID: ${targetFid}): ${followerCount} followers, ${followingCount} following, ${plays} total plays, ${liked} liked NFTs`);
+      } catch (error) {
+        // Only show error if this is still the current user
+        if (targetFid === currentLoadingFidRef.current) {
+          console.error(`Error loading follow counts for ${user?.username} (FID: ${targetFid}):`, error);
+        }
+      } finally {
+        // Only update loading state if this is still the current user
+        if (targetFid === currentLoadingFidRef.current) {
           setIsDataLoading(false);
         }
       }
@@ -196,16 +281,31 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
 
     // Check if current user follows this user
     const checkFollowStatus = async () => {
-      if (currentUserFid && user?.fid && currentUserFid !== user.fid) {
-        try {
-          const followed = await isUserFollowed(currentUserFid, user.fid);
+      const targetFid = user?.fid;
+      if (!currentUserFid || !targetFid || currentUserFid === targetFid) return;
+      
+      try {
+        // Check if user changed during this async operation
+        if (targetFid !== currentLoadingFidRef.current) {
+          console.log(`User changed before follow status check, aborting`);
+          return;
+        }
+        
+        const followed = await isUserFollowed(currentUserFid, targetFid);
+        
+        // Only update state if this is still the current user
+        if (targetFid === currentLoadingFidRef.current) {
           setIsFollowed(followed);
-        } catch (error) {
-          console.error('Error checking follow status:', error);
+        }
+      } catch (error) {
+        // Only show error if this is still the current user
+        if (targetFid === currentLoadingFidRef.current) {
+          console.error(`Error checking follow status for ${user?.username} (FID: ${targetFid}):`, error);
         }
       }
     };
 
+    // Start loading data
     loadFollowCounts();
     checkFollowStatus();
   }, [user?.fid, currentUserFid, user?.username]);
@@ -272,8 +372,8 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
         />
       )}
       
-      {/* Loading Overlay - show when data is loading or when NFTs array is empty */}
-      {(isDataLoading || nfts.length === 0) && (
+      {/* Loading Overlay - only show when data is actually loading */}
+      {isDataLoading && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center">
           <div className="flex flex-col items-center">
             <div className="w-16 h-16 border-t-4 border-l-4 border-purple-500 rounded-full animate-spin"></div>
@@ -474,11 +574,24 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
           </h3>
           
           {/* Display filtered media NFTs */}
-          {nfts && nfts.length > 0 ? (
+          {isDataLoading ? (
+            <div className="text-center py-12 bg-black/30 rounded-xl border border-purple-500/20">
+              <div className="w-12 h-12 mx-auto border-t-4 border-l-4 border-purple-500 rounded-full animate-spin"></div>
+              <p className="mt-4 text-purple-300 font-mono">Loading NFTs...</p>
+            </div>
+          ) : nfts && nfts.length > 0 ? (
             filteredNFTs.length > 0 ? (
               <UserProfileNFTGrid 
                 nfts={filteredNFTs}
-                onPlayNFT={(nft: NFT) => handlePlayAudio(nft, { queue: filteredNFTs, queueType: 'user' })}
+                onPlayNFT={(nft: NFT) => {
+                  // Only allow playing NFTs that belong to this user
+                  // Double-check ownership using both the ref and the NFT's ownerFid property
+                  if (user?.fid === prevUserFidRef.current && (!nft.ownerFid || nft.ownerFid === user?.fid)) {
+                    handlePlayAudio(nft, { queue: filteredNFTs, queueType: 'user' });
+                  } else {
+                    console.warn('User changed or NFT ownership mismatch, ignoring play request');
+                  }
+                }}
                 currentlyPlaying={currentlyPlaying}
                 isPlaying={isPlaying}
                 handlePlayPause={handlePlayPause}
@@ -487,13 +600,21 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
                 userFid={currentUserFid}
               />
             ) : (
-              <div className="text-center py-16 text-gray-400">
-                No media NFTs found for this profile
+              <div className="text-center py-12 bg-black/30 rounded-xl border border-purple-500/20">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-purple-400/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                </svg>
+                <p className="mt-4 text-purple-300 font-mono">No media NFTs found</p>
+                <p className="mt-2 text-gray-400 text-sm">This user has NFTs but none with audio or video content</p>
               </div>
             )
           ) : (
-            <div className="text-center py-16 text-gray-400">
-              No media NFTs found
+            <div className="text-center py-12 bg-black/30 rounded-xl border border-purple-500/20">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-purple-400/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+              <p className="mt-4 text-purple-300 font-mono">No NFTs found</p>
+              <p className="mt-2 text-gray-400 text-sm">{user?.username || 'This user'} doesn't have any NFTs</p>
             </div>
           )}
         </div>

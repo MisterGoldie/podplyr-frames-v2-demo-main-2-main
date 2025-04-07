@@ -32,7 +32,7 @@ const UserInfoPanel: React.FC<UserInfoPanelProps> = ({
   }, [user]);
 
   return (
-    <div className="fixed inset-0 z-[101] flex items-end justify-center px-4 pb-40 pointer-events-none">
+    <div className="fixed inset-0 z-[101] flex items-center justify-center pointer-events-none">
       {/* Backdrop overlay with fade animation */}
       <div 
         className={`absolute inset-0 bg-black/40 backdrop-blur-sm pointer-events-auto ${
@@ -41,9 +41,9 @@ const UserInfoPanel: React.FC<UserInfoPanelProps> = ({
         onClick={handleClose}
       ></div>
       
-      {/* Info panel with slide-up animation */}
+      {/* Info panel centered in the viewport */}
       <div 
-        className={`relative bg-gray-900/95 backdrop-blur-lg rounded-xl p-5 shadow-2xl border border-purple-400/30 w-full max-w-sm pointer-events-auto ${
+        className={`relative bg-gray-900/95 backdrop-blur-lg rounded-xl p-5 shadow-2xl border border-purple-400/30 w-full max-w-sm mx-4 pointer-events-auto ${
           isClosing ? 'animate-slide-down' : 'animate-slide-up'
         }`}
       >

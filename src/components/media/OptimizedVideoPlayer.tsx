@@ -97,9 +97,9 @@ export const OptimizedVideoPlayer: React.FC<OptimizedVideoPlayerProps> = ({
   // Generate a consistent videoId for this component instance
   const getVideoId = () => `video-${nft.contract}-${nft.tokenId}`;
   
-  // Load the video when it becomes visible
+  // Load the video when it becomes visible AND autoPlay is true
   useEffect(() => {
-    if (!videoRef.current || !isVisible) return;
+    if (!videoRef.current || !isVisible || !autoPlay) return;
     
     const video = videoRef.current;
     
@@ -113,34 +113,53 @@ export const OptimizedVideoPlayer: React.FC<OptimizedVideoPlayerProps> = ({
     };
     
     const handleError = (e: Event) => {
-      console.error('Video loading error:', e);
-      onError?.(new Error('Failed to load video'));
+      // Silently handle errors when just browsing profiles
+      setPlaybackError('Error loading video');
+      // Only log error to console, don't propagate unless explicitly playing
+      if (autoPlay) {
+        console.error('Video loading error:', e);
+        onError?.(new Error('Failed to load video'));
+      }
     };
     
     video.addEventListener('loadstart', handleLoadStart);
     video.addEventListener('loadeddata', handleLoadedData);
     video.addEventListener('error', handleError);
     
-    // Set up HLS if needed and not already initialized
-    if (useHls && !hlsInitialized) {
-      setHlsInitialized(true);
-      
-      setupHls(getVideoId(), video, videoUrl)
-        .then(() => {
-          console.log('HLS initialized successfully');
-        })
-        .catch((error: Error) => {
-          console.error('Error setting up HLS:', error);
-          // Fall back to regular video
-          if (!isHlsUrl(videoUrl)) {
-            video.src = rawVideoUrl;
-            video.load();
+    // Only set up video if autoPlay is true or user has explicitly requested playback
+    if (autoPlay) {
+      // Set up HLS if needed and not already initialized
+      if (useHls && !hlsInitialized) {
+        setHlsInitialized(true);
+        
+        setupHls(getVideoId(), video, videoUrl)
+          .then(() => {
+            // Successful initialization doesn't need console logging
+          })
+          .catch((error: Error) => {
+            // Only log error if explicitly trying to play
+            if (autoPlay) {
+              console.error('Error setting up HLS:', error);
+            }
+            setPlaybackError('Error initializing video player');
+            // Fall back to regular video
+            if (!isHlsUrl(videoUrl)) {
+              video.src = rawVideoUrl;
+              video.load();
+            }
+          });
+      } else if (!useHls && !video.src) {
+        // For non-HLS, set the source directly if not already set
+        try {
+          video.src = rawVideoUrl;
+          video.load();
+        } catch (error) {
+          setPlaybackError('Error loading video source');
+          if (autoPlay) {
+            console.error('Error loading video source:', error);
           }
-        });
-    } else if (!useHls && !video.src) {
-      // For non-HLS, set the source directly if not already set
-      video.src = rawVideoUrl;
-      video.load();
+        }
+      }
     }
     
     return () => {
@@ -154,7 +173,7 @@ export const OptimizedVideoPlayer: React.FC<OptimizedVideoPlayerProps> = ({
         destroyHls(getVideoId());
       }
     };
-  }, [isVisible, nft, rawVideoUrl, videoUrl, useHls, hlsInitialized, onLoadStart, onLoadComplete, onError]);
+  }, [isVisible, nft, rawVideoUrl, videoUrl, useHls, hlsInitialized, onLoadStart, onLoadComplete, onError, autoPlay]);
   
   // Basic buffering detection
   useEffect(() => {
@@ -173,7 +192,10 @@ export const OptimizedVideoPlayer: React.FC<OptimizedVideoPlayerProps> = ({
     const handleError = () => {
       const errorMessage = video.error?.message || 'Unknown error';
       setPlaybackError(errorMessage);
-      if (onError) onError(new Error(errorMessage));
+      // Only propagate errors when explicitly playing
+      if (onError && autoPlay) {
+        onError(new Error(errorMessage));
+      }
     };
     
     video.addEventListener('waiting', handleWaiting);

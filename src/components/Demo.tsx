@@ -1715,18 +1715,23 @@ const Demo: React.FC = () => {
 
   // Add a direct wallet search function that bypasses search results
   const handleDirectUserSelect = async (user: FarcasterUser) => {
+    // Store the target user FID to prevent race conditions
+    const targetUserFid = user.fid;
+    
     // First set loading state to prevent interactions during transition
     setIsLoading(true);
     
-    // Clear current NFTs immediately to prevent UI mismatch during transition
+    // IMPORTANT: Clear all NFT data immediately to prevent showing previous user's NFTs
+    // This is critical to prevent cross-user NFT display issues
     setUserNFTs([]);
     setFilteredNFTs([]);
     window.nftList = [];
-    
-    // Set search results to empty array
     setSearchResults([]);
     
-    // Navigate to the user profile view first
+    // Set the selected user to null first to ensure clean state transition
+    setSelectedUser(null);
+    
+    // Navigate to the user profile view first with a clean slate
     setCurrentPage({
       isHome: false,
       isExplore: false,
@@ -1735,12 +1740,29 @@ const Demo: React.FC = () => {
       isUserProfile: true
     });
     
-    // Then track the search
-    let profileUser = user;
+    // Create a local copy of the user to prevent reference issues
+    let profileUser = {...user};
+    
+    // Track the search and get complete user data
     if (userFid) {
       try {
+        // Verify we're still loading the same user before continuing
+        if (targetUserFid !== user.fid) {
+          logger.warn('User changed during profile load, aborting previous operation');
+          setIsLoading(false);
+          return;
+        }
+        
         // Get the updated user data with complete profile information including bio
         const updatedUserData = await trackUserSearch(user.username, userFid);
+        
+        // Double-check we're still on the same user
+        if (targetUserFid !== user.fid) {
+          logger.warn('User changed after search tracking, aborting previous operation');
+          setIsLoading(false);
+          return;
+        }
+        
         profileUser = updatedUserData;
         
         // Get updated recent searches
@@ -1759,37 +1781,64 @@ const Demo: React.FC = () => {
     }
     
     // Set the user profile - only after we have complete data
+    // Check again that we're still loading the same user
+    if (targetUserFid !== user.fid) {
+      logger.warn('User changed before setting profile data, aborting');
+      setIsLoading(false);
+      return;
+    }
+    
+    // Now that we've verified everything, set the selected user
     setSelectedUser(profileUser);
     
     try {
       // Load NFTs for this user directly from Farcaster API/database
-      const nfts = await fetchUserNFTs(user.fid);
+      logger.info(`Loading NFTs for user ${profileUser.username} (FID: ${targetUserFid})`);
+      const nfts = await fetchUserNFTs(targetUserFid);
       
-      // Count by media type (for debugging only, not displayed)
-      const audioNFTs = nfts.filter(nft => nft.hasValidAudio).length;
-      const videoNFTs = nfts.filter(nft => nft.isVideo).length;
-      const bothTypes = nfts.filter(nft => nft.hasValidAudio && nft.isVideo).length; 
+      // Final verification that we're still on the same user before updating UI
+      if (targetUserFid !== profileUser.fid) {
+        logger.warn('User changed during NFT fetch, aborting update');
+        setIsLoading(false);
+        return;
+      }
       
-      const contractCounts: Record<string, number> = {};
-      nfts.forEach(nft => {
-        if (nft.contract) {
-          contractCounts[nft.contract] = (contractCounts[nft.contract] || 0) + 1;
-        }
-      });
+      // Log NFT loading success
+      logger.info(`Successfully loaded ${nfts.length} NFTs for ${profileUser.username} (FID: ${targetUserFid})`);
       
-      // Only set the NFTs once we have them all loaded
-      setUserNFTs(nfts);
-      setFilteredNFTs(nfts);
+      // Add user FID to each NFT to ensure proper ownership tracking
+      const nftsWithOwnership = nfts.map(nft => ({
+        ...nft,
+        ownerFid: targetUserFid // Add explicit owner FID to each NFT
+      }));
       
-      // Update global NFT list for player
-      window.nftList = nfts;
+      // Only set the NFTs once we have them all loaded and we're still on the same user
+      setUserNFTs(nftsWithOwnership);
+      setFilteredNFTs(nftsWithOwnership);
+      
+      // CRITICAL: Always reset the global NFT list when switching users
+      if (nftsWithOwnership && nftsWithOwnership.length > 0) {
+        // Update global NFT list for player ONLY if there are actual NFTs
+        window.nftList = [...nftsWithOwnership]; // Create a new array to avoid reference issues
+      } else {
+        // For users with no NFTs, ALWAYS set an empty array to prevent showing previous user's NFTs
+        window.nftList = [];
+        // Also clear any cached NFT data
+        logger.info(`User ${profileUser.username} (FID: ${targetUserFid}) has no NFTs, clearing player queue and cached data`);
+      }
       
       setError(null);
     } catch (error) {
-      logger.error('Error loading user NFTs:', error);
-      setError('Error loading NFTs');
+      // Only show error if we're still on the same user
+      if (targetUserFid === profileUser.fid) {
+        logger.error(`Error loading NFTs for ${profileUser.username} (FID: ${targetUserFid}):`, error);
+        setError('Error loading NFTs');
+      }
     } finally {
-      setIsLoading(false);
+      // Only update loading state if we're still on the same user
+      if (targetUserFid === profileUser.fid) {
+        setIsLoading(false);
+      }
     }
   };
 
