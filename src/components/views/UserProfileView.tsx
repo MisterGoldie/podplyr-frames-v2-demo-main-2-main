@@ -78,6 +78,8 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
   
   // Add loading state for user data
   const [isDataLoading, setIsDataLoading] = useState<boolean>(false);
+  // Track if we've completed at least one full load cycle
+  const [hasCompletedInitialLoad, setHasCompletedInitialLoad] = useState<boolean>(false);
   
   // Filter NFTs to only show media (audio/video) NFTs - moved outside the render function
   const filteredNFTs = useMemo(() => {
@@ -172,15 +174,29 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
     if (nfts !== undefined) {
       // Make sure we're still looking at the same user
       if (user?.fid === currentLoadingFidRef.current) {
-        // Add a small delay before setting loading to false
-        // This ensures we don't show the empty state prematurely
-        setTimeout(() => {
-          // Double-check we're still on the same user after the timeout
-          if (user?.fid === currentLoadingFidRef.current) {
-            setIsDataLoading(false);
-            console.log(`NFTs loaded for ${user?.username} (FID: ${user?.fid}), setting loading state to false`);
-          }
-        }, 300); // 300ms delay to ensure NFTs have time to fully process
+        // CRITICAL: Only turn off loading state if we have NFTs or if we're absolutely sure there are none
+        // This prevents the "No NFTs" message from showing prematurely
+        if (nfts.length > 0) {
+          // If we have NFTs, add a small delay to ensure they're fully processed
+          setTimeout(() => {
+            // Double-check we're still on the same user after the timeout
+            if (user?.fid === currentLoadingFidRef.current) {
+              setIsDataLoading(false);
+              setHasCompletedInitialLoad(true);
+              console.log(`${nfts.length} NFTs loaded for ${user?.username} (FID: ${user?.fid}), setting loading state to false and hasCompletedInitialLoad to true`);
+            }
+          }, 500); // 500ms delay to ensure NFTs have time to fully process
+        } else {
+          // If there are no NFTs, wait even longer to be absolutely certain
+          setTimeout(() => {
+            // Triple-check we're still on the same user after the timeout
+            if (user?.fid === currentLoadingFidRef.current) {
+              setIsDataLoading(false);
+              setHasCompletedInitialLoad(true);
+              console.log(`No NFTs found for ${user?.username} (FID: ${user?.fid}), setting loading state to false and hasCompletedInitialLoad to true after extended delay`);
+            }
+          }, 1000); // 1 second delay for empty NFT arrays to be absolutely certain
+        }
       }
     }
   }, [nfts, user?.fid, user?.username]);
@@ -197,6 +213,7 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
         if (timeoutFid === currentLoadingFidRef.current) {
           console.log(`Loading timeout reached for ${user.username} (FID: ${user.fid}), forcing loading state to false`);
           setIsDataLoading(false);
+          setHasCompletedInitialLoad(true);
         }
       }, 5000); // 5 second timeout
       
@@ -581,14 +598,15 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
           </h3>
           
           {/* Display filtered media NFTs */}
-          {/* ALWAYS show loading state if isDataLoading is true */}
-          {isDataLoading || nfts === undefined || nfts === null ? (
-            <div className="text-center py-12 bg-black/30 rounded-xl border border-purple-500/20">
-              <div className="w-12 h-12 mx-auto border-t-4 border-l-4 border-purple-500 rounded-full animate-spin"></div>
-              <p className="mt-4 text-purple-300 font-mono">Loading NFTs...</p>
-            </div>
-          ) : nfts.length > 0 ? (
-            filteredNFTs.length > 0 ? (
+          {/* ALWAYS show loading state until we're 100% certain about NFT status */}
+          <div className="text-center py-12 bg-black/30 rounded-xl border border-purple-500/20">
+            {/* Enhanced loading state check - show loading state during any uncertainty */}
+            {isDataLoading || nfts === undefined || nfts === null || (nfts.length === 0 && !hasCompletedInitialLoad) ? (
+              <>
+                <div className="w-12 h-12 mx-auto border-t-4 border-l-4 border-purple-500 rounded-full animate-spin"></div>
+                <p className="mt-4 text-purple-300 font-mono">Loading NFTs...</p>
+              </>
+            ) : nfts.length > 0 && filteredNFTs.length > 0 ? (
               <UserProfileNFTGrid 
                 nfts={filteredNFTs}
                 onPlayNFT={(nft: NFT) => {
@@ -607,26 +625,29 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
                 onLikeToggle={onLikeToggle}
                 userFid={currentUserFid}
               />
-            ) : (
-              <div className="text-center py-12 bg-black/30 rounded-xl border border-purple-500/20">
+            ) : nfts.length > 0 && filteredNFTs.length === 0 ? (
+              <>
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-purple-400/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
                 </svg>
                 <p className="mt-4 text-purple-300 font-mono">No media NFTs found</p>
                 <p className="mt-2 text-gray-400 text-sm">This user has NFTs but none with audio or video content</p>
-              </div>
-            )
-          ) : (
-            // Only show the "No NFTs" message when we're absolutely certain the user has no NFTs
-            // This is the final state after loading is complete and we know there are no NFTs
-            <div className="text-center py-12 bg-black/30 rounded-xl border border-purple-500/20">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-purple-400/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-              </svg>
-              <p className="mt-4 text-purple-300 font-mono">No NFTs found</p>
-              <p className="mt-2 text-gray-400 text-sm">{user?.username || 'This user'} doesn't have any NFTs</p>
-            </div>
-          )}
+              </>
+            ) : nfts && nfts.length === 0 ? (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-purple-400/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                </svg>
+                <p className="mt-4 text-purple-300 font-mono">No NFTs found</p>
+                <p className="mt-2 text-gray-400 text-sm">{user?.username || 'This user'} doesn't have any NFTs</p>
+              </>
+            ) : (
+              <>
+                <div className="w-12 h-12 mx-auto border-t-4 border-l-4 border-purple-500 rounded-full animate-spin"></div>
+                <p className="mt-4 text-purple-300 font-mono">Loading NFTs...</p>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </>

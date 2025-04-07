@@ -1833,6 +1833,22 @@ const Demo: React.FC = () => {
       }
       
       // Only set the NFTs once we have them all loaded and we're still on the same user
+      // CRITICAL: Set an empty array first, then wait, then set the actual NFTs
+      // This prevents the "No NFTs" message from showing prematurely
+      setUserNFTs([]);
+      setFilteredNFTs([]);
+      
+      // Add another small delay to ensure the UI is in a loading state
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      // Final verification before updating the UI
+      if (targetUserFid !== profileUser.fid) {
+        logger.warn('User changed before final NFT update, aborting');
+        setIsLoading(false);
+        return;
+      }
+      
+      // Now set the actual NFTs
       setUserNFTs(nftsWithOwnership);
       setFilteredNFTs(nftsWithOwnership);
       
@@ -1840,6 +1856,7 @@ const Demo: React.FC = () => {
       if (nftsWithOwnership && nftsWithOwnership.length > 0) {
         // Update global NFT list for player ONLY if there are actual NFTs
         window.nftList = [...nftsWithOwnership]; // Create a new array to avoid reference issues
+        logger.info(`Set ${nftsWithOwnership.length} NFTs for user ${profileUser.username} (FID: ${targetUserFid})`);
       } else {
         // For users with no NFTs, ALWAYS set an empty array to prevent showing previous user's NFTs
         window.nftList = [];
