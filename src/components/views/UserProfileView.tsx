@@ -11,7 +11,7 @@ import FollowsModal from '../FollowsModal';
 import { useNFTNotification } from '../../context/NFTNotificationContext';
 import NFTNotification from '../NFTNotification';
 import { getMediaKey } from '../../utils/media';
-import { UserProfileNFTGrid } from '../nft/UserProfileNFTGrid';
+import { VirtualizedNFTGrid } from '../nft/VirtualizedNFTGrid';
 import { logger } from '../../utils/logger';
 import { useUserProfileBackground } from '../../hooks/useUserProfileBackground';
 import UserInfoPanel from '../user/UserInfoPanel';
@@ -607,7 +607,7 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
                 <p className="mt-4 text-purple-300 font-mono">Loading NFTs...</p>
               </>
             ) : nfts.length > 0 && filteredNFTs.length > 0 ? (
-              <UserProfileNFTGrid 
+              <VirtualizedNFTGrid 
                 nfts={filteredNFTs}
                 onPlayNFT={(nft: NFT) => {
                   // Only allow playing NFTs that belong to this user
@@ -624,6 +624,7 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
                 isNFTLiked={isNFTLiked}
                 onLikeToggle={onLikeToggle}
                 userFid={currentUserFid}
+                publicCollections={[]}
               />
             ) : nfts.length > 0 && filteredNFTs.length === 0 ? (
               <>
