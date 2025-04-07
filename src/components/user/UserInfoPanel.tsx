@@ -105,7 +105,7 @@ const UserInfoPanel: React.FC<UserInfoPanelProps> = ({
               </svg>
             </div>
             <div>
-              <h3 className="text-red-300 font-medium">Liked NFTs</h3>
+              <h3 className="text-red-300 font-medium">NFTs Liked</h3>
               <p className="font-mono text-lg text-white font-bold">
                 {likedNFTsCount.toLocaleString()}
               </p>

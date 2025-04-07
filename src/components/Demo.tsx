@@ -1715,38 +1715,52 @@ const Demo: React.FC = () => {
 
   // Add a direct wallet search function that bypasses search results
   const handleDirectUserSelect = async (user: FarcasterUser) => {
+    // First set loading state to prevent interactions during transition
+    setIsLoading(true);
+    
+    // Clear current NFTs immediately to prevent UI mismatch during transition
+    setUserNFTs([]);
+    setFilteredNFTs([]);
+    window.nftList = [];
+    
     // Set search results to empty array
-    // This must be done before setting selectedUser
     setSearchResults([]);
     
+    // Navigate to the user profile view first
+    setCurrentPage({
+      isHome: false,
+      isExplore: false,
+      isLibrary: false,
+      isProfile: false,
+      isUserProfile: true
+    });
+    
     // Then track the search
+    let profileUser = user;
     if (userFid) {
       try {
         // Get the updated user data with complete profile information including bio
         const updatedUserData = await trackUserSearch(user.username, userFid);
+        profileUser = updatedUserData;
         
         // Get updated recent searches
         const searches = await getRecentSearches(userFid);
         setRecentSearches(searches);
-        
-        // Now set selected user with the updated data that includes profile and bio
-        setSelectedUser(updatedUserData);
       } catch (error) {
         logger.error('Error tracking user search:', error);
         // Fall back to using the original user data if there was an error
-        setSelectedUser(user);
       }
     } else {
-      // If no userFid, just set the selected user without tracking
-      // Ensure the user has a profile object with bio even if it's empty
-      setSelectedUser({
+      // If no userFid, just ensure the user has a profile object with bio even if it's empty
+      profileUser = {
         ...user,
         profile: user.profile || { bio: "" }
-      });
+      };
     }
     
-    // Continue with wallet search
-    setIsLoading(true);
+    // Set the user profile - only after we have complete data
+    setSelectedUser(profileUser);
+    
     try {
       // Load NFTs for this user directly from Farcaster API/database
       const nfts = await fetchUserNFTs(user.fid);
@@ -1763,20 +1777,12 @@ const Demo: React.FC = () => {
         }
       });
       
+      // Only set the NFTs once we have them all loaded
       setUserNFTs(nfts);
       setFilteredNFTs(nfts);
       
       // Update global NFT list for player
       window.nftList = nfts;
-      
-      // Navigate to the user profile view
-      setCurrentPage({
-        isHome: false,
-        isExplore: false,
-        isLibrary: false,
-        isProfile: false,
-        isUserProfile: true
-      });
       
       setError(null);
     } catch (error) {
