@@ -5,6 +5,7 @@ interface UserInfoPanelProps {
   user: FarcasterUser;
   totalPlays: number;
   nftCount: number;
+  likedNFTsCount: number;
   onClose: () => void;
 }
 
@@ -12,6 +13,7 @@ const UserInfoPanel: React.FC<UserInfoPanelProps> = ({
   user, 
   totalPlays, 
   nftCount, 
+  likedNFTsCount,
   onClose 
 }) => {
   const [isClosing, setIsClosing] = useState(false);
@@ -73,7 +75,7 @@ const UserInfoPanel: React.FC<UserInfoPanelProps> = ({
               </svg>
             </div>
             <div>
-              <h3 className="text-blue-300 font-medium">Total Plays</h3>
+              <h3 className="text-blue-300 font-medium">Number of NFT Plays</h3>
               <p className="font-mono text-lg text-white font-bold">
                 {totalPlays.toLocaleString()}
               </p>
@@ -91,6 +93,21 @@ const UserInfoPanel: React.FC<UserInfoPanelProps> = ({
               <h3 className="text-green-300 font-medium">Media NFTs</h3>
               <p className="font-mono text-lg text-white font-bold">
                 {nftCount.toLocaleString()}
+              </p>
+            </div>
+          </div>
+          
+          {/* Liked NFTs Badge */}
+          <div className="bg-red-500/20 rounded-lg p-3 flex items-center gap-3">
+            <div className="bg-red-500/30 rounded-full p-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-red-300" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-red-300 font-medium">Liked NFTs</h3>
+              <p className="font-mono text-lg text-white font-bold">
+                {likedNFTsCount.toLocaleString()}
               </p>
             </div>
           </div>

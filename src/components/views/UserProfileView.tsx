@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useToast } from '../../hooks/useToast';
 import Image from 'next/image';
 import type { NFT, UserContext, FarcasterUser, NFTFile } from '../../types/user';
-import { getFollowersCount, getFollowingCount, isUserFollowed, toggleFollowUser, updatePodplayrFollowerCount, PODPLAYR_ACCOUNT, getUserTotalPlays } from '../../lib/firebase';
+import { getFollowersCount, getFollowingCount, isUserFollowed, toggleFollowUser, updatePodplayrFollowerCount, PODPLAYR_ACCOUNT, getUserTotalPlays, getUserLikedNFTsCount } from '../../lib/firebase';
 import { optimizeImage } from '../../utils/imageOptimizer';
 import NotificationHeader from '../NotificationHeader';
 import FollowsModal from '../FollowsModal';
@@ -51,6 +51,7 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
   const [appFollowerCount, setAppFollowerCount] = useState<number>(0);
   const [appFollowingCount, setAppFollowingCount] = useState<number>(0);
   const [totalPlays, setTotalPlays] = useState<number>(0);
+  const [likedNFTsCount, setLikedNFTsCount] = useState<number>(0);
   const [isFollowed, setIsFollowed] = useState<boolean>(false);
   const [isFollowingLoading, setIsFollowingLoading] = useState<boolean>(false);
   const [showInfoPanel, setShowInfoPanel] = useState<boolean>(false);
@@ -90,14 +91,16 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
           
           const followingCount = await getFollowingCount(user.fid);
           
-          // Get the user's total play count
+          // Get the user's total play count and liked NFTs count
           const plays = await getUserTotalPlays(user.fid);
+          const liked = await getUserLikedNFTsCount(user.fid);
           
           setAppFollowerCount(followerCount);
           setAppFollowingCount(followingCount);
           setTotalPlays(plays);
+          setLikedNFTsCount(liked);
           
-          console.log(`App follow counts for ${user.username}: ${followerCount} followers, ${followingCount} following, ${plays} total plays`);
+          console.log(`App stats for ${user.username}: ${followerCount} followers, ${followingCount} following, ${plays} total plays, ${liked} liked NFTs`);
         } catch (error) {
           console.error('Error loading follow counts:', error);
         }
@@ -289,6 +292,7 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
                   <UserInfoPanel
                     user={user}
                     totalPlays={totalPlays}
+                    likedNFTsCount={likedNFTsCount}
                     nftCount={nfts ? nfts.filter(nft => {
                       // Apply the same media filter to the count
                       let hasMedia = false;

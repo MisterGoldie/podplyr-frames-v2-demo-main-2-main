@@ -2343,6 +2343,67 @@ export const getUserTotalPlays = async (userFid: number): Promise<number> => {
   }
 };
 
+// Get the count of NFTs a user has liked
+export const getUserLikedNFTsCount = async (userFid: number): Promise<number> => {
+  try {
+    if (!userFid) {
+      console.error('Invalid userFid provided to getUserLikedNFTsCount');
+      return 0;
+    }
+    
+    // FIXED: Query the user's likes subcollection directly
+    // This matches how likes are actually stored in Firebase
+    const userRef = doc(db, 'users', userFid.toString());
+    const userLikesRef = collection(userRef, 'likes');
+    
+    // Use pagination to count all liked NFTs in case there are many
+    let totalLiked = 0;
+    let lastDoc = null;
+    let hasMoreDocs = true;
+    let currentQuery = query(userLikesRef, limit(500));
+    
+    while (hasMoreDocs) {
+      if (lastDoc) {
+        currentQuery = query(
+          userLikesRef,
+          startAfter(lastDoc),
+          limit(500)
+        );
+      }
+      
+      const querySnapshot = await getDocs(currentQuery);
+      const batchSize = querySnapshot.size;
+      
+      totalLiked += batchSize;
+      
+      if (batchSize < 500) {
+        hasMoreDocs = false;
+      } else {
+        lastDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
+      }
+    }
+    
+    // Also check the global likes collection as a fallback
+    // Some likes might be stored here with the userFid field
+    const globalLikesRef = collection(db, 'likes');
+    const globalLikesQuery = query(
+      globalLikesRef,
+      where('userFid', '==', userFid),
+      where('isLiked', '==', true),
+      limit(500)
+    );
+    
+    const globalSnapshot = await getDocs(globalLikesQuery);
+    totalLiked += globalSnapshot.size;
+    
+    console.log(`Total liked NFTs for user ${userFid}: ${totalLiked}`);
+    return totalLiked;
+  } catch (error) {
+    console.error('Error getting user liked NFTs count:', error);
+    return 0;
+  }
+};
+
 export const searchUsers = async (query: string): Promise<FarcasterUser[]> => {
   // Clear any pending search
   if (searchTimeout) clearTimeout(searchTimeout);
