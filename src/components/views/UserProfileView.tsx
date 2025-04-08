@@ -405,7 +405,7 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
           </div>
         </div>
       )}
-      <div className="space-y-4 overflow-y-auto h-full pb-24" style={{ height: 'calc(100vh - 60px)' }}>
+      <div className="space-y-8 pt-20 pb-48 overflow-y-auto h-screen overscroll-y-contain">
         {/* Profile Header with Back Button */}
         <div 
           className="border-b border-purple-500/20 shadow-md relative" 
