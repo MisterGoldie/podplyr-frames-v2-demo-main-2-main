@@ -12,6 +12,7 @@ import { ensurePodplayrFollow, updatePodplayrFollowerCount } from '../lib/fireba
 import { NFTNotificationProvider } from '../context/NFTNotificationContext';
 import { ConnectionProvider } from '../context/ConnectionContext';
 import { TermsProvider } from '../context/TermsContext';
+import { NFTCacheProvider } from '../contexts/NFTCacheContext';
 
 const WagmiProvider = dynamic(
   () => import("~/components/providers/WagmiProvider"),
@@ -63,9 +64,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
             initialProfileImage={initialProfileImage}
           >
             <VideoPlayProvider>
-              <NFTNotificationProvider>
-                <ConnectionProvider>
-                  <TermsProvider>
+              <NFTCacheProvider>
+                <NFTNotificationProvider>
+                  <ConnectionProvider>
+                    <TermsProvider>
                     <Frame 
                     onContextUpdate={(context) => {
                       console.log('Farcaster context:', context);
@@ -77,9 +79,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
                   />
                   <Toaster position="top-center" />
                   {children}
-                  </TermsProvider>
-                </ConnectionProvider>
-              </NFTNotificationProvider>
+                    </TermsProvider>
+                  </ConnectionProvider>
+                </NFTNotificationProvider>
+              </NFTCacheProvider>
             </VideoPlayProvider>
           </UserImageProvider>
         </NetworkProvider>

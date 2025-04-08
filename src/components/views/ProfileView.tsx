@@ -7,13 +7,13 @@ import { VirtualizedNFTGrid } from '../nft/VirtualizedNFTGrid';
 import type { NFT, UserContext, FarcasterUser } from '../../types/user';
 import { getLikedNFTs, getFollowersCount, getFollowingCount, updatePodplayrFollowerCount } from '../../lib/firebase';
 import { uploadProfileBackground } from '../../firebase';
-import { fetchUserNFTs } from '../../lib/nft';
 import { optimizeImage } from '../../utils/imageOptimizer';
 import { useUserImages } from '../../contexts/UserImageContext';
 import NotificationHeader from '../NotificationHeader';
 import FollowsModal from '../FollowsModal';
 import { useNFTNotification } from '../../context/NFTNotificationContext';
 import NFTNotification from '../NFTNotification';
+import { useNFTCache } from '../../contexts/NFTCacheContext';
 
 interface ProfileViewProps {
   userContext: UserContext;
@@ -57,6 +57,12 @@ const ProfileView: React.FC<ProfileViewProps> = ({
   const [showFollowsModal, setShowFollowsModal] = useState(false);
   const [followsModalType, setFollowsModalType] = useState<'followers' | 'following'>('followers');
 
+  // Use the NFT cache context
+  const { userNFTs: cachedNFTs, isLoading: isCacheLoading, error: cacheError, refreshUserNFTs, lastUpdated } = useNFTCache();
+  
+  // Combined error state that shows either local error or cache error
+  const combinedError = error || cacheError;
+
   useEffect(() => {
     const loadNFTs = async () => {
       if (!userContext.user?.fid) {
@@ -64,22 +70,27 @@ const ProfileView: React.FC<ProfileViewProps> = ({
         return;
       }
       
-      console.log('🔄 Loading NFTs for FID:', userContext.user.fid);
+      console.log('🔄 Checking NFT cache for FID:', userContext.user.fid);
+      
+      // Check if we need to refresh the cache
+      const needsRefresh = !lastUpdated || Date.now() - lastUpdated > 30 * 60 * 1000; // 30 minutes
+      
       try {
         setIsLoading(true);
         setError(null);
         
-        console.log('📡 Calling fetchUserNFTs...');
-        const nfts = await fetchUserNFTs(userContext.user.fid);
-        console.log('✨ NFTs loaded:', {
-          count: nfts.length,
-          nfts: nfts.map(nft => ({
-            contract: nft.contract,
-            tokenId: nft.tokenId,
-            hasAudio: nft.hasValidAudio
-          }))
-        });
-        onNFTsLoaded(nfts);
+        if (needsRefresh || cachedNFTs.length === 0) {
+          console.log('📡 Cache expired or empty, refreshing NFTs...');
+          await refreshUserNFTs(userContext.user.fid);
+        } else {
+          console.log('✨ Using cached NFTs:', {
+            count: cachedNFTs.length,
+            lastUpdated: new Date(lastUpdated).toLocaleTimeString()
+          });
+        }
+        
+        // Use the cached NFTs from context
+        onNFTsLoaded(cachedNFTs);
       } catch (err) {
         console.error('❌ Error loading NFTs:', err);
         setError(err instanceof Error ? err.message : 'Failed to load NFTs');
@@ -90,7 +101,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
 
     console.log('🎯 ProfileView useEffect triggered with FID:', userContext.user?.fid);
     loadNFTs();
-  }, [userContext.user?.fid, onNFTsLoaded]);
+  }, [userContext.user?.fid, onNFTsLoaded, cachedNFTs, lastUpdated, refreshUserNFTs]);
 
   useEffect(() => {
     const loadLikedNFTs = async () => {
@@ -523,10 +534,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({
             <div className="text-center py-12">
               <p className="text-gray-400 text-lg">Currently you can only create a profile through Warpcast</p>
             </div>
-          ) : error ? (
+          ) : combinedError ? (
             <div className="text-center py-12">
               <h3 className="text-xl text-red-400 mb-2">Error Loading NFTs</h3>
-              <p className="text-gray-400">{error}</p>
+              <p className="text-gray-400">{combinedError}</p>
             </div>
           ) : nfts.length > 0 ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
