@@ -405,7 +405,7 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
           </div>
         </div>
       )}
-      <div className="space-y-4 pt-16 pb-24 overflow-y-auto h-screen overscroll-y-contain">
+      <div className="space-y-8 pt-20 pb-48 overflow-y-auto h-screen overscroll-y-contain">
         {/* Profile Header with Back Button */}
         <div 
           className="border-b border-purple-500/20 shadow-md relative" 
@@ -598,15 +598,21 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
           </h3>
           
           {/* Display filtered media NFTs */}
-          {/* ALWAYS show loading state until we're 100% certain about NFT status */}
-          <div className="text-center py-12 bg-black/30 rounded-xl border border-purple-500/20">
-            {/* Enhanced loading state check - show loading state during any uncertainty */}
-            {isDataLoading || nfts === undefined || nfts === null || (nfts.length === 0 && !hasCompletedInitialLoad) ? (
-              <>
-                <div className="w-12 h-12 mx-auto border-t-4 border-l-4 border-purple-500 rounded-full animate-spin"></div>
-                <p className="mt-4 text-purple-300 font-mono">Loading NFTs...</p>
-              </>
-            ) : nfts.length > 0 && filteredNFTs.length > 0 ? (
+          {/* Enhanced loading state check - show loading state during any uncertainty */}
+          {isDataLoading || nfts === undefined || nfts === null || (nfts.length === 0 && !hasCompletedInitialLoad) ? (
+            <div className="text-center py-12">
+              <div className="w-12 h-12 mx-auto border-t-4 border-l-4 border-purple-500 rounded-full animate-spin"></div>
+              <p className="mt-4 text-purple-300 font-mono">Loading NFTs...</p>
+            </div>
+          ) : nfts.length > 0 && filteredNFTs.length > 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {/* Custom styling to hide the "All X NFTs loaded" message */}
+              <style jsx global>{`
+                .grid > .col-span-full:last-child {
+                  display: none;
+                }
+              `}</style>
+              
               <VirtualizedNFTGrid 
                 nfts={filteredNFTs}
                 onPlayNFT={(nft: NFT) => {
@@ -626,29 +632,29 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
                 userFid={currentUserFid}
                 publicCollections={[]}
               />
-            ) : nfts.length > 0 && filteredNFTs.length === 0 ? (
-              <>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-purple-400/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-                </svg>
-                <p className="mt-4 text-purple-300 font-mono">No media NFTs found</p>
-                <p className="mt-2 text-gray-400 text-sm">This user has NFTs but none with audio or video content</p>
-              </>
-            ) : nfts && nfts.length === 0 ? (
-              <>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-purple-400/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                </svg>
-                <p className="mt-4 text-purple-300 font-mono">No NFTs found</p>
-                <p className="mt-2 text-gray-400 text-sm">{user?.username || 'This user'} doesn't have any NFTs</p>
-              </>
-            ) : (
-              <>
-                <div className="w-12 h-12 mx-auto border-t-4 border-l-4 border-purple-500 rounded-full animate-spin"></div>
-                <p className="mt-4 text-purple-300 font-mono">Loading NFTs...</p>
-              </>
-            )}
-          </div>
+            </div>
+          ) : nfts.length > 0 && filteredNFTs.length === 0 ? (
+            <div className="text-center py-12">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-purple-400/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+              </svg>
+              <p className="mt-4 text-purple-300 font-mono">No media NFTs found</p>
+              <p className="mt-2 text-gray-400 text-sm">This user has NFTs but none with audio or video content</p>
+            </div>
+          ) : nfts && nfts.length === 0 ? (
+            <div className="text-center py-12">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-purple-400/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+              <p className="mt-4 text-purple-300 font-mono">No NFTs found</p>
+              <p className="mt-2 text-gray-400 text-sm">{user?.username || 'This user'} doesn't have any NFTs</p>
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <div className="w-12 h-12 mx-auto border-t-4 border-l-4 border-purple-500 rounded-full animate-spin"></div>
+              <p className="mt-4 text-purple-300 font-mono">Loading NFTs...</p>
+            </div>
+          )}
         </div>
       </div>
     </>
