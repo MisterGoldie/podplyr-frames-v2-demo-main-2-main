@@ -523,7 +523,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
         <div>
           <h2 className="text-2xl font-bold text-green-400 mb-4">Your NFTs</h2>
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center py-16 space-y-6">
+            <div className="flex flex-col items-center justify-center py-16 space-y-6 -mt-6">
               <div className="relative">
                 <div className="w-16 h-16 border-4 border-gray-800/30 rounded-full"></div>
                 <div className="absolute top-0 w-16 h-16 border-4 border-t-green-400 border-r-green-400 rounded-full animate-spin"></div>
