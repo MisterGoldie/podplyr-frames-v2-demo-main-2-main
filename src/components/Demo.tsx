@@ -1391,9 +1391,13 @@ const Demo: React.FC = () => {
               onReset={handleReset}
               onUserProfileClick={handleDirectUserSelect}
               onBack={() => {
+                // Log current navigation source for debugging
+                logger.info('Back button pressed, navigation source:', navigationSource);
+                
                 // Use navigation source to determine where to go back to
                 if (navigationSource.fromProfile) {
                   // If user came from profile page, go back to profile
+                  logger.info('Navigating back to profile page');
                   setCurrentPage({
                     isHome: false,
                     isExplore: false,
@@ -1402,21 +1406,30 @@ const Demo: React.FC = () => {
                     isUserProfile: false
                   });
                 } else {
-                  // Otherwise go back to explore/home view
+                  // For all other cases, go back to explore page
+                  // This ensures we go back to recently searched users
+                  logger.info('Navigating back to explore page with recently searched users');
+                  
+                  // First clear the selected user to prevent state conflicts
+                  setSelectedUser(null);
+                  
+                  // Then update the page state
+                  // Only set isExplore to true, not isHome
+                  // This ensures only the Explore icon is highlighted
                   setCurrentPage({
-                    isHome: true,
+                    isHome: false,
                     isExplore: true,
                     isLibrary: false,
                     isProfile: false,
                     isUserProfile: false
                   });
                 }
+                
                 // Reset navigation source
                 setNavigationSource({
                   fromExplore: false,
                   fromProfile: false
                 });
-                setSelectedUser(null);
               }}
               currentUserFid={userFid || 0}
               onLikeToggle={handleLikeToggle}
