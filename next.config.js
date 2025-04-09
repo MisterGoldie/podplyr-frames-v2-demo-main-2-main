@@ -9,15 +9,17 @@ const nextConfig = {
       },
     ],
   },
+  // Optimize font loading (moved to root level as it's a standard option)
+  fontLoaders: [
+    { loader: '@next/font/google', options: { subsets: ['latin'] } },
+  ],
   experimental: {
     scrollRestoration: true,
     // Optimize resource loading
     optimizeCss: true,
     // Reduce unnecessary preloads
-    optimizeServerReact: true,
+    optimizeServerReact: false,
   },
-  // Optimize font loading
-  optimizeFonts: true,
   // Configure preload strategy
   onDemandEntries: {
     // Number of pages to keep in memory

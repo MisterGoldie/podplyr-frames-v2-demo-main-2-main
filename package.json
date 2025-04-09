@@ -30,6 +30,7 @@
     "@upstash/redis": "^1.34.3",
     "@wagmi/core": "^2.14.1",
     "alchemy-sdk": "^3.5.1",
+    "critters": "^0.0.25",
     "ethers": "6",
     "firebase": "11.2.0",
     "firebase-admin": "^13.1.0",
