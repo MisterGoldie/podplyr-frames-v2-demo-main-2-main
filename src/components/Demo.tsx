@@ -93,7 +93,7 @@ const pageVariants = {
   exit: { opacity: 0 }
 };
 
-const Demo: React.FC = () => {
+const DemoBase: React.FC = () => {
   // CRITICAL: Force ENABLE all logs for debugging
   // This overrides any previous disabling
   logger.setDebugMode(true);
@@ -103,17 +103,22 @@ const Demo: React.FC = () => {
   logger.enableLevel('error', true);
   logger.enableModule('firebase', true);
   
-  // Force direct console log to confirm logging is enabled
-  console.warn('📢📢📢 DEMO COMPONENT: Logging is ENABLED');
-  
   // 1. Context Hooks
   const { fid } = useContext(FarcasterContext);
   const { hasAcceptedTerms, acceptTerms } = useTerms();
   // Assert fid type for TypeScript
   const userFid = fid as number;
   
-  // Log using the appropriate module logger instead of console.log
-  demoLogger.info('Demo component initialized with userFid:', userFid, typeof userFid);
+  // Use a ref to track if this is the first render
+  const isFirstRender = useRef(true);
+  
+  // Only log initialization on the first render
+  useEffect(() => {
+    if (isFirstRender.current) {
+      demoLogger.info('Demo component initialized with userFid:', userFid, typeof userFid);
+      isFirstRender.current = false;
+    }
+  }, [userFid]);
   
   // 2. State Hooks
   const [currentPage, setCurrentPage] = useState<PageState>({
@@ -142,7 +147,24 @@ const Demo: React.FC = () => {
   const recentlyAddedNFT = useRef<string | null>(null);
   
   // Automatically deduplicate the recently played NFTs whenever they change
+  // Use a ref to track the previous NFTs array to avoid unnecessary processing
+  const prevRecentlyPlayedRef = useRef<string>('');
+  
   useEffect(() => {
+    // Create a fingerprint of the current array to compare with previous
+    const currentFingerprint = recentlyPlayedNFTs
+      .map(nft => `${nft.contract}-${nft.tokenId}`.toLowerCase())
+      .sort()
+      .join('|');
+      
+    // Skip processing if the array hasn't changed in a meaningful way
+    if (currentFingerprint === prevRecentlyPlayedRef.current) {
+      return;
+    }
+    
+    // Store the new fingerprint
+    prevRecentlyPlayedRef.current = currentFingerprint;
+    
     // Add a short delay to allow both updates to come in
     const timeoutId = setTimeout(() => {
       // Deduplicate NFTs based on contract and tokenId
@@ -2100,6 +2122,9 @@ const Demo: React.FC = () => {
     </div>
   );
 };
+
+// Wrap the Demo component with React.memo to prevent unnecessary re-renders
+const Demo = React.memo(DemoBase);
 
 export default Demo;
 //

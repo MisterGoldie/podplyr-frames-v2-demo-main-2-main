@@ -11,6 +11,19 @@ const nextConfig = {
   },
   experimental: {
     scrollRestoration: true,
+    // Optimize resource loading
+    optimizeCss: true,
+    // Reduce unnecessary preloads
+    optimizeServerReact: true,
+  },
+  // Optimize font loading
+  optimizeFonts: true,
+  // Configure preload strategy
+  onDemandEntries: {
+    // Number of pages to keep in memory
+    maxInactiveAge: 25 * 1000,
+    // Number of pages to cache
+    pagesBufferLength: 2,
   },
   typescript: {
     ignoreBuildErrors: true,

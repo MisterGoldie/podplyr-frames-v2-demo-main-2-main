@@ -198,7 +198,12 @@ self.addEventListener('fetch', event => {
     }
   }
 
-  // For other requests, use cache-first strategy
+  // Skip non-GET requests (POST, PUT, DELETE, etc.)
+  if (event.request.method !== 'GET') {
+    return;
+  }
+  
+  // For other GET requests, use cache-first strategy
   event.respondWith(
     caches.match(event.request)
       .then(cachedResponse => {
@@ -210,9 +215,15 @@ self.addEventListener('fetch', event => {
           .then(cache => {
             return fetch(event.request)
               .then(response => {
-                // Cache successful responses
+                // Only cache successful GET responses
                 if (response.status === 200) {
-                  cache.put(event.request, response.clone());
+                  try {
+                    // Clone the response before putting it in the cache
+                    const responseToCache = response.clone();
+                    cache.put(event.request, responseToCache);
+                  } catch (error) {
+                    console.warn('Failed to cache response:', error);
+                  }
                 }
                 return response;
               });
