@@ -94,13 +94,16 @@ export const VirtualizedNFTGrid: React.FC<VirtualizedNFTGridProps> = ({
       // This creates a wave-like appearance as cards animate in
       const staggerDelay = 0.05 * (index % 8) + 0.2; // Base delay of 0.2s plus stagger
       
-      // Create a stable unique key that respects the mediaKey architecture
+      // Create a truly unique key for each NFT
+      // Use mediaKey if available, otherwise use contract and tokenId with index as fallback
+      // Adding index ensures uniqueness even if duplicate NFTs exist in the data
       const uniqueKey = nft.mediaKey || `${nft.contract}-${nft.tokenId}`;
+      const stableKey = `${uniqueKey}-${index}`;
       
       return (
-        <ErrorBoundary key={`boundary-${uniqueKey}`}>
+        <ErrorBoundary key={`boundary-${stableKey}`}>
           <NFTCard
-            key={`${animationKey}-${uniqueKey}`}
+            key={stableKey}
             nft={nft}
             onPlay={async (nft) => {
               // Find this NFT's index in the visible NFTs array

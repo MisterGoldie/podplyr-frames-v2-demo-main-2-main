@@ -77,6 +77,11 @@ interface PageState {
   isUserProfile: boolean;
 }
 
+interface NavigationSource {
+  fromExplore: boolean;
+  fromProfile: boolean;
+}
+
 const pageTransition = {
   duration: 0.3,
   ease: [0.43, 0.13, 0.23, 0.96]
@@ -88,7 +93,7 @@ const pageVariants = {
   exit: { opacity: 0 }
 };
 
-const Demo: React.FC = () => {
+const DemoBase: React.FC = () => {
   // CRITICAL: Force ENABLE all logs for debugging
   // This overrides any previous disabling
   logger.setDebugMode(true);
@@ -98,17 +103,22 @@ const Demo: React.FC = () => {
   logger.enableLevel('error', true);
   logger.enableModule('firebase', true);
   
-  // Force direct console log to confirm logging is enabled
-  console.warn('📢📢📢 DEMO COMPONENT: Logging is ENABLED');
-  
   // 1. Context Hooks
   const { fid } = useContext(FarcasterContext);
   const { hasAcceptedTerms, acceptTerms } = useTerms();
   // Assert fid type for TypeScript
   const userFid = fid as number;
   
-  // Log using the appropriate module logger instead of console.log
-  demoLogger.info('Demo component initialized with userFid:', userFid, typeof userFid);
+  // Use a ref to track if this is the first render
+  const isFirstRender = useRef(true);
+  
+  // Only log initialization on the first render
+  useEffect(() => {
+    if (isFirstRender.current) {
+      demoLogger.info('Demo component initialized with userFid:', userFid, typeof userFid);
+      isFirstRender.current = false;
+    }
+  }, [userFid]);
   
   // 2. State Hooks
   const [currentPage, setCurrentPage] = useState<PageState>({
@@ -117,6 +127,12 @@ const Demo: React.FC = () => {
     isLibrary: false,
     isProfile: false,
     isUserProfile: false
+  });
+  
+  // Track where the user navigated from when going to a user profile
+  const [navigationSource, setNavigationSource] = useState<NavigationSource>({
+    fromExplore: false,
+    fromProfile: false
   });
   
   // Add state to track the current NFT queue for proper next/previous navigation
@@ -131,7 +147,24 @@ const Demo: React.FC = () => {
   const recentlyAddedNFT = useRef<string | null>(null);
   
   // Automatically deduplicate the recently played NFTs whenever they change
+  // Use a ref to track the previous NFTs array to avoid unnecessary processing
+  const prevRecentlyPlayedRef = useRef<string>('');
+  
   useEffect(() => {
+    // Create a fingerprint of the current array to compare with previous
+    const currentFingerprint = recentlyPlayedNFTs
+      .map(nft => `${nft.contract}-${nft.tokenId}`.toLowerCase())
+      .sort()
+      .join('|');
+      
+    // Skip processing if the array hasn't changed in a meaningful way
+    if (currentFingerprint === prevRecentlyPlayedRef.current) {
+      return;
+    }
+    
+    // Store the new fingerprint
+    prevRecentlyPlayedRef.current = currentFingerprint;
+    
     // Add a short delay to allow both updates to come in
     const timeoutId = setTimeout(() => {
       // Deduplicate NFTs based on contract and tokenId
@@ -1380,15 +1413,45 @@ const Demo: React.FC = () => {
               onReset={handleReset}
               onUserProfileClick={handleDirectUserSelect}
               onBack={() => {
-                // Go back to profile page instead of home
-                setCurrentPage({
-                  isHome: false,
-                  isExplore: false,
-                  isLibrary: false,
-                  isProfile: true,
-                  isUserProfile: false
+                // Log current navigation source for debugging
+                logger.info('Back button pressed, navigation source:', navigationSource);
+                
+                // Use navigation source to determine where to go back to
+                if (navigationSource.fromProfile) {
+                  // If user came from profile page, go back to profile
+                  logger.info('Navigating back to profile page');
+                  setCurrentPage({
+                    isHome: false,
+                    isExplore: false,
+                    isLibrary: false,
+                    isProfile: true,
+                    isUserProfile: false
+                  });
+                } else {
+                  // For all other cases, go back to explore page
+                  // This ensures we go back to recently searched users
+                  logger.info('Navigating back to explore page with recently searched users');
+                  
+                  // First clear the selected user to prevent state conflicts
+                  setSelectedUser(null);
+                  
+                  // Then update the page state
+                  // Only set isExplore to true, not isHome
+                  // This ensures only the Explore icon is highlighted
+                  setCurrentPage({
+                    isHome: false,
+                    isExplore: true,
+                    isLibrary: false,
+                    isProfile: false,
+                    isUserProfile: false
+                  });
+                }
+                
+                // Reset navigation source
+                setNavigationSource({
+                  fromExplore: false,
+                  fromProfile: false
                 });
-                setSelectedUser(null);
               }}
               currentUserFid={userFid || 0}
               onLikeToggle={handleLikeToggle}
@@ -1736,6 +1799,24 @@ const Demo: React.FC = () => {
     // This prevents flickering between users
     await new Promise(resolve => setTimeout(resolve, 50));
     
+    // Determine the navigation source based on current page
+    // When on the explore page, isHome is also true, so we need to check both
+    const isFromExplore = currentPage.isExplore || (currentPage.isHome && !currentPage.isProfile && !currentPage.isUserProfile && !currentPage.isLibrary);
+    const isFromProfile = currentPage.isProfile;
+    
+    // Log the current page state and navigation source for debugging
+    logger.info('Navigation source tracking:', { 
+      currentPage, 
+      isFromExplore, 
+      isFromProfile 
+    });
+    
+    // Track where the user is coming from
+    setNavigationSource({
+      fromExplore: isFromExplore,
+      fromProfile: isFromProfile
+    });
+    
     // Navigate to the user profile view first with a clean slate
     setCurrentPage({
       isHome: false,
@@ -2041,6 +2122,9 @@ const Demo: React.FC = () => {
     </div>
   );
 };
+
+// Wrap the Demo component with React.memo to prevent unnecessary re-renders
+const Demo = React.memo(DemoBase);
 
 export default Demo;
 //

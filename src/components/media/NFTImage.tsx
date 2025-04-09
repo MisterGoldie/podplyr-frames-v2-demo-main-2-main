@@ -31,6 +31,9 @@ interface NFTImageProps {
 const isArweaveUrl = (url: string): boolean => {
   if (!url || typeof url !== 'string') return false;
   
+  // Skip validation for default/local images
+  if (url.startsWith('/') || url.includes('default-nft.png')) return false;
+  
   // Protocol check is safe - only if it's the exact protocol
   if (url.startsWith('ar://')) return true;
   
@@ -40,8 +43,10 @@ const isArweaveUrl = (url: string): boolean => {
     return parsedUrl.hostname === 'arweave.net' || 
            parsedUrl.hostname.endsWith('.arweave.net');
   } catch (error) {
-    // If URL parsing fails, don't attempt substring matching
-    imageLogger.warn('Invalid URL in Arweave check', { url });
+    // Only log for non-default images to reduce console spam
+    if (!url.includes('default-nft.png')) {
+      imageLogger.warn('Invalid URL in Arweave check', { url });
+    }
     return false;
   }
 };
@@ -79,8 +84,10 @@ const isIpfsUrl = (url: string): boolean => {
     
     return isKnownHost || hasIpfsPath;
   } catch (error) {
-    // If URL parsing fails, don't attempt substring matching
-    imageLogger.warn('Invalid URL in IPFS check', { url });
+    // Only log for non-default images to reduce console spam
+    if (!url.includes('default-nft.png') && !url.startsWith('/')) {
+      imageLogger.warn('Invalid URL in IPFS check', { url });
+    }
     return false;
   }
 };
@@ -416,20 +423,25 @@ export const NFTImage: React.FC<NFTImageProps> = ({
   const attemptedFallbacks = useRef<Record<string, boolean>>({});
   
   const handleError = async (error: SyntheticEvent<HTMLVideoElement | HTMLImageElement>) => {
-    // Only log errors in development mode
-    if (process.env.NODE_ENV === 'development') {
-      imageLogger.warn('NFT Image load failed');
-    }
-    
     // Get the current failing URL
     const failedSrc = error.currentTarget.src || imgSrc;
     
     // Skip if we've already tried this fallback strategy
     const fallbackKey = `${failedSrc}-${retryCount}`;
     if (attemptedFallbacks.current[fallbackKey]) {
-      // Go straight to fallback image
+      // Go straight to fallback image without logging
       setImgSrc(fallbackSrc);
       return;
+    }
+    
+    // Only log errors in development mode and only for non-default images
+    // This reduces console spam for expected fallbacks
+    if (process.env.NODE_ENV === 'development' && !failedSrc.includes('/default-nft.png')) {
+      imageLogger.warn('NFT Image load failed', { 
+        nftName: nft?.name || 'Unknown',
+        mediaKey: nft ? getMediaKey(nft) : 'unknown',
+        attemptedUrl: failedSrc.substring(0, 100) // Truncate long URLs
+      });
     }
     
     // Mark this fallback as attempted

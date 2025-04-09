@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { NFT } from '../../types/user';
 import { preloadNftMedia } from '../../utils/cdn';
 import { getMediaKey, processMediaUrl } from '../../utils/media';
@@ -16,8 +16,8 @@ interface DirectVideoPlayerProps {
 // Create a dedicated logger for video player
 const videoLogger = logger.getModuleLogger('videoPlayer');
 
-// Define the component with explicit return type to fix TypeScript error
-export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({ 
+// Define the base component
+const DirectVideoPlayerBase: React.FC<DirectVideoPlayerProps> = ({ 
   nft, 
   onLoadComplete,
   onError 
@@ -90,6 +90,7 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
         }
       }
     };
+
     
     detectNetwork();
     
@@ -102,6 +103,7 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
         adjustQualityForCellular();
       }
     };
+
     
     if (typeof navigator !== 'undefined' && 'connection' in navigator) {
       (navigator as any).connection.addEventListener('change', handleNetworkChange);
@@ -112,6 +114,7 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
         (navigator as any).connection.removeEventListener('change', handleNetworkChange);
       }
     };
+
   }, []);
   
   // Function to adjust video quality based on network conditions
@@ -151,6 +154,7 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
       }
     }
   };
+
   
   // Monitor buffering state
   useEffect(() => {
@@ -176,6 +180,7 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
         }
       }
     };
+
     
     const handleWaiting = () => setBufferingState('loading');
     const handleCanPlay = () => {
@@ -183,6 +188,7 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
         setBufferingState('sufficient');
       }
     };
+
     
     video.addEventListener('progress', handleProgress);
     video.addEventListener('waiting', handleWaiting);
@@ -193,6 +199,7 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
       video.removeEventListener('waiting', handleWaiting);
       video.removeEventListener('canplay', handleCanPlay);
     };
+
   }, [bufferingState]);
   
   // Define multiple IPFS gateways to try
@@ -404,6 +411,7 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
       return () => {
         document.head.removeChild(link);
       };
+
     }
   }, [directUrl, isHostedPlayer, posterUrl]);
   
@@ -549,6 +557,7 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
       setBufferingState('sufficient');
       if (onLoadComplete) onLoadComplete();
     };
+
     
     // Add progress monitoring for buffering state
     const handleProgress = (): void => {
@@ -569,10 +578,12 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
         }
       }
     };
+
     
     const handleWaiting = (): void => {
       setBufferingState('loading');
     };
+
     
     const handleError = (e: Event): void => {
       // Only log the first error for each video
@@ -618,6 +629,7 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
         if (onError) onError(new Error('Video failed to load'));
       }
     };
+
     
     video.addEventListener('canplay', handleCanPlay);
     video.addEventListener('error', handleError);
@@ -638,6 +650,7 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
       }
       videoLogger.info('Video metadata loaded, switching to more aggressive loading');
     };
+
     
     video.addEventListener('loadedmetadata', handleLoadedMetadata);
     
@@ -668,6 +681,7 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
         video.load();
       }
     };
+
   }, [isHostedPlayer, onLoadComplete, onError, directUrl, isMobile, isIOS, isAndroid, hasError, currentGateway, retryCount, mediaKey, nft, MAX_RETRIES]);
   
   // Render an iframe for hosted players, or video for direct media
@@ -768,3 +782,12 @@ export const DirectVideoPlayer: React.FC<DirectVideoPlayerProps> = ({
     </div>
   );
 };
+
+// Export the memoized component to prevent unnecessary re-renders
+export const DirectVideoPlayer = React.memo(DirectVideoPlayerBase, (prevProps, nextProps) => {
+  // Only re-render if the NFT mediaKey changes
+  const prevMediaKey = getMediaKey(prevProps.nft);
+  const nextMediaKey = getMediaKey(nextProps.nft);
+  return prevMediaKey === nextMediaKey;
+});
+
