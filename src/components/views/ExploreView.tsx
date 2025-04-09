@@ -701,14 +701,7 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                               {user.display_name || user.username}
                             </h3>
                             <div className="flex items-center gap-2">
-                              {(user as any).isEns ? (
-                                <p className="font-mono text-purple-400 text-sm truncate flex items-center">
-                                  <span className="mr-1.5">⬡</span>
-                                  {(user as any).ensName}
-                                </p>
-                              ) : (
-                                <p className="font-mono text-gray-400 text-sm truncate">@{user.username}</p>
-                              )}
+                              <p className="font-mono text-gray-400 text-sm truncate">@{user.username}</p>
                             </div>
                             
                             {/* Stats row */}
@@ -719,11 +712,6 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                   </svg>
                                   Following
-                                </span>
-                              )}
-                              {(user as any).isEns && (
-                                <span className="text-xs font-mono px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded-full flex items-center">
-                                  ENS
                                 </span>
                               )}
                               {POD_MEMBER_FIDS.includes(user.fid) && (
@@ -846,14 +834,7 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                               {user.display_name || user.username}
                             </h3>
                             <div className="flex items-center gap-2">
-                              {(user as any).isEns ? (
-                                <p className="font-mono text-purple-400 text-sm truncate flex items-center">
-                                  <span className="mr-1.5">⬡</span>
-                                  {(user as any).ensName}
-                                </p>
-                              ) : (
-                                <p className="font-mono text-gray-400 text-sm truncate">@{user.username}</p>
-                              )}
+                              <p className="font-mono text-gray-400 text-sm truncate">@{user.username}</p>
                             </div>
                             
                             {/* Stats row */}
@@ -864,11 +845,6 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                   </svg>
                                   Following
-                                </span>
-                              )}
-                              {(user as any).isEns && (
-                                <span className="text-xs font-mono px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded-full flex items-center">
-                                  ENS
                                 </span>
                               )}
                               {POD_MEMBER_FIDS.includes(user.fid) && (

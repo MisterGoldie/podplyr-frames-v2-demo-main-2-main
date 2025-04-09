@@ -23,68 +23,64 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, isSearching, han
 
   useEffect(() => {
     const fetchSuggestions = async () => {
-      // Increase minimum length for search to reduce premature searches
-      if (username.length < 3) {
+      if (username.length < 2) {
         setSuggestions([]);
-        return;
-      }
-      
-      // For ENS searches, only search if it's a complete ENS name (ends with .eth)
-      // AND the user has stopped typing for at least the debounce period
-      const isEnsSearch = username.endsWith('.eth');
-      
-      // For incomplete ENS names (typing in progress), don't search
-      // This prevents the search while user is still entering "...goldie.eth"
-      const isIncompleteEnsName = username.includes('.') && !username.endsWith('.eth');
-      if (isIncompleteEnsName) {
         return;
       }
 
       try {
-        // Only import what we need
+        // Use a safer approach that avoids CORS issues
+        // Instead of direct API calls, use Firebase functions that are already imported
+        const { trackUserSearch } = await import('../../lib/firebase');
+        
+        // IMPORTANT: We need to search for users WITHOUT tracking the search
+        // We'll use searchUsers instead of trackUserSearch to avoid adding to recently searched
         const { searchUsers } = await import('../../lib/firebase');
         
-        // Search for users without tracking them in recently searched
+        // Search for users without tracking the search in recently searched
         const users = await searchUsers(username);
         
-        // Only update suggestions if the search term hasn't changed since we started searching
-        // This prevents old searches from overwriting newer ones
         if (users && users.length > 0) {
-          // If we found multiple users, show them all in the suggestions
-          setSuggestions(users.slice(0, 5)); // Limit to 5 suggestions
+          // Use the first matching user as a suggestion
+          const user = users[0];
+          const suggestion = {
+            fid: user.fid,
+            username: user.username,
+            display_name: user.display_name || user.username,
+            pfp_url: user.pfp_url || 'https://avatar.vercel.sh/' + user.username,
+            follower_count: user.follower_count || 0,
+            following_count: user.following_count || 0
+          };
+          
+          setSuggestions([suggestion]);
         } else {
-          // Fallback to hardcoded suggestions only if not searching for ENS
-          if (!isEnsSearch) {
-            // Use hardcoded suggestions for common searches
-            const commonUsers = [
-              {
-                fid: 1014485, // PODPLAYR_OFFICIAL_FID
-                username: 'podplayr',
-                display_name: 'PODPlayr',
-                pfp_url: 'https://i.imgur.com/XqQZ3Kc.png',
-                follower_count: 1000,
-                following_count: 100
-              },
-              {
-                fid: 15019, // A POD_MEMBER_FID
-                username: 'thepod',
-                display_name: 'The Pod',
-                pfp_url: 'https://avatar.vercel.sh/thepod',
-                follower_count: 500,
-                following_count: 200
-              }
-            ];
-            
-            // Filter common users by the search term
-            const filteredUsers = commonUsers.filter(user => 
-              user.username.toLowerCase().includes(username.toLowerCase()) ||
-              user.display_name.toLowerCase().includes(username.toLowerCase())
-            );
-            
-            setSuggestions(filteredUsers.length > 0 ? filteredUsers : []);
-          } else {
-            setSuggestions([]);
-          }
+          // Use hardcoded suggestions for common searches to avoid API calls
+          const commonUsers = [
+            {
+              fid: 1014485, // PODPLAYR_OFFICIAL_FID
+              username: 'podplayr',
+              display_name: 'PODPlayr',
+              pfp_url: 'https://i.imgur.com/XqQZ3Kc.png',
+              follower_count: 1000,
+              following_count: 100
+            },
+            {
+              fid: 15019, // A POD_MEMBER_FID
+              username: 'thepod',
+              display_name: 'The Pod',
+              pfp_url: 'https://avatar.vercel.sh/thepod',
+              follower_count: 500,
+              following_count: 200
+            }
+          ];
+          
+          // Filter common users by the search term
+          const filteredUsers = commonUsers.filter(user => 
+            user.username.toLowerCase().includes(username.toLowerCase()) ||
+            user.display_name.toLowerCase().includes(username.toLowerCase())
+          );
+          
+          setSuggestions(filteredUsers.length > 0 ? filteredUsers : []);
         }
       } catch (err) {
         console.error('Error fetching suggestions:', err);
@@ -92,8 +88,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, isSearching, han
       }
     };
 
-    // Increase debounce time to reduce API calls during typing
-    const debounceTimer = setTimeout(fetchSuggestions, 600);
+    const debounceTimer = setTimeout(fetchSuggestions, 300);
     return () => clearTimeout(debounceTimer);
   }, [username, userFid]);
 
@@ -126,7 +121,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, isSearching, han
           type="text"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
-          placeholder="Search Farcaster users or ENS names..."
+          placeholder="Explore Farcaster users.."
           className="w-full px-4 py-3 bg-transparent border-2 border-green-400/30 
                    rounded-full text-green-400 placeholder-green-400/50 
                    focus:outline-none focus:border-green-400 
