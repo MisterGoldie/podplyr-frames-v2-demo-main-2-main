@@ -77,6 +77,11 @@ interface PageState {
   isUserProfile: boolean;
 }
 
+interface NavigationSource {
+  fromExplore: boolean;
+  fromProfile: boolean;
+}
+
 const pageTransition = {
   duration: 0.3,
   ease: [0.43, 0.13, 0.23, 0.96]
@@ -117,6 +122,12 @@ const Demo: React.FC = () => {
     isLibrary: false,
     isProfile: false,
     isUserProfile: false
+  });
+  
+  // Track where the user navigated from when going to a user profile
+  const [navigationSource, setNavigationSource] = useState<NavigationSource>({
+    fromExplore: false,
+    fromProfile: false
   });
   
   // Add state to track the current NFT queue for proper next/previous navigation
@@ -1380,13 +1391,30 @@ const Demo: React.FC = () => {
               onReset={handleReset}
               onUserProfileClick={handleDirectUserSelect}
               onBack={() => {
-                // Go back to home view instead of profile page
-                setCurrentPage({
-                  isHome: true,
-                  isExplore: true,
-                  isLibrary: false,
-                  isProfile: false,
-                  isUserProfile: false
+                // Use navigation source to determine where to go back to
+                if (navigationSource.fromProfile) {
+                  // If user came from profile page, go back to profile
+                  setCurrentPage({
+                    isHome: false,
+                    isExplore: false,
+                    isLibrary: false,
+                    isProfile: true,
+                    isUserProfile: false
+                  });
+                } else {
+                  // Otherwise go back to explore/home view
+                  setCurrentPage({
+                    isHome: true,
+                    isExplore: true,
+                    isLibrary: false,
+                    isProfile: false,
+                    isUserProfile: false
+                  });
+                }
+                // Reset navigation source
+                setNavigationSource({
+                  fromExplore: false,
+                  fromProfile: false
                 });
                 setSelectedUser(null);
               }}
@@ -1735,6 +1763,24 @@ const Demo: React.FC = () => {
     // Small delay to ensure the UI shows the loading state before proceeding
     // This prevents flickering between users
     await new Promise(resolve => setTimeout(resolve, 50));
+    
+    // Determine the navigation source based on current page
+    // When on the explore page, isHome is also true, so we need to check both
+    const isFromExplore = currentPage.isExplore || (currentPage.isHome && !currentPage.isProfile && !currentPage.isUserProfile && !currentPage.isLibrary);
+    const isFromProfile = currentPage.isProfile;
+    
+    // Log the current page state and navigation source for debugging
+    logger.info('Navigation source tracking:', { 
+      currentPage, 
+      isFromExplore, 
+      isFromProfile 
+    });
+    
+    // Track where the user is coming from
+    setNavigationSource({
+      fromExplore: isFromExplore,
+      fromProfile: isFromProfile
+    });
     
     // Navigate to the user profile view first with a clean slate
     setCurrentPage({
