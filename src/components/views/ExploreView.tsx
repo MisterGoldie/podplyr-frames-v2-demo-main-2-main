@@ -777,14 +777,10 @@ const ExploreView: React.FC<ExploreViewProps> = (props) => {
                         
                         console.log('Selected user with addresses:', farcasterUser);
                         
-                        // Track the search before selecting the user
-                        console.log('=== EXPLORE: Tracking search ===');
-                        await trackUserSearch(user.username, effectiveUserFid);
-                        console.log('Search tracked successfully');
-                        
-                        // No need to manually refresh recent searches here
-                        // The subscription in Demo.tsx will handle it
-                        handleUserSelect(farcasterUser);
+                        // FIXED: Use handleDirectUserSelect to navigate to UserProfileView
+                        // This makes behavior consistent with typing in the search bar
+                        console.log('=== EXPLORE: User selected, calling handleDirectUserSelect ===');
+                        handleDirectUserSelect(farcasterUser);
                       }}
                       className="w-full text-left"
                     >
