@@ -2427,13 +2427,58 @@ export const searchUsers = async (query: string): Promise<FarcasterUser[]> => {
   // Clear any pending search
   if (searchTimeout) clearTimeout(searchTimeout);
 
-  // Return early if query is too short
-  if (query.length < 2) return [];
+  // Return early if query is too short (increased minimum length)
+  if (query.length < 3) return [];
+  
+  // Prevent searching for incomplete ENS names (e.g. while typing "mister.et")
+  // This avoids unnecessary ENS lookups during typing
+  const isIncompleteEnsName = query.includes('.') && !query.endsWith('.eth');
+  if (isIncompleteEnsName) {
+    return [];
+  }
+  
   try {
     const neynarKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
     if (!neynarKey) throw new Error('Neynar API key not found');
-
-    console.log('=== START USER SEARCH ===');
+    
+    // Only perform ENS lookup when the query ends with .eth
+    // This is the ONLY condition for ENS lookups - strict separation
+    const isEnsQuery = query.endsWith('.eth');
+    
+    // CASE 1: ENS NAME SEARCH - Only when query explicitly ends with .eth
+    if (isEnsQuery) {
+      try {
+        // Dynamically import ENS functions to avoid circular dependencies
+        const { getEnsProfile } = await import('./ens');
+        const { createENSUser } = await import('../types/ens');
+        
+        // Only log during development
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Attempting ENS lookup for:', query);
+        }
+        
+        const ensProfile = await getEnsProfile(query);
+        
+        if (ensProfile && ensProfile.address) {
+          // Only log during development
+          if (process.env.NODE_ENV === 'development') {
+            console.log('ENS profile found for:', query);
+          }
+          
+          const ensUser = createENSUser(ensProfile);
+          
+          // Return ONLY the ENS user - don't mix with Farcaster results
+          return [ensUser];
+        }
+        // If no ENS profile found, continue with Farcaster search as fallback
+      } catch (ensError) {
+        console.error('Error during ENS lookup:', ensError);
+        // Continue with Farcaster search as fallback
+      }
+    }
+    
+    // CASE 2: FARCASTER USER SEARCH
+    
     // If query is a number, treat it as FID
     const isFid = !isNaN(Number(query));
     const endpoint = isFid 
@@ -2484,8 +2529,8 @@ export const searchUsers = async (query: string): Promise<FarcasterUser[]> => {
       users = profileData.users;
     }
 
-    // Map and clean up user data
-    return users.map((user: any) => {
+    // Process Farcaster users
+    const farcasterUsers = users.map((user: any) => {
       let allAddresses: string[] = [];
 
       // Get verified addresses
@@ -2567,8 +2612,50 @@ export const searchUsers = async (query: string): Promise<FarcasterUser[]> => {
         }
       };
     });
+    
+    // IMPORTANT: Never mix ENS and Farcaster results unless explicitly searching for an ENS name
+    // For regular Farcaster searches, only return Farcaster results
+    
+    // If we explicitly searched for an ENS name (query ends with .eth) and found a result,
+    // we should have returned it by now at the top of this function
+    
+    // Return only the Farcaster results - no automatic ENS lookups
+    
+    // By this point, if it was an ENS query, we either returned the ENS result
+    // or continued with Farcaster search as a fallback. No need to check again.
+    
+    return farcasterUsers;
   } catch (error) {
     console.error('Error searching users:', error);
+    
+    // Only try ENS as fallback if the query explicitly ends with .eth
+    // This maintains strict separation between ENS and Farcaster searches
+    if (query.endsWith('.eth')) {
+      try {
+        const { getEnsProfile } = await import('./ens');
+        const { createENSUser } = await import('../types/ens');
+        
+        // Only log during development
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Attempting ENS lookup as fallback for:', query);
+        }
+        
+        const ensProfile = await getEnsProfile(query);
+        
+        if (ensProfile && ensProfile.address) {
+          // Only log during development
+          if (process.env.NODE_ENV === 'development') {
+            console.log('ENS profile found as fallback for:', query);
+          }
+          
+          const ensUser = createENSUser(ensProfile);
+          return [ensUser];
+        }
+      } catch (ensError) {
+        console.error('Error during ENS fallback lookup:', ensError);
+      }
+    }
+    
     return []; // Return empty array instead of throwing to maintain backward compatibility
   }
 };
