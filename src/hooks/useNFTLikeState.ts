@@ -19,6 +19,9 @@ const likeStateLogger = {
   error: (message: string, ...args: any[]) => console.error(`[LikeState] ${message}`, ...args),
 };
 
+// Cache to prevent duplicate listeners for the same NFT/FID combination
+const activeListeners = new Map<string, number>();
+
 export const useNFTLikeState = (nft: NFT | null, fid: number) => {
   const [isLiked, setIsLiked] = useState<boolean>(false);
   const [likesCount, setLikesCount] = useState<number>(0);
@@ -30,6 +33,9 @@ export const useNFTLikeState = (nft: NFT | null, fid: number) => {
   
   // Track subscription status
   const isSubscribedRef = useRef<boolean>(false);
+  
+  // Create a cache key for this NFT/FID combination
+  const cacheKeyRef = useRef<string>('');
 
   useEffect(() => {
     if (!nft || !fid) {
@@ -40,20 +46,28 @@ export const useNFTLikeState = (nft: NFT | null, fid: number) => {
       return;
     }
     
-    // Set loading true while we check
-    setIsLoading(true);
-
     const mediaKey = getMediaKey(nft);
     mediaKeyRef.current = mediaKey;
     
-    // Only log during development or when not in playback mode
-    if (process.env.NODE_ENV === 'development' && !isPlaybackActive()) {
+    // Create a cache key for this NFT/FID combination
+    const cacheKey = `${mediaKey}-${fid}`;
+    cacheKeyRef.current = cacheKey;
+    
+    // Check if we already have an active listener for this NFT/FID
+    const listenerCount = activeListeners.get(cacheKey) || 0;
+    activeListeners.set(cacheKey, listenerCount + 1);
+    
+    // Only log for the first instance of this NFT/FID combination
+    if (listenerCount === 0 && process.env.NODE_ENV === 'development' && !isPlaybackActive()) {
       likeStateLogger.info('Setting up like state listeners for:', { 
         nftName: nft.name, 
         mediaKey,
         fid
       });
     }
+    
+    // Set loading true while we check
+    setIsLoading(true);
     
     // FIRST: Do an immediate check instead of waiting for the listener
     const db = getFirestore();
@@ -177,16 +191,29 @@ export const useNFTLikeState = (nft: NFT | null, fid: number) => {
 
     // Cleanup listeners when component unmounts or NFT/FID changes
     return () => {
-      // Only log cleanup when not in playback mode
-      if (!isPlaybackActive()) {
-        likeStateLogger.debug('Cleaning up like state listeners for:', { 
-          mediaKey, 
-          nftName: nft?.name,
-          fid
-        });
+      const cacheKey = cacheKeyRef.current;
+      if (cacheKey) {
+        const count = activeListeners.get(cacheKey) || 0;
+        if (count <= 1) {
+          // This is the last instance, actually unsubscribe and remove from cache
+          activeListeners.delete(cacheKey);
+          
+          // Only log cleanup for the last instance when not in playback mode
+          if (!isPlaybackActive()) {
+            likeStateLogger.debug('Cleaning up like state listeners for:', { 
+              mediaKey, 
+              nftName: nft?.name,
+              fid
+            });
+          }
+          
+          unsubscribeGlobal();
+          unsubscribeUser();
+        } else {
+          // Decrement the counter but keep the listeners active
+          activeListeners.set(cacheKey, count - 1);
+        }
       }
-      unsubscribeGlobal();
-      unsubscribeUser();
       isSubscribedRef.current = false;
     };
   }, [nft, fid]);
