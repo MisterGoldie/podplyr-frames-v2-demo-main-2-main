@@ -253,6 +253,16 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
         newNFT.addedToRecentlyPlayed = true;
         newNFT.addedToRecentlyPlayedAt = new Date().getTime();
         
+        // Check if this NFT is already in the list
+        const isDuplicate = prevNFTs.some(item => {
+          const itemMediaKey = item.mediaKey || getMediaKey(item);
+          const contract_tokenId = `${item.contract}-${item.tokenId}`;
+          const new_contract_tokenId = `${nft.contract}-${nft.tokenId}`;
+          
+          return contract_tokenId === new_contract_tokenId || 
+                 (itemMediaKey && mediaKey && itemMediaKey === mediaKey);
+        });
+        
         // Filter out NFTs with the same mediaKey to avoid duplicates
         const filteredNFTs = prevNFTs.filter(item => {
           const itemMediaKey = item.mediaKey || getMediaKey(item);
@@ -261,22 +271,23 @@ export const useAudioPlayer = ({ fid = 1, setRecentlyPlayedNFTs, recentlyAddedNF
           
           // Check if this is actually the same NFT by contract-tokenId (as a fallback)
           if (contract_tokenId === new_contract_tokenId) {
-            audioLogger.debug(`Found exact duplicate by contract-tokenId: ${contract_tokenId}`);
             return false;
           }
           
           // Main mediaKey comparison (CRITICAL: primary mechanism for content-based tracking)
           if (itemMediaKey && mediaKey && itemMediaKey === mediaKey) {
-            audioLogger.debug(`Found duplicate by mediaKey: ${mediaKey.substring(0, 15)}...`);
             return false;
           }
           
           return true; // Keep this NFT in the filtered list
         });
         
-        audioLogger.info('Adding NFT to Recently Played (local state):', nft.name);
-        audioLogger.info('Using mediaKey for deduplication:', mediaKey?.substring(0, 12) + '...');
-        audioLogger.info('Local recently played update - previous count:', prevNFTs.length, 'new count:', filteredNFTs.length + 1);
+        // Only log if we're actually adding a new NFT (not a duplicate)
+        if (!isDuplicate) {
+          audioLogger.info('Adding NFT to Recently Played (local state):', nft.name);
+          audioLogger.info('Using mediaKey for deduplication:', mediaKey?.substring(0, 12) + '...');
+          audioLogger.info('Local recently played update - previous count:', prevNFTs.length, 'new count:', filteredNFTs.length + 1);
+        }
         
         // We already set the recentlyAddedNFT ref above, no need to do it again here
         

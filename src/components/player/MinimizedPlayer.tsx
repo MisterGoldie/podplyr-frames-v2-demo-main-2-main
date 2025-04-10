@@ -260,6 +260,9 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
     }
   }, [isPlaying, nft]);
 
+  // Ref to track if we've logged thumbnail preload for the current NFT
+  const hasLoggedThumbnailRef = useRef<string>('');
+
   // Explicitly preload the thumbnail when component mounts or nft changes
   useEffect(() => {
     if (!nft) return;
@@ -270,13 +273,20 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
     // Create image preloader
     const img = new Image();
     
+    // Generate a key for this NFT
+    const nftKey = `${nft.contract}-${nft.tokenId}`;
+    
     // Handle success
     img.onload = () => {
-      playerLogger.info('Successfully preloaded thumbnail for minimized player:', {
-        nft: nft.name || 'Unknown NFT',
-        contract: nft.contract,
-        tokenId: nft.tokenId
-      });
+      // Only log if we haven't already logged for this NFT
+      if (hasLoggedThumbnailRef.current !== nftKey) {
+        playerLogger.info('Successfully preloaded thumbnail for minimized player:', {
+          nft: nft.name || 'Unknown NFT',
+          contract: nft.contract,
+          tokenId: nft.tokenId
+        });
+        hasLoggedThumbnailRef.current = nftKey;
+      }
       setThumbLoaded(true);
     };
     
@@ -344,25 +354,32 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
     }
   }, [nft]);
 
-  // Add this function to the component to get the correct image URL for featured NFTs
-  const getFeaturedNFTImage = (currentNft: NFT): string => {
-    // First try to find a direct match in FEATURED_NFTS array
-    const featuredNft = FEATURED_NFTS.find(f => 
-      f.contract === currentNft.contract && f.tokenId === currentNft.tokenId
+  // Memoize the featured NFT detection to avoid repeated lookups
+  const featuredNft = React.useMemo(() => {
+    return FEATURED_NFTS.find(f => 
+      f.contract === nft.contract && f.tokenId === nft.tokenId
     );
-    
+  }, [nft.contract, nft.tokenId]);
+
+  // Log only once when the featured NFT is found (on nft change)
+  useEffect(() => {
     if (featuredNft && featuredNft.image) {
-      // Log successful match for debugging
       playerLogger.info('Found matching featured NFT image:', {
-        name: currentNft.name,
+        name: nft.name,
         foundImage: featuredNft.image
       });
+    }
+  }, [featuredNft, nft.name]);
+
+  // Memoize the image URL function to prevent unnecessary recalculations
+  const getFeaturedNFTImage = useCallback((currentNft: NFT): string => {
+    if (featuredNft && featuredNft.image) {
       return featuredNft.image;
     }
     
     // Fallback to standard image sources
     return currentNft.image || currentNft.metadata?.image || '';
-  };
+  }, [featuredNft]);
 
   return (
     <>
@@ -414,7 +431,7 @@ export const MinimizedPlayer: React.FC<MinimizedPlayerProps> = ({
                 )}
                 
                 {/* Use direct image tag for featured NFTs to bypass NFTImage component */}
-                {FEATURED_NFTS.some(f => f.contract === nft.contract && f.tokenId === nft.tokenId) ? (
+                {featuredNft ? (
                   <img
                     src={getFeaturedNFTImage(nft)}
                     alt={nft.name}

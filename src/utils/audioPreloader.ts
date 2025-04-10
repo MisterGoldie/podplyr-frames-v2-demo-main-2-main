@@ -114,6 +114,9 @@ const muxAssetCache: { [key: string]: MuxAssetResponse } = {};
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000; // 1 second
 
+// Cache to prevent duplicate network info logs
+const networkLogCache = new Set<string>();
+
 // Helper to delay execution
 const delay = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 
@@ -198,7 +201,12 @@ export const preloadAudio = async (nft: NFT, priority: 'high' | 'medium' | 'low'
     
     // Enhanced logging of network conditions for debugging
     if (process.env.NODE_ENV !== 'production') {
-      console.log(`[AudioPreloader] Network info for ${nft.name}:`, networkInfo);
+      // Only log once per NFT name
+      const cacheKey = `network-info-${nft.name}`;
+      if (!networkLogCache.has(cacheKey)) {
+        console.log(`[AudioPreloader] Network info for ${nft.name}:`, networkInfo);
+        networkLogCache.add(cacheKey);
+      }
     }
     
     // Enhanced decision logic for preloading on cellular connections

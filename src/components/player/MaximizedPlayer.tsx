@@ -307,16 +307,24 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
     }
   }, [nft]);
   
+  // Track the last logged mediaKey to prevent duplicate logs
+  const lastLoggedMediaKeyRef = useRef<string>('');
+  
   // Render video with proper fallbacks
   const renderVideo = () => {
     // Get the processed URL - this will use CDN if enabled or fall back to direct URL
     const videoUrl = processMediaUrl(nft.metadata?.animation_url || '', '', 'audio');
+    const currentMediaKey = getMediaKey(nft);
     
-    playerLogger.info('Video playback source:', {
-      nft: nft.name || 'Unknown NFT',
-      mediaKey: getMediaKey(nft),
-      url: videoUrl
-    });
+    // Only log when the mediaKey changes to avoid excessive logging
+    if (lastLoggedMediaKeyRef.current !== currentMediaKey) {
+      playerLogger.info('Video playback source:', {
+        nft: nft.name || 'Unknown NFT',
+        mediaKey: currentMediaKey,
+        url: videoUrl
+      });
+      lastLoggedMediaKeyRef.current = currentMediaKey;
+    }
     
     return (
       <div className="relative w-full h-full flex items-center justify-center">
