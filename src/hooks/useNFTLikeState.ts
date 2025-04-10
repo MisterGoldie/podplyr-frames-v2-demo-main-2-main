@@ -19,6 +19,7 @@ const likeStateLogger = {
   error: (message: string, ...args: any[]) => console.error(`[LikeState] ${message}`, ...args),
 };
 
+
 // Cache to prevent duplicate listeners for the same NFT/FID combination
 const activeListeners = new Map<string, number>();
 
