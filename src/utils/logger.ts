@@ -24,15 +24,15 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 // Set this to true to enable logs in production (normally should be false)
 const FORCE_LOGS_IN_PRODUCTION = false;
 
-// Master switch to enable/disable all logging - ENABLED for development
-export let DEBUG_MODE = true; // Enabled for development
+// Master switch to enable/disable all logging - DISABLED for production
+export let DEBUG_MODE = false; // Disabled for production
 
-// Enable log levels
+// Enable log levels - All disabled
 const ENABLED_LEVELS = {
-  debug: true,
-  info: true,
-  warn: true,
-  error: true,
+  debug: false,
+  info: false,
+  warn: false,
+  error: false,
 };
 
 // Enable logs for specific modules (can be customized)
@@ -95,8 +95,13 @@ const log = (
   message: string,
   ...args: any[]
 ) => {
-  // Skip logging if disabled for this level or module
-  if (!isLevelEnabled(level) || !isModuleEnabled(module)) {
+  // Skip logging if debug mode is disabled or if this level/module is disabled
+  if (!DEBUG_MODE || !isLevelEnabled(level) || !isModuleEnabled(module)) {
+    return;
+  }
+
+  // Only log in development or if forced in production
+  if (IS_PRODUCTION && !FORCE_LOGS_IN_PRODUCTION) {
     return;
   }
 
@@ -110,20 +115,28 @@ const log = (
 
 /**
  * Function to completely disable all logs and modal dialogs
- * Currently not used to allow console logs to work
  */
 const disableAllLogs = () => {
-  // Function disabled to allow console logs to work
-  return;
-  
-  // The code below will not execute
+  // Disable all logging
   DEBUG_MODE = false;
   ENABLED_LEVELS.debug = false;
   ENABLED_LEVELS.info = false;
   ENABLED_LEVELS.warn = false;
   ENABLED_LEVELS.error = false;
   
-  // We're not overriding console methods anymore to allow logs to appear
+  // Disable console methods in production
+  if (IS_PRODUCTION || FORCE_LOGS_IN_PRODUCTION === false) {
+    // No-op functions to replace console methods
+    const noop = () => {};
+    
+    // Override console methods
+    console.log = noop;
+    console.info = noop;
+    console.warn = noop;
+    console.error = noop;
+    console.debug = noop;
+  }
+  
   // Prevent modal dialogs from appearing
   if (typeof window !== 'undefined') {
     window.alert = () => {};
