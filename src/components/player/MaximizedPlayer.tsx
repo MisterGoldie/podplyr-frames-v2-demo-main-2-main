@@ -565,7 +565,7 @@ export const MaximizedPlayer: React.FC<MaximizedPlayerProps> = ({
                       onClick={() => {
                         // Personalize the share message with the NFT name
                         const shareText = `Check out "${nft.name}" on PODPLAYR! 📺`;
-                        const shareUrl = 'podplayr.vercel.app';
+                        const shareUrl = 'podplayr.xyz';
                         
                         // Use the imported SDK directly
                         sdk.actions.openUrl(`https://warpcast.com/~/compose?text=${encodeURIComponent(shareText)}&embeds[]=${encodeURIComponent(shareUrl)}`);

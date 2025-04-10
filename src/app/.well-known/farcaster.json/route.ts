@@ -2,19 +2,19 @@ export async function GET() {
   const config = {
     accountAssociation: {
       header: "eyJmaWQiOjEwMTQ0ODUsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHhEQkRCNmVCNUQ5MDE0MTY3NUVCNjdENzk3NDUwMzFlNDY2OGYzZkQyIn0",
-      payload: "eyJkb21haW4iOiJwb2RwbGF5ci52ZXJjZWwuYXBwIn0",
-      signature: "MHg0ZTMyNjNiNjZjMmQwM2E5NjU2Nzg4MmU0ZWJlY2Y5YzUwNzI4NWJhY2E1ZTZiYmE2YjkyYTg5YWM3MTdkZmU4MzJjNTA1ZDBlOTk4NTc5ZWJiZDVjZTg2YjQ0MWJiYzk5MjViYTgxNTBlOTk3OWI3MmM0MWM2MDA5ODFmNjE3ZTFi"
+      payload: "eyJkb21haW4iOiJwb2RwbGF5ci54eXoifQ",
+      signature: "MHgyYTExYTYzNzMxNDBmYjViZDU3MzUwZTc3YWZjYzc4ZTM2NmE3MTdiMjA2MTMwNGY5NDhlYzY0MTAwNzc3YzRkM2VjN2ExYmUwNzFhM2E3NDE2MmUxNzVlMTBjZWE4ODE4MjY2OGI1YTc2ODBjOGI4YTQwZTEwZjc5Y2NkZWU5MTFj"
     },
     frame: {
       version: "1",
       name: "PODPLAYR",
-      iconUrl: "https://podplayr.vercel.app/icon.png",
-      homeUrl: "https://podplayr.vercel.app",
-      imageUrl: "https://podplayr.vercel.app/image.png",
-      buttonTitle: "PODPLAYR",
-      splashImageUrl: "https://podplayr.vercel.app/splash.png",
+      iconUrl: "https://podplayr.xyz/icon.png",
+      homeUrl: "https://podplayr.xyz",
+      imageUrl: "https://podplayr.xyz/image.png",
+      buttonTitle: "Enter PODPLAYR",
+      splashImageUrl: "https://podplayr.xyz/splash.png",
       splashBackgroundColor: "#000000",
-      webhookUrl: "https://podplayr.vercel.app/api/webhook"
+      webhookUrl: "https://podplayr.xyz/api/webhook"
     },
   };
 
